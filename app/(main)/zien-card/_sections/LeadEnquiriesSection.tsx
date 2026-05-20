@@ -8,28 +8,22 @@ import {
   Text,
   TextInput,
   View,
+  Linking,
+  ActivityIndicator
 } from 'react-native';
-
-const STAT_CARDS = [
-  { key: 'total', label: 'Total Leads', value: '5', icon: 'account-outline' as const, iconBg: '#E0F2FE' },
-  { key: 'month', label: 'This Month', value: '3', icon: 'calendar-outline' as const, iconBg: '#DCFCE7' },
-  { key: 'rate', label: 'Response Rate', value: '80%', icon: 'email-open-outline' as const, iconBg: '#FFEDD5' },
-];
-
-interface Lead {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  date: string;
-  status: 'New' | 'Pending' | 'Contacted';
-  source: string;
-}
-
-const DUMMY_LEADS: Lead[] = [];
+import { useLeadEnquiries } from '@/hooks/useLeadEnquiries';
 
 interface LeadEnquiriesSectionProps {
   onSectionChange?: (section: string) => void;
+}
+
+function formatLeadDate(dateString: string): string {
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch (e) {
+    return 'Recently';
+  }
 }
 
 export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionProps) {
@@ -37,24 +31,43 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
   const styles = getStyles(colors);
 
   const [search, setSearch] = useState('');
+  const { data: leads = [], isLoading } = useLeadEnquiries();
 
   const onExportCsv = () => {
     // TODO: export leads as CSV
   };
 
-  const filteredLeads = DUMMY_LEADS.filter(lead =>
-    lead.name.toLowerCase().includes(search.toLowerCase()) ||
-    lead.email.toLowerCase().includes(search.toLowerCase())
+  const filteredLeads = leads.filter(lead =>
+    (lead.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (lead.email || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const getStatusColor = (status: Lead['status']) => {
-    switch (status) {
-      case 'New': return '#3B82F6';
-      case 'Pending': return '#F59E0B';
-      case 'Contacted': return '#10B981';
-      default: return '#64748B';
+  const thisMonthLeads = leads.filter(lead => {
+    try {
+      const date = new Date(lead.created_at);
+      const now = new Date();
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    } catch {
+      return false;
     }
-  };
+  }).length;
+
+  const responseRate = leads.length > 0 ? '100%' : '0%';
+
+  const statCardsData = [
+    { key: 'total', label: 'Total Leads', value: String(leads.length), icon: 'account-outline' as const, iconBg: '#E0F2FE' },
+    { key: 'month', label: 'This Month', value: String(thisMonthLeads), icon: 'calendar-outline' as const, iconBg: '#DCFCE7' },
+    { key: 'rate', label: 'Response Rate', value: responseRate, icon: 'email-open-outline' as const, iconBg: '#FFEDD5' },
+  ];
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+        <ActivityIndicator size="large" color={colors.accentTeal} />
+        <Text style={{ marginTop: 12, color: colors.textSecondary, fontWeight: '600' }}>Loading enquiries...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -64,7 +77,7 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
 
       {/* Summary cards */}
       <View style={styles.statsRow}>
-        {STAT_CARDS.map((stat) => (
+        {statCardsData.map((stat) => (
           <View key={stat.key} style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: stat.iconBg }]}>
               <MaterialCommunityIcons
@@ -91,11 +104,6 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
             onChangeText={setSearch}
           />
         </View>
-        <Pressable
-          style={styles.filtersBtn}
-          onPress={() => { }}>
-          <MaterialCommunityIcons name="filter-outline" size={20} color="#5B6B7A" />
-        </Pressable>
       </View>
 
       {/* Leads List */}
@@ -106,19 +114,21 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
           <View key={lead.id} style={styles.leadCard}>
             <View style={styles.leadHeader}>
               <View style={styles.leadInfo}>
-                <View style={[styles.avatar, { backgroundColor: getStatusColor(lead.status) + '20' }]}>
-                  <Text style={[styles.avatarText, { color: getStatusColor(lead.status) }]}>
-                    {lead.name[0]}
+                <View style={[styles.avatar, { backgroundColor: '#3B82F620' }]}>
+                  <Text style={[styles.avatarText, { color: '#3B82F6' }]}>
+                    {lead.name ? lead.name[0].toUpperCase() : '?'}
                   </Text>
                 </View>
-                <View>
-                  <Text style={styles.leadName}>{lead.name}</Text>
-                  <Text style={styles.leadDate}>{lead.date} • {lead.source}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.leadName} numberOfLines={1}>{lead.name}</Text>
+                  <Text style={styles.leadDate} numberOfLines={1}>
+                    {formatLeadDate(lead.created_at)} • {lead.digital_card?.profile_name || 'Digital Card'}
+                  </Text>
                 </View>
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(lead.status) + '15' }]}>
-                <View style={[styles.statusDot, { backgroundColor: getStatusColor(lead.status) }]} />
-                <Text style={[styles.statusText, { color: getStatusColor(lead.status) }]}>{lead.status}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: '#3B82F615' }]}>
+                <View style={[styles.statusDot, { backgroundColor: '#3B82F6' }]} />
+                <Text style={[styles.statusText, { color: '#3B82F6' }]}>New</Text>
               </View>
             </View>
 
@@ -133,14 +143,26 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
                 <MaterialCommunityIcons name="phone-outline" size={16} color="#9AA7B6" />
                 <Text style={styles.contactText}>{lead.phone}</Text>
               </View>
+              {lead.message ? (
+                <View style={[styles.contactItem, { alignItems: 'flex-start', marginTop: 4 }]}>
+                  <MaterialCommunityIcons name="message-outline" size={16} color="#9AA7B6" style={{ marginTop: 2 }} />
+                  <Text style={[styles.contactText, { fontWeight: '400', fontSize: 13, color: '#64748B' }]} numberOfLines={3}>
+                    "{lead.message}"
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.leadActions}>
-              <Pressable style={[styles.actionBtn, { backgroundColor: '#10B981' }]}>
+              <Pressable 
+                style={[styles.actionBtn, { backgroundColor: '#10B981' }]}
+                onPress={() => Linking.openURL(`tel:${lead.phone}`)}>
                 <MaterialCommunityIcons name="phone" size={18} color="#FFFFFF" />
                 <Text style={styles.actionBtnText}>Call</Text>
               </Pressable>
-              <Pressable style={[styles.actionBtn, { backgroundColor: colors.accentTeal }]}>
+              <Pressable 
+                style={[styles.actionBtn, { backgroundColor: colors.accentTeal }]}
+                onPress={() => Linking.openURL(`mailto:${lead.email}`)}>
                 <MaterialCommunityIcons name="email" size={18} color="#FFFFFF" />
                 <Text style={styles.actionBtnText}>Email</Text>
               </Pressable>
@@ -285,6 +307,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
+    marginRight: 8,
   },
   avatar: {
     width: 44,

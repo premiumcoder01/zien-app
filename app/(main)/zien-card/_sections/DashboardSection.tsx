@@ -3,8 +3,9 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { CreateDigitalCardPayload, DigitalCard, createDigitalCard, deleteDigitalCard } from '@/services/digitalCardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useLeadEnquiries } from '@/hooks/useLeadEnquiries';
 import { useState } from 'react';
-import { Alert, Clipboard, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Clipboard, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, Linking } from 'react-native';
 import { CreateCardModal } from '../_components/CreateCardModal';
 import { DeleteCardModal } from '../_components/DeleteCardModal';
 import { ProfileCard, type ProfileCardData } from '../_components/ProfileCard';
@@ -22,7 +23,7 @@ interface DashboardSectionProps {
 
 function mapToCardData(card: DigitalCard): ProfileCardData {
   return {
-    fullName: card.profile_name || card.full_name || '',
+    fullName: card.name || card.full_name || card.profile_name || '',
     title: card.title || '',
     legalRole: card.role || '',
     license: card.license || '',
@@ -56,11 +57,26 @@ export function DashboardSection({
   const [modalInitialType, setModalInitialType] = useState<'work' | 'personal'>('work');
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const enquiryCount = 0;
+  const { data: enquiries = [] } = useLeadEnquiries();
+  const cardLeads = enquiries.filter(e => String(e.digital_card_id) === String(activeCard?.id));
+  const enquiryCount = cardLeads.length;
+
+  const formatLeadDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
 
   const otherCards = cards.filter((c) => c.id !== activeCard?.id);
 
-  const profileUrl = `http://18.219.170.119:3000/card/${activeCard?.id}`;
+  const profileUrl = `https://staging.zien.ai/card/${activeCard?.id}`;
 
   const handleShare = async () => {
     if (!activeCard) return;
@@ -110,7 +126,7 @@ export function DashboardSection({
     try {
       await createDigitalCard(accessToken, payload);
       await refetch();
-      
+
       // Wait for refetch to complete, then try to find the new card
       setTimeout(() => {
         // Logic to select new card could go here
@@ -304,7 +320,7 @@ export function DashboardSection({
                   <Text style={styles.leadsLabel}>TOTAL LEADS</Text>
                   <Text style={styles.leadsMeta}>All time</Text>
                 </View>
-                <Text style={styles.leadsValue}>0</Text>
+                <Text style={styles.leadsValue}>{enquiryCount}</Text>
               </View>
             </View>
 
@@ -320,13 +336,76 @@ export function DashboardSection({
           <View style={styles.enquiriesSection}>
             <Text style={styles.enquiriesHeading}>Enquiries</Text>
             <Text style={styles.enquiriesSubheading}>Manage leads and contacts collected from your digital cards.</Text>
-            <View style={styles.enquiriesEmptyCard}>
-              <MaterialCommunityIcons name="account-group-outline" size={64} color={colors.textSecondary} />
-              <Text style={styles.enquiriesEmptyTitle}>No Data Yet</Text>
-              <Text style={styles.enquiriesEmptyText}>
-                Share your card QR code to start collecting enquiries. When someone scans and shares their info, it will appear here.
-              </Text>
-            </View>
+            
+            {cardLeads.length > 0 ? (
+              cardLeads.map((lead) => (
+                <View key={lead.id} style={styles.leadCard}>
+                  <View style={styles.leadHeader}>
+                    <View style={styles.leadInfo}>
+                      <View style={[styles.avatar, { backgroundColor: '#3B82F620' }]}>
+                        <Text style={[styles.avatarText, { color: '#3B82F6' }]}>
+                          {lead.name ? lead.name[0].toUpperCase() : '?'}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.leadName} numberOfLines={1}>{lead.name}</Text>
+                        <Text style={styles.leadDate} numberOfLines={1}>
+                          {formatLeadDate(lead.created_at)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: '#3B82F615' }]}>
+                      <View style={[styles.statusDot, { backgroundColor: '#3B82F6' }]} />
+                      <Text style={[styles.statusText, { color: '#3B82F6' }]}>New</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.divider} />
+
+                  <View style={styles.leadBody}>
+                    <View style={styles.contactItem}>
+                      <MaterialCommunityIcons name="email-outline" size={16} color="#9AA7B6" />
+                      <Text style={styles.contactText} numberOfLines={1}>{lead.email}</Text>
+                    </View>
+                    <View style={styles.contactItem}>
+                      <MaterialCommunityIcons name="phone-outline" size={16} color="#9AA7B6" />
+                      <Text style={styles.contactText}>{lead.phone}</Text>
+                    </View>
+                    {lead.message ? (
+                      <View style={[styles.contactItem, { alignItems: 'flex-start', marginTop: 4 }]}>
+                        <MaterialCommunityIcons name="message-outline" size={16} color="#9AA7B6" style={{ marginTop: 2 }} />
+                        <Text style={[styles.contactText, { fontWeight: '400', fontSize: 13, color: '#64748B' }]} numberOfLines={3}>
+                          "{lead.message}"
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.leadActions}>
+                    <Pressable 
+                      style={[styles.actionBtn, { backgroundColor: '#10B981' }]}
+                      onPress={() => Linking.openURL(`tel:${lead.phone}`)}>
+                      <MaterialCommunityIcons name="phone" size={18} color="#FFFFFF" />
+                      <Text style={styles.actionBtnText}>Call</Text>
+                    </Pressable>
+                    <Pressable 
+                      style={[styles.actionBtn, { backgroundColor: colors.accentTeal }]}
+                      onPress={() => Linking.openURL(`mailto:${lead.email}`)}>
+                      <MaterialCommunityIcons name="email" size={18} color="#FFFFFF" />
+                      <Text style={styles.actionBtnText}>Email</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={styles.enquiriesEmptyCard}>
+                <MaterialCommunityIcons name="account-group-outline" size={64} color={colors.textSecondary} />
+                <Text style={styles.enquiriesEmptyTitle}>No Data Yet</Text>
+                <Text style={styles.enquiriesEmptyText}>
+                  Share your card QR code to start collecting enquiries. When someone scans and shares their info, it will appear here.
+                </Text>
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -808,5 +887,108 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     color: colors.textPrimary,
+  },
+  leadCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: 20,
+    marginBottom: 16,
+    elevation: 3,
+    shadowColor: colors.cardShadowColor || 'rgba(0,0,0,0.05)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  leadHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  leadInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    marginRight: 8,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  leadName: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: colors.textPrimary,
+  },
+  leadDate: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.cardBorder,
+    marginVertical: 16,
+    opacity: 0.5,
+  },
+  leadBody: {
+    gap: 10,
+    marginBottom: 18,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  contactText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  leadActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  actionBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });

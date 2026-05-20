@@ -1,4 +1,5 @@
 import { useAppTheme } from '@/context/ThemeContext';
+import { useConversations, useCreateConversation, useSendMessage, useDeleteConversation, useLoadConversation } from '@/hooks/useChat';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -6,8 +7,9 @@ import {
     ExpoSpeechRecognitionModule,
     useSpeechRecognitionEvent,
 } from 'expo-speech-recognition';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    Alert,
     Animated,
     Dimensions,
     FlatList,
@@ -22,7 +24,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CHAT_HISTORY } from './chat/index';
+import type { Conversation } from '@/services/chatService';
 
 const { height } = Dimensions.get('window');
 
@@ -78,6 +80,25 @@ const SUGGESTIONS = [
 ];
 
 // ──────────────────────────────────────────────────────
+// Relative time helper
+// ──────────────────────────────────────────────────────
+function getRelativeTime(dateStr: string): string {
+    const now = new Date();
+    const date = new Date(dateStr);
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay < 7) return `${diffDay}d ago`;
+    const diffWeek = Math.floor(diffDay / 7);
+    if (diffWeek < 4) return `${diffWeek}w ago`;
+    return date.toLocaleDateString();
+}
+
+// ──────────────────────────────────────────────────────
 // Main Screen
 // ──────────────────────────────────────────────────────
 export default function ChatModalScreen() {
@@ -87,6 +108,42 @@ export default function ChatModalScreen() {
 
     const [inputText, setInputText] = useState('');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+
+    // TanStack Query hooks
+    const { data: conversations = [], isLoading: isLoadingHistory } = useConversations();
+    const createConversationMutation = useCreateConversation();
+    const sendMessageMutation = useSendMessage();
+    const deleteConversationMutation = useDeleteConversation();
+    const loadConversationMutation = useLoadConversation();
+
+    // Load an existing conversation's messages from the API
+    const loadConversationMessages = useCallback(async (conversationId: number) => {
+        try {
+            setMessages([]);
+            setIsAiTyping(true);
+            const conv = await loadConversationMutation.mutateAsync({ conversationId });
+            setActiveConversationId(conv.id);
+            const loadedMessages: ChatMessage[] = conv.messages.map((msg, idx) => ({
+                id: `loaded-${conv.id}-${idx}`,
+                text: msg.content,
+                isUser: msg.role === 'user',
+                isTyping: false,
+            }));
+            setMessages(loadedMessages);
+            setIsAiTyping(false);
+            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
+        } catch (error: any) {
+            setIsAiTyping(false);
+            const errMsg: ChatMessage = {
+                id: `err-load-${Date.now()}`,
+                text: error?.message || 'Failed to load conversation.',
+                isUser: false,
+                isTyping: false,
+            };
+            setMessages([errMsg]);
+        }
+    }, [loadConversationMutation]);
 
     const [isAiTyping, setIsAiTyping] = useState(false);
     const [inputFocused, setInputFocused] = useState(false);
@@ -172,29 +229,67 @@ export default function ChatModalScreen() {
 
 
 
-    const handleSubmit = useCallback((overrideText?: string) => {
+    const handleSubmit = useCallback(async (overrideText?: string) => {
         const text = (overrideText ?? inputText).trim();
         if (!text || isAiTyping) return;
 
         const timestamp = Date.now().toString();
         const userMsg: ChatMessage = { id: `u-${timestamp}`, text, isUser: true };
-        const aiResponseText = `I've analyzed your request for "${text}". I've identified 3 potential listing matches and optimized your CRM filters to target higher-intent leads. Would you like me to draft the outreach email now?`;
-        const aiMsg: ChatMessage = { id: `ai-${timestamp}`, text: aiResponseText, isUser: false, isTyping: true };
 
-        setMessages((prev) => [...prev, userMsg, aiMsg]);
+        // Show user message immediately (optimistic)
+        setMessages((prev) => [...prev, userMsg]);
         setInputText('');
         setIsAiTyping(true);
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    }, [inputText, isAiTyping]);
 
-    const params = useLocalSearchParams<{ initialMessage?: string; startVoice?: string }>();
+        try {
+            // Create conversation if none exists
+            let convId = activeConversationId;
+            if (!convId) {
+                const newConv = await createConversationMutation.mutateAsync({ title: text });
+                convId = newConv.id;
+                setActiveConversationId(convId);
+            }
+
+            // Send message & get AI response
+            const response = await sendMessageMutation.mutateAsync({
+                conversationId: convId,
+                content: text,
+            });
+
+            const aiMsg: ChatMessage = {
+                id: `ai-${timestamp}`,
+                text: response.aiMessage.content,
+                isUser: false,
+                isTyping: true,
+            };
+            setMessages((prev) => [...prev, aiMsg]);
+            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+        } catch (error: any) {
+            // Show error as AI message
+            const errMsg: ChatMessage = {
+                id: `err-${timestamp}`,
+                text: error?.message || 'Something went wrong. Please try again.',
+                isUser: false,
+                isTyping: false,
+            };
+            setMessages((prev) => [...prev, errMsg]);
+            setIsAiTyping(false);
+        }
+    }, [inputText, isAiTyping, activeConversationId, createConversationMutation, sendMessageMutation]);
+
+    const params = useLocalSearchParams<{ initialMessage?: string; startVoice?: string; conversationId?: string }>();
     const initialMessageProcessed = useRef(false);
 
     // ── Handle initial message from params ────────────────
     useEffect(() => {
-        if (params.initialMessage && !initialMessageProcessed.current) {
+        if (params.conversationId && !initialMessageProcessed.current) {
             initialMessageProcessed.current = true;
-            // Short delay to ensure component is fully ready
+            setTimeout(() => {
+                loadConversationMessages(Number(params.conversationId));
+            }, 300);
+        } else if (params.initialMessage && !initialMessageProcessed.current) {
+            initialMessageProcessed.current = true;
             setTimeout(() => {
                 handleSubmit(params.initialMessage);
             }, 300);
@@ -204,12 +299,12 @@ export default function ChatModalScreen() {
                 startVoice();
             }, 300);
         }
-    }, [params.initialMessage, params.startVoice, handleSubmit, startVoice]);
+    }, [params.initialMessage, params.startVoice, params.conversationId, handleSubmit, startVoice, loadConversationMessages]);
 
     const handleClear = useCallback(() => {
         setMessages([]);
         setIsAiTyping(false);
-        // Also clear internal ref so it can re-trigger if needed next time (though usually modal unmounts)
+        setActiveConversationId(null);
         initialMessageProcessed.current = false;
     }, []);
 
@@ -487,9 +582,9 @@ export default function ChatModalScreen() {
                                     </View>
                                     <Pressable
                                         style={({ pressed }) => [styles.historyNewBtn, pressed && { opacity: 0.8 }]}
-                                        onPress={() => {
+                                    onPress={() => {
                                             setShowHistoryModal(false);
-                                            setMessages([]);
+                                            handleClear();
                                         }}
                                     >
                                         <MaterialCommunityIcons name="plus" size={14} color="#FFF" />
@@ -498,37 +593,69 @@ export default function ChatModalScreen() {
                                 </View>
 
                                 <FlatList
-                                    data={CHAT_HISTORY.filter(item =>
+                                    data={conversations.filter((item: Conversation) =>
                                         item.title.toLowerCase().includes(historySearch.toLowerCase())
-                                    ).slice(0, 10)}
+                                    ).slice(0, 20)}
                                     ListEmptyComponent={
-                                        historySearch.length > 0 ? (
+                                        isLoadingHistory ? (
+                                            <View style={styles.historyEmptyState}>
+                                                <Text style={styles.historyEmptyText}>Loading conversations...</Text>
+                                            </View>
+                                        ) : historySearch.length > 0 ? (
                                             <View style={styles.historyEmptyState}>
                                                 <MaterialCommunityIcons name="chat-remove-outline" size={40} color={colors.textMuted || "#94A3B8"} />
                                                 <Text style={styles.historyEmptyText}>No matching chats found for "{historySearch}"</Text>
                                             </View>
-                                        ) : null
+                                        ) : (
+                                            <View style={styles.historyEmptyState}>
+                                                <MaterialCommunityIcons name="chat-outline" size={40} color={colors.textMuted || "#94A3B8"} />
+                                                <Text style={styles.historyEmptyText}>No conversations yet. Start a new chat!</Text>
+                                            </View>
+                                        )
                                     }
-                                    keyExtractor={(item) => item.id}
+                                    keyExtractor={(item: Conversation) => item.id.toString()}
                                     contentContainerStyle={styles.historyList}
                                     showsVerticalScrollIndicator={false}
-                                    renderItem={({ item }) => (
+                                    renderItem={({ item }: { item: Conversation }) => (
                                         <Pressable
                                             style={({ pressed }) => [styles.historyCard, pressed && styles.historyCardPressed]}
                                             onPress={() => {
                                                 setShowHistoryModal(false);
-                                                setMessages([]);
-                                                setTimeout(() => handleSubmit(item.title), 300);
+                                                loadConversationMessages(item.id);
                                             }}
                                         >
                                             <View style={styles.historyIconBox}>
-                                                <MaterialCommunityIcons name={item.icon} size={16} color="#5B6B7A" />
+                                                <MaterialCommunityIcons name="robot-outline" size={16} color="#5B6B7A" />
                                             </View>
                                             <View style={styles.historyCardContent}>
                                                 <Text style={styles.historyCardTitle} numberOfLines={1}>{item.title}</Text>
-                                                <Text style={styles.historyCardSubtitle}>{item.time}</Text>
+                                                <Text style={styles.historyCardSubtitle}>{getRelativeTime(item.updated_at)}</Text>
                                             </View>
-                                            <MaterialCommunityIcons name="chevron-right" size={16} color="#E2E8F0" />
+                                            <Pressable
+                                                onPress={() => {
+                                                    Alert.alert(
+                                                        'Delete Conversation',
+                                                        `Delete "${item.title}"?`,
+                                                        [
+                                                            { text: 'Cancel', style: 'cancel' },
+                                                            {
+                                                                text: 'Delete',
+                                                                style: 'destructive',
+                                                                onPress: () => {
+                                                                    deleteConversationMutation.mutate({ conversationId: item.id });
+                                                                    if (activeConversationId === item.id) {
+                                                                        handleClear();
+                                                                    }
+                                                                },
+                                                            },
+                                                        ]
+                                                    );
+                                                }}
+                                                style={({ pressed }) => [styles.historyDeleteBtn, pressed && { opacity: 0.6 }]}
+                                                hitSlop={6}
+                                            >
+                                                <MaterialCommunityIcons name="trash-can-outline" size={14} color="#EF4444" />
+                                            </Pressable>
                                         </Pressable>
                                     )}
                                 />
@@ -1095,6 +1222,15 @@ function getStyles(colors: any) {
             fontSize: 13,
             fontWeight: '800',
             color: colors.accentTeal,
+        },
+        historyDeleteBtn: {
+            width: 30,
+            height: 30,
+            borderRadius: 8,
+            backgroundColor: '#FEE2E2',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginLeft: 6,
         },
     });
 }

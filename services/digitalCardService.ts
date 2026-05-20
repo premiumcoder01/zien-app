@@ -273,3 +273,48 @@ export const getCardAnalytics = async (accessToken: string, cardId: string): Pro
     clearTimeout(timeoutId);
   }
 };
+
+export interface LeadEnquiryItem {
+  id: number;
+  digital_card_id: number;
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
+  created_at: string;
+  updated_at: string;
+  digital_card?: {
+    profile_name: string;
+  };
+}
+
+export const getLeadEnquiries = async (accessToken: string): Promise<LeadEnquiryItem[]> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${DIGITAL_CARD_API_BASE_URL}/solo/digital-cards/enquiries/all`, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    const data = await response.json().catch(() => ([]));
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status}`);
+    }
+
+    return Array.isArray(data) ? data : [];
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Lead enquiries request timed out.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};

@@ -1,9 +1,13 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Theme } from '@/constants/theme';
+import { useConversations, useDeleteConversation } from '@/hooks/useChat';
+import type { Conversation } from '@/services/chatService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     FlatList,
     Pressable,
     StyleSheet,
@@ -13,128 +17,74 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export type ChatHistoryItem = {
-    id: string;
-    title: string;
-    time: string;
-    snippet: string;
-    icon: keyof typeof MaterialCommunityIcons.glyphMap;
-};
-
-export const CHAT_HISTORY: ChatHistoryItem[] = [
-    {
-        id: '1',
-        title: 'Property valuation for 124 Ocean Drive',
-        time: '2 hours ago',
-        snippet: 'The valuation report is ready...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '2',
-        title: 'Lead engagement strategy',
-        time: 'Yesterday',
-        snippet: 'Based on recent activity, I suggest...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '3',
-        title: 'Social media campaign ideas',
-        time: '2 days ago',
-        snippet: 'Here are 5 content ideas for your...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '4',
-        title: 'Investment ROI analysis',
-        time: '3 days ago',
-        snippet: 'The projected return on investment for...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '5',
-        title: 'Marketing copy for Malibu Villa',
-        time: '4 days ago',
-        snippet: 'Experience the ultimate luxury in...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '6',
-        title: 'Follow-up email sequence',
-        time: '5 days ago',
-        snippet: 'Hi Sarah, it was great meeting you...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '7',
-        title: 'Market trends in Los Angeles',
-        time: '1 week ago',
-        snippet: 'The current market trends show a...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '8',
-        title: 'Client presentation deck notes',
-        time: '1 week ago',
-        snippet: 'Key points to highlight in the deck...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '9',
-        title: 'Property tax analysis',
-        time: '2 weeks ago',
-        snippet: 'The estimated property tax for 2026 is...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '10',
-        title: 'Neighborhood guide: Brentwood',
-        time: '2 weeks ago',
-        snippet: 'Brentwood is a prestigious area known for...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '11',
-        title: 'Closing documents checklist',
-        time: '3 weeks ago',
-        snippet: 'Prepare these documents before the...',
-        icon: 'robot-outline',
-    },
-    {
-        id: '12',
-        title: 'Open house prep list',
-        time: '1 month ago',
-        snippet: 'Make sure these 10 items are ready...',
-        icon: 'robot-outline',
-    },
-];
+// ──────────────────────────────────────────────────────
+// Relative time helper
+// ──────────────────────────────────────────────────────
+function getRelativeTime(dateStr: string): string {
+    const now = new Date();
+    const date = new Date(dateStr);
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay < 7) return `${diffDay}d ago`;
+    const diffWeek = Math.floor(diffDay / 7);
+    if (diffWeek < 4) return `${diffWeek}w ago`;
+    return date.toLocaleDateString();
+}
 
 export default function ChatHistoryScreen() {
     const router = useRouter();
     const [searchQuery, setSearchQuery] = useState('');
+    const { data: conversations = [], isLoading, isError } = useConversations();
+    const deleteConversationMutation = useDeleteConversation();
 
-    const filteredHistory = CHAT_HISTORY.filter(item => 
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.snippet.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredHistory = conversations.filter((item: Conversation) =>
+        item.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const renderItem = ({ item }: { item: ChatHistoryItem }) => (
+    const handleDelete = (item: Conversation) => {
+        Alert.alert(
+            'Delete Conversation',
+            `Are you sure you want to delete "${item.title}"?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: () => deleteConversationMutation.mutate({ conversationId: item.id }),
+                },
+            ]
+        );
+    };
+
+    const renderItem = ({ item }: { item: Conversation }) => (
         <Pressable
             style={({ pressed }) => [styles.chatCard, pressed && styles.chatCardPressed]}
             onPress={() => router.push({
                 pathname: '/(main)/chat-modal',
-                params: { initialMessage: item.title }
+                params: { conversationId: item.id.toString() }
             })}
         >
             <View style={styles.iconBox}>
-                <MaterialCommunityIcons name={item.icon} size={18} color="#5B6B7A" />
+                <MaterialCommunityIcons name="robot-outline" size={18} color="#5B6B7A" />
             </View>
             <View style={styles.cardContent}>
                 <Text style={styles.cardTitle}>{item.title}</Text>
                 <Text style={styles.cardSubtitle}>
-                    {item.time} <Text style={styles.dot}>•</Text> {item.snippet}
+                    {getRelativeTime(item.updated_at)}
                 </Text>
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={18} color="#E2E8F0" />
+            <Pressable
+                onPress={() => handleDelete(item)}
+                style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.6 }]}
+                hitSlop={8}
+            >
+                <MaterialCommunityIcons name="trash-can-outline" size={18} color="#EF4444" />
+            </Pressable>
         </Pressable>
     );
 
@@ -171,22 +121,35 @@ export default function ChatHistoryScreen() {
                 </Pressable>
             </View>
 
-            <FlatList
-                data={filteredHistory}
-                keyExtractor={(item) => item.id}
-                renderItem={renderItem}
-                contentContainerStyle={styles.listContainer}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                    searchQuery.length > 0 ? (
-                        <View style={styles.emptyState}>
-                            <MaterialCommunityIcons name="magnify-close" size={48} color="#CBD5E1" />
-                            <Text style={styles.emptyStateTitle}>No results found</Text>
-                            <Text style={styles.emptyStateText}>We couldn't find any chats matching "{searchQuery}"</Text>
-                        </View>
-                    ) : null
-                }
-            />
+            {isLoading ? (
+                <View style={styles.loadingState}>
+                    <ActivityIndicator size="large" color={Theme.accentTeal} />
+                    <Text style={styles.loadingText}>Loading conversations...</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={filteredHistory}
+                    keyExtractor={(item: Conversation) => item.id.toString()}
+                    renderItem={renderItem}
+                    contentContainerStyle={styles.listContainer}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        searchQuery.length > 0 ? (
+                            <View style={styles.emptyState}>
+                                <MaterialCommunityIcons name="magnify-close" size={48} color="#CBD5E1" />
+                                <Text style={styles.emptyStateTitle}>No results found</Text>
+                                <Text style={styles.emptyStateText}>We couldn't find any chats matching "{searchQuery}"</Text>
+                            </View>
+                        ) : (
+                            <View style={styles.emptyState}>
+                                <MaterialCommunityIcons name="chat-outline" size={48} color="#CBD5E1" />
+                                <Text style={styles.emptyStateTitle}>No conversations yet</Text>
+                                <Text style={styles.emptyStateText}>Start a new chat to begin your AI-powered journey</Text>
+                            </View>
+                        )
+                    }
+                />
+            )}
         </SafeAreaView>
     );
 }
@@ -303,5 +266,26 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 8,
         lineHeight: 20,
+    },
+    loadingState: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingBottom: 80,
+    },
+    loadingText: {
+        fontSize: 14,
+        color: '#627D98',
+        marginTop: 12,
+        fontWeight: '500',
+    },
+    deleteBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: '#FEE2E2',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 8,
     },
 });

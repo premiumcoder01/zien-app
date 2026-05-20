@@ -62,6 +62,8 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
   const [uploadingField, setUploadingField] = useState<'image' | 'logo' | null>(null);
   const [pickerState, setPickerState] = useState<{ isVisible: boolean; field: 'image' | 'logo' | null }>({ isVisible: false, field: null });
   const [errors, setErrors] = useState<{ name?: string; title?: string; phone?: string; email?: string; website?: string }>({});
+  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
+  const [localLogoUri, setLocalLogoUri] = useState<string | null>(null);
 
   console.log(activeCard)
 
@@ -71,6 +73,8 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
   // Sync form when activeCard changes (e.g. from Dashboard)
   useEffect(() => {
     setForm(activeCard);
+    setLocalPhotoUri(null);
+    setLocalLogoUri(null);
   }, [activeCard]);
 
   // Handle save from header trigger
@@ -180,6 +184,8 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
 
   const handleImageRemove = (field: 'image' | 'logo') => {
     setForm(p => ({ ...p, [field]: '' }));
+    if (field === 'image') setLocalPhotoUri(null);
+    if (field === 'logo') setLocalLogoUri(null);
   };
 
   const handlePickerSelect = async (source: 'gallery' | 'camera') => {
@@ -200,7 +206,10 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
         quality: 0.3,
       });
       if (!result.canceled && result.assets[0]) {
-        performUpload(result.assets[0].uri, field);
+        const uri = result.assets[0].uri;
+        if (field === 'image') setLocalPhotoUri(uri);
+        if (field === 'logo') setLocalLogoUri(uri);
+        performUpload(uri, field);
       }
     } else if (source === 'camera') {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -213,13 +222,35 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
         quality: 0.3,
       });
       if (!result.canceled && result.assets[0]) {
-        performUpload(result.assets[0].uri, field);
+        const uri = result.assets[0].uri;
+        if (field === 'image') setLocalPhotoUri(uri);
+        if (field === 'logo') setLocalLogoUri(uri);
+        performUpload(uri, field);
       }
     }
   };
 
+  if (!activeCard) {
+    return (
+      <View style={styles.emptyContainer}>
+        <View style={styles.emptyIconCircle}>
+          <MaterialCommunityIcons name="card-bulleted-off-outline" size={36} color={colors.textSecondary} />
+        </View>
+        <Text style={styles.emptyTitle}>No Card Found</Text>
+        <Text style={styles.emptySub}>
+          Please create your first digital business card from the Dashboard to configure your basic information.
+        </Text>
+        <Pressable 
+          style={({ pressed }) => [styles.emptyGoBtn, pressed && { opacity: 0.9 }]}
+          onPress={() => onSectionChange?.('/(main)/zien-card')}>
+          <Text style={styles.emptyGoBtnText}>Go to Dashboard</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   const cardData: ProfileCardData = {
-    fullName: form.profile_name || form.name || '',
+    fullName: form.name || form.profile_name || '',
     title: form.title || '',
     legalRole: form.role || '',
     license: form.license || '',
@@ -249,8 +280,8 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
             card={cardData}
             accentColor={form.card_color || undefined}
             template={(form.template as any) || 'modern'}
-            avatarUri={form.image?.trim() || undefined}
-            companyLogoUri={form.logo?.trim() || undefined}
+            avatarUri={localPhotoUri || form.image?.trim() || undefined}
+            companyLogoUri={localLogoUri || form.logo?.trim() || undefined}
           />
         </View>
 
@@ -377,8 +408,8 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
                 <View style={[styles.avatarPreview, { backgroundColor: colors.accentTeal + '20' }]}>
                   {uploadingField === 'image' ? (
                     <ActivityIndicator color={colors.accentTeal} />
-                  ) : form.image ? (
-                    <Image source={{ uri: form.image }} style={styles.previewImg} />
+                  ) : (localPhotoUri || form.image) ? (
+                    <Image source={{ uri: localPhotoUri || form.image }} style={styles.previewImg} />
                   ) : (
                     <Text style={styles.initialsText}>{getInitials(form.name || form.profile_name)}</Text>
                   )}
@@ -392,10 +423,10 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
                     <Pressable
                       style={styles.uploadActionButton}
                       onPress={() => handleImagePick('image')}>
-                      <MaterialCommunityIcons name={form.image ? "refresh" : "upload-outline"} size={16} color={colors.accentTeal} />
-                      <Text style={styles.uploadActionText}>{form.image ? 'Update Photo' : 'Upload Photo'}</Text>
+                      <MaterialCommunityIcons name={(localPhotoUri || form.image) ? "refresh" : "upload-outline"} size={16} color={colors.accentTeal} />
+                      <Text style={styles.uploadActionText}>{(localPhotoUri || form.image) ? 'Update Photo' : 'Upload Photo'}</Text>
                     </Pressable>
-                    {!!form.image && (
+                    {!!(localPhotoUri || form.image) && (
                       <Pressable
                         style={[styles.uploadActionButton, { borderColor: '#EF4444' }]}
                         onPress={() => handleImageRemove('image')}>
@@ -414,8 +445,8 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
                 <View style={styles.logoPreview}>
                   {uploadingField === 'logo' ? (
                     <ActivityIndicator color={colors.accentTeal} />
-                  ) : form.logo ? (
-                    <Image source={{ uri: form.logo }} style={styles.previewImg} resizeMode="contain" />
+                  ) : (localLogoUri || form.logo) ? (
+                    <Image source={{ uri: localLogoUri || form.logo }} style={styles.previewImg} resizeMode="contain" />
                   ) : (
                     <View style={styles.noLogoWrap}>
                       <MaterialCommunityIcons name="image-outline" size={24} color={colors.textSecondary} />
@@ -432,10 +463,10 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
                     <Pressable
                       style={[styles.uploadActionButton, styles.uploadActionButtonOutline, { marginTop: 0 }]}
                       onPress={() => handleImagePick('logo')}>
-                      <MaterialCommunityIcons name={form.logo ? "refresh" : "upload-outline"} size={16} color={colors.textPrimary} />
-                      <Text style={[styles.uploadActionText, { color: colors.textPrimary }]}>{form.logo ? 'Update Logo' : 'Upload Logo'}</Text>
+                      <MaterialCommunityIcons name={(localLogoUri || form.logo) ? "refresh" : "upload-outline"} size={16} color={colors.textPrimary} />
+                      <Text style={[styles.uploadActionText, { color: colors.textPrimary }]}>{(localLogoUri || form.logo) ? 'Update Logo' : 'Upload Logo'}</Text>
                     </Pressable>
-                    {!!form.logo && (
+                    {!!(localLogoUri || form.logo) && (
                       <Pressable
                         style={[styles.uploadActionButton, { borderColor: '#EF4444', marginTop: 0 }]}
                         onPress={() => handleImageRemove('logo')}>
@@ -1010,5 +1041,48 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   previewActionTextDanger: {
     color: '#DC2626',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+    minHeight: 400,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  emptySub: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 24,
+  },
+  emptyGoBtn: {
+    backgroundColor: colors.accentTeal,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  emptyGoBtnText: {
+    color: '#0B2D3E',
+    fontWeight: '900',
+    fontSize: 14,
   },
 });

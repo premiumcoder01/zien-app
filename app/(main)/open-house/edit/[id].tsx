@@ -23,6 +23,7 @@ import {
   TextInput,
   useWindowDimensions,
   View,
+  KeyboardAvoidingView
 } from 'react-native';
 import { ProgressStep, ProgressSteps } from 'react-native-progress-steps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -198,6 +199,10 @@ export default function OpenHouseEditScreen() {
       start={{ x: 0.1, y: 0 }}
       end={{ x: 0.9, y: 1 }}
       style={[styles.background, { paddingTop: insets.top }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
 
       <Modal transparent visible={isUpdating} animationType="fade">
         <View style={styles.loaderOverlay}>
@@ -296,7 +301,8 @@ export default function OpenHouseEditScreen() {
           </ProgressStep>
         </ProgressSteps>
       </View>
-    </LinearGradient>
+    </KeyboardAvoidingView>
+  </LinearGradient>
   );
 }
 
@@ -323,7 +329,28 @@ function Step2Details({
   const insets = useSafeAreaInsets();
   const [pickerOpen, setPickerOpen] = useState<PickerType>(null);
   const [tempValue, setTempValue] = useState<Date>(eventDate);
+  const [errors, setErrors] = useState<{ agentName?: string; agentEmail?: string }>({});
 
+  const handleContinue = () => {
+    const newErrors: { agentName?: string; agentEmail?: string } = {};
+    if (!agentName.trim()) {
+      newErrors.agentName = 'Agent Name is required';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!agentEmail.trim()) {
+      newErrors.agentEmail = 'Agent Email is required';
+    } else if (!emailRegex.test(agentEmail.trim())) {
+      newErrors.agentEmail = 'Please enter a valid email address';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
+    onContinue();
+  };
   const openPicker = (type: PickerType) => {
     if (type === 'date') setTempValue(eventDate);
     else if (type === 'start') setTempValue(startTimeDate);
@@ -383,9 +410,23 @@ function Step2Details({
 
           <View style={styles.fieldSingle}>
             <Text style={styles.fieldLabel}>AGENT NAME *</Text>
-            <View style={styles.inputWrap}>
-              <TextInput style={styles.input} value={agentName} onChangeText={setAgentName} placeholder="e.g. John Smith" placeholderTextColor="#9CA3AF" />
+            <View style={[styles.inputWrap, errors.agentName && { borderColor: '#EF4444' }]}>
+              <TextInput
+                style={styles.input}
+                value={agentName}
+                onChangeText={(val) => {
+                  setAgentName(val);
+                  if (errors.agentName) setErrors((prev) => ({ ...prev, agentName: undefined }));
+                }}
+                placeholder="e.g. John Smith"
+                placeholderTextColor="#9CA3AF"
+              />
             </View>
+            {errors.agentName && (
+              <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>
+                {errors.agentName}
+              </Text>
+            )}
           </View>
 
           <View style={styles.fieldSingle}>
@@ -411,9 +452,25 @@ function Step2Details({
 
           <View style={styles.fieldSingle}>
             <Text style={styles.fieldLabel}>AGENT EMAIL *</Text>
-            <View style={styles.inputWrap}>
-              <TextInput style={styles.input} value={agentEmail} onChangeText={setAgentEmail} placeholder="agent@example.com" placeholderTextColor="#9CA3AF" autoCapitalize="none" keyboardType="email-address" />
+            <View style={[styles.inputWrap, errors.agentEmail && { borderColor: '#EF4444' }]}>
+              <TextInput
+                style={styles.input}
+                value={agentEmail}
+                onChangeText={(val) => {
+                  setAgentEmail(val);
+                  if (errors.agentEmail) setErrors((prev) => ({ ...prev, agentEmail: undefined }));
+                }}
+                placeholder="agent@example.com"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
             </View>
+            {errors.agentEmail && (
+              <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>
+                {errors.agentEmail}
+              </Text>
+            )}
           </View>
 
           <View style={styles.toggleRow}>
@@ -429,7 +486,7 @@ function Step2Details({
             </Pressable>
             <Pressable
               style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, backgroundColor: '#0F172A' }}
-              onPress={onContinue}>
+              onPress={handleContinue}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>Continue to Customization</Text>
             </Pressable>
           </View>
@@ -485,6 +542,49 @@ function Step4Customization({
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  const { accessToken } = useAuth();
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerateDescription = async () => {
+    if (!aiPrompt.trim()) {
+      Alert.alert('Prompt Required', 'Please type some instructions or a prompt to generate the narrative.');
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const response = await fetch('https://staging-api.zien.ai/api/shared/ai/generate-text', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: aiPrompt.trim(),
+          complexity: 'complex'
+        })
+      });
+
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error(json.message || 'Failed to generate narrative');
+      }
+
+      const text = json.result || json.data?.result || '';
+      if (text) {
+        setDescription(text);
+      } else {
+        throw new Error('AI engine did not return a valid result.');
+      }
+    } catch (error: any) {
+      console.error('AI Generation error:', error);
+      Alert.alert('AI Generation Error', error.message || 'Failed to generate text. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const property = selectedPropertyId ? properties.find((p) => p.id.toString() === selectedPropertyId) : null;
   const addressLine1 = property ? property.address.split(',')[0] : '1601 Welch Street';
@@ -601,8 +701,38 @@ function Step4Customization({
             </View>
 
             <View style={styles.customCard}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.customCardTitle}>AI Property Description</Text>
+              <Text style={styles.customCardTitle}>AI Property Narrative</Text>
+              <Text style={styles.customCardSubLabelText}>Type your custom instructions below to generate highly personalized copy.</Text>
+              
+              <Text style={styles.aiFieldLabel}>YOUR PROMPT / CUSTOM TEXT</Text>
+              <TextInput 
+                style={styles.aiInput} 
+                multiline 
+                value={aiPrompt} 
+                onChangeText={setAiPrompt} 
+                placeholder="Write instructions, features, or details for the AI..." 
+                placeholderTextColor="#94A3B8"
+                textAlignVertical="top" 
+              />
+              
+              <Pressable 
+                style={({ pressed }) => [
+                  styles.regenerateBtnFull, 
+                  pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
+                  isGenerating && { opacity: 0.7 }
+                ]}
+                onPress={handleGenerateDescription}
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.regenerateBtnText}>Generate Description <MaterialCommunityIcons name="magic-staff" size={16} color="#FFF" /></Text>
+                )}
+              </Pressable>
+
+              <View style={styles.aiOutputHeaderRow}>
+                <Text style={styles.aiFieldLabel}>GENERATED OUTPUT</Text>
                 <View style={styles.stylePillRow}>
                   {DESC_STYLES.map((style) => (
                     <Pressable key={style} style={[styles.stylePill, descStyle === style.toLowerCase() && styles.stylePillActive]} onPress={() => setDescStyle(style.toLowerCase() as DescStyleKey)}>
@@ -611,10 +741,14 @@ function Step4Customization({
                   ))}
                 </View>
               </View>
-              <TextInput style={styles.aiInput} multiline value={description} onChangeText={setDescription} textAlignVertical="top" />
-              <Pressable style={styles.regenerateBtnFull}>
-                <Text style={styles.regenerateBtnText}>Regenerate Description <MaterialCommunityIcons name="magic-staff" size={16} color="#FFF" /></Text>
-              </Pressable>
+
+              <TextInput 
+                style={[styles.aiInput, { height: 160 }]} 
+                multiline 
+                value={description} 
+                onChangeText={setDescription} 
+                textAlignVertical="top" 
+              />
             </View>
 
             <View style={[styles.customCard, styles.customCardGallery]}>
@@ -845,6 +979,9 @@ function getStyles(colors: any) {
     customCard: { backgroundColor: '#F1F5F9', borderRadius: 16, padding: 24, marginBottom: 20 },
     customCardGallery: { minHeight: 260 },
     customCardTitle: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, marginBottom: 16, letterSpacing: -0.5 },
+    customCardSubLabelText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500', marginTop: -12, marginBottom: 16 },
+    aiFieldLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.8, marginTop: 16, marginBottom: 8, textTransform: 'uppercase' },
+    aiOutputHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 8, flexWrap: 'wrap', gap: 12 },
 
     swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 12 },
     colorSwatch: { width: 32, height: 32, borderRadius: 16 },

@@ -95,9 +95,9 @@ export function ThemesColorSection({
     return 'Inter';
   };
 
-  const [template, setTemplate] = useState<TemplateId>(getTemplateId(activeCard.template ?? undefined));
-  const [accentColor, setAccentColor] = useState<string>(activeCard.card_color || ACCENT_COLORS[0]);
-  const [selectedFontLabel, setSelectedFontLabel] = useState<SelectedFontLabel>(getFontLabel(activeCard.font ?? undefined));
+  const [template, setTemplate] = useState<TemplateId>(getTemplateId(activeCard?.template ?? undefined));
+  const [accentColor, setAccentColor] = useState<string>(activeCard?.card_color || ACCENT_COLORS[0]);
+  const [selectedFontLabel, setSelectedFontLabel] = useState<SelectedFontLabel>(getFontLabel(activeCard?.font ?? undefined));
   const [isSaving, setIsSaving] = useState(false);
 
   const [fontsLoaded] = useFonts({
@@ -145,7 +145,7 @@ export function ThemesColorSection({
   };
 
   const mapToCardData = (card: DigitalCard): ProfileCardData => ({
-    fullName: card.profile_name || card.name || '',
+    fullName: card.name || card.profile_name || '',
     title: card.title || '',
     legalRole: card.role || '',
     license: card.license || '',
@@ -159,6 +159,25 @@ export function ThemesColorSection({
     facebook: card.facebook || '',
     tiktok: card.tiktok || '',
   });
+
+  if (!activeCard) {
+    return (
+      <View style={styles.emptyContainer}>
+        <View style={styles.emptyIconCircle}>
+          <MaterialCommunityIcons name="card-bulleted-off-outline" size={36} color={colors.textSecondary} />
+        </View>
+        <Text style={styles.emptyTitle}>No Card Found</Text>
+        <Text style={styles.emptySub}>
+          Please create your first digital business card from the Dashboard to customize its themes and colors.
+        </Text>
+        <Pressable 
+          style={({ pressed }) => [styles.emptyGoBtn, pressed && { opacity: 0.9 }]}
+          onPress={() => onSectionChange?.('/(main)/zien-card')}>
+          <Text style={styles.emptyGoBtnText}>Go to Dashboard</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   const cardData = mapToCardData(activeCard);
 
@@ -435,5 +454,48 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '900',
     marginTop: 12,
     fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+    minHeight: 400,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  emptySub: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 24,
+  },
+  emptyGoBtn: {
+    backgroundColor: colors.accentTeal,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  emptyGoBtnText: {
+    color: '#0B2D3E',
+    fontWeight: '900',
+    fontSize: 14,
   },
 });

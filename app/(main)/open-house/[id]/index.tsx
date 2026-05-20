@@ -17,7 +17,8 @@ import {
     StyleSheet,
     Switch,
     Text,
-    View
+    View,
+    Share
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -100,6 +101,19 @@ export default function EventDashboardScreen() {
         if (!result.canceled) setPropertyPhotos([...propertyPhotos, ...result.assets.map(a => a.uri)]);
     };
 
+    const handleShare = async () => {
+        const shareUrl = `http://18.219.170.119:3000/check-in/OH-${id}/`;
+        try {
+            await Share.share({
+                message: `Check out the digital portfolio for ${eventAddress}: ${shareUrl}`,
+                url: shareUrl,
+                title: `Digital Portfolio - ${eventAddress}`,
+            });
+        } catch (error) {
+            console.error('Error sharing portfolio:', error);
+        }
+    };
+
     const renderHeader = () => (
         <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
             <View style={styles.headerTop}>
@@ -113,7 +127,7 @@ export default function EventDashboardScreen() {
                         <Text style={styles.headerStatusText}>{eventStatus}</Text>
                     </View>
                 </View>
-                <Pressable style={styles.headerCircleBtn}>
+                <Pressable onPress={handleShare} style={styles.headerCircleBtn}>
                     <MaterialCommunityIcons name="share-variant-outline" size={22} color={colors.textPrimary} />
                 </Pressable>
             </View>
@@ -212,7 +226,7 @@ export default function EventDashboardScreen() {
                 <View style={styles.qrHeroDetails}>
                     <Text style={styles.qrHeroTitle}>Event QR Code</Text>
                     <Text style={styles.qrHeroSub}>Scan to access digital portfolio</Text>
-                    <Pressable style={styles.qrShareBtn}><MaterialCommunityIcons name="share-variant" size={16} color="#FFFFFF" /><Text style={styles.qrShareBtnText}>Share Portfolio Link</Text></Pressable>
+                    <Pressable onPress={handleShare} style={styles.qrShareBtn}><MaterialCommunityIcons name="share-variant" size={16} color="#FFFFFF" /><Text style={styles.qrShareBtnText}>Share Portfolio Link</Text></Pressable>
                 </View>
                 <View style={styles.qrContainerPremium}><QRCode value={`http://18.219.170.119:3000/check-in/OH-${id}/`} size={70} color="#0F172A" backgroundColor="transparent" /></View>
             </View>
