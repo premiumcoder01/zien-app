@@ -1,18 +1,26 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAuth } from '@/context/AuthContext';
+import { useAppTheme } from '@/context/ThemeContext';
+import { AiContentItem, deleteAiContent, getAiContentList } from '@/services/aiContentService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Dimensions,
   Image,
+  Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,7 +52,7 @@ const CONTENT_TOOLS = [
   {
     id: 'image-enhancer',
     title: 'Image Enhancer',
-    description: 'AI-driven virtual staging and quality upscaling.',
+    description: 'AI-driven quality upscaling and lighting enhancement.',
     icon: 'image-multiple-outline',
     color: '#10B981',
   },
@@ -57,62 +65,74 @@ const CONTENT_TOOLS = [
   },
 ];
 
-const INITIAL_ENTRIES = [
-  {
-    id: '1',
-    title: 'Brentwood Luxury Suite',
-    context: '123 Business Way',
-    type: 'LISTING DESCRIPTION',
-    typeColor: '#F0FDFA',
-    typeTextColor: '#0D9488',
-    date: 'Jan 18, 2026',
-    usage: 12,
-  },
-  {
-    id: '2',
-    title: 'Malibu Villa Highlights',
-    context: '88 Gold Coast',
-    type: 'INSTAGRAM CAROUSEL',
-    typeColor: '#F0F9FF',
-    typeTextColor: '#0284C7',
-    date: 'Jan 16, 2026',
-    usage: 45,
-  },
-  {
-    id: '3',
-    title: 'Pasadena Monthly Update',
-    context: 'Multiple Properties',
-    type: 'NEWSLETTER',
-    typeColor: '#FDF4FF',
-    typeTextColor: '#A21CAF',
-    date: 'Jan 12, 2026',
-    usage: 89,
-  },
-  {
-    id: '4',
-    title: 'Draft: Modern Loft',
-    context: '900 Ocean Blvd',
-    type: 'EMAIL SEQUENCE',
-    typeColor: '#F8FAFC',
-    typeTextColor: '#64748B',
-    date: 'Jan 10, 2026',
-    usage: 0,
-  },
-];
+
+
 
 export default function AiContentScreen() {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  const { accessToken } = useAuth();
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // State for content library
-  const [entries, setEntries] = useState(INITIAL_ENTRIES);
+  // Content library list states
+  const [entries, setEntries] = useState<AiContentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Search & Filter States
   const [search, setSearch] = useState('');
+  const selectedFilter = 'all';
 
+  // Preview Modal States
+  const [selectedItem, setSelectedItem] = useState<AiContentItem | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
+  // Fetch AI content helper
+  const fetchLibrary = useCallback(async (isRefresh = false) => {
+    if (!accessToken) {
+      setError('Authentication token not found. Please log in.');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+
+    try {
+      const response = await getAiContentList(accessToken);
+      if (response.success && Array.isArray(response.data)) {
+        // Sort by creation date descending
+        const sortedData = response.data.sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        setEntries(sortedData);
+      } else {
+        throw new Error('Invalid server response layout.');
+      }
+    } catch (err: any) {
+      console.error('[AiContentScreen] Error fetching library:', err);
+      setError(err?.message || 'Failed to load content library. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [accessToken]);
+
+  // Initial load
+  useEffect(() => {
+    fetchLibrary();
+  }, [fetchLibrary]);
+
+  // Handle Delete
   const handleDelete = (id: string) => {
     Alert.alert(
       'Delete Content',
@@ -122,20 +142,218 @@ export default function AiContentScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setEntries((prev) => prev.filter((item) => item.id !== id));
+          onPress: async () => {
+            // Optimistic update
+            setEntries((prev) => prev.filter((item) => item.id.toString() !== id));
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+            if (accessToken) {
+              try {
+                await deleteAiContent(id, accessToken);
+              } catch (err) {
+                console.warn('[AiContentScreen] Network deletion failed, removed locally only:', err);
+              }
+            }
           },
         },
       ]
     );
   };
 
+  // Handle Copy Content
+  const handleCopyContent = async (item: AiContentItem) => {
+    await Clipboard.setStringAsync(item.content);
+    setCopiedId(item.id);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
-  const filteredEntries = entries.filter(
-    (e) =>
-      e.title.toLowerCase().includes(search.toLowerCase()) ||
-      e.context.toLowerCase().includes(search.toLowerCase())
-  );
+  // Handle Share Content
+  const handleShareContent = async (item: AiContentItem) => {
+    try {
+      await Share.share({
+        message: item.content,
+        title: getTypeDetails(item.type).label,
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (err) {
+      console.error('[AiContentScreen] Error sharing:', err);
+    }
+  };
+
+  // Card Content preview text formatter (stripping markdown bold markers for simple card display)
+  const formatCardPreview = (text: string) => {
+    if (!text) return '';
+    const clean = text.replace(/\*\*|#|\*|`|•/g, '').trim();
+    return clean;
+  };
+
+  // Helper to map content type details
+  const getTypeDetails = (type: string) => {
+    switch (type) {
+      case 'property-description':
+        return {
+          label: 'Property Description',
+          icon: 'home-variant-outline',
+          color: '#0BA0B2',
+          bg: '#0BA0B215',
+        };
+      case 'social-media':
+        return {
+          label: 'Social Post',
+          icon: 'cellphone-text',
+          color: '#3B82F6',
+          bg: '#3B82F615',
+        };
+      case 'email-templates':
+        return {
+          label: 'Email Template',
+          icon: 'email-variant',
+          color: '#8B5CF6',
+          bg: '#8B5CF615',
+        };
+      case 'image-enhancer':
+        return {
+          label: 'Image Enhancer',
+          icon: 'image-multiple-outline',
+          color: '#10B981',
+          bg: '#10B98115',
+        };
+      case 'presentation-builder':
+        return {
+          label: 'Presentation CMA',
+          icon: 'chart-pie',
+          color: '#EC4899',
+          bg: '#EC489915',
+        };
+      default:
+        return {
+          label: type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          icon: 'file-document-outline',
+          color: '#64748B',
+          bg: '#64748B15',
+        };
+    }
+  };
+
+  // Format creation dates to dynamic relative times
+  const formatRelativeDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHr = Math.floor(diffMin / 60);
+      const diffDays = Math.floor(diffHr / 24);
+
+      if (diffSec < 60) return 'Just now';
+      if (diffMin < 60) return `${diffMin}m ago`;
+      if (diffHr < 24) return `${diffHr}h ago`;
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays}d ago`;
+
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } catch (e) {
+      return 'Recently';
+    }
+  };
+
+  const formatDateDMY = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (e) {
+      return '21/05/2026';
+    }
+  };
+
+  // Client side search and category filter implementation
+  const filteredEntries = entries.filter((item) => {
+    // Filter pill logic
+    if (selectedFilter !== 'all' && item.type !== selectedFilter) return false;
+
+    // Search bar logic
+    if (!search) return true;
+    const searchLower = search.toLowerCase();
+    const typeLabel = getTypeDetails(item.type).label.toLowerCase();
+    const content = (item.content || '').toLowerCase();
+    const inputDetails = (item.metadata?.input_details || '').toLowerCase();
+    const customTitle = (item.metadata?.title || '').toLowerCase();
+
+    return (
+      typeLabel.includes(searchLower) ||
+      content.includes(searchLower) ||
+      inputDetails.includes(searchLower) ||
+      customTitle.includes(searchLower)
+    );
+  });
+
+  // Action callback to edit or view full generator
+  const handleEditItem = (item: AiContentItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const prefill = item.metadata?.input_details || '';
+    const content = item.content || '';
+
+    // Route based on type, pre-populating inputs
+    if (item.type === 'property-description') {
+      router.push({
+        pathname: '/(main)/ai-content/property-description',
+        params: { prefill, content }
+      });
+    } else if (item.type === 'social-media') {
+      router.push({
+        pathname: '/(main)/ai-content/social-media-posts',
+        params: { prefill, content }
+      });
+    } else if (item.type === 'email-templates') {
+      router.push({
+        pathname: '/(main)/ai-content/email-templates',
+        params: { prefill, content }
+      });
+    } else if (item.type === 'image-enhancer') {
+      router.push({
+        pathname: '/(main)/ai-content/image-enhancer',
+        params: { prefill, content }
+      });
+    } else if (item.type === 'presentation-builder') {
+      router.push({
+        pathname: '/(main)/ai-content/presentation-builder',
+        params: { prefill, content }
+      });
+    } else {
+      // Default fallback: show view modal
+      setSelectedItem(item);
+      setShowModal(true);
+    }
+  };
+
+  // Animated-looking pulsing skeletons
+  const renderSkeletons = () => {
+    return Array.from({ length: 3 }).map((_, index) => (
+      <View key={index} style={styles.skeletonCard}>
+        <View style={styles.cardHeader}>
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={styles.skeletonBarPrimary} />
+            <View style={styles.skeletonBarSecondary} />
+          </View>
+          <View style={styles.skeletonIconBox} />
+        </View>
+        <View style={styles.skeletonContentPreview} />
+        <View style={styles.skeletonFooter}>
+          <View style={styles.skeletonBadge} />
+          <View style={styles.skeletonDate} />
+        </View>
+      </View>
+    ));
+  };
 
   return (
     <View style={styles.container}>
@@ -153,27 +371,35 @@ export default function AiContentScreen() {
           style={styles.scroll}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => fetchLibrary(true)}
+              tintColor={colors.accentTeal}
+              colors={[colors.accentTeal]}
+            />
+          }
         >
           {/* Featured Virtual Staging Tool */}
-          <Pressable 
-            style={styles.featuredCard} 
+          <Pressable
+            style={styles.featuredCard}
             onPress={() => router.push('/(main)/ai-content/virtual-staging')}
           >
             <LinearGradient
-              colors={['#083344', '#0891B2']} 
+              colors={['#083344', '#0891B2']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.featuredGradient}
             >
               <View style={styles.featuredRight}>
                 {/* Side-by-Side Images */}
-                <Image 
-                  source={{ uri: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=400&q=80' }} 
-                  style={styles.halfImage} 
+                <Image
+                  source={{ uri: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=400&q=80' }}
+                  style={styles.halfImage}
                 />
-                <Image 
-                  source={{ uri: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=400&q=80' }} 
-                  style={styles.halfImage} 
+                <Image
+                  source={{ uri: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=400&q=80' }}
+                  style={styles.halfImage}
                 />
                 <View style={styles.labelBefore}><Text style={styles.labelText}>Before</Text></View>
                 <View style={styles.labelAfter}><Text style={styles.labelText}>After</Text></View>
@@ -192,8 +418,8 @@ export default function AiContentScreen() {
             </LinearGradient>
           </Pressable>
 
-          {/* Content Tools Section */}
-          <Text style={styles.sectionTitle}>Content Tools</Text>
+          {/* Strategic Content Engines Section */}
+          <Text style={styles.sectionTitle}>Strategic Content Engines</Text>
           <View style={styles.toolsGrid}>
             {CONTENT_TOOLS.map((tool) => (
               <Pressable
@@ -221,6 +447,7 @@ export default function AiContentScreen() {
           {/* Library Section */}
           <View style={styles.libraryHeader}>
             <Text style={styles.sectionTitle}>Content Library</Text>
+
             <View style={styles.searchBar}>
               <MaterialCommunityIcons name="magnify" size={18} color="#94A3B8" />
               <TextInput
@@ -230,52 +457,152 @@ export default function AiContentScreen() {
                 value={search}
                 onChangeText={setSearch}
               />
+              {search.length > 0 && (
+                <Pressable onPress={() => setSearch('')}>
+                  <MaterialCommunityIcons name="close-circle" size={18} color="#94A3B8" />
+                </Pressable>
+              )}
             </View>
           </View>
 
+          {/* Library Content */}
           <View style={styles.libraryList}>
-            {filteredEntries.map((item) => (
-              <View key={item.id} style={styles.contentCard}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardInfo}>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
-                    <Text style={styles.cardContext}>{item.context}</Text>
-                  </View>
-                  <View style={styles.cardActions}>
-                    <Pressable
-                      onPress={() => router.push('/(main)/ai-content/property-description')}
-                      style={styles.iconActionBtn}
-                    >
-                      <MaterialCommunityIcons name="pencil-outline" size={18} color="#3B82F6" />
-                    </Pressable>
-                    <Pressable onPress={() => handleDelete(item.id)} style={styles.iconActionBtn}>
-                      <MaterialCommunityIcons name="trash-can-outline" size={18} color="#EF4444" />
-                    </Pressable>
-                  </View>
-                </View>
-
-                <View style={styles.cardMetadata}>
-                  <View style={[styles.typeBadge, { backgroundColor: item.typeColor }]}>
-                    <Text style={[styles.typeBadgeText, { color: item.typeTextColor }]}>{item.type}</Text>
-                  </View>
-                  <Text style={styles.cardDate}>{item.date}</Text>
-                </View>
-
-                <View style={styles.usageContainer}>
-                  <View style={styles.usageInfo}>
-                    <View style={styles.usageBarBg}>
-                      <View style={[styles.usageBarFill, { width: `${item.usage}%` }]} />
-                    </View>
-                    <Text style={styles.usageCount}>{item.usage}</Text>
-                  </View>
-                </View>
+            {loading ? (
+              renderSkeletons()
+            ) : error ? (
+              <View style={styles.errorContainer}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={40} color={colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+                <Pressable style={styles.retryBtn} onPress={() => fetchLibrary()}>
+                  <Text style={styles.retryBtnText}>Retry</Text>
+                </Pressable>
               </View>
-            ))}
+            ) : filteredEntries.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIconCircle}>
+                  <MaterialCommunityIcons name="folder-open-outline" size={40} color={colors.textMuted} />
+                </View>
+                <Text style={styles.emptyTitle}>No content found</Text>
+                <Text style={styles.emptySubtitle}>
+                  {search
+                    ? "We couldn't find matches for your search. Try adjusting terms."
+                    : "Your autonomous library is empty. Generate content to see it listed here!"}
+                </Text>
+                {!search && (
+                  <Pressable
+                    style={styles.emptyActionBtn}
+                    onPress={() => router.push('/(main)/ai-content/property-description')}
+                  >
+                    <Text style={styles.emptyActionBtnText}>Generate listing description</Text>
+                  </Pressable>
+                )}
+              </View>
+            ) : (
+              filteredEntries.map((item) => {
+                const details = getTypeDetails(item.type);
+
+                return (
+                  <Pressable
+                    key={item.id}
+                    style={[styles.contentCard, { borderLeftWidth: 4, borderLeftColor: details.color }]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedItem(item);
+                      setShowModal(true);
+                    }}
+                  >
+                    {/* Content Preview */}
+                    <Text style={styles.cardContentPreview} numberOfLines={2}>
+                      {formatCardPreview(item.content)}
+                    </Text>
+
+                    {/* Property Context Row */}
+                    <View style={styles.cardMetaRow}>
+                      <Text style={styles.cardMetaLabel}>Property Context:</Text>
+                      <Text style={styles.cardMetaValue} numberOfLines={1}>
+                        {item.metadata?.input_details || 'Generic Property'}
+                      </Text>
+                    </View>
+
+                    {/* Type Badge & Date Modified */}
+                    <View style={styles.cardMetadata}>
+                      <View style={[styles.typeBadge, { backgroundColor: details.bg }]}>
+                        <MaterialCommunityIcons name={details.icon as any} size={11} color={details.color} style={{ marginRight: 4 }} />
+                        <Text style={[styles.typeBadgeText, { color: details.color }]}>{details.label.toUpperCase()}</Text>
+                      </View>
+                      <Text style={styles.cardDate}>{formatDateDMY(item.created_at)}</Text>
+                    </View>
+
+                    {/* Actions Row */}
+                    <View style={styles.cardActionsRow}>
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setSelectedItem(item);
+                          setShowModal(true);
+                        }}
+                        style={[styles.iconActionBtn, { backgroundColor: `${colors.accentTeal}10`, borderColor: `${colors.accentTeal}20` }]}
+                      >
+                        <MaterialCommunityIcons name="eye-outline" size={16} color={colors.accentTeal} />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleEditItem(item)}
+                        style={[styles.iconActionBtn, { backgroundColor: '#3B82F610', borderColor: '#3B82F625' }]}
+                      >
+                        <MaterialCommunityIcons name="pencil-outline" size={16} color="#3B82F6" />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleDelete(item.id.toString())}
+                        style={[styles.iconActionBtn, { backgroundColor: '#EF444410', borderColor: '#EF444425' }]}
+                      >
+                        <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
+                      </Pressable>
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
           </View>
         </ScrollView>
-      </LinearGradient>
+      </LinearGradient>      {/* Premium Preview Modal / Sheet */}
+      {selectedItem && (
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={showModal}
+          onRequestClose={() => setShowModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => setShowModal(false)}>
+              <View style={styles.modalOverlayBg} />
+            </TouchableWithoutFeedback>
 
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalTitleColumn}>
+                  <Text style={styles.modalTitle}>Content Preview</Text>
+                  <Text style={styles.modalSubtitle} numberOfLines={1}>
+                    {selectedItem.metadata?.input_details || 'Generic Property'}
+                  </Text>
+                </View>
+                <Pressable onPress={() => setShowModal(false)} style={styles.modalCloseBtn}>
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+                </Pressable>
+              </View>
 
+              <View style={styles.modalBody}>
+                <ScrollView 
+                  style={styles.modalTextBox} 
+                  contentContainerStyle={styles.modalTextBoxContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <Text style={styles.modalContentText}>{selectedItem.content}</Text>
+                </ScrollView>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -287,12 +614,12 @@ function getStyles(colors: any) {
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 20, paddingTop: 10 },
     sectionTitle: {
-      fontSize: 16,
+      fontSize: 14,
       fontWeight: '900',
       color: colors.textPrimary,
       marginBottom: 16,
       textTransform: 'uppercase',
-      letterSpacing: 0.5,
+      letterSpacing: 0.8,
     },
     featuredCard: {
       borderRadius: 24,
@@ -355,11 +682,6 @@ function getStyles(colors: any) {
     },
     halfImage: {
       width: '50%',
-      height: '100%',
-      resizeMode: 'cover',
-    },
-    afterImage: {
-      width: '100%',
       height: '100%',
       resizeMode: 'cover',
     },
@@ -444,11 +766,39 @@ function getStyles(colors: any) {
       color: colors.textPrimary,
       fontWeight: '600',
     },
+    filterContainer: {
+      marginTop: 12,
+      flexDirection: 'row',
+    },
+    filterContentContainer: {
+      gap: 8,
+      paddingRight: 20,
+    },
+    filterPill: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    filterPillActive: {
+      backgroundColor: colors.accentTeal,
+      borderColor: colors.accentTeal,
+    },
+    filterPillText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.textSecondary,
+    },
+    filterPillTextActive: {
+      color: '#FFFFFF',
+    },
     libraryList: { gap: 16 },
     contentCard: {
       backgroundColor: colors.cardBackground,
-      borderRadius: 20,
-      padding: 20,
+      borderRadius: 16,
+      padding: 16,
       shadowColor: colors.cardShadowColor,
       shadowOpacity: 0.03,
       shadowOffset: { width: 0, height: 2 },
@@ -457,27 +807,33 @@ function getStyles(colors: any) {
       borderWidth: 1,
       borderColor: colors.cardBorder,
     },
-    cardHeader: {
+    cardMetaRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 12,
+      alignItems: 'center',
+      marginTop: 8,
+      marginBottom: 8,
     },
-    cardInfo: { flex: 1 },
-    cardTitle: {
-      fontSize: 16,
-      fontWeight: '900',
+    cardMetaLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textMuted,
+      marginRight: 6,
+    },
+    cardMetaValue: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '800',
       color: colors.textPrimary,
-      marginBottom: 2,
     },
-    cardContext: {
-      fontSize: 13,
-      color: colors.textSecondary,
-      fontWeight: '600',
-    },
-    cardActions: {
+    cardActionsRow: {
       flexDirection: 'row',
-      gap: 8,
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      marginTop: 12,
+      gap: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+      paddingTop: 12,
     },
     iconActionBtn: {
       width: 34,
@@ -489,55 +845,255 @@ function getStyles(colors: any) {
       borderWidth: 1,
       borderColor: colors.cardBorder,
     },
+    cardContentPreview: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      lineHeight: 18,
+      fontWeight: '500',
+    },
     cardMetadata: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 16,
+      marginTop: 4,
     },
     typeBadge: {
-      paddingHorizontal: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 6,
     },
     typeBadgeText: {
       fontSize: 10,
       fontWeight: '900',
-      letterSpacing: 0.5,
+      letterSpacing: 0.3,
     },
     cardDate: {
-      fontSize: 12,
+      fontSize: 11,
       color: colors.textMuted,
       fontWeight: '700',
     },
-    usageContainer: {
-      paddingTop: 12,
+    cardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+
+    // Skeleton loaders
+    skeletonCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      opacity: 0.6,
+    },
+    skeletonBarPrimary: {
+      height: 16,
+      borderRadius: 4,
+      backgroundColor: colors.surfaceSoft,
+      width: '65%',
+    },
+    skeletonBarSecondary: {
+      height: 11,
+      borderRadius: 4,
+      backgroundColor: colors.surfaceSoft,
+      width: '45%',
+      marginTop: 4,
+    },
+    skeletonIconBox: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSoft,
+    },
+    skeletonContentPreview: {
+      height: 40,
+      borderRadius: 6,
+      backgroundColor: colors.surfaceSoft,
+      marginVertical: 12,
+      width: '100%',
+    },
+    skeletonFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
       borderTopWidth: 1,
       borderTopColor: colors.cardBorder,
+      paddingTop: 12,
     },
-    usageInfo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    usageBarBg: {
-      flex: 1,
-      height: 6,
+    skeletonBadge: {
+      height: 18,
+      width: 100,
+      borderRadius: 6,
       backgroundColor: colors.surfaceSoft,
-      borderRadius: 3,
-      marginRight: 12,
-      overflow: 'hidden',
     },
-    usageBarFill: {
-      height: '100%',
+    skeletonDate: {
+      height: 12,
+      width: 50,
+      borderRadius: 4,
+      backgroundColor: colors.surfaceSoft,
+    },
+
+    // Error state
+    errorContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 40,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 20,
+    },
+    errorText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      textAlign: 'center',
+      marginTop: 12,
+      marginBottom: 16,
+      lineHeight: 18,
+    },
+    retryBtn: {
       backgroundColor: colors.accentTeal,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 10,
     },
-    usageCount: {
+    retryBtnText: {
+      color: '#FFFFFF',
+      fontWeight: '800',
       fontSize: 12,
+    },
+
+    // Empty State style
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 40,
+      paddingHorizontal: 24,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    emptyIconCircle: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 16,
+    },
+    emptyTitle: {
+      fontSize: 18,
       fontWeight: '900',
       color: colors.textPrimary,
-      minWidth: 24,
-      textAlign: 'right',
+      marginBottom: 6,
+    },
+    emptySubtitle: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 18,
+      marginBottom: 20,
+      paddingHorizontal: 16,
+    },
+    emptyActionBtn: {
+      backgroundColor: colors.accentTeal,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 12,
+    },
+    emptyActionBtnText: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+      fontSize: 12,
+    },
+
+    // Preview Modal Bottom Sheet styles
+    modalOverlay: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+    },
+    modalOverlayBg: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(11, 22, 33, 0.45)',
+    },
+    modalContent: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 28,
+      width: '100%',
+      maxHeight: '80%',
+      paddingVertical: 24,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowOffset: { width: 0, height: 10 },
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+      paddingBottom: 16,
+    },
+    modalTitleColumn: {
+      flex: 1,
+      alignItems: 'flex-start',
+      gap: 4,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.5,
+    },
+    modalSubtitle: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      marginTop: 2,
+    },
+    modalCloseBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    modalBody: {
+      paddingHorizontal: 24,
+      marginTop: 8,
+      flex: 1,
+      minHeight: 300,
+    },
+    modalTextBox: {
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      flex: 1,
+    },
+    modalTextBoxContent: {
+      padding: 20,
+    },
+    modalContentText: {
+      fontSize: 15,
+      color: colors.textPrimary,
+      lineHeight: 24,
+      fontWeight: '500',
     },
   });
-};
+}

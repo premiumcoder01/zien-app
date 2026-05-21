@@ -24,7 +24,25 @@
   "submit": {
     "production": {
       "android": {
+        "track": "production",
+        "releaseStatus": "completed"
+      }
+    },
+    "internal-testing": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed"
+      }
+    },
+    "closed-testing": {
+      "android": {
         "track": "alpha",
+        "releaseStatus": "completed"
+      }
+    },
+    "open-testing": {
+      "android": {
+        "track": "beta",
         "releaseStatus": "completed"
       }
     }

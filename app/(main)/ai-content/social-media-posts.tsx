@@ -1,9 +1,9 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
     Clipboard,
@@ -73,13 +73,24 @@ export default function SocialPostLabScreen() {
 
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { prefill, content } = useLocalSearchParams<{ prefill?: string; content?: string }>();
 
     const [selectedPlatform, setSelectedPlatform] = useState('instagram');
-    const [campaignContext, setCampaignContext] = useState('');
+    const [campaignContext, setCampaignContext] = useState(prefill || '');
     const [selectedStyle, setSelectedStyle] = useState('Viral Hook');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [outputCaption, setOutputCaption] = useState('');
-    const [hasGenerated, setHasGenerated] = useState(false);
+    const [outputCaption, setOutputCaption] = useState(content || '');
+    const [hasGenerated, setHasGenerated] = useState(!!content);
+
+    useEffect(() => {
+        if (prefill) {
+            setCampaignContext(prefill);
+        }
+        if (content) {
+            setOutputCaption(content);
+            setHasGenerated(true);
+        }
+    }, [prefill, content]);
 
     const handleGenerate = () => {
         if (!campaignContext.trim()) return;

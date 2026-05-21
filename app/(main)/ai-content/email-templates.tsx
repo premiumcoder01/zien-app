@@ -1,9 +1,9 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
     Clipboard,
@@ -77,13 +77,29 @@ export default function EmailTemplatesScreen() {
 
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { prefill, content } = useLocalSearchParams<{ prefill?: string; content?: string }>();
 
     const [selectedType, setSelectedType] = useState('just_listed');
-    const [campaignContext, setCampaignContext] = useState('');
+    const [campaignContext, setCampaignContext] = useState(prefill || '');
     const [selectedStyle, setSelectedStyle] = useState('Spam-Safe');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [outputEmail, setOutputEmail] = useState({ subject: '', body: '' });
-    const [hasGenerated, setHasGenerated] = useState(false);
+    const [outputEmail, setOutputEmail] = useState({ 
+        subject: content ? content.split('\n')[0].replace(/^Subject:\s*/i, '') : '', 
+        body: content ? content.substring(content.indexOf('\n') + 1).trim() : '' 
+    });
+    const [hasGenerated, setHasGenerated] = useState(!!content);
+
+    useEffect(() => {
+        if (prefill) {
+            setCampaignContext(prefill);
+        }
+        if (content) {
+            const subject = content.split('\n')[0].replace(/^Subject:\s*/i, '');
+            const body = content.substring(content.indexOf('\n') + 1).trim();
+            setOutputEmail({ subject, body });
+            setHasGenerated(true);
+        }
+    }, [prefill, content]);
 
     const handleGenerate = () => {
         if (!campaignContext.trim()) return;
