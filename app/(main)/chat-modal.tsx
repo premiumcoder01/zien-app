@@ -182,7 +182,7 @@ export default function ChatModalScreen() {
         stopPulse();
     });
     useSpeechRecognitionEvent('result', (event) => {
-        const transcript = event.results[0]?.transcript;
+        const transcript = event.results.map((r) => r.transcript).join(' ').trim();
         if (transcript) {
             setVoiceText(transcript);
         }
@@ -190,7 +190,9 @@ export default function ChatModalScreen() {
     useSpeechRecognitionEvent('error', (event) => {
         console.log('Speech recognition error:', event.error, event.message);
         setIsListening(false);
+        setIsRecordingMode(false);
         stopPulse();
+        Alert.alert('Voice Recognition Error', event.message || `An error occurred: ${event.error}`);
     });
 
     const startVoice = useCallback(async () => {

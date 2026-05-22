@@ -12,7 +12,9 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -114,7 +116,7 @@ function StepAddress({
             <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
             <TextInput
               style={styles.premiumSearchInput}
-              placeholder="e.g. 803 Carter Street, Killeen TX 76541"
+              placeholder="e.g. Killeen TX 76541"
               placeholderTextColor={colors.textMuted}
               value={input}
               onChangeText={fetchPredictions}
@@ -1167,7 +1169,7 @@ export default function CreateListingScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <LinearGradient
         colors={colors.backgroundGradient as any}
         style={StyleSheet.absoluteFill}
@@ -1175,56 +1177,58 @@ export default function CreateListingScreen() {
         end={{ x: 1, y: 1 }}
       />
 
-
-      <PageHeader
-        title="Add New Property"
-        subtitle="Pull from public records or upload info."
-        onBack={() => {
-          if (activeStep > 0 && activeStep < 4) setActiveStep(activeStep - 1);
-          else router.back();
-        }}
-      />
-
-
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: activeStep < 4 ? 120 : insets.bottom + 40 }
-        ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
       >
-        {/* MOBILE OPTIMIZED STEP INDICATOR */}
-        <View style={styles.stepIndicatorContainerMobile}>
-          {steps.map((step, idx) => (
-            <React.Fragment key={idx}>
-              <View style={[
-                styles.stepCircleMobile,
-                activeStep >= idx && styles.stepCircleActiveMobile
-              ]}>
-                <MaterialCommunityIcons
-                  name={step.icon as any}
-                  size={16}
-                  color={activeStep >= idx ? "#FFF" : colors.textMuted}
-                />
-              </View>
-              {idx < steps.length - 1 && (
+        <PageHeader
+          title="Add New Property"
+          subtitle="Pull from public records or upload info."
+          onBack={() => {
+            if (activeStep > 0 && activeStep < 4) setActiveStep(activeStep - 1);
+            else router.back();
+          }}
+        />
+
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 24 }
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* MOBILE OPTIMIZED STEP INDICATOR */}
+          <View style={styles.stepIndicatorContainerMobile}>
+            {steps.map((step, idx) => (
+              <React.Fragment key={idx}>
                 <View style={[
-                  styles.stepLineMobile,
-                  activeStep > idx && styles.stepLineActiveMobile
-                ]} />
-              )}
-            </React.Fragment>
-          ))}
-        </View>
+                  styles.stepCircleMobile,
+                  activeStep >= idx && styles.stepCircleActiveMobile
+                ]}>
+                  <MaterialCommunityIcons
+                    name={step.icon as any}
+                    size={16}
+                    color={activeStep >= idx ? "#FFF" : colors.textMuted}
+                  />
+                </View>
+                {idx < steps.length - 1 && (
+                  <View style={[
+                    styles.stepLineMobile,
+                    activeStep > idx && styles.stepLineActiveMobile
+                  ]} />
+                )}
+              </React.Fragment>
+            ))}
+          </View>
 
-        <View style={styles.contentWrapMobile}>
-          {renderStep()}
-        </View>
-      </ScrollView>
+          <View style={styles.contentWrapMobile}>
+            {renderStep()}
+          </View>
+        </ScrollView>
 
-      {activeStep < 4 && renderFooter()}
+        {activeStep < 4 && renderFooter()}
+      </KeyboardAvoidingView>
 
       {/* Media Picker Modal */}
       <Modal
@@ -1234,7 +1238,7 @@ export default function CreateListingScreen() {
         onRequestClose={() => setIsPickingMedia(false)}
       >
         <Pressable style={styles.modalOverlay} onPress={() => setIsPickingMedia(false)}>
-          <View style={styles.bottomSheet}>
+          <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetDragHandle} />
               <Text style={styles.sheetTitle}>Add Media</Text>
@@ -1899,13 +1903,8 @@ function getStyles(colors: any) {
 
     // Action Buttons
     fixedFooter: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
       backgroundColor: colors.cardBackground,
       paddingHorizontal: 20,
-      marginVertical: 15,
       borderTopWidth: 1,
       borderTopColor: colors.cardBorder,
       shadowColor: colors.cardShadowColor,

@@ -2,6 +2,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ImagePickerModalProps {
   isVisible: boolean;
@@ -12,11 +13,18 @@ interface ImagePickerModalProps {
 
 export function ImagePickerModal({ isVisible, onClose, onSelect, title }: ImagePickerModalProps) {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal visible={isVisible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={[styles.modalContainer, { backgroundColor: colors.cardBackground }]}>
+        <View style={[
+          styles.modalContainer, 
+          { 
+            backgroundColor: colors.cardBackground,
+            paddingBottom: Math.max(insets.bottom, 16) + 24
+          }
+        ]}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Choose source</Text>
 

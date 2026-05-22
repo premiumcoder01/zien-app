@@ -27,7 +27,7 @@ type FormTab = 'personal' | 'branding' | 'contact' | 'additional';
 const TABS: { id: FormTab; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
   { id: 'personal', label: 'Personal Details', icon: 'account-outline' },
   { id: 'branding', label: 'Branding & Media', icon: 'image-outline' },
-  { id: 'contact', label: 'Contact & Social', icon: 'share-variant' },
+  { id: 'contact', label: 'Contact & Social', icon: 'card-account-phone-outline' },
   { id: 'additional', label: 'Additional Info', icon: 'file-document-outline' },
 ];
 

@@ -204,16 +204,22 @@ export function ProfileCard({
                 {renderAvatar(styles.avatar)}
               </View>
               <Text style={[styles.classicName, headingFont ? { fontFamily: headingFont } : undefined]} numberOfLines={1}>{getVal(card.fullName)}</Text>
-              <Text style={[styles.classicTitle, headingFont ? { fontFamily: headingFont } : undefined]}>{getVal(card.title).toUpperCase()}</Text>
-              <View style={styles.classicLine} />
-              <Pressable style={styles.classicContactRow} onPress={openPhone} disabled={isAlt(card.phone)}>
-                <MaterialCommunityIcons name="phone-outline" size={18} color="#FFFFFF" />
-                <Text style={[styles.classicContactText, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.phone) && { opacity: 0.6 }]}>{getVal(card.phone)}</Text>
-              </Pressable>
-              <Pressable style={styles.classicContactRow} onPress={openEmail} disabled={isAlt(card.email)}>
-                <MaterialCommunityIcons name="email-outline" size={18} color="#FFFFFF" />
-                <Text style={[styles.classicContactText, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.email) && { opacity: 0.6 }]} numberOfLines={1}>{getVal(card.email)}</Text>
-              </Pressable>
+              {!!card.title?.trim() && (
+                <Text style={[styles.classicTitle, headingFont ? { fontFamily: headingFont } : undefined]}>{card.title.toUpperCase()}</Text>
+              )}
+              {!!card.title?.trim() && <View style={styles.classicLine} />}
+              {!!card.phone?.trim() && (
+                <Pressable style={styles.classicContactRow} onPress={openPhone}>
+                  <MaterialCommunityIcons name="phone-outline" size={18} color="#FFFFFF" />
+                  <Text style={[styles.classicContactText, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.phone}</Text>
+                </Pressable>
+              )}
+              {!!card.email?.trim() && (
+                <Pressable style={styles.classicContactRow} onPress={openEmail}>
+                  <MaterialCommunityIcons name="email-outline" size={18} color="#FFFFFF" />
+                  <Text style={[styles.classicContactText, bodyFont ? { fontFamily: bodyFont } : undefined]} numberOfLines={1}>{card.email}</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         ) : isLuxury ? (
@@ -229,26 +235,34 @@ export function ProfileCard({
             </View>
             <View style={styles.luxuryNameBlock}>
               <Text style={[styles.luxuryName, headingFont ? { fontFamily: headingFont } : undefined]} numberOfLines={1}>{getVal(card.fullName)}</Text>
-              <Text style={[styles.luxuryTitle, bodyFont ? { fontFamily: bodyFont } : undefined]}>{getVal(card.title)}</Text>
+              {!!card.title?.trim() && (
+                <Text style={[styles.luxuryTitle, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.title}</Text>
+              )}
             </View>
             <View style={styles.luxuryContactBlock}>
-              <Pressable style={styles.luxuryContactBtn} onPress={openPhone} disabled={isAlt(card.phone)}>
-                <MaterialCommunityIcons name="phone-outline" size={18} color="rgba(255,255,255,0.8)" />
-                <Text style={[styles.luxuryContactText, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.phone) && { opacity: 0.6 }]}>{getVal(card.phone)}</Text>
-              </Pressable>
-              <Pressable style={styles.luxuryContactBtn} onPress={openEmail} disabled={isAlt(card.email)}>
-                <MaterialCommunityIcons name="email-outline" size={18} color="rgba(255,255,255,0.8)" />
-                <Text style={[styles.luxuryContactText, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.email) && { opacity: 0.6 }]} numberOfLines={1}>{getVal(card.email)}</Text>
-              </Pressable>
-            </View>
-            <View style={styles.luxuryFooter}>
-              {companyLogoUri?.trim() ? (
-                <Image source={{ uri: companyLogoUri.trim() }} style={styles.luxuryCompanyLogo} contentFit="contain" />
-              ) : (
-                <MaterialCommunityIcons name="atom" size={20} color="rgba(255,255,255,0.9)" />
+              {!!card.phone?.trim() && (
+                <Pressable style={styles.luxuryContactBtn} onPress={openPhone}>
+                  <MaterialCommunityIcons name="phone-outline" size={18} color="rgba(255,255,255,0.8)" />
+                  <Text style={[styles.luxuryContactText, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.phone}</Text>
+                </Pressable>
               )}
-              <Text style={[styles.luxuryCompanyName, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.company.toUpperCase()}</Text>
+              {!!card.email?.trim() && (
+                <Pressable style={styles.luxuryContactBtn} onPress={openEmail}>
+                  <MaterialCommunityIcons name="email-outline" size={18} color="rgba(255,255,255,0.8)" />
+                  <Text style={[styles.luxuryContactText, bodyFont ? { fontFamily: bodyFont } : undefined]} numberOfLines={1}>{card.email}</Text>
+                </Pressable>
+              )}
             </View>
+            {!!card.company?.trim() && (
+              <View style={styles.luxuryFooter}>
+                {companyLogoUri?.trim() ? (
+                  <Image source={{ uri: companyLogoUri.trim() }} style={styles.luxuryCompanyLogo} contentFit="contain" />
+                ) : (
+                  <MaterialCommunityIcons name="atom" size={20} color="rgba(255,255,255,0.9)" />
+                )}
+                <Text style={[styles.luxuryCompanyName, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.company.toUpperCase()}</Text>
+              </View>
+            )}
           </View>
         ) : isMinimal ? (
           <View style={styles.minimalFrontInner}>
@@ -263,18 +277,26 @@ export function ProfileCard({
                 <Text style={[styles.minimalFirstName, { color: activeAccent }, headingFont ? { fontFamily: headingFont } : undefined]}>{firstName || 'User'}</Text>
                 <Text style={[styles.minimalLastName, { color: activeAccent }, headingFont ? { fontFamily: headingFont } : undefined]}>{lastName}</Text>
               </View>
-              <Text style={[styles.minimalTitle, bodyFont ? { fontFamily: bodyFont } : undefined]}>{getVal(card.title).toUpperCase()}</Text>
-              <View style={styles.minimalLine} />
+              {!!card.title?.trim() && (
+                <Text style={[styles.minimalTitle, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.title.toUpperCase()}</Text>
+              )}
+              {!!card.title?.trim() && <View style={styles.minimalLine} />}
               <View style={styles.minimalIconRow}>
-                <Pressable onPress={openPhone} style={styles.minimalIconBtn} disabled={isAlt(card.phone)}>
-                  <MaterialCommunityIcons name="phone-outline" size={22} color={isAlt(card.phone) ? "#9AA7B640" : "#9AA7B6"} />
-                </Pressable>
-                <Pressable onPress={openEmail} style={styles.minimalIconBtn} disabled={isAlt(card.email)}>
-                  <MaterialCommunityIcons name="email-outline" size={22} color={isAlt(card.email) ? "#9AA7B640" : "#9AA7B6"} />
-                </Pressable>
-                <ExternalLink href={card.website} style={styles.minimalIconBtn} disabled={isAlt(card.website)}>
-                  <MaterialCommunityIcons name="web" size={22} color={isAlt(card.website) ? "#9AA7B640" : "#9AA7B6"} />
-                </ExternalLink>
+                {!!card.phone?.trim() && (
+                  <Pressable onPress={openPhone} style={styles.minimalIconBtn}>
+                    <MaterialCommunityIcons name="phone-outline" size={22} color="#9AA7B6" />
+                  </Pressable>
+                )}
+                {!!card.email?.trim() && (
+                  <Pressable onPress={openEmail} style={styles.minimalIconBtn}>
+                    <MaterialCommunityIcons name="email-outline" size={22} color="#9AA7B6" />
+                  </Pressable>
+                )}
+                {!!card.website?.trim() && (
+                  <ExternalLink href={card.website} style={styles.minimalIconBtn}>
+                    <MaterialCommunityIcons name="web" size={22} color="#9AA7B6" />
+                  </ExternalLink>
+                )}
               </View>
             </View>
           </View>
@@ -293,15 +315,23 @@ export function ProfileCard({
               </View>
             </View>
             <View style={styles.boldBottom}>
-              <Text style={[styles.boldTitle, headingFont ? { fontFamily: headingFont } : undefined]}>{getVal(card.title).toUpperCase()}</Text>
-              <View style={styles.boldLine} />
-              <Pressable onPress={openPhone} disabled={isAlt(card.phone)}>
-                <Text style={[styles.boldContactText, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.phone) && { opacity: 0.5 }]}>{getVal(card.phone)}</Text>
-              </Pressable>
-              <Pressable onPress={openEmail} disabled={isAlt(card.email)}>
-                <Text style={[styles.boldContactText, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.email) && { opacity: 0.5 }]} numberOfLines={1}>{getVal(card.email)}</Text>
-              </Pressable>
-              <Text style={[styles.boldContactText, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.company) && { opacity: 0.5 }]}>{getVal(card.company)}</Text>
+              {!!card.title?.trim() && (
+                <Text style={[styles.boldTitle, headingFont ? { fontFamily: headingFont } : undefined]}>{card.title.toUpperCase()}</Text>
+              )}
+              {!!card.title?.trim() && <View style={styles.boldLine} />}
+              {!!card.phone?.trim() && (
+                <Pressable onPress={openPhone}>
+                  <Text style={[styles.boldContactText, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.phone}</Text>
+                </Pressable>
+              )}
+              {!!card.email?.trim() && (
+                <Pressable onPress={openEmail}>
+                  <Text style={[styles.boldContactText, bodyFont ? { fontFamily: bodyFont } : undefined]} numberOfLines={1}>{card.email}</Text>
+                </Pressable>
+              )}
+              {!!card.company?.trim() && (
+                <Text style={[styles.boldContactText, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.company}</Text>
+              )}
             </View>
           </View>
         ) : (
@@ -323,65 +353,72 @@ export function ProfileCard({
                 {renderAvatar(styles.avatar)}
               </View>
               <Text style={[styles.name, { color: activeAccent }, headingFont ? { fontFamily: headingFont } : undefined]} numberOfLines={1}>{getVal(card.fullName)}</Text>
-              <Text style={[styles.role, { color: activeAccent }, headingFont ? { fontFamily: headingFont } : undefined]}>{getVal(card.title)}</Text>
-              <Text style={[styles.license, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.legalRole) && isAlt(card.license) && { opacity: 0.6 }]}>
-                {card.legalRole || 'Solo'} • {card.license || infoPlaceholder}
-              </Text>
-              <Pressable style={styles.contactField} onPress={openPhone} disabled={isAlt(card.phone)}>
-                <MaterialCommunityIcons name="phone-outline" size={18} color="#7B8794" />
-                <Text style={[styles.contactFieldText, { color: activeAccent }, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.phone) && { opacity: 0.6 }]}>{getVal(card.phone)}</Text>
-              </Pressable>
-              <Pressable style={styles.contactField} onPress={openEmail} disabled={isAlt(card.email)}>
-                <MaterialCommunityIcons name="email-outline" size={18} color="#7B8794" />
-                <Text style={[styles.contactFieldText, { color: activeAccent }, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.email) && { opacity: 0.6 }]} numberOfLines={1}>{getVal(card.email)}</Text>
-              </Pressable>
+              {!!card.title?.trim() && (
+                <Text style={[styles.role, { color: activeAccent }, headingFont ? { fontFamily: headingFont } : undefined]}>{card.title}</Text>
+              )}
+              {(() => {
+                const hasRole = !!card.legalRole?.trim();
+                const hasLicense = !!card.license?.trim();
+                if (!hasRole && !hasLicense) return null;
+                return (
+                  <Text style={[styles.license, bodyFont ? { fontFamily: bodyFont } : undefined]}>
+                    {hasRole && hasLicense ? `${card.legalRole} • ${card.license}` : (card.legalRole || card.license)}
+                  </Text>
+                );
+              })()}
+              {!!card.phone?.trim() && (
+                <Pressable style={styles.contactField} onPress={openPhone}>
+                  <MaterialCommunityIcons name="phone-outline" size={18} color="#7B8794" />
+                  <Text style={[styles.contactFieldText, { color: activeAccent }, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.phone}</Text>
+                </Pressable>
+              )}
+              {!!card.email?.trim() && (
+                <Pressable style={styles.contactField} onPress={openEmail}>
+                  <MaterialCommunityIcons name="email-outline" size={18} color="#7B8794" />
+                  <Text style={[styles.contactFieldText, { color: activeAccent }, bodyFont ? { fontFamily: bodyFont } : undefined]} numberOfLines={1}>{card.email}</Text>
+                </Pressable>
+              )}
               <View style={styles.socialRow}>
-                <ExternalLink
-                  href={card.website}
-                  style={[styles.socialLink, isAlt(card.website) && { opacity: 0.3 }]}
-                  disabled={isAlt(card.website)}
-                >
-                  <MaterialCommunityIcons name="web" size={20} color="#7B8794" />
-                </ExternalLink>
-                <ExternalLink
-                  href={card.instagram}
-                  style={[styles.socialLink, isAlt(card.instagram) && { opacity: 0.3 }]}
-                  disabled={isAlt(card.instagram)}
-                >
-                  <MaterialCommunityIcons name="instagram" size={20} color="#7B8794" />
-                </ExternalLink>
-                <ExternalLink
-                  href={card.linkedin}
-                  style={[styles.socialLink, isAlt(card.linkedin) && { opacity: 0.3 }]}
-                  disabled={isAlt(card.linkedin)}
-                >
-                  <MaterialCommunityIcons name="linkedin" size={20} color="#7B8794" />
-                </ExternalLink>
-                <ExternalLink
-                  href={card.facebook}
-                  style={[styles.socialLink, isAlt(card.facebook) && { opacity: 0.3 }]}
-                  disabled={isAlt(card.facebook)}
-                >
-                  <MaterialCommunityIcons name="facebook" size={20} color="#7B8794" />
-                </ExternalLink>
-                <ExternalLink
-                  href={card.tiktok}
-                  style={[styles.socialLink, isAlt(card.tiktok) && { opacity: 0.3 }]}
-                  disabled={isAlt(card.tiktok)}
-                >
-                  <MaterialCommunityIcons name="music-note" size={20} color="#7B8794" />
-                </ExternalLink>
+                {!!card.website?.trim() && (
+                  <ExternalLink href={card.website} style={styles.socialLink}>
+                    <MaterialCommunityIcons name="web" size={20} color="#7B8794" />
+                  </ExternalLink>
+                )}
+                {!!card.instagram?.trim() && (
+                  <ExternalLink href={card.instagram} style={styles.socialLink}>
+                    <MaterialCommunityIcons name="instagram" size={20} color="#7B8794" />
+                  </ExternalLink>
+                )}
+                {!!card.linkedin?.trim() && (
+                  <ExternalLink href={card.linkedin} style={styles.socialLink}>
+                    <MaterialCommunityIcons name="linkedin" size={20} color="#7B8794" />
+                  </ExternalLink>
+                )}
+                {!!card.facebook?.trim() && (
+                  <ExternalLink href={card.facebook} style={styles.socialLink}>
+                    <MaterialCommunityIcons name="facebook" size={20} color="#7B8794" />
+                  </ExternalLink>
+                )}
+                {!!card.tiktok?.trim() && (
+                  <ExternalLink href={card.tiktok} style={styles.socialLink}>
+                    <MaterialCommunityIcons name="music-note" size={20} color="#7B8794" />
+                  </ExternalLink>
+                )}
               </View>
               <View style={styles.frontBottom}>
                 <View style={styles.metaCol}>
-                  <View style={styles.metaRow}>
-                    <MaterialCommunityIcons name="home-outline" size={14} color="#5B6B7A" />
-                    <Text style={[styles.metaText, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.company) && { opacity: 0.6 }]}>{getVal(card.company)}</Text>
-                  </View>
-                  <View style={styles.metaRow}>
-                    <MaterialCommunityIcons name="map-marker-outline" size={14} color="#5B6B7A" />
-                    <Text style={[styles.metaText, bodyFont ? { fontFamily: bodyFont } : undefined, isAlt(card.address) && { opacity: 0.6 }]}>{getVal(card.address)}</Text>
-                  </View>
+                  {!!card.company?.trim() && (
+                    <View style={styles.metaRow}>
+                      <MaterialCommunityIcons name="home-outline" size={14} color="#5B6B7A" />
+                      <Text style={[styles.metaText, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.company}</Text>
+                    </View>
+                  )}
+                  {!!card.address?.trim() && (
+                    <View style={styles.metaRow}>
+                      <MaterialCommunityIcons name="map-marker-outline" size={14} color="#5B6B7A" />
+                      <Text style={[styles.metaText, bodyFont ? { fontFamily: bodyFont } : undefined]}>{card.address}</Text>
+                    </View>
+                  )}
                 </View>
                 <View style={styles.smallQrBox}>
                   <QRCode value={cardUrl} size={44} color={accentColor} backgroundColor="#F7FBFF" />

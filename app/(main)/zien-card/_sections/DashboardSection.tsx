@@ -1,11 +1,11 @@
 import { ExternalLink } from '@/components/external-link';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { useLeadEnquiries } from '@/hooks/useLeadEnquiries';
 import { CreateDigitalCardPayload, DigitalCard, createDigitalCard, deleteDigitalCard } from '@/services/digitalCardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLeadEnquiries } from '@/hooks/useLeadEnquiries';
 import { useState } from 'react';
-import { Alert, Clipboard, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, Linking } from 'react-native';
+import { Alert, Clipboard, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { CreateCardModal } from '../_components/CreateCardModal';
 import { DeleteCardModal } from '../_components/DeleteCardModal';
 import { ProfileCard, type ProfileCardData } from '../_components/ProfileCard';
@@ -317,7 +317,7 @@ export function DashboardSection({
                   <MaterialCommunityIcons name="account-group-outline" size={22} color="#0BA0B2" />
                 </View>
                 <View style={styles.leadsTextWrap}>
-                  <Text style={styles.leadsLabel}>TOTAL LEADS</Text>
+                  <Text style={styles.leadsLabel}>TOTAL LEADS Enquiries</Text>
                   <Text style={styles.leadsMeta}>All time</Text>
                 </View>
                 <Text style={styles.leadsValue}>{enquiryCount}</Text>
@@ -336,7 +336,7 @@ export function DashboardSection({
           <View style={styles.enquiriesSection}>
             <Text style={styles.enquiriesHeading}>Enquiries</Text>
             <Text style={styles.enquiriesSubheading}>Manage leads and contacts collected from your digital cards.</Text>
-            
+
             {cardLeads.length > 0 ? (
               cardLeads.map((lead) => (
                 <View key={lead.id} style={styles.leadCard}>
@@ -382,13 +382,13 @@ export function DashboardSection({
                   </View>
 
                   <View style={styles.leadActions}>
-                    <Pressable 
+                    <Pressable
                       style={[styles.actionBtn, { backgroundColor: '#10B981' }]}
                       onPress={() => Linking.openURL(`tel:${lead.phone}`)}>
                       <MaterialCommunityIcons name="phone" size={18} color="#FFFFFF" />
                       <Text style={styles.actionBtnText}>Call</Text>
                     </Pressable>
-                    <Pressable 
+                    <Pressable
                       style={[styles.actionBtn, { backgroundColor: colors.accentTeal }]}
                       onPress={() => Linking.openURL(`mailto:${lead.email}`)}>
                       <MaterialCommunityIcons name="email" size={18} color="#FFFFFF" />

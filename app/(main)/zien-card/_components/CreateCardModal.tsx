@@ -167,7 +167,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
                   <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC', borderColor: colors.cardBorder }]}>
                     <TextInput
                       style={[styles.input, { color: colors.textPrimary }]}
-                      placeholder="e.g. Sales Executive"
+                      placeholder="e.g. Work"
                       placeholderTextColor={colors.textSecondary + '80'}
                       value={profileName}
                       onChangeText={setProfileName}
@@ -199,7 +199,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
                   <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC', borderColor: colors.cardBorder }]}>
                     <TextInput
                       style={[styles.input, { color: colors.textPrimary }]}
-                      placeholder="you@example.com"
+                      placeholder="you@mail.com"
                       keyboardType="email-address"
                       autoCapitalize="none"
                       placeholderTextColor={colors.textSecondary + '80'}
@@ -237,7 +237,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
                     <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC', borderColor: colors.cardBorder }]}>
                       <TextInput
                         style={[styles.input, { color: colors.textPrimary }]}
-                        placeholder="e.g. Senior Broker"
+                        placeholder="e.g. Broker"
                         placeholderTextColor={colors.textSecondary + '80'}
                         value={title}
                         onChangeText={setTitle}
@@ -251,7 +251,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
                     <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC', borderColor: colors.cardBorder }]}>
                       <TextInput
                         style={[styles.input, { color: colors.textPrimary }]}
-                        placeholder="e.g. Zien Estates"
+                        placeholder="e.g. Zien"
                         placeholderTextColor={colors.textSecondary + '80'}
                         value={companyName}
                         onChangeText={setCompanyName}
@@ -386,8 +386,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   input: {
+    flex: 1,
+    paddingVertical: 0,
     fontSize: 15,
     fontWeight: '700',
+    textAlignVertical: 'center',
   },
   submitBtn: {
     height: 56,

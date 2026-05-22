@@ -1,9 +1,17 @@
 const API_BASE_URL = 'https://staging.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
+export interface PropertyStats {
+  totalValue: number;
+  avgConfidence: number;
+  activeCount: number;
+  draftCount: number;
+}
+
 export interface PropertyApiResponse {
   success: boolean;
   properties: RawPropertyItem[];
+  stats?: PropertyStats;
 }
 
 export interface RawPropertyItem {

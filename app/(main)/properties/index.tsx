@@ -1,11 +1,14 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAuth } from '@/context/AuthContext';
+import { useAppTheme } from '@/context/ThemeContext';
+import { deleteProperty, getProperties, PropertyStats, RawPropertyItem } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   Modal,
   Pressable,
@@ -16,10 +19,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '@/context/AuthContext';
-import { getProperties, RawPropertyItem, deleteProperty } from '@/services/propertyService';
-import { ActivityIndicator } from 'react-native';
-import { useEffect } from 'react';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const H_PADDING = 16;
@@ -89,9 +88,9 @@ function StatCard({
           <View style={styles.statLabelRow}>
             <Text style={styles.statLabel}>{label.toUpperCase()}</Text>
             {label === 'Data Confidence' && (
-               <View style={styles.tinyDotWrap}>
-                  <View style={[styles.tinyDot, { backgroundColor: accentColor }]} />
-               </View>
+              <View style={styles.tinyDotWrap}>
+                <View style={[styles.tinyDot, { backgroundColor: accentColor }]} />
+              </View>
             )}
           </View>
         </View>
@@ -312,6 +311,7 @@ export default function PropertyInventoryScreen() {
   const { accessToken } = useAuth();
 
   const [properties, setProperties] = useState<Property[]>([]);
+  const [stats, setStats] = useState<PropertyStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
@@ -330,6 +330,9 @@ export default function PropertyInventoryScreen() {
       if (res.success) {
         const mapped = res.properties.map(mapRawToProperty);
         setProperties(mapped);
+        if (res.stats) {
+          setStats(res.stats);
+        }
       } else {
         setError('Failed to load properties');
       }
@@ -363,17 +366,20 @@ export default function PropertyInventoryScreen() {
   };
 
   // ── Stats Calculations ──
-  const totalValueNum = properties.reduce((acc, p) => {
-    const val = parseFloat(p.value.replace(/[$,]/g, '')) || 0;
-    return acc + val;
-  }, 0);
+  const totalValueNum = stats
+    ? stats.totalValue
+    : properties.reduce((acc, p) => {
+      const val = parseFloat(p.value.replace(/[$,]/g, '')) || 0;
+      return acc + val;
+    }, 0);
 
-  const formattedPortfolioValue = totalValueNum >= 1000000 
+  const formattedPortfolioValue = totalValueNum >= 1000000
     ? `$${(totalValueNum / 1000000).toFixed(1)}M`
     : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(totalValueNum);
 
-  const activeCount = properties.length;
-  const draftCount = 0; // Everything is "Ready" for now
+  const activeCount = stats ? stats.activeCount : properties.length;
+  const draftCount = stats ? stats.draftCount : 0;
+  const avgConfidence = stats ? stats.avgConfidence : 94;
 
   const handleCreateListing = () => {
     router.push('/(main)/properties/create');
@@ -403,10 +409,10 @@ export default function PropertyInventoryScreen() {
     try {
       setIsLoading(true);
       const res = await deleteProperty(parseInt(deleteTarget.id), accessToken);
-      
+
       if (res.success) {
-        setProperties((prev) => prev.filter((p) => p.id !== deleteTarget.id));
         setDeleteTarget(null);
+        await fetchData();
       } else {
         alert(res.message || "Failed to delete property");
       }
@@ -432,7 +438,7 @@ export default function PropertyInventoryScreen() {
       />
 
       <PageHeader
-        title="Property Inventory"
+        title="Property "
         subtitle="Manage your high-confidence property data."
         onBack={() => router.back()}
         rightIcon="plus"
@@ -459,7 +465,7 @@ export default function PropertyInventoryScreen() {
           />
           <StatCard
             icon="chart-bell-curve-cumulative"
-            value="94% Avg."
+            value={`${Math.round(avgConfidence)}% Avg.`}
             label="Data Confidence"
             accentColor={colors.accentGreen}
           />
@@ -541,396 +547,396 @@ const CARD_W = (SCREEN_WIDTH - H_PADDING * 2 - CARD_GAP) / 2;
 
 function getStyles(colors: any) {
   return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
+    container: {
+      flex: 1,
+      backgroundColor: 'transparent',
+    },
 
 
 
-  // ── Scroll ──
-  scrollContent: {
-    paddingBottom: 20,
-    paddingTop: 4,
-  },
+    // ── Scroll ──
+    scrollContent: {
+      paddingBottom: 20,
+      paddingTop: 4,
+    },
 
-  // ── Stat Cards Grid ──
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: H_PADDING,
-    gap: CARD_GAP,
-    marginBottom: 20,
-  },
-  statCardContainer: {
-    width: CARD_W,
-    borderRadius: 22,
-    overflow: 'hidden',
-  },
-  statCard: {
-    padding: 16,
-    height: 120, // fixed height for consistency
-    justifyContent: 'space-between',
-    borderWidth: 1.5,
-  },
-  statHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statTrend: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statContent: {
-    marginTop: 8,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    marginBottom: 4,
-    letterSpacing: -0.5,
-  },
-  statLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  statLabel: {
-    fontSize: 9,
-    color: colors.textSecondary,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  tinyDotWrap: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  tinyDot: {
-    flex: 1,
-  },
-  statDecoration: {
-    position: 'absolute',
-    right: -10,
-    bottom: -10,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    zIndex: -1,
-  },
+    // ── Stat Cards Grid ──
+    statsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: H_PADDING,
+      gap: CARD_GAP,
+      marginBottom: 20,
+    },
+    statCardContainer: {
+      width: CARD_W,
+      borderRadius: 22,
+      overflow: 'hidden',
+    },
+    statCard: {
+      padding: 16,
+      height: 120, // fixed height for consistency
+      justifyContent: 'space-between',
+      borderWidth: 1.5,
+    },
+    statHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    statIconBox: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    statTrend: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    statContent: {
+      marginTop: 8,
+    },
+    statValue: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginBottom: 4,
+      letterSpacing: -0.5,
+    },
+    statLabelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    statLabel: {
+      fontSize: 9,
+      color: colors.textSecondary,
+      fontWeight: '800',
+      letterSpacing: 0.8,
+    },
+    tinyDotWrap: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      overflow: 'hidden',
+    },
+    tinyDot: {
+      flex: 1,
+    },
+    statDecoration: {
+      position: 'absolute',
+      right: -10,
+      bottom: -10,
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      zIndex: -1,
+    },
 
 
 
-  // ── Table header row ──
-  tableHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: H_PADDING + 4,
-    marginBottom: 10,
-  },
-  tableHeaderText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.inputPlaceholder,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
+    // ── Table header row ──
+    tableHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: H_PADDING + 4,
+      marginBottom: 10,
+    },
+    tableHeaderText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: colors.inputPlaceholder,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+    },
 
-  // ── List ──
-  listContainer: {
-    paddingHorizontal: H_PADDING,
-    gap: 14,
-  },
+    // ── List ──
+    listContainer: {
+      paddingHorizontal: H_PADDING,
+      gap: 14,
+    },
 
-  // ── Property Card ──
-  propertyCard: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+    // ── Property Card ──
+    propertyCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingTop: 14,
+      paddingBottom: 10,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 2,
+    },
 
-  // Row 1
-  row1: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  thumb: {
-    width: 52,
-    height: 52,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceSoft,
-  },
-  addressBlock: {
-    flex: 1,
-  },
-  addressText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    lineHeight: 18,
-  },
-  idText: {
-    fontSize: 10,
-    color: colors.accentTeal,
-    fontWeight: '600',
-    marginTop: 2,
-    letterSpacing: 0.2,
-  },
+    // Row 1
+    row1: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    thumb: {
+      width: 52,
+      height: 52,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSoft,
+    },
+    addressBlock: {
+      flex: 1,
+    },
+    addressText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      lineHeight: 18,
+    },
+    idText: {
+      fontSize: 10,
+      color: colors.accentTeal,
+      fontWeight: '600',
+      marginTop: 2,
+      letterSpacing: 0.2,
+    },
 
-  // Status pill
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
-  statusText: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
+    // Status pill
+    statusPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    statusDot: {
+      width: 5,
+      height: 5,
+      borderRadius: 3,
+    },
+    statusText: {
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+    },
 
-  // Divider
-  divider: {
-    height: 1,
-    backgroundColor: colors.surfaceSoft,
-    marginVertical: 12,
-  },
+    // Divider
+    divider: {
+      height: 1,
+      backgroundColor: colors.surfaceSoft,
+      marginVertical: 12,
+    },
 
-  // Row 2
-  row2: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-    marginBottom: 12,
-  },
-  metaCol: {
-    flex: 1,
-  },
-  metaColCenter: {
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingHorizontal: 8,
-  },
-  metaLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.inputPlaceholder,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  metaValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  metaValueBold: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
+    // Row 2
+    row2: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 6,
+      marginBottom: 12,
+    },
+    metaCol: {
+      flex: 1,
+    },
+    metaColCenter: {
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 8,
+    },
+    metaLabel: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: colors.inputPlaceholder,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 4,
+    },
+    metaValue: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    metaValueBold: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
 
-  // Confidence
-  confidenceWrap: {
-    gap: 4,
-  },
-  confidencePct: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  confidenceTrack: {
-    height: 5,
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  confidenceFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
+    // Confidence
+    confidenceWrap: {
+      gap: 4,
+    },
+    confidencePct: {
+      fontSize: 13,
+      fontWeight: '800',
+    },
+    confidenceTrack: {
+      height: 5,
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    confidenceFill: {
+      height: '100%',
+      borderRadius: 3,
+    },
 
-  // Row 3
-  row3: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  syncBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  syncText: {
-    fontSize: 10,
-    color: colors.inputPlaceholder,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  actionIcons: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-  },
-  iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
+    // Row 3
+    row3: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    syncBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    syncText: {
+      fontSize: 10,
+      color: colors.inputPlaceholder,
+      fontWeight: '600',
+      letterSpacing: 0.5,
+    },
+    actionIcons: {
+      flexDirection: 'row',
+      gap: 6,
+      alignItems: 'center',
+    },
+    iconBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
 
-  // ── Delete Modal ──
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(11, 45, 62, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 28,
-  },
-  modalCard: {
-    width: '100%',
-    backgroundColor: colors.cardBackground,
-    borderRadius: 24,
-    paddingHorizontal: 28,
-    paddingTop: 32,
-    paddingBottom: 28,
-    alignItems: 'center',
-    shadowColor: colors.textPrimary,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  modalIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(239,68,68,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  modalBody: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 28,
-  },
-  modalBodyBold: {
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  modalBtnRow: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  modalCancelBtn: {
-    flex: 1,
-    paddingVertical: 13,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  modalCancelText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  modalDeleteBtn: {
-    flex: 1,
-    paddingVertical: 13,
-    borderRadius: 12,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalDeleteText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
+    // ── Delete Modal ──
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(11, 45, 62, 0.4)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 28,
+    },
+    modalCard: {
+      width: '100%',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      paddingHorizontal: 28,
+      paddingTop: 32,
+      paddingBottom: 28,
+      alignItems: 'center',
+      shadowColor: colors.textPrimary,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.18,
+      shadowRadius: 24,
+      elevation: 12,
+    },
+    modalIconWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: 'rgba(239,68,68,0.10)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 18,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 10,
+      textAlign: 'center',
+    },
+    modalBody: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 20,
+      marginBottom: 28,
+    },
+    modalBodyBold: {
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    modalBtnRow: {
+      flexDirection: 'row',
+      gap: 12,
+      width: '100%',
+    },
+    modalCancelBtn: {
+      flex: 1,
+      paddingVertical: 13,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    modalCancelText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    modalDeleteBtn: {
+      flex: 1,
+      paddingVertical: 13,
+      borderRadius: 12,
+      backgroundColor: '#EF4444',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalDeleteText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
 
-  // ── Status States ──
-  centerBox: {
-    paddingVertical: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  statusInfoText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.danger,
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyText: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  retryBtn: {
-    marginTop: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  retryBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.accentTeal,
-  },
+    // ── Status States ──
+    centerBox: {
+      paddingVertical: 60,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+    },
+    statusInfoText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    errorText: {
+      fontSize: 14,
+      color: colors.danger,
+      textAlign: 'center',
+      paddingHorizontal: 40,
+    },
+    emptyText: {
+      fontSize: 15,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    retryBtn: {
+      marginTop: 10,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    retryBtnText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.accentTeal,
+    },
   });
 }
