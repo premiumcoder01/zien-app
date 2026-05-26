@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { CRMContact, CRMDeal, CRMPipeline, CRMStage, addCRMDeal, addCRMPipelineStage, deleteCRMPipelineStage, getCRMContacts, getCRMDeals, getCRMPipelines, updateCRMDealStage } from '@/services/crmService';
+import { CRMContact, CRMDeal, CRMPipeline, CRMStage, addCRMDeal, addCRMPipelineStage, deleteCRMPipelineStage, updateCRMPipelineStage, getCRMContacts, getCRMDeals, getCRMPipelines, updateCRMDealStage, deleteCRMDeal } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -147,7 +147,44 @@ export default function DealsScreen() {
     ]);
     setRefreshing(false);
   }, [queryClient]);
-  const [deletingStageId, setDeletingStageId] = useState<string | null>(null);
+   const [deletingStageId, setDeletingStageId] = useState<string | null>(null);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [editStageNameInput, setEditStageNameInput] = useState('');
+  const [isUpdatingStage, setIsUpdatingStage] = useState(false);
+
+  const handleEditStageSave = async (stageId: string) => {
+    if (!editStageNameInput.trim() || !accessToken) return;
+
+    try {
+      setIsUpdatingStage(true);
+      await updateCRMPipelineStage(accessToken, stageId, editStageNameInput.trim());
+      setEditingStageId(null);
+      setEditStageNameInput('');
+      await queryClient.invalidateQueries({ queryKey: ['crmPipelines'] });
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to rename stage');
+    } finally {
+      setIsUpdatingStage(false);
+    }
+  };
+
+  const [dealToDelete, setDealToDelete] = useState<CRMDeal | null>(null);
+  const [isDeletingDeal, setIsDeletingDeal] = useState(false);
+
+  const handleDeleteDealConfirm = async () => {
+    if (!dealToDelete || !accessToken) return;
+
+    try {
+      setIsDeletingDeal(true);
+      await deleteCRMDeal(accessToken, dealToDelete.id);
+      setDealToDelete(null);
+      await queryClient.invalidateQueries({ queryKey: ['crmDeals'] });
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to delete deal');
+    } finally {
+      setIsDeletingDeal(false);
+    }
+  };
 
   const currentStages = activePipeline?.stages || [];
 
@@ -330,9 +367,18 @@ export default function DealsScreen() {
 
     return (
       <View key={deal.id} style={styles.dealCard}>
-        <Text style={styles.dealCardName}>
-          {deal.contact ? `${deal.contact.first_name} ${deal.contact.last_name || ''}` : 'No Contact'}
-        </Text>
+        <View style={styles.dealCardHeader}>
+          <Text style={[styles.dealCardName, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>
+            {deal.contact ? `${deal.contact.first_name} ${deal.contact.last_name || ''}` : 'No Contact'}
+          </Text>
+          <Pressable
+            style={styles.dealDeleteBtn}
+            onPress={() => setDealToDelete(deal)}
+            hitSlop={8}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.danger} />
+          </Pressable>
+        </View>
         <Text style={styles.dealCardAddress}>{deal.related_property}</Text>
         <View style={styles.dealCardBottom}>
           <Text style={styles.dealCardValue}>
@@ -606,27 +652,76 @@ export default function DealsScreen() {
                   </View>
                 ) : (
                   <View style={styles.smStageList}>
-                    {stagesModalCurrentStages.map((stage, index) => (
-                      <View key={stage.id} style={styles.smStageCard}>
-                        <View style={styles.smStageLeft}>
-                          <View style={styles.smStageIndex}>
-                            <Text style={styles.smStageIndexText}>{index + 1}</Text>
+                    {stagesModalCurrentStages.map((stage, index) => {
+                      const isEditing = editingStageId === stage.id;
+                      return (
+                        <View key={stage.id} style={styles.smStageCard}>
+                          <View style={styles.smStageLeft}>
+                            <View style={styles.smStageIndex}>
+                              <Text style={styles.smStageIndexText}>{index + 1}</Text>
+                            </View>
+                            {isEditing ? (
+                              <TextInput
+                                style={styles.smEditInput}
+                                value={editStageNameInput}
+                                onChangeText={setEditStageNameInput}
+                                autoFocus
+                                returnKeyType="done"
+                                onSubmitEditing={() => handleEditStageSave(stage.id)}
+                                editable={!isUpdatingStage}
+                              />
+                            ) : (
+                              <Text style={styles.smStageName}>{stage.name}</Text>
+                            )}
                           </View>
-                          <Text style={styles.smStageName}>{stage.name}</Text>
+                          
+                          <View style={styles.smActionRow}>
+                            {isEditing ? (
+                              <>
+                                <Pressable
+                                  style={[styles.smSaveBtn, isUpdatingStage && { opacity: 0.5 }]}
+                                  onPress={() => handleEditStageSave(stage.id)}
+                                  disabled={isUpdatingStage}
+                                >
+                                  {isUpdatingStage ? (
+                                    <ActivityIndicator size="small" color="#10B981" />
+                                  ) : (
+                                    <MaterialCommunityIcons name="check" size={18} color="#10B981" />
+                                  )}
+                                </Pressable>
+                                <Pressable
+                                  style={styles.smCancelBtn}
+                                  onPress={() => { setEditingStageId(null); setEditStageNameInput(''); }}
+                                  disabled={isUpdatingStage}
+                                >
+                                  <MaterialCommunityIcons name="close" size={18} color={colors.textSecondary} />
+                                </Pressable>
+                              </>
+                            ) : (
+                              <>
+                                <Pressable
+                                  style={styles.smEditBtn}
+                                  onPress={() => { setEditingStageId(stage.id); setEditStageNameInput(stage.name); }}
+                                >
+                                  <MaterialCommunityIcons name="pencil-outline" size={17} color={colors.accentTeal} />
+                                </Pressable>
+                                <Pressable
+                                  style={[styles.smDeleteBtn, deletingStageId === stage.id && { opacity: 0.5 }]}
+                                  onPress={() => handleRemoveStage(stage.id)}
+                                  disabled={deletingStageId === stage.id}
+                                >
+                                  {deletingStageId === stage.id ? (
+                                    <ActivityIndicator size="small" color={colors.danger} />
+                                  ) : (
+                                    <MaterialCommunityIcons name="trash-can-outline" size={17} color={colors.danger} />
+                                  )}
+                                </Pressable>
+                              </>
+                            )}
+                          </View>
                         </View>
-                        <Pressable
-                          style={[styles.smDeleteBtn, deletingStageId === stage.id && { opacity: 0.5 }]}
-                          onPress={() => handleRemoveStage(stage.id)}
-                          disabled={deletingStageId === stage.id}
-                        >
-                          {deletingStageId === stage.id ? (
-                            <ActivityIndicator size="small" color={colors.danger} />
-                          ) : (
-                            <MaterialCommunityIcons name="trash-can-outline" size={17} color={colors.danger} />
-                          )}
-                        </Pressable>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 )}
               </View>
@@ -1114,6 +1209,52 @@ export default function DealsScreen() {
               </Pressable>
             </View>
           </View>
+        </Modal>
+
+        {/* Delete Deal Confirmation Modal */}
+        <Modal
+          visible={!!dealToDelete}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDealToDelete(null)}
+        >
+          <Pressable style={styles.pickerOverlay} onPress={() => setDealToDelete(null)}>
+            <Pressable style={styles.dealDeleteModalContainer} onPress={e => e.stopPropagation()}>
+              <View style={styles.dealDeleteHeaderRow}>
+                <Text style={styles.dealDeleteTitle}>Delete Deal?</Text>
+                <Pressable onPress={() => setDealToDelete(null)} style={styles.dealDeleteCloseBtn} hitSlop={8}>
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+              
+              <Text style={styles.dealDeleteSubtitleWarning}>This action cannot be undone.</Text>
+              
+              <Text style={styles.dealDeleteDescription}>
+                Are you sure you want to delete this deal? If your account is connected to HubSpot, the deal will also be permanently deleted from your HubSpot pipeline.
+              </Text>
+              
+              <View style={styles.dealDeleteActionsRow}>
+                <Pressable 
+                  style={styles.dealDeleteCancelBtn} 
+                  onPress={() => setDealToDelete(null)}
+                  disabled={isDeletingDeal}
+                >
+                  <Text style={styles.dealDeleteCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable 
+                  style={styles.dealDeleteConfirmBtn} 
+                  onPress={handleDeleteDealConfirm}
+                  disabled={isDeletingDeal}
+                >
+                  {isDeletingDeal ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.dealDeleteConfirmText}>Yes, Delete</Text>
+                  )}
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
         </Modal>
 
 
@@ -1801,6 +1942,47 @@ function getStyles(colors: any, insets: any) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    smActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    smEditBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: 'rgba(11, 160, 178, 0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    smSaveBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    smCancelBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSoft || 'rgba(100, 116, 139, 0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    smEditInput: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      flex: 1,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderWidth: 1.5,
+      borderColor: colors.accentTeal,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceSoft,
+    },
     smEmptyState: {
       alignItems: 'center',
       paddingVertical: 36,
@@ -1920,6 +2102,100 @@ function getStyles(colors: any, insets: any) {
       fontWeight: '600',
     },
     actionDropdownTextActive: {
+      color: '#FFFFFF',
+    },
+    dealCardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      marginBottom: 4,
+    },
+    dealDeleteBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dealDeleteModalContainer: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      width: '100%',
+      maxWidth: 340,
+      padding: 24,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.15,
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    dealDeleteHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    dealDeleteTitle: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.5,
+    },
+    dealDeleteCloseBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dealDeleteSubtitleWarning: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.danger || '#EF4444',
+      marginBottom: 16,
+    },
+    dealDeleteDescription: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      lineHeight: 20,
+      marginBottom: 24,
+    },
+    dealDeleteActionsRow: {
+      flexDirection: 'row',
+      gap: 12,
+      justifyContent: 'flex-end',
+    },
+    dealDeleteCancelBtn: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.cardBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 80,
+    },
+    dealDeleteCancelText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    dealDeleteConfirmBtn: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      backgroundColor: colors.danger || '#EF4444',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 100,
+    },
+    dealDeleteConfirmText: {
+      fontSize: 14,
+      fontWeight: '700',
       color: '#FFFFFF',
     },
     fab: {

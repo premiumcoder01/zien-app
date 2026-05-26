@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddContactModal } from './components/modals/AddContactModal';
 import { ManageMetaModal } from './components/modals/ManageMetaModal';
 import { QuickFilterModal } from './components/modals/QuickFilterModal';
+import { AIImportModal } from './components/modals/AIImportModal';
 
 const STATUS_OPTIONS = ['All status', 'Active', 'Inactive (archived)'];
 const TYPE_OPTIONS = ['Buyer', 'Seller', 'Investor'] as const;
@@ -90,6 +91,7 @@ export default function ContactsScreen() {
   const [selectedContact, setSelectedContact] = useState<CRMContact | null>(null);
   const [manageMetaVisible, setManageMetaVisible] = useState(false);
   const [deleteContactId, setDeleteContactId] = useState<string | null>(null);
+  const [aiImportVisible, setAiImportVisible] = useState(false);
 
   const [activeDropdown, setActiveDropdown] = useState<'group' | 'status' | 'tag' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -254,7 +256,7 @@ export default function ContactsScreen() {
 
         {/* Actions */}
         <View style={styles.topActions}>
-          <Pressable style={styles.actionBtn} onPress={() => Alert.alert('Coming Soon', 'This feature is being fine-tuned for maximum intelligence.')}>
+          <Pressable style={styles.actionBtn} onPress={() => setAiImportVisible(true)}>
             <MaterialCommunityIcons name="robot-outline" size={18} color={colors.textPrimary} />
             <Text style={styles.actionBtnText}>AI Import</Text>
           </Pressable>
@@ -503,6 +505,17 @@ export default function ContactsScreen() {
       <ManageMetaModal
         visible={manageMetaVisible}
         onClose={() => setManageMetaVisible(false)}
+      />
+
+      <AIImportModal
+        visible={aiImportVisible}
+        onClose={() => setAiImportVisible(false)}
+        accessToken={accessToken}
+        metaData={metaData || null}
+        onImportSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['crm-contacts'] });
+          queryClient.invalidateQueries({ queryKey: ['crm-overview'] });
+        }}
       />
 
       {/* Custom Delete Contact Modal */}

@@ -79,6 +79,11 @@ export default function CRMCampaignsScreen() {
   const [accountDropdown, setAccountDropdown] = useState(false);
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
 
+  // Focus states for input highlight borders
+  const [isNameFocused, setNameFocused] = useState(false);
+  const [isVersionAFocused, setVersionAFocused] = useState(false);
+  const [isVersionBFocused, setVersionBFocused] = useState(false);
+
   const resetForm = () => {
     setFormCampaignName('');
     setCommChannel('EMAIL');
@@ -108,7 +113,10 @@ export default function CRMCampaignsScreen() {
       setScheduledDate(date);
       setScheduledTime(date);
     }
-    setAbTesting(false);
+    const abEnabled = campaign.ab_testing === 1 || !!campaign.ab_testing;
+    setAbTesting(abEnabled);
+    setVersionA(campaign.version_a || '');
+    setVersionB(campaign.version_b || '');
     setNewCampaignVisible(true);
   };
 
@@ -121,6 +129,14 @@ export default function CRMCampaignsScreen() {
     }
     if (!formTemplateId) {
       errors.template = `${commChannel.toLowerCase().charAt(0).toUpperCase() + commChannel.toLowerCase().slice(1)} template is required`;
+    }
+    if (abTesting) {
+      if (!versionA.trim()) {
+        errors.versionA = "Version A subject is required";
+      }
+      if (!versionB.trim()) {
+        errors.versionB = "Version B subject is required";
+      }
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -150,7 +166,10 @@ export default function CRMCampaignsScreen() {
           sending_account: sendingAccount,
           schedule_type: isNow ? 0 : 1,
           scheduled_at: scheduledAt,
-          status: isNow ? 3 : 1
+          status: isNow ? 3 : 1,
+          ab_testing: abTesting ? 1 : 0,
+          version_a: abTesting ? versionA.trim() : null,
+          version_b: abTesting ? versionB.trim() : null
         };
 
         if (editingCampaignId) {
@@ -190,10 +209,52 @@ export default function CRMCampaignsScreen() {
   // AI Campaign Form State
   const [aiCampaignVisible, setAiCampaignVisible] = useState(false);
   const [aiSegment, setAiSegment] = useState('All Contacts');
-  const [aiTemplate, setAiTemplate] = useState('Luxury Showcase');
+  const [aiTemplateId, setAiTemplateId] = useState<string | null>(null);
   const [aiDescription, setAiDescription] = useState('');
   const [aiSegmentDropdown, setAiSegmentDropdown] = useState(false);
   const [aiTemplateDropdown, setAiTemplateDropdown] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+
+  const handleGenerateAICampaign = async () => {
+    if (!aiTemplateId) {
+      Alert.alert("Required", "Please select a brand template for the AI campaign.");
+      return;
+    }
+    if (!aiDescription.trim()) {
+      Alert.alert("Required", "Please describe your campaign objective.");
+      return;
+    }
+
+    setIsGeneratingAI(true);
+    try {
+      const selectedTemplate = templateList?.find(t => t.id === aiTemplateId);
+      const channel = selectedTemplate?.template_type?.toLowerCase() || 'email';
+      const promptName = aiDescription.trim().substring(0, 30);
+
+      const payload = {
+        name: `AI: ${promptName}...`,
+        channel: channel,
+        target_segment: aiSegment,
+        template_id: aiTemplateId,
+        schedule_type: 1,
+        status: 1,
+        ai_prompt: aiDescription.trim()
+      };
+
+      await createCRMCampaign(accessToken || '', payload);
+
+      setAiCampaignVisible(false);
+      setAiTemplateId(null);
+      setAiDescription('');
+      setAiSegment('All Contacts');
+      Alert.alert("Success", "AI Campaign generated and scheduled successfully.");
+      refetch(); // Refresh campaigns list
+    } catch (error: any) {
+      Alert.alert("Generation Failed", error.message || "Could not generate AI campaign.");
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
 
   const handleToggleStatus = async (id: string, currentStatus: number) => {
     try {
@@ -465,9 +526,9 @@ export default function CRMCampaignsScreen() {
                 setEditingCampaignId(null);
               }}
               hitSlop={12}
-              style={{ marginLeft: 16 }}
+              style={styles.closeBtnCircle}
             >
-              <MaterialCommunityIcons name="close" size={28} color={colors.textPrimary} />
+              <MaterialCommunityIcons name="close" size={22} color={colors.textPrimary} />
             </Pressable>
           </View>
 
@@ -487,7 +548,13 @@ export default function CRMCampaignsScreen() {
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Campaign Name <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <TextInput
-                    style={[styles.formInput, formErrors.campaignName && styles.inputError]}
+                    style={[
+                      styles.formInput,
+                      formErrors.campaignName && styles.inputError,
+                      isNameFocused && styles.formInputActive
+                    ]}
+                    onFocus={() => setNameFocused(true)}
+                    onBlur={() => setNameFocused(false)}
                     value={formCampaignName}
                     onChangeText={(val) => {
                       setFormCampaignName(val);
@@ -552,27 +619,11 @@ export default function CRMCampaignsScreen() {
                   <Text style={styles.inputLabel}>Target Segment</Text>
                   <Pressable
                     style={styles.formSelector}
-                    onPress={() => setSegmentDropdown(!segmentDropdown)}
+                    onPress={() => setSegmentDropdown(true)}
                   >
                     <Text style={styles.formSelectorText}>{targetSegment}</Text>
                     <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                   </Pressable>
-                  {segmentDropdown && (
-                    <View style={styles.formDropdown}>
-                      {[
-                        'All Contacts',
-                        'Leads (New/Unqualified)',
-                        'Hot Leads (Heat Index > 70)',
-                        'Active Clients',
-                        'Buyers - Budget > $1M',
-                        'Sellers - Pending Listing'
-                      ].map(opt => (
-                        <Pressable key={opt} style={styles.formDropDownItem} onPress={() => { setTargetSegment(opt); setSegmentDropdown(false); }}>
-                          <Text style={styles.formDropDownItemText}>{opt}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -584,7 +635,7 @@ export default function CRMCampaignsScreen() {
                   </View>
                   <Pressable
                     style={[styles.formSelector, formErrors.template && styles.inputError]}
-                    onPress={() => setTemplateDropdown(!templateDropdown)}
+                    onPress={() => setTemplateDropdown(true)}
                   >
                     <Text style={styles.formSelectorText}>{formTemplateId ? (templateList?.find(t => t.id === formTemplateId)?.name || 'Select a template') : 'Select a template'}</Text>
                     <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
@@ -592,59 +643,17 @@ export default function CRMCampaignsScreen() {
                   {formErrors.template && (
                     <Text style={styles.errorText}>{formErrors.template}</Text>
                   )}
-                  {templateDropdown && (
-                    <View style={styles.formDropdown}>
-                      {(templateList || [])
-                        .filter(t => t.template_type.toUpperCase() === commChannel)
-                        .map(opt => (
-                          <Pressable key={opt.id} style={styles.formDropDownItem} onPress={() => {
-                            setFormTemplateId(opt.id);
-                            setTemplateDropdown(false);
-                            if (formErrors.template) {
-                              setFormErrors(prev => ({ ...prev, template: '' }));
-                            }
-                          }}>
-                            <View style={styles.templateItemRow}>
-                              <MaterialCommunityIcons
-                                name={commChannel === 'EMAIL' ? 'email-outline' : commChannel === 'SMS' ? 'message-text-outline' : 'whatsapp'}
-                                size={16}
-                                color={colors.textSecondary}
-                              />
-                              <Text style={styles.formDropDownItemText}>{opt.name}</Text>
-                            </View>
-                          </Pressable>
-                        ))}
-                      {(templateList || []).filter(t => t.template_type.toUpperCase() === commChannel).length === 0 && (
-                        <View style={styles.dropdownEmpty}>
-                          <Text style={styles.dropdownEmptyText}>No {commChannel.toLowerCase()} templates available.</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Sending Account</Text>
                   <Pressable
                     style={styles.formSelector}
-                    onPress={() => setAccountDropdown(!accountDropdown)}
+                    onPress={() => setAccountDropdown(true)}
                   >
                     <Text style={styles.formSelectorText}>{sendingAccount}</Text>
                     <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                   </Pressable>
-                  {accountDropdown && (
-                    <View style={styles.formDropdown}>
-                      {[
-                        'Select account',
-                        'WhatsApp Business API',
-                        'Default System Provider'
-                      ].map(opt => (
-                        <Pressable key={opt} style={styles.formDropDownItem} onPress={() => { setSendingAccount(opt); setAccountDropdown(false); }}>
-                          <Text style={styles.formDropDownItemText}>{opt}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -755,22 +764,50 @@ export default function CRMCampaignsScreen() {
                       <View style={styles.inputGroup}>
                         <Text style={styles.abLabel}>VERSION A (50%)</Text>
                         <TextInput
-                          style={styles.abInput}
+                          style={[
+                            styles.abInput,
+                            formErrors.versionA && styles.inputError,
+                            isVersionAFocused && styles.formInputActive
+                          ]}
+                          onFocus={() => setVersionAFocused(true)}
+                          onBlur={() => setVersionAFocused(false)}
                           value={versionA}
-                          onChangeText={setVersionA}
+                          onChangeText={(val) => {
+                            setVersionA(val);
+                            if (formErrors.versionA) {
+                              setFormErrors(prev => ({ ...prev, versionA: '' }));
+                            }
+                          }}
                           placeholder="You won't believe this price drop..."
                           placeholderTextColor="#94A3B8"
                         />
+                        {formErrors.versionA && (
+                          <Text style={styles.errorText}>{formErrors.versionA}</Text>
+                        )}
                       </View>
                       <View style={styles.inputGroup}>
                         <Text style={styles.abLabel}>VERSION B (50%)</Text>
                         <TextInput
-                          style={styles.abInput}
+                          style={[
+                            styles.abInput,
+                            formErrors.versionB && styles.inputError,
+                            isVersionBFocused && styles.formInputActive
+                          ]}
+                          onFocus={() => setVersionBFocused(true)}
+                          onBlur={() => setVersionBFocused(false)}
                           value={versionB}
-                          onChangeText={setVersionB}
+                          onChangeText={(val) => {
+                            setVersionB(val);
+                            if (formErrors.versionB) {
+                              setFormErrors(prev => ({ ...prev, versionB: '' }));
+                            }
+                          }}
                           placeholder="New Pricing: Malibu Villa is now $1.2M"
                           placeholderTextColor="#94A3B8"
                         />
+                        {formErrors.versionB && (
+                          <Text style={styles.errorText}>{formErrors.versionB}</Text>
+                        )}
                       </View>
                     </View>
                   )}
@@ -1061,7 +1098,7 @@ export default function CRMCampaignsScreen() {
                     </Pressable>
                     {aiSegmentDropdown && (
                       <View style={[styles.aiDropdown, { top: 68 }]}>
-                        {['All Contacts', 'Buyers', 'Leads'].map(opt => (
+                        {['All Contacts', 'Hot Leads', 'New Leads', 'Past Clients', 'Investor Group'].map(opt => (
                           <Pressable key={opt} style={styles.aiDropdownItem} onPress={() => { setAiSegment(opt); setAiSegmentDropdown(false); }}>
                             <Text style={styles.aiDropdownItemText}>{opt}</Text>
                           </Pressable>
@@ -1079,16 +1116,23 @@ export default function CRMCampaignsScreen() {
                         setAiSegmentDropdown(false);
                       }}
                     >
-                      <Text style={styles.aiSelectorText} numberOfLines={1}>{aiTemplate}</Text>
+                      <Text style={styles.aiSelectorText} numberOfLines={1}>
+                        {aiTemplateId ? (templateList?.find(t => t.id === aiTemplateId)?.name || 'Select template') : 'Select template'}
+                      </Text>
                       <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                     </Pressable>
                     {aiTemplateDropdown && (
                       <View style={[styles.aiDropdown, { top: 68 }]}>
-                        {['Luxury Showcase', 'Minimalist', 'Modern'].map(opt => (
-                          <Pressable key={opt} style={styles.aiDropdownItem} onPress={() => { setAiTemplate(opt); setAiTemplateDropdown(false); }}>
-                            <Text style={styles.aiDropdownItemText}>{opt}</Text>
+                        {(templateList || []).map(opt => (
+                          <Pressable key={opt.id} style={styles.aiDropdownItem} onPress={() => { setAiTemplateId(opt.id); setAiTemplateDropdown(false); }}>
+                            <Text style={styles.aiDropdownItemText}>{opt.name}</Text>
                           </Pressable>
                         ))}
+                        {(templateList || []).length === 0 && (
+                          <View style={{ padding: 10 }}>
+                            <Text style={{ color: '#FFFFFF', fontSize: 12 }}>No templates found</Text>
+                          </View>
+                        )}
                       </View>
                     )}
                   </View>
@@ -1114,19 +1158,216 @@ export default function CRMCampaignsScreen() {
             <View style={styles.aiModalActions}>
               <Pressable
                 style={styles.aiCancelBtn}
-                onPress={() => setAiCampaignVisible(false)}
+                onPress={() => {
+                  setAiCampaignVisible(false);
+                  setAiTemplateId(null);
+                  setAiDescription('');
+                  setAiSegment('All Contacts');
+                }}
+                disabled={isGeneratingAI}
               >
                 <Text style={styles.aiCancelBtnText}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={styles.aiGenerateBtn}
-                onPress={() => setAiCampaignVisible(false)}
+                style={[styles.aiGenerateBtn, isGeneratingAI && { opacity: 0.7 }]}
+                onPress={handleGenerateAICampaign}
+                disabled={isGeneratingAI}
               >
-                <Text style={styles.aiGenerateBtnText}>Generate Campaign</Text>
+                {isGeneratingAI ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.aiGenerateBtnText}>Generate Campaign</Text>
+                )}
               </Pressable>
             </View>
           </View>
         </LinearGradient>
+      </Modal>
+
+      {/* Target Segment Bottom Sheet Modal */}
+      <Modal
+        visible={segmentDropdown}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSegmentDropdown(false)}
+      >
+        <Pressable style={styles.bottomSheetBackdrop} onPress={() => setSegmentDropdown(false)}>
+          <View style={styles.bottomSheetContent}>
+            {/* Drag Handle */}
+            <View style={styles.dragHandle} />
+            
+            <View style={styles.bottomSheetHeader}>
+              <Text style={styles.bottomSheetTitle}>Select Target Segment</Text>
+              <Pressable style={styles.closeBtnSmall} onPress={() => setSegmentDropdown(false)}>
+                <MaterialCommunityIcons name="close" size={18} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.bottomSheetScroll} showsVerticalScrollIndicator={false}>
+              {[
+                { name: 'All Contacts', icon: 'account-group-outline', desc: 'Send to all registered contacts in your CRM list', tag: 'ALL' },
+                { name: 'Leads (New/Unqualified)', icon: 'account-plus-outline', desc: 'Fresh and uncontacted leads needing initial follow-up', tag: 'LEADS' },
+                { name: 'Hot Leads (Heat Index > 70)', icon: 'fire', desc: 'Active prospects with high heat scores and engagement levels', tag: 'ENGAGED' },
+                { name: 'Active Clients', icon: 'check-decagram-outline', desc: 'Contacts in currently active deal flows and showings', tag: 'ACTIVE' },
+                { name: 'Buyers - Budget > $1M', icon: 'currency-usd', desc: 'High-intent premium buyers with budget over $1,000,000', tag: 'VIP' },
+                { name: 'Sellers - Pending Listing', icon: 'home-alert-outline', desc: 'Homeowners preparing to list property or finalize listing contracts', tag: 'SELLERS' }
+              ].map(opt => {
+                const isSelected = targetSegment === opt.name;
+                return (
+                  <Pressable
+                    key={opt.name}
+                    style={[styles.bottomSheetItem, isSelected && styles.bottomSheetItemActive]}
+                    onPress={() => {
+                      setTargetSegment(opt.name);
+                      setSegmentDropdown(false);
+                    }}
+                  >
+                    <View style={styles.itemIconContainer}>
+                      <MaterialCommunityIcons
+                        name={opt.icon as any}
+                        size={22}
+                        color={isSelected ? '#FFFFFF' : colors.accentTeal}
+                      />
+                    </View>
+                    <View style={styles.itemTextContainer}>
+                      <Text style={[styles.itemLabel, isSelected && styles.itemLabelActive]}>{opt.name}</Text>
+                      <Text style={[styles.itemDesc, isSelected && styles.itemDescActive]}>{opt.desc}</Text>
+                    </View>
+                    {isSelected && (
+                      <MaterialCommunityIcons name="check-circle" size={22} color="#FFFFFF" />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Template Selection Bottom Sheet Modal */}
+      <Modal
+        visible={templateDropdown}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setTemplateDropdown(false)}
+      >
+        <Pressable style={styles.bottomSheetBackdrop} onPress={() => setTemplateDropdown(false)}>
+          <View style={styles.bottomSheetContent}>
+            <View style={styles.dragHandle} />
+            
+            <View style={styles.bottomSheetHeader}>
+              <Text style={styles.bottomSheetTitle}>Select {commChannel.charAt(0) + commChannel.slice(1).toLowerCase()} Template</Text>
+              <Pressable style={styles.closeBtnSmall} onPress={() => setTemplateDropdown(false)}>
+                <MaterialCommunityIcons name="close" size={18} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.bottomSheetScroll} showsVerticalScrollIndicator={false}>
+              {(templateList || [])
+                .filter(t => t.template_type.toUpperCase() === commChannel)
+                .map(opt => {
+                  const isSelected = formTemplateId === opt.id;
+                  return (
+                    <Pressable
+                      key={opt.id}
+                      style={[styles.bottomSheetItem, isSelected && styles.bottomSheetItemActive]}
+                      onPress={() => {
+                        setFormTemplateId(opt.id);
+                        setTemplateDropdown(false);
+                        if (formErrors.template) {
+                          setFormErrors(prev => ({ ...prev, template: '' }));
+                        }
+                      }}
+                    >
+                      <View style={styles.itemIconContainer}>
+                        <MaterialCommunityIcons
+                          name={commChannel === 'EMAIL' ? 'email-outline' : commChannel === 'SMS' ? 'message-text-outline' : 'whatsapp'}
+                          size={22}
+                          color={isSelected ? '#FFFFFF' : colors.accentTeal}
+                        />
+                      </View>
+                      <View style={styles.itemTextContainer}>
+                        <Text style={[styles.itemLabel, isSelected && styles.itemLabelActive]}>{opt.name}</Text>
+                        <Text style={[styles.itemDesc, isSelected && styles.itemDescActive]}>
+                          Optimized template for {commChannel.toLowerCase()} campaigns. Click to apply.
+                        </Text>
+                      </View>
+                      {isSelected && (
+                        <MaterialCommunityIcons name="check-circle" size={22} color="#FFFFFF" />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              {(templateList || []).filter(t => t.template_type.toUpperCase() === commChannel).length === 0 && (
+                <View style={styles.dropdownEmpty}>
+                  <MaterialCommunityIcons name="email-alert-outline" size={48} color="#CBD5E1" />
+                  <Text style={styles.dropdownEmptyText}>No {commChannel.toLowerCase()} templates available.</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Sending Account Selection Bottom Sheet Modal */}
+      <Modal
+        visible={accountDropdown}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAccountDropdown(false)}
+      >
+        <Pressable style={styles.bottomSheetBackdrop} onPress={() => setAccountDropdown(false)}>
+          <View style={styles.bottomSheetContent}>
+            <View style={styles.dragHandle} />
+            
+            <View style={styles.bottomSheetHeader}>
+              <Text style={styles.bottomSheetTitle}>Select Sending Account</Text>
+              <Pressable style={styles.closeBtnSmall} onPress={() => setAccountDropdown(false)}>
+                <MaterialCommunityIcons name="close" size={18} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.bottomSheetScroll} showsVerticalScrollIndicator={false}>
+              {[
+                { name: 'SendGrid (Connected)', provider: 'Email Delivery Agent', desc: 'Secure high-deliverability primary transactional route', icon: 'email-check-outline', status: 'ACTIVE' },
+                { name: 'WhatsApp Business API', provider: 'WhatsApp Business Account', desc: 'Official Cloud API with high message limits', icon: 'whatsapp', status: 'CONNECTED' },
+                { name: 'Default System Provider', provider: 'Fallback Relay Agent', desc: 'Shared fallback channel for basic communications', icon: 'server-network', status: 'DEFAULT' }
+              ].map(opt => {
+                const isSelected = sendingAccount === opt.name;
+                return (
+                  <Pressable
+                    key={opt.name}
+                    style={[styles.bottomSheetItem, isSelected && styles.bottomSheetItemActive]}
+                    onPress={() => {
+                      setSendingAccount(opt.name);
+                      setAccountDropdown(false);
+                    }}
+                  >
+                    <View style={styles.itemIconContainer}>
+                      <MaterialCommunityIcons
+                        name={opt.icon as any}
+                        size={22}
+                        color={isSelected ? '#FFFFFF' : colors.accentTeal}
+                      />
+                    </View>
+                    <View style={styles.itemTextContainer}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.itemLabel, isSelected && styles.itemLabelActive]}>{opt.name}</Text>
+                        <View style={[styles.statusMiniBadge, isSelected ? { backgroundColor: 'rgba(255,255,255,0.2)' } : { backgroundColor: `${colors.accentTeal}15` }]}>
+                          <Text style={[styles.statusMiniBadgeText, isSelected ? { color: '#FFFFFF' } : { color: colors.accentTeal }]}>{opt.status}</Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.itemDesc, isSelected && styles.itemDescActive]}>{opt.desc}</Text>
+                    </View>
+                    {isSelected && (
+                      <MaterialCommunityIcons name="check-circle" size={22} color="#FFFFFF" />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
       </Modal>
     </LinearGradient>
   );
@@ -1440,13 +1681,25 @@ function getStyles(colors: any, theme?: string) {
     },
     formInput: {
       backgroundColor: colors.cardBackground,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: colors.cardBorder,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      height: 48,
-      fontSize: 14,
+      borderRadius: 16,
+      paddingHorizontal: 18,
+      height: 54,
+      fontSize: 15,
+      fontWeight: '600',
       color: colors.textPrimary,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.02,
+      shadowRadius: 4,
+      elevation: 1,
+    },
+    formInputActive: {
+      borderColor: colors.accentTeal,
+      shadowColor: colors.accentTeal,
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
     },
     labelRow: {
       flexDirection: 'row',
@@ -1466,24 +1719,30 @@ function getStyles(colors: any, theme?: string) {
     },
     channelTab: {
       flex: 1,
-      height: 40,
-      borderRadius: 10,
+      height: 50,
+      borderRadius: 14,
       backgroundColor: theme === 'dark' ? colors.surfaceMuted : colors.surfaceIcon,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
-      gap: 6,
-      borderWidth: 1,
+      gap: 8,
+      borderWidth: 1.5,
       borderColor: colors.cardBorder,
     },
     channelTabActive: {
       backgroundColor: colors.accentTeal,
-      borderColor: theme === 'dark' ? colors.surfaceMuted : colors.surfaceIcon,
+      borderColor: colors.accentTeal,
+      shadowColor: colors.accentTeal,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+      elevation: 4,
     },
     channelTabText: {
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: '800',
       color: colors.textSecondary,
+      letterSpacing: 0.5,
     },
     channelTextActive: {
       color: '#FFFFFF',
@@ -1493,11 +1752,16 @@ function getStyles(colors: any, theme?: string) {
       alignItems: 'center',
       justifyContent: 'space-between',
       backgroundColor: colors.cardBackground,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: colors.cardBorder,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      height: 48,
+      borderRadius: 16,
+      paddingHorizontal: 18,
+      height: 54,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.02,
+      shadowRadius: 4,
+      elevation: 1,
     },
     formSelectorText: {
       fontSize: 14,
@@ -1530,13 +1794,18 @@ function getStyles(colors: any, theme?: string) {
       color: '#FFFFFF',
     },
     abContainer: {
-      marginTop: 20,
+      marginTop: 24,
       borderWidth: 1.5,
-      borderStyle: 'dashed',
-      borderColor: theme === 'dark' ? '#EA580C' : '#FB923C',
-      borderRadius: 20,
-      backgroundColor: theme === 'dark' ? '#2A1D15' : '#FFF7ED',
+      borderStyle: 'solid',
+      borderColor: theme === 'dark' ? 'rgba(234, 88, 12, 0.4)' : 'rgba(251, 146, 60, 0.4)',
+      borderRadius: 24,
+      backgroundColor: theme === 'dark' ? '#1F1510' : '#FFFBF7',
       padding: 20,
+      shadowColor: '#EA580C',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.03,
+      shadowRadius: 10,
+      elevation: 2,
     },
     abHeader: {
       flexDirection: 'row',
@@ -1560,13 +1829,14 @@ function getStyles(colors: any, theme?: string) {
     },
     abInput: {
       backgroundColor: colors.cardBackground,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: colors.cardBorder,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      height: 44,
+      borderRadius: 16,
+      paddingHorizontal: 18,
+      height: 52,
       fontSize: 14,
       color: colors.textPrimary,
+      fontWeight: '600',
     },
     complianceItem: {
       flexDirection: 'row',
@@ -1591,11 +1861,15 @@ function getStyles(colors: any, theme?: string) {
     },
     audienceBox: {
       backgroundColor: colors.surfaceSoft,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: colors.cardBorder,
-      borderRadius: 12,
-      padding: 20,
+      borderRadius: 20,
+      padding: 24,
       alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.02,
+      shadowRadius: 6,
     },
     audienceLabel: {
       fontSize: 11,
@@ -1626,20 +1900,139 @@ function getStyles(colors: any, theme?: string) {
     },
     finalLaunchBtn: {
       backgroundColor: '#0B2D3E',
-      height: 54,
-      borderRadius: 12,
+      height: 58,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: '#0B2D3E',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      elevation: 4,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+      elevation: 6,
     },
     finalLaunchBtnText: {
       color: '#FFFFFF',
       fontSize: 15,
       fontWeight: '900',
+      letterSpacing: 0.5,
+    },
+    // Premium Bottom Sheet Selector Styles
+    bottomSheetBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(11, 45, 62, 0.65)',
+      justifyContent: 'flex-end',
+    },
+    bottomSheetContent: {
+      backgroundColor: colors.cardBackground,
+      borderTopLeftRadius: 30,
+      borderTopRightRadius: 30,
+      paddingHorizontal: 20,
+      paddingBottom: 40,
+      maxHeight: '85%',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -10 },
+      shadowOpacity: 0.15,
+      shadowRadius: 20,
+      elevation: 16,
+    },
+    dragHandle: {
+      width: 40,
+      height: 5,
+      borderRadius: 2.5,
+      backgroundColor: theme === 'dark' ? '#475569' : '#E2E8F0',
+      alignSelf: 'center',
+      marginTop: 10,
+      marginBottom: 20,
+    },
+    bottomSheetHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 20,
+    },
+    bottomSheetTitle: {
+      fontSize: 20,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.5,
+    },
+    closeBtnSmall: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    closeBtnCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      marginLeft: 16,
+    },
+    bottomSheetScroll: {
+      marginBottom: 10,
+    },
+    bottomSheetItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 16,
+      borderRadius: 18,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      marginBottom: 12,
+      backgroundColor: theme === 'dark' ? colors.surfaceMuted : '#F8FAFC',
+    },
+    bottomSheetItemActive: {
+      backgroundColor: colors.accentTeal,
+      borderColor: colors.accentTeal,
+    },
+    itemIconContainer: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(11, 160, 178, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 14,
+    },
+    itemTextContainer: {
+      flex: 1,
+      marginRight: 10,
+    },
+    itemLabel: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    itemLabelActive: {
+      color: '#FFFFFF',
+    },
+    itemDesc: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      lineHeight: 16,
+      fontWeight: '500',
+    },
+    itemDescActive: {
+      color: 'rgba(255, 255, 255, 0.8)',
+    },
+    statusMiniBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    statusMiniBadgeText: {
+      fontSize: 9,
+      fontWeight: '800',
       letterSpacing: 0.5,
     },
     formDropdown: {

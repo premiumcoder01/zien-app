@@ -11,6 +11,7 @@ import { ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl, S
 import PhoneInput from "react-native-phone-number-input";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ManageMetaModal } from './components/modals/ManageMetaModal';
+import { AILeadImportModal } from './components/modals/AILeadImportModal';
 
 
 function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEditPress, isArchiving, isConverting }: {
@@ -28,10 +29,10 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
   const isHot = lead.score >= 80;
   const isHigh = lead.score >= 70;
   const isLow = lead.score < 40;
-
+  const isConverted = lead.lead_date_label === 'Converted';
   const isActive = lead.status === 1;
-  const badgeLabel = isActive ? 'ACTIVE' : 'INACTIVE';
-  const badgeColor = isActive ? (colors.accentGreen || '#10B981') : (colors.danger || '#EF4444');
+  const badgeLabel = isConverted ? 'CONVERTED' : (isActive ? 'ACTIVE' : 'INACTIVE');
+  const badgeColor = isConverted ? '#2563EB' : (isActive ? (colors.accentGreen || '#10B981') : (colors.danger || '#EF4444'));
 
   return (
     <View style={[styles.leadCard, isHot && styles.leadCardHotBorder]}>
@@ -102,8 +103,26 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
       </View>
 
       <View style={styles.cardActions}>
-        <View style={styles.leftActions}>
-          {isActive ? (
+        <View style={[styles.leftActions, !isActive && { flex: 1 }]}>
+          {isConverted ? (
+            isActive ? (
+              <Pressable style={styles.whiteAction} onPress={onToggleArchive} disabled={isArchiving || isConverting}>
+                {isArchiving ? (
+                  <ActivityIndicator size="small" color={colors.textPrimary} />
+                ) : (
+                  <Text style={styles.whiteActionText}>Archive</Text>
+                )}
+              </Pressable>
+            ) : (
+              <Pressable style={[styles.darkAction, { flex: 1 }]} onPress={onToggleArchive} disabled={isArchiving}>
+                {isArchiving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.darkActionText}>Unarchive</Text>
+                )}
+              </Pressable>
+            )
+          ) : isActive ? (
             <>
               <Pressable style={styles.primaryAction} onPress={onConvertPress} disabled={isConverting || isArchiving}>
                 {isConverting ? (
@@ -124,7 +143,7 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
               </Pressable>
             </>
           ) : (
-            <Pressable style={styles.darkAction} onPress={onToggleArchive} disabled={isArchiving}>
+            <Pressable style={[styles.darkAction, { flex: 1 }]} onPress={onToggleArchive} disabled={isArchiving}>
               {isArchiving ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
@@ -135,12 +154,16 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
         </View>
 
         <View style={styles.secondaryActions}>
-          <Pressable style={styles.iconAction} onPress={onEditPress}>
-            <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textSecondary} />
-          </Pressable>
-          <Pressable style={[styles.iconAction, styles.deleteAction]} onPress={onDeletePress}>
-            <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.danger || "#E11D48"} />
-          </Pressable>
+          {isActive && (
+            <>
+              <Pressable style={styles.iconAction} onPress={onEditPress}>
+                <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textSecondary} />
+              </Pressable>
+              <Pressable style={[styles.iconAction, styles.deleteAction]} onPress={onDeletePress}>
+                <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.danger || "#E11D48"} />
+              </Pressable>
+            </>
+          )}
         </View>
       </View>
     </View>
@@ -160,6 +183,8 @@ export default function LeadsScreen() {
     queryFn: () => getCRMLeads(accessToken!)
   });
 
+
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
@@ -176,7 +201,7 @@ export default function LeadsScreen() {
   const [isImportModalVisible, setImportModalVisible] = useState(false);
   const [importInstructions, setImportInstructions] = useState('');
   const [selectedFile, setSelectedFile] = useState<{ name: string; size: string } | null>(null);
-  const [selectedTab, setSelectedTab] = useState('Active');
+  const [selectedTab, setSelectedTab] = useState('All Leads');
   const [isHotFilterActive, setHotFilterActive] = useState(false);
   const [loadingLeadId, setLoadingLeadId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -266,17 +291,28 @@ export default function LeadsScreen() {
   }, [leadToEdit]);
 
   const filteredLeads = (serverLeads || []).filter(lead => {
-    // Hide converted leads
-    if (lead.lead_date_label === 'Converted') {
+    const isConverted = lead.lead_date_label === 'Converted';
+    const isActive = lead.status === 1;
+
+    // Converted Leads Tab
+    if (selectedTab === 'Converted Leads' && !isConverted) {
       return false;
     }
 
-    const statusLabel = lead.status === 1 ? 'Active' : 'Inactive';
-    // Tab Filter
-    if (selectedTab === 'Active' && statusLabel !== 'Active') return false;
-    if (selectedTab === 'New' && statusLabel !== 'Active') return false;
-    if (selectedTab === 'Inactive' && statusLabel !== 'Inactive') return false;
-    if (selectedTab === 'Archived' && statusLabel !== 'Inactive') return false;
+    // Active Leads and New Tabs
+    if ((selectedTab === 'Active Leads' || selectedTab === 'New') && (isConverted || !isActive)) {
+      return false;
+    }
+
+    // Archived and Inactive Tabs
+    if ((selectedTab === 'Archived' || selectedTab === 'Inactive') && isActive) {
+      return false;
+    }
+
+    // All other tabs (except All Leads) hide converted leads unless selectedTab is Converted Leads or Archived/Inactive
+    if (selectedTab !== 'All Leads' && selectedTab !== 'Converted Leads' && selectedTab !== 'Archived' && selectedTab !== 'Inactive' && isConverted) {
+      return false;
+    }
 
     // AI Score Filter (Hot Leads toggle)
     if (isHotFilterActive && lead.score < 80) return false;
@@ -455,7 +491,7 @@ export default function LeadsScreen() {
 
         {/* Actions */}
         <View style={styles.topActions}>
-          <Pressable style={styles.actionBtn} onPress={() => Alert.alert('Coming Soon', 'This feature is being fine-tuned for maximum intelligence.')}>
+          <Pressable style={styles.actionBtn} onPress={() => setImportModalVisible(true)}>
             <MaterialCommunityIcons name="robot-outline" size={18} color={colors.textPrimary} />
             <Text style={styles.actionBtnText}>AI Import</Text>
           </Pressable>
@@ -485,7 +521,7 @@ export default function LeadsScreen() {
             contentContainerStyle={styles.tabsContainer}
             style={styles.tabsScroll}
           >
-            {['Active', 'Inactive', 'New', 'Archived'].map((tab) => (
+            {['All Leads', 'Active Leads', 'Converted Leads', 'Inactive', 'New', 'Archived'].map((tab) => (
               <Pressable
                 key={tab}
                 style={[styles.tabButton, selectedTab === tab && styles.tabButtonActive]}
@@ -560,116 +596,16 @@ export default function LeadsScreen() {
         </View>
       </ScrollView>
 
-      {/* --- AI Lead Import Modal --- */}
-      <Modal
+      <AILeadImportModal
         visible={isImportModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setImportModalVisible(false)}
-      >
-        <View style={[styles.fullPageModal, { paddingTop: insets.top }]}>
-          <View style={styles.modalContent}>
-            <View style={styles.premiumModalHeader}>
-              <View style={styles.aiImportTitleRow}>
-                <View style={styles.aiIconSquare}>
-                  <MaterialCommunityIcons name="creation" size={20} color="#FFFFFF" />
-                </View>
-                <View style={styles.aiImportHeaderText}>
-                  <Text style={styles.premiumModalTitle}>AI Lead Import</Text>
-                  <Text style={styles.premiumModalSubtitle}>
-                    Let AI analyze your leads and automatically calculate heat scores and intent patterns.
-                  </Text>
-                </View>
-              </View>
-              <Pressable
-                onPress={() => {
-                  setImportModalVisible(false);
-                  setSelectedFile(null);
-                }}
-                style={styles.premiumCloseBtn}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <ScrollView
-              style={styles.premiumModalBody}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 100 }}
-            >
-              <View style={styles.importCard}>
-                <View style={styles.importLabelRow}>
-                  <MaterialCommunityIcons name="message-outline" size={18} color={colors.textPrimary} />
-                  <Text style={styles.importSectionLabel}>Lead Context & Campaign Info</Text>
-                </View>
-
-                <View style={styles.instructionInputContainer}>
-                  <TextInput
-                    style={styles.instructionInput}
-                    placeholder="Describe the source of these leads... (e.g., 'From the Spring Open House, interested in luxury condos')"
-                    placeholderTextColor={colors.textMuted || "#8DA4B5"}
-                    multiline
-                    value={importInstructions}
-                    onChangeText={setImportInstructions}
-                  />
-                  <View style={styles.uploadBtnSmall}>
-                    <MaterialCommunityIcons name="tray-arrow-up" size={16} color={colors.textSecondary} />
-                  </View>
-                </View>
-
-                {!selectedFile ? (
-                  <Pressable
-                    style={styles.dropzone}
-                    onPress={() => setSelectedFile({
-                      name: 'ENTRY POST SYSTEM and TEMPLATES - simplified version.pdf',
-                      size: '107.00 KB'
-                    })}>
-                    <View style={styles.dropzoneIconCircle}>
-                      <MaterialCommunityIcons name="tray-arrow-up" size={24} color={colors.textPrimary} />
-                    </View>
-                    <Text style={styles.dropzoneTitle}>Upload your lead list</Text>
-                    <Text style={styles.dropzoneSubtitle}>Drag and drop CSV or Excel files here</Text>
-                  </Pressable>
-                ) : (
-                  <View style={styles.fileStatusArea}>
-                    <View style={styles.fileCard}>
-                      <View style={styles.fileIconBox}>
-                        <MaterialCommunityIcons name="file-document-outline" size={24} color="#FFFFFF" />
-                      </View>
-                      <View style={styles.fileDetails}>
-                        <Text style={styles.fileName} numberOfLines={1}>{selectedFile.name}</Text>
-                        <View style={styles.fileMetaRow}>
-                          <Text style={styles.readyTag}>Ready to Process • {selectedFile.size}</Text>
-                          <Pressable onPress={() => setSelectedFile(null)}>
-                            <Text style={styles.changeFileText}>Change File</Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-
-                    <Pressable
-                      style={styles.mappingBtn}
-                      onPress={() => setImportModalVisible(false)}
-                    >
-                      <LinearGradient
-                        colors={[colors.textPrimary, colors.accentTeal]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.mappingBtnGradient}
-                      >
-                        <MaterialCommunityIcons name="creation" size={20} color="#FFFFFF" />
-                        <Text style={styles.mappingBtnText}>Initialize AI Lead Scoring</Text>
-                      </LinearGradient>
-                    </Pressable>
-                  </View>
-                )}
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setImportModalVisible(false)}
+        accessToken={accessToken}
+        metaData={crmMeta || null}
+        onImportSuccess={() => {
+          refetchLeads();
+          queryClient.invalidateQueries({ queryKey: ['crm-overview'] });
+        }}
+      />
 
       <Modal
         visible={!!leadToDelete}
@@ -965,47 +901,45 @@ export default function LeadsScreen() {
 
           <Modal
             visible={isSelectionModalVisible}
-            transparent
-            animationType="fade"
+            transparent={false}
+            animationType="slide"
             onRequestClose={() => setSelectionModalVisible(false)}
           >
-            <View style={styles.pickerOverlay}>
-              <View style={styles.pickerContent}>
-                <View style={styles.pickerHeader}>
-                  <Text style={styles.pickerTitle}>{selectionTitle}</Text>
-                  <Pressable onPress={() => setSelectionModalVisible(false)} style={styles.pickerCloseBtn}>
-                    <MaterialCommunityIcons name="close" size={22} color={colors.textPrimary} />
-                  </Pressable>
-                </View>
-
-                <View style={styles.pickerSearchBox}>
-                  <MaterialCommunityIcons name="magnify" size={20} color={colors.textMuted} />
-                  <TextInput
-                    style={styles.pickerSearchInput}
-                    placeholder="Search..."
-                    placeholderTextColor={colors.textMuted}
-                    value={selectionSearch}
-                    onChangeText={setSelectionSearch}
-                  />
-                </View>
-
-                <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled" keyboardDismissMode='on-drag'>
-                  {filteredSelectionOptions.length === 0 ? (
-                    <Text style={styles.noResults}>No matches found</Text>
-                  ) : (
-                    filteredSelectionOptions.map((opt) => (
-                      <Pressable
-                        key={opt}
-                        style={styles.pickerItem}
-                        onPress={() => onSelectHandler(opt)}
-                      >
-                        <Text style={styles.pickerItemText}>{opt}</Text>
-                        <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-                      </Pressable>
-                    ))
-                  )}
-                </ScrollView>
+            <View style={{ flex: 1, backgroundColor: colors.cardBackground, paddingTop: insets.top }}>
+              <View style={styles.pickerHeader}>
+                <Text style={styles.pickerTitle}>{selectionTitle}</Text>
+                <Pressable onPress={() => setSelectionModalVisible(false)} style={styles.pickerCloseBtn}>
+                  <MaterialCommunityIcons name="close" size={22} color={colors.textPrimary} />
+                </Pressable>
               </View>
+
+              <View style={styles.pickerSearchBox}>
+                <MaterialCommunityIcons name="magnify" size={20} color={colors.textMuted} />
+                <TextInput
+                  style={styles.pickerSearchInput}
+                  placeholder="Search..."
+                  placeholderTextColor={colors.textMuted}
+                  value={selectionSearch}
+                  onChangeText={setSelectionSearch}
+                />
+              </View>
+
+              <ScrollView style={[styles.pickerList, { flex: 1 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode='on-drag'>
+                {filteredSelectionOptions.length === 0 ? (
+                  <Text style={styles.noResults}>No matches found</Text>
+                ) : (
+                  filteredSelectionOptions.map((opt) => (
+                    <Pressable
+                      key={opt}
+                      style={styles.pickerItem}
+                      onPress={() => onSelectHandler(opt)}
+                    >
+                      <Text style={styles.pickerItemText}>{opt}</Text>
+                      <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+                    </Pressable>
+                  ))
+                )}
+              </ScrollView>
             </View>
           </Modal>
         </View>

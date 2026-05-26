@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { CRMTemplate, deleteCRMTemplate, getCRMTemplates, patchCRMTemplateStatus } from '@/services/crmService';
+import { CRMTemplate, deleteCRMTemplate, duplicateCRMTemplate, getCRMTemplates, patchCRMTemplateStatus } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -51,7 +51,7 @@ export default function CRM_TemplatesScreen() {
     const queryClient = useQueryClient();
 
     const statusMutation = useMutation({
-        mutationFn: ({ id, status }: { id: string; status: number }) => 
+        mutationFn: ({ id, status }: { id: string; status: number }) =>
             patchCRMTemplateStatus(accessToken || '', id, status),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['crmTemplates'] });
@@ -65,7 +65,6 @@ export default function CRM_TemplatesScreen() {
     const toggleTemplateStatus = (id: string, newStatus: number) => {
         statusMutation.mutate({ id, status: newStatus });
     };
-
 
     const deleteMutation = useMutation({
         mutationFn: (id: string) => deleteCRMTemplate(accessToken || '', id),
@@ -91,138 +90,159 @@ export default function CRM_TemplatesScreen() {
         }
     };
 
+    const duplicateMutation = useMutation({
+        mutationFn: (id: string) => duplicateCRMTemplate(accessToken || '', id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['crmTemplates'] });
+            Alert.alert('Success', 'Template duplicated successfully.');
+        },
+        onError: (error) => {
+            Alert.alert('Error', 'Failed to duplicate template. Please try again.');
+            console.error(error);
+        }
+    });
+
+    const handleDuplicateTemplate = (id: string) => {
+        duplicateMutation.mutate(id);
+    };
+
     const handleSelectTemplateType = () => {
         setCreateModalVisible(false);
-        // Slight delay for smooth transition between modals
         setTimeout(() => {
             setWebOnlyModalVisible(true);
         }, 300);
     };
 
-    const getComponentIcon = (type: string) => {
-        switch (type) {
-            case 'Branding': return 'seal-variant';
-            case 'Property Header':
-            case 'Property Details': return 'home-analytics';
-            case 'Text Block': return 'format-text';
-            case 'CTA Button': return 'gesture-tap-button';
-            case 'YouTube Video': return 'play-box-outline';
-            case 'Image Gallery': return 'image-multiple-outline';
-            case 'Document Attachment': return 'file-document-outline';
-            case 'Social Links': return 'share-variant-outline';
-            case 'Email Signature': return 'signature-freehand';
-            case 'Campaign': return 'bullhorn-outline';
-            case 'Divider': return 'minus';
-            case 'Spacer': return 'arrow-up-down';
-            case 'Page Link': return 'link-variant';
-            default: return 'card-bulleted-outline';
-        }
+    const getChannelConfig = (type: string) => {
+        const upper = type.toUpperCase();
+        if (upper === 'EMAIL') return {
+            icon: 'email-open-outline' as const,
+            color: '#60A5FA',
+            gradientColors: ['rgba(59,130,246,0.18)', 'rgba(59,130,246,0.04)'],
+            label: 'Email',
+            accentBorder: 'rgba(96,165,250,0.35)',
+        };
+        if (upper === 'SMS') return {
+            icon: 'message-text-outline' as const,
+            color: '#34D399',
+            gradientColors: ['rgba(16,185,129,0.18)', 'rgba(16,185,129,0.04)'],
+            label: 'SMS',
+            accentBorder: 'rgba(52,211,153,0.35)',
+        };
+        return {
+            icon: 'whatsapp' as const,
+            color: '#4ADE80',
+            gradientColors: ['rgba(37,211,102,0.18)', 'rgba(37,211,102,0.04)'],
+            label: 'WhatsApp',
+            accentBorder: 'rgba(74,222,128,0.35)',
+        };
     };
 
     const renderTemplateCard = (template: CRMTemplate) => {
-        const isEmail = template.template_type.toUpperCase() === 'EMAIL';
-        const isSMS = template.template_type.toUpperCase() === 'SMS';
-        const isWA = template.template_type.toUpperCase() === 'WHATSAPP';
+        const channel = getChannelConfig(template.template_type);
+        const isActive = template.status === 1;
 
-        const typeColor = isEmail ? '#3B82F6' : isSMS ? '#10B981' : '#25D366';
-        const typeBg = isEmail ? 'rgba(59, 130, 246, 0.1)' : isSMS ? 'rgba(16, 185, 129, 0.1)' : 'rgba(37, 211, 102, 0.1)';
-
-        // Extract some preview text if possible
-        const firstTextBlock = template.content_json?.components?.find(c => c.type === 'Text Block')?.content || 'No preview text...';
+        const firstTextBlock = template.content_json?.components?.find(
+            (c: any) => c.type === 'Text Block'
+        )?.content || 'No preview available';
+        const previewText = template.subject || firstTextBlock;
 
         return (
             <View key={template.id} style={styles.card}>
-                {/* Architectural Background Icon */}
-                <View style={styles.cardBgIconWrap}>
-                    <MaterialCommunityIcons
-                        name={isEmail ? 'email-open-outline' : isSMS ? 'message-text-outline' : 'whatsapp'}
-                        size={120}
-                        color={typeColor}
-                        style={styles.cardBgIcon}
-                    />
-                </View>
+                {/* Subtle top accent line */}
+                <View style={[styles.cardAccentLine, { backgroundColor: channel.color }]} />
 
-                <View style={styles.cardInner}>
-                    <View style={styles.cardHeader}>
-                        <View style={[styles.typeBadge, { backgroundColor: typeBg }]}>
-                            <MaterialCommunityIcons
-                                name={isEmail ? 'email-outline' : isSMS ? 'message-text-outline' : 'whatsapp'}
-                                size={14}
-                                color={typeColor}
-                            />
-                            <Text style={[styles.typeBadgeText, { color: typeColor }]}>
-                                {template.template_type.toUpperCase()}
-                            </Text>
-                        </View>
-                        <View style={styles.headerRight}>
-                            <View style={styles.statusToggleWrap}>
-                                <Text style={[styles.statusToggleLabel, { color: template.status === 1 ? '#10B981' : colors.textSecondary }]}>
-                                    {template.status === 1 ? 'ACTIVE' : 'PAUSED'}
-                                </Text>
-                                <Switch
-                                    value={template.status === 1}
-                                    onValueChange={(val) => toggleTemplateStatus(template.id, val ? 1 : 2)}
-                                    trackColor={{ false: '#CBD5E1', true: 'rgba(16, 185, 129, 0.4)' }}
-                                    thumbColor={template.status === 1 ? '#10B981' : '#94A3B8'}
-                                    ios_backgroundColor="#CBD5E1"
-                                    style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-                                />
-                            </View>
-                            <Pressable onPress={() => deleteTemplate(template.id)} hitSlop={12} style={styles.deletePressable}>
-                                <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
-                            </Pressable>
-                        </View>
-                    </View>
-
-                    <Text style={styles.templateName}>{template.name}</Text>
-
-                    {isEmail && template.subject && (
-                        <View style={styles.subjectRow}>
-                            <MaterialCommunityIcons name="format-title" size={14} color={colors.textSecondary} />
-                            <Text style={styles.subjectText} numberOfLines={1}>{template.subject}</Text>
-                        </View>
-                    )}
-
-                    <Text style={styles.templatePreview} numberOfLines={2}>{firstTextBlock}</Text>
-
-                    {/* Module Blueprint Visualization */}
-                    <View style={styles.blueprintRow}>
-                        <View style={styles.blueprintLabelWrap}>
-                            <Text style={styles.blueprintLabel}>ARCHITECTURE</Text>
-                            <Text style={styles.blueprintCount}>{template.content_json?.components?.length || 0} MODULES</Text>
-                        </View>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.moduleIconsWrap}>
-                            {template.content_json?.components?.slice(0, 8).map((comp, idx) => (
-                                <View key={idx} style={styles.moduleIconBox}>
-                                    <MaterialCommunityIcons name={getComponentIcon(comp.type)} size={16} color={colors.textPrimary} />
-                                </View>
-                            ))}
-                            {(template.content_json?.components?.length || 0) > 8 && (
-                                <View style={styles.moduleIconBox}>
-                                    <Text style={styles.moreModulesText}>+{template.content_json.components.length - 8}</Text>
-                                </View>
-                            )}
-                        </ScrollView>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <View style={styles.cardFooter}>
-                        <View style={styles.metaInfo}>
-                            <MaterialCommunityIcons name="clock-outline" size={14} color={colors.textSecondary} />
-                            <Text style={styles.metaText}>
-                                {new Date(template.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                            </Text>
-                        </View>
-                        <Pressable
-                            style={styles.uniqueEditBtn}
-                            onPress={() => setWebOnlyModalVisible(true)}
+                {/* Card Header */}
+                <View style={styles.cardHeader}>
+                    {/* Channel badge + name */}
+                    <View style={styles.channelBadge}>
+                        <LinearGradient
+                            colors={channel.gradientColors as any}
+                            style={styles.channelIconGradient}
                         >
-                            <Text style={styles.uniqueEditBtnText}>Configure</Text>
-                            <MaterialCommunityIcons name="arrow-right" size={16} color="#FFFFFF" />
+                            <MaterialCommunityIcons name={channel.icon} size={18} color={channel.color} />
+                        </LinearGradient>
+                        <View style={[styles.channelTypeTag, { borderColor: channel.accentBorder }]}>
+                            <View style={[styles.channelDot, { backgroundColor: channel.color }]} />
+                            <Text style={[styles.channelTypeText, { color: channel.color }]}>{channel.label}</Text>
+                        </View>
+                    </View>
+
+                    {/* Action icons */}
+                    <View style={styles.actionGroup}>
+                        <Pressable
+                            onPress={() => setWebOnlyModalVisible(true)}
+                            hitSlop={8}
+                            style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
+                        >
+                            <MaterialCommunityIcons name="eye-outline" size={14} color={colors.textSecondary} />
+                        </Pressable>
+                        <Pressable
+                            onPress={() => handleDuplicateTemplate(template.id)}
+                            hitSlop={8}
+                            style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
+                            disabled={duplicateMutation.isPending}
+                        >
+                            {duplicateMutation.isPending && duplicateMutation.variables === template.id ? (
+                                <ActivityIndicator size="small" color={colors.accentTeal} style={{ transform: [{ scale: 0.7 }] }} />
+                            ) : (
+                                <MaterialCommunityIcons name="content-copy" size={14} color={colors.textSecondary} />
+                            )}
+                        </Pressable>
+                        <Pressable
+                            onPress={() => deleteTemplate(template.id)}
+                            hitSlop={8}
+                            style={({ pressed }) => [styles.actionBtn, styles.actionBtnDanger, pressed && styles.actionBtnPressed]}
+                        >
+                            <MaterialCommunityIcons name="trash-can-outline" size={14} color="#F87171" />
                         </Pressable>
                     </View>
                 </View>
+
+                {/* Template Name */}
+                <Text style={styles.templateName} numberOfLines={1}>{template.name}</Text>
+
+                {/* Divider */}
+                <View style={styles.cardDivider} />
+
+                {/* Subject + Status row */}
+                <View style={styles.metaRow}>
+                    <View style={styles.metaBlock}>
+                        <Text style={styles.metaLabel}>SUBJECT</Text>
+                        <Text style={styles.metaValue} numberOfLines={2}>{previewText}</Text>
+                    </View>
+                    <View style={styles.metaBlockStatus}>
+                        <Text style={styles.metaLabel}>STATUS</Text>
+                        <View style={[
+                            styles.statusPill,
+                            { borderColor: isActive ? 'rgba(52,211,153,0.4)' : 'rgba(148,163,184,0.2)' }
+                        ]}>
+                            <Switch
+                                value={isActive}
+                                onValueChange={(val) => toggleTemplateStatus(template.id, val ? 1 : 2)}
+                                trackColor={{ false: 'rgba(148,163,184,0.25)', true: 'rgba(52,211,153,0.35)' }}
+                                thumbColor={isActive ? '#34D399' : '#64748B'}
+                                ios_backgroundColor="rgba(148,163,184,0.2)"
+                                style={{ transform: [{ scaleX: 0.65 }, { scaleY: 0.65 }] }}
+                            />
+                            <Text style={[
+                                styles.statusLabel,
+                                { color: isActive ? '#34D399' : '#64748B' }
+                            ]}>
+                                {isActive ? 'LIVE' : 'PAUSED'}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Edit Button */}
+                <Pressable
+                    style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+                    onPress={() => setWebOnlyModalVisible(true)}
+                >
+                    <Text style={styles.editBtnText}>Edit Template</Text>
+                    <MaterialCommunityIcons name="arrow-right" size={14} color={colors.textSecondary} />
+                </Pressable>
             </View>
         );
     };
@@ -238,160 +258,155 @@ export default function CRM_TemplatesScreen() {
                 title="Templates"
                 subtitle="Set once, and let Zien nurture your leads based on time and behavior."
                 onBack={() => router.back()}
-
             />
 
             <ScrollView
                 style={styles.content}
-                contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 100 }}
+                contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accentTeal} />
                 }
             >
+                {/* Stats ribbon */}
+                {!isLoading && templateList && templateList.length > 0 && (
+                    <View style={styles.statsRibbon}>
+                        <View style={styles.statItem}>
+                            <Text style={styles.statNumber}>{templateList.length}</Text>
+                            <Text style={styles.statLabel}>Total</Text>
+                        </View>
+                        <View style={styles.statDivider} />
+                        <View style={styles.statItem}>
+                            <Text style={[styles.statNumber, { color: '#34D399' }]}>
+                                {templateList.filter(t => t.status === 1).length}
+                            </Text>
+                            <Text style={styles.statLabel}>Active</Text>
+                        </View>
+                        <View style={styles.statDivider} />
+                        <View style={styles.statItem}>
+                            <Text style={[styles.statNumber, { color: '#60A5FA' }]}>
+                                {templateList.filter(t => t.template_type.toUpperCase() === 'EMAIL').length}
+                            </Text>
+                            <Text style={styles.statLabel}>Email</Text>
+                        </View>
+                        <View style={styles.statDivider} />
+                        <View style={styles.statItem}>
+                            <Text style={[styles.statNumber, { color: '#4ADE80' }]}>
+                                {templateList.filter(t => t.template_type.toUpperCase() === 'WHATSAPP').length}
+                            </Text>
+                            <Text style={styles.statLabel}>WhatsApp</Text>
+                        </View>
+                    </View>
+                )}
+
                 {isLoading ? (
                     <View style={styles.loadingContainer}>
                         <ActivityIndicator size="large" color={colors.accentTeal} />
+                        <Text style={styles.loadingText}>Loading templates…</Text>
                     </View>
                 ) : templateList && templateList.length > 0 ? (
                     templateList.map(renderTemplateCard)
                 ) : (
                     <View style={styles.emptyContainer}>
-                        <MaterialCommunityIcons name="file-document-outline" size={48} color={colors.surfaceIcon} />
-                        <Text style={styles.emptyText}>No templates found.</Text>
+                        <View style={styles.emptyIconWrap}>
+                            <MaterialCommunityIcons name="file-document-outline" size={36} color={colors.accentTeal} />
+                        </View>
+                        <Text style={styles.emptyTitle}>No templates yet</Text>
+                        <Text style={styles.emptySubtitle}>Tap the + button to create your first template</Text>
                     </View>
                 )}
             </ScrollView>
 
+            {/* FAB */}
             <Pressable
-                style={[styles.fab, { bottom: insets.bottom + 24 }]}
+                style={({ pressed }) => [styles.fab, { bottom: insets.bottom + 28 }, pressed && styles.fabPressed]}
                 onPress={() => setCreateModalVisible(true)}
             >
-                <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+                <LinearGradient
+                    colors={['#1A4A60', '#0B2D3E']}
+                    style={styles.fabGradient}
+                >
+                    <MaterialCommunityIcons name="plus" size={28} color="#FFFFFF" />
+                </LinearGradient>
             </Pressable>
 
-            {/* Custom Delete Confirmation Modal */}
-            <Modal
-                visible={confirmDeleteVisible}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setConfirmDeleteVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.confirmModal}>
-                        <View style={styles.trashCircle}>
-                            <MaterialCommunityIcons name="trash-can-outline" size={32} color="#EF4444" />
-                        </View>
-
-                        <Text style={styles.confirmTitle}>Delete Template?</Text>
-                        <Text style={styles.confirmSubtitle}>
-                            This action cannot be undone. This template will be permanently removed from your library.
-                        </Text>
-
-                        <View style={styles.modalActions}>
-                            <Pressable
-                                style={styles.cancelBtn}
-                                onPress={() => setConfirmDeleteVisible(false)}
-                            >
-                                <Text style={styles.cancelBtnText}>Cancel</Text>
-                            </Pressable>
-                            <Pressable
-                                style={styles.deleteBtn}
-                                onPress={handleConfirmDelete}
-                            >
-                                <Text style={styles.deleteBtnText}>Delete</Text>
-                            </Pressable>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Template Type Selection Modal */}
-            <Modal
-                visible={createModalVisible}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setCreateModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.selectionModal}>
-                        <View style={styles.modalHeader}>
-                            <View style={styles.headerTitleWrap}>
-                                <Text style={styles.selectionModalTitle}>Select Starting Template</Text>
-                                <Text style={styles.selectionModalSub}>Choose a base to start building your automation.</Text>
+            {/* ── DELETE CONFIRM MODAL ── */}
+            <Modal visible={confirmDeleteVisible} transparent animationType="fade" onRequestClose={() => setConfirmDeleteVisible(false)}>
+                <View style={styles.overlay}>
+                    <View style={styles.centeredModal}>
+                        <View style={styles.dangerIconRing}>
+                            <View style={styles.dangerIconInner}>
+                                <MaterialCommunityIcons name="trash-can-outline" size={28} color="#F87171" />
                             </View>
-                            <Pressable
-                                onPress={() => setCreateModalVisible(false)}
-                                style={styles.closeBtn}
-                            >
-                                <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-                            </Pressable>
                         </View>
-
-                        <View style={styles.selectionGrid}>
-                            <Pressable
-                                style={styles.selectionCard}
-                                onPress={handleSelectTemplateType}
-                            >
-                                <View style={[styles.selIconWrap, { backgroundColor: 'rgba(59, 130, 246, 0.08)' }]}>
-                                    <MaterialCommunityIcons name="email-outline" size={28} color="#3B82F6" />
-                                </View>
-                                <Text style={styles.selTitle}>Email Template</Text>
-                                <Text style={styles.selSub}>Rich HTML emails</Text>
+                        <Text style={styles.modalTitle}>Delete Template?</Text>
+                        <Text style={styles.modalBody}>
+                            This template will be permanently removed and cannot be recovered.
+                        </Text>
+                        <View style={styles.modalBtnRow}>
+                            <Pressable style={styles.ghostBtn} onPress={() => setConfirmDeleteVisible(false)}>
+                                <Text style={styles.ghostBtnText}>Cancel</Text>
                             </Pressable>
-
-                            <Pressable
-                                style={styles.selectionCard}
-                                onPress={handleSelectTemplateType}
-                            >
-                                <View style={[styles.selIconWrap, { backgroundColor: 'rgba(16, 185, 129, 0.08)' }]}>
-                                    <MaterialCommunityIcons name="cellphone" size={28} color="#10B981" />
-                                </View>
-                                <Text style={styles.selTitle}>SMS Template</Text>
-                                <Text style={styles.selSub}>Short text updates</Text>
-                            </Pressable>
-
-                            <Pressable
-                                style={styles.selectionCard}
-                                onPress={handleSelectTemplateType}
-                            >
-                                <View style={[styles.selIconWrap, { backgroundColor: 'rgba(37, 211, 102, 0.08)' }]}>
-                                    <MaterialCommunityIcons name="whatsapp" size={28} color="#25D366" />
-                                </View>
-                                <Text style={styles.selTitle}>WhatsApp Template</Text>
-                                <Text style={styles.selSub}>Direct chat engagement</Text>
+                            <Pressable style={styles.dangerBtn} onPress={handleConfirmDelete}>
+                                <Text style={styles.dangerBtnText}>Delete</Text>
                             </Pressable>
                         </View>
                     </View>
                 </View>
             </Modal>
 
-            {/* Web Only Info Modal */}
-            <Modal
-                visible={webOnlyModalVisible}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setWebOnlyModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.confirmModal}>
-                        <View style={styles.webIconCircle}>
-                            <MaterialCommunityIcons name="monitor" size={32} color={colors.accentTeal} />
-                        </View>
-
-                        <Text style={styles.confirmTitle}>Web Only Feature</Text>
-                        <Text style={styles.confirmSubtitle}>
-                            Advanced template design and customization are exclusively available on our web platform for a professional experience.
-                        </Text>
-
-                        <View style={styles.modalActions}>
-                            <Pressable
-                                style={styles.primaryBtn}
-                                onPress={() => setWebOnlyModalVisible(false)}
-                            >
-                                <Text style={styles.primaryBtnText}>GOT IT</Text>
+            {/* ── CREATE MODAL ── */}
+            <Modal visible={createModalVisible} transparent animationType="slide" onRequestClose={() => setCreateModalVisible(false)}>
+                <View style={styles.overlay}>
+                    <View style={styles.sheetModal}>
+                        <View style={styles.sheetHandle} />
+                        <View style={styles.sheetHeader}>
+                            <View>
+                                <Text style={styles.sheetTitle}>New Template</Text>
+                                <Text style={styles.sheetSub}>Choose a channel to get started</Text>
+                            </View>
+                            <Pressable style={styles.closeCircle} onPress={() => setCreateModalVisible(false)}>
+                                <MaterialCommunityIcons name="close" size={18} color={colors.textSecondary} />
                             </Pressable>
                         </View>
+
+                        <View style={styles.channelGrid}>
+                            {[
+                                { icon: 'email-outline', label: 'Email', sub: 'Rich HTML campaigns', color: '#60A5FA', bg: 'rgba(59,130,246,0.1)' },
+                                { icon: 'cellphone', label: 'SMS', sub: 'Short text updates', color: '#34D399', bg: 'rgba(16,185,129,0.1)' },
+                                { icon: 'whatsapp', label: 'WhatsApp', sub: 'Direct engagement', color: '#4ADE80', bg: 'rgba(37,211,102,0.1)' },
+                            ].map((ch) => (
+                                <Pressable
+                                    key={ch.label}
+                                    style={({ pressed }) => [styles.channelCard, pressed && styles.channelCardPressed]}
+                                    onPress={handleSelectTemplateType}
+                                >
+                                    <View style={[styles.channelCardIcon, { backgroundColor: ch.bg }]}>
+                                        <MaterialCommunityIcons name={ch.icon as any} size={26} color={ch.color} />
+                                    </View>
+                                    <Text style={[styles.channelCardTitle, { color: ch.color }]}>{ch.label}</Text>
+                                    <Text style={styles.channelCardSub}>{ch.sub}</Text>
+                                </Pressable>
+                            ))}
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── WEB ONLY MODAL ── */}
+            <Modal visible={webOnlyModalVisible} transparent animationType="fade" onRequestClose={() => setWebOnlyModalVisible(false)}>
+                <View style={styles.overlay}>
+                    <View style={styles.centeredModal}>
+                        <View style={styles.webIconRing}>
+                            <MaterialCommunityIcons name="monitor-shimmer" size={28} color={colors.accentTeal} />
+                        </View>
+                        <Text style={styles.modalTitle}>Web Experience</Text>
+                        <Text style={styles.modalBody}>
+                            Advanced template editing is available on our web platform for the full design experience.
+                        </Text>
+                        <Pressable style={styles.tealBtn} onPress={() => setWebOnlyModalVisible(false)}>
+                            <Text style={styles.tealBtnText}>Got It</Text>
+                        </Pressable>
                     </View>
                 </View>
             </Modal>
@@ -400,452 +415,516 @@ export default function CRM_TemplatesScreen() {
 }
 
 function getStyles(colors: any, theme?: string) {
+    const isDark = theme === 'dark';
+    const glassBase = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.7)';
+    const glassBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+
+    // iOS uses gorgeous translucent glassmorphism; Android uses solid card backgrounds
+    const cardBg = Platform.OS === 'ios' ? glassBase : colors.cardBackground;
+    const borderCol = Platform.OS === 'ios' ? glassBorder : colors.cardBorder;
+
     return StyleSheet.create({
-        container: {
-            flex: 1,
-        },
-        content: {
-            flex: 1,
-        },
-        card: {
-            backgroundColor: colors.cardBackground,
-            borderRadius: 32,
-            marginBottom: 24,
-            overflow: 'hidden',
+        container: { flex: 1 },
+        content: { flex: 1 },
+        scrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 120 },
+
+        // Stats ribbon
+        statsRibbon: {
+            flexDirection: 'row',
+            backgroundColor: cardBg,
+            borderRadius: 20,
             borderWidth: 1,
-            borderColor: colors.cardBorder,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 12 },
-            shadowOpacity: 0.1,
-            shadowRadius: 20,
-            elevation: 8,
+            borderColor: borderCol,
+            paddingVertical: 16,
+            paddingHorizontal: 8,
+            marginBottom: 24,
+            alignItems: 'center',
+            ...Platform.select({
+                ios: {
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: isDark ? 0.2 : 0.04,
+                    shadowRadius: 16,
+                },
+                android: {
+                    elevation: 2,
+                },
+            }),
         },
-        cardInner: {
-            padding: 24,
-            zIndex: 2,
+        statItem: {
+            flex: 1,
+            alignItems: 'center',
         },
-        cardBgIconWrap: {
-            position: 'absolute',
-            right: -20,
-            top: -20,
-            opacity: 0.05,
-            zIndex: 1,
+        statNumber: {
+            fontSize: 22,
+            fontWeight: '800',
+            color: colors.textPrimary,
+            letterSpacing: -0.5,
         },
-        cardBgIcon: {
-            transform: [{ rotate: '-15deg' }],
+        statLabel: {
+            fontSize: 10,
+            fontWeight: '700',
+            color: colors.textSecondary,
+            marginTop: 2,
+            letterSpacing: 0.5,
+            textTransform: 'uppercase',
+        },
+        statDivider: {
+            width: 1,
+            height: 32,
+            backgroundColor: borderCol,
+        },
+
+        // Card
+        card: {
+            backgroundColor: cardBg,
+            borderRadius: 28,
+            marginBottom: 16,
+            borderWidth: 1,
+            borderColor: borderCol,
+            overflow: 'hidden',
+            // Premium shadow styling
+            ...Platform.select({
+                ios: {
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: isDark ? 0.35 : 0.08,
+                    shadowRadius: 20,
+                },
+                android: {
+                    elevation: 4,
+                },
+            }),
+        },
+        cardAccentLine: {
+            height: 2.5,
+            width: '30%',
+            borderRadius: 2,
+            marginHorizontal: 20,
+            marginTop: 16,
+            opacity: 0.7,
         },
         cardHeader: {
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: 20,
+            paddingHorizontal: 16,
+            paddingTop: 14,
+            paddingBottom: 4,
         },
-        headerRight: {
+        channelBadge: {
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 12,
+            gap: 10,
         },
-        statusToggleWrap: {
+        channelIconGradient: {
+            width: 36,
+            height: 36,
+            borderRadius: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        channelTypeTag: {
             flexDirection: 'row',
             alignItems: 'center',
-            backgroundColor: colors.surfaceSoft,
-            paddingLeft: 12,
-            paddingRight: 4,
-            paddingVertical: 2,
-            borderRadius: 20,
+            gap: 5,
             borderWidth: 1,
-            borderColor: colors.cardBorder,
-        },
-        statusToggleLabel: {
-            fontSize: 10,
-            fontWeight: '900',
-            letterSpacing: 0.5,
-            marginRight: 4,
-        },
-        statusIndicator: {
+            borderRadius: 20,
             paddingHorizontal: 10,
             paddingVertical: 4,
-            borderRadius: 10,
         },
-        statusIndicatorText: {
-            fontSize: 9,
-            fontWeight: '900',
-            color: '#FFFFFF',
-            letterSpacing: 0.5,
+        channelDot: {
+            width: 5,
+            height: 5,
+            borderRadius: 3,
         },
-        deletePressable: {
-            width: 36,
-            height: 36,
-            borderRadius: 12,
-            backgroundColor: colors.surfaceSoft,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        templateName: {
-            fontSize: 22,
-            fontWeight: '900',
-            color: colors.textPrimary,
-            marginBottom: 8,
-            letterSpacing: -0.5,
-        },
-        subjectRow: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-            marginBottom: 12,
-            backgroundColor: colors.surfaceSoft,
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-            borderRadius: 8,
-        },
-        subjectText: {
-            fontSize: 13,
-            color: colors.textSecondary,
-            fontWeight: '600',
-            flex: 1,
-        },
-        templatePreview: {
-            fontSize: 14,
-            color: colors.textSecondary,
-            lineHeight: 22,
-            marginBottom: 24,
-            fontWeight: '500',
-        },
-        blueprintRow: {
-            marginBottom: 24,
-        },
-        blueprintLabelWrap: {
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 12,
-        },
-        blueprintLabel: {
-            fontSize: 10,
-            fontWeight: '900',
-            color: colors.textMuted,
-            letterSpacing: 1.5,
-        },
-        blueprintCount: {
+        channelTypeText: {
             fontSize: 10,
             fontWeight: '800',
-            color: colors.accentTeal,
+            letterSpacing: 0.8,
         },
-        moduleIconsWrap: {
+        actionGroup: {
             flexDirection: 'row',
+            gap: 6,
         },
-        moduleIconBox: {
-            width: 36,
-            height: 36,
-            borderRadius: 10,
-            backgroundColor: colors.surfaceSoft,
+        actionBtn: {
+            width: 30,
+            height: 30,
+            borderRadius: 9,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
             borderWidth: 1,
-            borderColor: colors.cardBorder,
+            borderColor: borderCol,
             alignItems: 'center',
             justifyContent: 'center',
-            marginRight: 8,
         },
-        moreModulesText: {
-            fontSize: 11,
-            fontWeight: '900',
-            color: colors.textSecondary,
+        actionBtnDanger: {
+            backgroundColor: 'rgba(239,68,68,0.08)',
+            borderColor: 'rgba(239,68,68,0.2)',
         },
-        divider: {
+        actionBtnPressed: {
+            opacity: 0.6,
+            transform: [{ scale: 0.94 }],
+        },
+        templateName: {
+            fontSize: 17,
+            fontWeight: '800',
+            color: colors.textPrimary,
+            paddingHorizontal: 16,
+            paddingTop: 12,
+            paddingBottom: 4,
+            letterSpacing: -0.3,
+        },
+        cardDivider: {
             height: 1,
-            backgroundColor: colors.cardBorder,
-            marginBottom: 20,
+            backgroundColor: borderCol,
+            marginHorizontal: 16,
+            marginVertical: 12,
         },
-        cardFooter: {
+
+        // Meta grid
+        metaRow: {
             flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            gap: 10,
+            paddingHorizontal: 16,
+            marginBottom: 12,
         },
-        metaInfo: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-        },
-        metaText: {
-            fontSize: 12,
-            color: colors.textSecondary,
-            fontWeight: '700',
-        },
-        uniqueEditBtn: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            backgroundColor: '#0B2D3E',
-            paddingHorizontal: 20,
-            paddingVertical: 12,
+        metaBlock: {
+            flex: 1.4,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
             borderRadius: 16,
+            borderWidth: 1,
+            borderColor: borderCol,
+            padding: 12,
         },
-        uniqueEditBtnText: {
-            fontSize: 14,
+        metaBlockStatus: {
+            flex: 1,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: borderCol,
+            padding: 12,
+        },
+        metaLabel: {
+            fontSize: 8,
             fontWeight: '900',
-            color: '#FFFFFF',
+            color: colors.textSecondary,
+            letterSpacing: 1.2,
+            marginBottom: 6,
         },
-        typeBadge: {
+        metaValue: {
+            fontSize: 12,
+            fontWeight: '600',
+            color: colors.textPrimary,
+            lineHeight: 16,
+        },
+        statusPill: {
             flexDirection: 'row',
             alignItems: 'center',
-            paddingHorizontal: 12,
-            paddingVertical: 6,
+            borderWidth: 1,
             borderRadius: 12,
-            gap: 6,
+            paddingRight: 6,
         },
-        typeBadgeText: {
-            fontSize: 11,
+        statusLabel: {
+            fontSize: 9,
             fontWeight: '900',
-            letterSpacing: 0.5,
+            letterSpacing: 0.8,
         },
-        loadingContainer: {
-            padding: 40,
+
+        // Edit button
+        editBtn: {
+            flexDirection: 'row',
             alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            marginHorizontal: 16,
+            marginBottom: 14,
+            paddingVertical: 11,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: borderCol,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
         },
-        emptyContainer: {
+        editBtnPressed: { opacity: 0.7 },
+        editBtnText: {
+            fontSize: 13,
+            fontWeight: '700',
+            color: colors.textSecondary,
+            letterSpacing: 0.2,
+        },
+
+        // Loading & empty
+        loadingContainer: {
             padding: 60,
             alignItems: 'center',
             gap: 16,
         },
-        emptyText: {
-            fontSize: 15,
+        loadingText: {
+            fontSize: 14,
             color: colors.textSecondary,
             fontWeight: '600',
         },
-        fab: {
-            position: 'absolute',
-            right: 24,
-            width: 72,
-            height: 72,
-            borderRadius: 24,
-            backgroundColor: '#0B2D3E',
+        emptyContainer: {
+            padding: 60,
             alignItems: 'center',
-            justifyContent: 'center',
-            shadowColor: '#0B2D3E',
-            shadowOffset: { width: 0, height: 12 },
-            shadowOpacity: 0.4,
-            shadowRadius: 18,
-            elevation: 12,
-            zIndex: 1000,
-        },
-        modalOverlay: {
-            flex: 1,
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: 24,
-        },
-        confirmModal: {
-            width: '100%',
-            backgroundColor: colors.cardBackground,
-            borderRadius: 32,
-            padding: 32,
-            alignItems: 'center',
-        },
-        trashCircle: {
-            width: 72,
-            height: 72,
-            borderRadius: 36,
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 24,
-        },
-        confirmTitle: {
-            fontSize: 24,
-            fontWeight: '900',
-            color: colors.textPrimary,
-            marginBottom: 12,
-            textAlign: 'center',
-        },
-        confirmSubtitle: {
-            fontSize: 16,
-            color: colors.textSecondary,
-            textAlign: 'center',
-            lineHeight: 24,
-            marginBottom: 32,
-            fontWeight: '500',
-        },
-        modalActions: {
-            flexDirection: 'row',
             gap: 12,
-            width: '100%',
         },
-        cancelBtn: {
-            flex: 1,
-            height: 56,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: colors.cardBorder,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: colors.cardBackground,
-        },
-        cancelBtnText: {
-            fontSize: 16,
-            fontWeight: '800',
-            color: colors.textPrimary,
-        },
-        deleteBtn: {
-            flex: 1,
-            height: 56,
-            borderRadius: 18,
-            backgroundColor: '#EF4444',
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        deleteBtnText: {
-            fontSize: 16,
-            fontWeight: '800',
-            color: '#FFFFFF',
-        },
-        webIconCircle: {
+        emptyIconWrap: {
             width: 80,
             height: 80,
-            borderRadius: 40,
-            backgroundColor: 'rgba(11, 160, 178, 0.1)',
+            borderRadius: 24,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+            borderWidth: 1,
+            borderColor: borderCol,
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 24,
+            marginBottom: 8,
         },
-        primaryBtn: {
-            flex: 1,
-            height: 56,
-            borderRadius: 18,
-            backgroundColor: colors.accentTeal,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        primaryBtnText: {
-            fontSize: 16,
-            fontWeight: '900',
-            color: '#FFFFFF',
-            letterSpacing: 1,
-        },
-        fullModal: {
-            width: '100%',
-            height: '85%',
-            backgroundColor: colors.cardBackground,
-            borderTopLeftRadius: 40,
-            borderTopRightRadius: 40,
-            paddingTop: 32,
-        },
-        selectionModal: {
-            width: '100%',
-            backgroundColor: colors.cardBackground,
-            borderRadius: 32,
-            padding: 32,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 20 },
-            shadowOpacity: 0.2,
-            shadowRadius: 30,
-            elevation: 20,
-        },
-        selectionModalTitle: {
-            fontSize: 17,
-            fontWeight: '900',
+        emptyTitle: {
+            fontSize: 18,
+            fontWeight: '800',
             color: colors.textPrimary,
-            marginBottom: 4,
         },
-        selectionModalSub: {
+        emptySubtitle: {
             fontSize: 14,
             color: colors.textSecondary,
             fontWeight: '500',
+            textAlign: 'center',
         },
-        headerTitleWrap: {
+
+        // FAB
+        fab: {
+            position: 'absolute',
+            right: 24,
+            width: 50,
+            height: 50,
+            borderRadius: 15,
+            overflow: 'hidden',
+            shadowColor: '#0B2D3E',
+            shadowOffset: { width: 0, height: 14 },
+            shadowOpacity: 0.5,
+            shadowRadius: 22,
+            elevation: 14,
+            zIndex: 1000,
+        },
+        fabPressed: { transform: [{ scale: 0.94 }], opacity: 0.9 },
+        fabGradient: {
             flex: 1,
-            paddingRight: 16,
-        },
-        closeBtn: {
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: colors.surfaceSoft,
             alignItems: 'center',
             justifyContent: 'center',
-            marginTop: 4,
         },
-        selectionGrid: {
-            gap: 12,
-        },
-        selectionCard: {
-            flexDirection: 'column',
-            alignItems: 'center',
+
+        // Modal base
+        overlay: {
+            flex: 1,
+            backgroundColor: 'rgba(5, 10, 20, 0.72)',
             justifyContent: 'center',
+            alignItems: 'center',
             padding: 24,
-            borderRadius: 24,
-            borderWidth: 1.5,
-            borderColor: colors.cardBorder,
-            backgroundColor: colors.cardBackground,
         },
-        selIconWrap: {
-            width: 64,
-            height: 64,
-            borderRadius: 20,
+        centeredModal: {
+            width: '100%',
+            backgroundColor: isDark ? '#111827' : '#FFFFFF',
+            borderRadius: 32,
+            padding: 32,
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: borderCol,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 24 },
+            shadowOpacity: 0.3,
+            shadowRadius: 40,
+            elevation: 24,
+        },
+
+        // Delete modal
+        dangerIconRing: {
+            width: 80,
+            height: 80,
+            borderRadius: 40,
+            backgroundColor: 'rgba(239,68,68,0.06)',
+            borderWidth: 1,
+            borderColor: 'rgba(239,68,68,0.2)',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 16,
+            marginBottom: 20,
         },
-        selTitle: {
-            fontSize: 16,
+        dangerIconInner: {
+            width: 58,
+            height: 58,
+            borderRadius: 29,
+            backgroundColor: 'rgba(239,68,68,0.12)',
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        modalTitle: {
+            fontSize: 22,
             fontWeight: '900',
             color: colors.textPrimary,
-            marginBottom: 4,
-            textAlign: 'center',
+            marginBottom: 10,
+            letterSpacing: -0.5,
         },
-        selSub: {
-            fontSize: 12,
+        modalBody: {
+            fontSize: 15,
             color: colors.textSecondary,
-            fontWeight: '600',
             textAlign: 'center',
+            lineHeight: 22,
+            marginBottom: 28,
+            fontWeight: '500',
         },
-        modalHeader: {
+        modalBtnRow: {
+            flexDirection: 'row',
+            gap: 10,
+            width: '100%',
+        },
+        ghostBtn: {
+            flex: 1,
+            height: 52,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: borderCol,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        ghostBtnText: {
+            fontSize: 15,
+            fontWeight: '700',
+            color: colors.textPrimary,
+        },
+        dangerBtn: {
+            flex: 1,
+            height: 52,
+            borderRadius: 16,
+            backgroundColor: '#EF4444',
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#EF4444',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
+            elevation: 8,
+        },
+        dangerBtnText: {
+            fontSize: 15,
+            fontWeight: '800',
+            color: '#FFFFFF',
+        },
+
+        // Web modal
+        webIconRing: {
+            width: 76,
+            height: 76,
+            borderRadius: 38,
+            backgroundColor: 'rgba(11,160,178,0.1)',
+            borderWidth: 1,
+            borderColor: 'rgba(11,160,178,0.25)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 20,
+        },
+        tealBtn: {
+            width: '100%',
+            height: 52,
+            borderRadius: 16,
+            backgroundColor: colors.accentTeal,
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: colors.accentTeal,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.4,
+            shadowRadius: 14,
+            elevation: 8,
+        },
+        tealBtnText: {
+            fontSize: 15,
+            fontWeight: '900',
+            color: '#FFFFFF',
+            letterSpacing: 1.2,
+        },
+
+        // Create / sheet modal
+        sheetModal: {
+            width: '100%',
+            backgroundColor: isDark ? '#111827' : '#FFFFFF',
+            borderRadius: 32,
+            padding: 28,
+            borderWidth: 1,
+            borderColor: borderCol,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 24 },
+            shadowOpacity: 0.3,
+            shadowRadius: 40,
+            elevation: 24,
+        },
+        sheetHandle: {
+            width: 36,
+            height: 4,
+            borderRadius: 2,
+            backgroundColor: borderCol,
+            alignSelf: 'center',
+            marginBottom: 20,
+        },
+        sheetHeader: {
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'flex-start',
-            marginBottom: 28,
+            marginBottom: 24,
         },
-        modalHeaderTitle: {
-            fontSize: 24,
+        sheetTitle: {
+            fontSize: 20,
             fontWeight: '900',
             color: colors.textPrimary,
+            letterSpacing: -0.5,
+            marginBottom: 3,
         },
-        modalBody: {
-            flex: 1,
-            paddingHorizontal: 32,
-        },
-        webOnlyNotice: {
-            fontSize: 15,
+        sheetSub: {
+            fontSize: 13,
             color: colors.textSecondary,
-            lineHeight: 24,
-            textAlign: 'center',
-            padding: 24,
-            backgroundColor: colors.surfaceSoft,
-            borderRadius: 24,
-            marginBottom: 24,
-            fontWeight: '600',
+            fontWeight: '500',
         },
-        modalFooter: {
-            padding: 32,
-            paddingBottom: 40,
-            borderTopWidth: 1,
-            borderTopColor: colors.cardBorder,
-        },
-        launchBtn: {
-            height: 64,
-            backgroundColor: '#0B2D3E',
-            borderRadius: 20,
+        closeCircle: {
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
+            borderWidth: 1,
+            borderColor: borderCol,
             alignItems: 'center',
             justifyContent: 'center',
-            shadowColor: '#0B2D3E',
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.3,
-            shadowRadius: 15,
-            elevation: 8,
         },
-        launchBtnText: {
-            fontSize: 18,
-            fontWeight: '900',
-            color: '#FFFFFF',
+        channelGrid: {
+            gap: 10,
+        },
+        channelCard: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 16,
+            padding: 18,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: borderCol,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+        },
+        channelCardPressed: {
+            opacity: 0.7,
+            transform: [{ scale: 0.98 }],
+        },
+        channelCardIcon: {
+            width: 48,
+            height: 48,
+            borderRadius: 15,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        channelCardTitle: {
+            fontSize: 16,
+            fontWeight: '800',
+            marginBottom: 2,
+        },
+        channelCardSub: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            fontWeight: '500',
         },
     });
 }

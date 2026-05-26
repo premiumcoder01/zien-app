@@ -472,7 +472,7 @@ export default function FollowUpsScreen() {
       </View>
 
       <View style={styles.filterSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll} keyboardDismissMode='on-drag' keyboardShouldPersistTaps="always">
           <Pressable
             style={[styles.filterBtn, groupFilter !== 'All Groups' && styles.filterBtnActive]}
             onPress={() => setActiveDropdown('group')}
@@ -658,62 +658,59 @@ export default function FollowUpsScreen() {
 
                 <Modal
                   visible={isModalContactDropdownOpen}
-                  transparent
-                  animationType="fade"
+                  transparent={false}
+                  animationType="slide"
                   onRequestClose={() => setModalContactDropdownOpen(false)}
                 >
-                  <Pressable style={styles.pickerOverlay} onPress={() => setModalContactDropdownOpen(false)}>
-                    <View style={styles.selectionModalContainer}>
-                      <View style={styles.selectionModalHeader}>
-                        <Text style={styles.selectionModalTitle}>Select Contact</Text>
-                        <Pressable onPress={() => setModalContactDropdownOpen(false)}>
-                          <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-                        </Pressable>
-                      </View>
-
-                      <View style={styles.pickerSearchBoxSmall}>
-                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                        <TextInput
-                          style={styles.pickerSearchInputSmall}
-                          placeholder="Search contact..."
-                          placeholderTextColor={colors.textMuted}
-                          value={contactSearch}
-                          onChangeText={setContactSearch}
-
-                        />
-                      </View>
-
-                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-                        <Pressable
-                          style={[styles.selectionModalItem, modalContactId === null && styles.selectionModalItemActive]}
-                          onPress={() => { setModalContactId(null); setModalContactDropdownOpen(false); }}
-                        >
-                          <Text style={[styles.selectionModalItemText, modalContactId === null && styles.selectionModalItemTextActive]}>Manual Task (No Contact)</Text>
-                          {modalContactId === null && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />}
-                        </Pressable>
-                        {filteredContacts.map((c) => (
-                          <Pressable
-                            key={c.id}
-                            style={[
-                              styles.selectionModalItem,
-                              modalContactId === c.id && styles.selectionModalItemActive
-                            ]}
-                            onPress={() => { setModalContactId(c.id); setModalContactDropdownOpen(false); }}
-                          >
-                            <View>
-                              <Text style={[styles.selectionModalItemText, modalContactId === c.id && styles.selectionModalItemTextActive]}>
-                                {c.first_name} {c.last_name || ''}
-                              </Text>
-                              <Text style={{ fontSize: 11, color: colors.textSecondary }}>{c.phone || c.email || 'No details'}</Text>
-                            </View>
-                            {modalContactId === c.id && (
-                              <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />
-                            )}
-                          </Pressable>
-                        ))}
-                      </ScrollView>
+                  <View style={[styles.fullPageModal, { paddingTop: insets.top }]}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Contact</Text>
+                      <Pressable onPress={() => setModalContactDropdownOpen(false)} style={styles.pickerCloseBtnSmall}>
+                        <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                      </Pressable>
                     </View>
-                  </Pressable>
+
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput
+                        style={styles.pickerSearchInputSmall}
+                        placeholder="Search contact..."
+                        placeholderTextColor={colors.textMuted}
+                        value={contactSearch}
+                        onChangeText={setContactSearch}
+                      />
+                    </View>
+
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+                      <Pressable
+                        style={[styles.selectionModalItem, modalContactId === null && styles.selectionModalItemActive]}
+                        onPress={() => { setModalContactId(null); setModalContactDropdownOpen(false); }}
+                      >
+                        <Text style={[styles.selectionModalItemText, modalContactId === null && styles.selectionModalItemTextActive]}>Manual Task (No Contact)</Text>
+                        {modalContactId === null && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />}
+                      </Pressable>
+                      {filteredContacts.map((c) => (
+                        <Pressable
+                          key={c.id}
+                          style={[
+                            styles.selectionModalItem,
+                            modalContactId === c.id && styles.selectionModalItemActive
+                          ]}
+                          onPress={() => { setModalContactId(c.id); setModalContactDropdownOpen(false); }}
+                        >
+                          <View>
+                            <Text style={[styles.selectionModalItemText, modalContactId === c.id && styles.selectionModalItemTextActive]}>
+                              {c.first_name} {c.last_name || ''}
+                            </Text>
+                            <Text style={{ fontSize: 11, color: colors.textSecondary }}>{c.phone || c.email || 'No details'}</Text>
+                          </View>
+                          {modalContactId === c.id && (
+                            <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />
+                          )}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
                 </Modal>
               </View>
 
@@ -758,51 +755,49 @@ export default function FollowUpsScreen() {
                 {errors.group ? <Text style={styles.inlineError}>{errors.group}</Text> : null}
                 <Modal
                   visible={isModalGroupDropdownOpen}
-                  transparent
-                  animationType="fade"
+                  transparent={false}
+                  animationType="slide"
                   onRequestClose={() => setModalGroupDropdownOpen(false)}
                 >
-                  <Pressable style={styles.selectionModalOverlay} onPress={() => setModalGroupDropdownOpen(false)}>
-                    <View style={styles.selectionModalContainer}>
-                      <View style={styles.selectionModalHeader}>
-                        <Text style={styles.selectionModalTitle}>Select Group</Text>
-                        <Pressable onPress={() => setModalGroupDropdownOpen(false)} style={styles.pickerCloseBtnSmall}>
-                          <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-                        </Pressable>
-                      </View>
-
-                      <View style={styles.pickerSearchBoxSmall}>
-                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                        <TextInput
-                          style={styles.pickerSearchInputSmall}
-                          placeholder="Search groups..."
-                          placeholderTextColor={colors.textMuted}
-                          value={groupSearch}
-                          onChangeText={setGroupSearch}
-                        />
-                      </View>
-
-                      <ScrollView style={styles.selectionModalList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-                        {filteredGroups.length === 0 ? (
-                          <Text style={styles.noResultsSmall}>No groups found</Text>
-                        ) : filteredGroups.map((g, index, arr) => (
-                          <Pressable
-                            key={g.id}
-                            style={[
-                              styles.selectionModalItem,
-                              index === arr.length - 1 && styles.selectionModalItemLast
-                            ]}
-                            onPress={() => { setModalGroupId(g.id); setModalGroupDropdownOpen(false); }}
-                          >
-                            <Text style={[styles.selectionModalItemText, modalGroupId === g.id && styles.selectionModalItemTextActive]}>{g.name}</Text>
-                            {modalGroupId === g.id && (
-                              <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />
-                            )}
-                          </Pressable>
-                        ))}
-                      </ScrollView>
+                  <View style={[styles.fullPageModal, { paddingTop: insets.top }]}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Group</Text>
+                      <Pressable onPress={() => setModalGroupDropdownOpen(false)} style={styles.pickerCloseBtnSmall}>
+                        <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                      </Pressable>
                     </View>
-                  </Pressable>
+
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput
+                        style={styles.pickerSearchInputSmall}
+                        placeholder="Search groups..."
+                        placeholderTextColor={colors.textMuted}
+                        value={groupSearch}
+                        onChangeText={setGroupSearch}
+                      />
+                    </View>
+
+                    <ScrollView style={styles.selectionModalList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+                      {filteredGroups.length === 0 ? (
+                        <Text style={styles.noResultsSmall}>No groups found</Text>
+                      ) : filteredGroups.map((g, index, arr) => (
+                        <Pressable
+                          key={g.id}
+                          style={[
+                            styles.selectionModalItem,
+                            index === arr.length - 1 && styles.selectionModalItemLast
+                          ]}
+                          onPress={() => { setModalGroupId(g.id); setModalGroupDropdownOpen(false); }}
+                        >
+                          <Text style={[styles.selectionModalItemText, modalGroupId === g.id && styles.selectionModalItemTextActive]}>{g.name}</Text>
+                          {modalGroupId === g.id && (
+                            <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />
+                          )}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
                 </Modal>
               </View>
 
@@ -824,51 +819,49 @@ export default function FollowUpsScreen() {
                 {errors.tag ? <Text style={styles.inlineError}>{errors.tag}</Text> : null}
                 <Modal
                   visible={isModalTagDropdownOpen}
-                  transparent
-                  animationType="fade"
+                  transparent={false}
+                  animationType="slide"
                   onRequestClose={() => setModalTagDropdownOpen(false)}
                 >
-                  <Pressable style={styles.selectionModalOverlay} onPress={() => setModalTagDropdownOpen(false)}>
-                    <View style={styles.selectionModalContainer}>
-                      <View style={styles.selectionModalHeader}>
-                        <Text style={styles.selectionModalTitle}>Select Tag</Text>
-                        <Pressable onPress={() => setModalTagDropdownOpen(false)} style={styles.pickerCloseBtnSmall}>
-                          <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-                        </Pressable>
-                      </View>
-
-                      <View style={styles.pickerSearchBoxSmall}>
-                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                        <TextInput
-                          style={styles.pickerSearchInputSmall}
-                          placeholder="Search tags..."
-                          placeholderTextColor={colors.textMuted}
-                          value={tagSearch}
-                          onChangeText={setTagSearch}
-                        />
-                      </View>
-
-                      <ScrollView style={styles.selectionModalList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-                        {filteredTags.length === 0 ? (
-                          <Text style={styles.noResultsSmall}>No tags found</Text>
-                        ) : filteredTags.map((t, index, arr) => (
-                          <Pressable
-                            key={t.id}
-                            style={[
-                              styles.selectionModalItem,
-                              index === arr.length - 1 && styles.selectionModalItemLast
-                            ]}
-                            onPress={() => { setModalTagId(t.id); setModalTagDropdownOpen(false); }}
-                          >
-                            <Text style={[styles.selectionModalItemText, modalTagId === t.id && styles.selectionModalItemTextActive]}>{t.name}</Text>
-                            {modalTagId === t.id && (
-                              <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />
-                            )}
-                          </Pressable>
-                        ))}
-                      </ScrollView>
+                  <View style={[styles.fullPageModal, { paddingTop: insets.top }]}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Tag</Text>
+                      <Pressable onPress={() => setModalTagDropdownOpen(false)} style={styles.pickerCloseBtnSmall}>
+                        <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                      </Pressable>
                     </View>
-                  </Pressable>
+
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput
+                        style={styles.pickerSearchInputSmall}
+                        placeholder="Search tags..."
+                        placeholderTextColor={colors.textMuted}
+                        value={tagSearch}
+                        onChangeText={setTagSearch}
+                      />
+                    </View>
+
+                    <ScrollView style={styles.selectionModalList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+                      {filteredTags.length === 0 ? (
+                        <Text style={styles.noResultsSmall}>No tags found</Text>
+                      ) : filteredTags.map((t, index, arr) => (
+                        <Pressable
+                          key={t.id}
+                          style={[
+                            styles.selectionModalItem,
+                            index === arr.length - 1 && styles.selectionModalItemLast
+                          ]}
+                          onPress={() => { setModalTagId(t.id); setModalTagDropdownOpen(false); }}
+                        >
+                          <Text style={[styles.selectionModalItemText, modalTagId === t.id && styles.selectionModalItemTextActive]}>{t.name}</Text>
+                          {modalTagId === t.id && (
+                            <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />
+                          )}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
                 </Modal>
               </View>
 

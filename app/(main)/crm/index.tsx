@@ -322,8 +322,8 @@ export default function CRMScreen() {
                   </View>
                 </View>
               ))}
-              <Pressable style={styles.cardLinkBtn} onPress={() => setShowActivityLog(true)}>
-                <Text style={styles.cardLinkText}>View Continuous Activity Log</Text>
+              <Pressable style={styles.cardLinkBtn} onPress={() => router.push('/(main)/crm/leads')}>
+                <Text style={styles.cardLinkText}>View Leads</Text>
                 <MaterialCommunityIcons name="chevron-right" size={16} color="#0BA0B2" />
               </Pressable>
             </View>
