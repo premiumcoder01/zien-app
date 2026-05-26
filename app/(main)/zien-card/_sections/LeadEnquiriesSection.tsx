@@ -21,7 +21,7 @@ function formatLeadDate(dateString: string): string {
   try {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch (e) {
+  } catch {
     return 'Recently';
   }
 }
@@ -32,10 +32,6 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
 
   const [search, setSearch] = useState('');
   const { data: leads = [], isLoading } = useLeadEnquiries();
-
-  const onExportCsv = () => {
-    // TODO: export leads as CSV
-  };
 
   const filteredLeads = leads.filter(lead =>
     (lead.name || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -147,7 +143,7 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
                 <View style={[styles.contactItem, { alignItems: 'flex-start', marginTop: 4 }]}>
                   <MaterialCommunityIcons name="message-outline" size={16} color="#9AA7B6" style={{ marginTop: 2 }} />
                   <Text style={[styles.contactText, { fontWeight: '400', fontSize: 13, color: '#64748B' }]} numberOfLines={3}>
-                    "{lead.message}"
+                    {"\""}{lead.message}{"\""}
                   </Text>
                 </View>
               ) : null}

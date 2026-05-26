@@ -14,6 +14,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -71,6 +72,17 @@ export default function PropertyDetailScreen() {
   const carouselRef = useRef<ScrollView>(null);
   const mainScrollRef = useRef<ScrollView>(null);
 
+  const handleShare = async () => {
+    if (!property) return;
+    try {
+      await Share.share({
+        message: `Check out this property: ${property.address} - ${property.price}`,
+      });
+    } catch (error) {
+      console.log('Error sharing property:', error);
+    }
+  };
+
   // Fetch Real Data
   const { data: property, isLoading } = useQuery({
     queryKey: ['property-detail', id],
@@ -79,6 +91,7 @@ export default function PropertyDetailScreen() {
 
       if (res.success) {
         const d = res.data.data;
+        console.log(JSON.stringify(d), "propert data")
         const coords = d.Coordinates || [-95.399529, 29.74878];
         return {
           id: id,
@@ -129,6 +142,11 @@ export default function PropertyDetailScreen() {
   const allImages = useMemo(() => {
     if (!property) return [];
     return [...property.userImages, ...property.mlsImages];
+  }, [property]);
+
+  const isFallbackUsed = useMemo(() => {
+    if (!property) return false;
+    return property.userImages.length === 0 && property.mlsImages.length === 0;
   }, [property]);
 
 
@@ -269,9 +287,14 @@ export default function PropertyDetailScreen() {
         {/* Header Info */}
         <View style={{ paddingHorizontal: 20, marginTop: 10 }}>
           <Text style={styles.bigTitle}>{property.address}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
-            <View style={styles.statusBadge}><View style={styles.statusDot} /><Text style={styles.statusText}>{property.status}</Text></View>
-            <Text style={styles.metaText}>{property.type} • Last sync: {property.lastSync}</Text>
+          <View style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={styles.statusBadge}><View style={styles.statusDot} /><Text style={styles.statusText}>{property.status}</Text></View>
+              <Text style={styles.metaText}>Last sync: {property.lastSync}</Text>
+            </View>
+            <Text style={[styles.metaText, { fontSize: 12, fontWeight: '700', color: colors.textSecondary }]}>
+              {property.type}
+            </Text>
           </View>
         </View>
 
@@ -280,35 +303,67 @@ export default function PropertyDetailScreen() {
             <View style={styles.confidenceTrack}><View style={[styles.confidenceFill, { width: '98%' }]} /></View>
             <Text style={styles.confidenceText}>98% Confidence</Text>
           </View>
-          <TouchableOpacity style={styles.shareBtn}><MaterialCommunityIcons name="share-variant" size={16} color={colors.textPrimary} /><Text style={styles.shareBtnText}>Share</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="share-variant" size={16} color={colors.textPrimary} />
+            <Text style={styles.shareBtnText}>Share</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Carousel */}
-        <View style={styles.carouselWrap}>
-          <ScrollView
-            ref={carouselRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) => setCurrImageIndex(Math.round(e.nativeEvent.contentOffset.x / (SCREEN_WIDTH - 40)))}
-          >
-            {allImages.map((img: string, i: number) => (
-              <Image key={i} source={{ uri: img }} style={{ width: SCREEN_WIDTH - 40, height: 320, borderRadius: 16 }} contentFit="cover" />
-            ))}
-          </ScrollView>
-
-          <View style={styles.carouselNav}>
-            <TouchableOpacity onPress={() => carouselRef.current?.scrollTo({ x: (currImageIndex - 1) * (SCREEN_WIDTH - 40), animated: true })} style={styles.navCirc}><MaterialCommunityIcons name="chevron-left" size={24} color="#FFF" /></TouchableOpacity>
-            <TouchableOpacity onPress={() => carouselRef.current?.scrollTo({ x: (currImageIndex + 1) * (SCREEN_WIDTH - 40), animated: true })} style={styles.navCirc}><MaterialCommunityIcons name="chevron-right" size={24} color="#FFF" /></TouchableOpacity>
+        {/* Carousel / Custom Zien Placeholder */}
+        {isFallbackUsed ? (
+          <View style={styles.placeholderCardWrap}>
+            <LinearGradient
+              colors={[colors.cardBackground, colors.surfaceIcon + '40']}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+            <View style={styles.placeholderGlow} />
+            <MaterialCommunityIcons name="home-city-outline" size={48} color={colors.accentTeal} style={{ marginBottom: 16 }} />
+            <Text style={styles.placeholderBrandText}>Zien</Text>
+            <Text style={styles.placeholderSubText}>No visual assets synchronized yet</Text>
+            <View style={styles.placeholderStatusBadge}>
+              <MaterialCommunityIcons name="sync-off" size={10} color={colors.textMuted} style={{ marginRight: 2 }} />
+              <Text style={styles.placeholderStatusText}>MLS MEDIA SYNC PENDING</Text>
+            </View>
           </View>
-          <View style={styles.phaseBadge}><Text style={styles.phaseBadgeText}>{currImageIndex + 1} / {allImages.length} ASSETS READY</Text></View>
-        </View>
+        ) : (
+          <View style={styles.carouselWrap}>
+            <ScrollView
+              ref={carouselRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) => setCurrImageIndex(Math.round(e.nativeEvent.contentOffset.x / (SCREEN_WIDTH - 40)))}
+            >
+              {allImages.map((img: string, i: number) => (
+                <Image key={i} source={{ uri: img }} style={{ width: SCREEN_WIDTH - 40, height: 320, borderRadius: 16 }} contentFit="cover" />
+              ))}
+            </ScrollView>
+
+            {allImages.length > 1 && (
+              <View style={styles.carouselNav}>
+                <TouchableOpacity onPress={() => carouselRef.current?.scrollTo({ x: (currImageIndex - 1) * (SCREEN_WIDTH - 40), animated: true })} style={styles.navCirc}>
+                  <MaterialCommunityIcons name="chevron-left" size={24} color="#FFF" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => carouselRef.current?.scrollTo({ x: (currImageIndex + 1) * (SCREEN_WIDTH - 40), animated: true })} style={styles.navCirc}>
+                  <MaterialCommunityIcons name="chevron-right" size={24} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            )}
+            <View style={styles.phaseBadge}>
+              <Text style={styles.phaseBadgeText}>
+                {currImageIndex + 1} / {allImages.length} ASSETS READY
+              </Text>
+            </View>
+          </View>
+        )}
 
         <View style={{ paddingHorizontal: 20 }}>
           {/* Profile Card */}
           <View style={styles.profileCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <View style={{ flex: 1, minWidth: 140 }}>
+            <View style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
+              <View style={{ width: '100%' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   <View style={styles.cardIconBox}>
                     <MaterialCommunityIcons name="office-building-cog" size={18} color={colors.accentTeal} />
@@ -317,19 +372,18 @@ export default function PropertyDetailScreen() {
                 </View>
                 <Text style={styles.cardSubtitle}>Comprehensive assessment</Text>
               </View>
-              <View style={styles.autoScanBadge}>
+              <TouchableOpacity style={styles.autoScanBadge} activeOpacity={0.8}>
                 <LinearGradient
-                  colors={[colors.accentTeal + '15', colors.accentTeal + '05']}
+                  colors={[colors.accentTeal + '20', colors.accentTeal + '05']}
                   style={StyleSheet.absoluteFill}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 />
-                <View style={styles.badgeTopRow}>
-                  <MaterialCommunityIcons name="shimmer" size={10} color={colors.accentTeal} />
-                  <Text style={styles.autoScanText}>ARCHITECTURAL</Text>
-                </View>
-                <Text style={styles.autoScanTextBold}>AUTO-SCAN</Text>
-              </View>
+                <MaterialCommunityIcons name="shimmer" size={12} color={colors.accentTeal} />
+                <Text style={styles.autoScanText}>
+                  ARCHITECTURAL <Text style={styles.autoScanTextBold}>AUTO-SCAN</Text>
+                </Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.tabOuterContainer}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabContainer} contentContainerStyle={{ gap: 8 }}>
@@ -554,16 +608,33 @@ function getStyles(colors: any) {
     cardIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentTeal + '10', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.accentTeal + '20' },
     cardTitle: { fontSize: 20, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.5 },
     cardSubtitle: { fontSize: 12, color: colors.textMuted, lineHeight: 18, fontWeight: '500' },
-    autoScanBadge: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: colors.accentTeal + '30', overflow: 'hidden', alignItems: 'center' },
+    autoScanBadge: { width: '100%', paddingHorizontal: 12, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, borderColor: colors.accentTeal + '40', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
     badgeTopRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-    autoScanText: { fontSize: 8, fontWeight: '800', color: colors.accentTeal, letterSpacing: 0.5 },
-    autoScanTextBold: { fontSize: 10, fontWeight: '900', color: colors.accentTeal, letterSpacing: 0.5 },
-    tabOuterContainer: { marginTop: 24, paddingBottom: 8 },
+    autoScanText: { fontSize: 11, fontWeight: '700', color: colors.accentTeal, letterSpacing: 1.5 },
+    autoScanTextBold: { fontSize: 11, fontWeight: '900', color: colors.accentTeal, letterSpacing: 1.5 },
+    tabOuterContainer: { marginTop: 20, marginBottom: 4 },
     tabContainer: { flexDirection: 'row' },
-    tabItem: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, marginRight: 4 },
-    activeTabItem: { backgroundColor: colors.accentTeal },
-    tabText: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
-    activeTabText: { color: '#FFF' },
+    tabItem: {
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: colors.surfaceIcon + '30',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    activeTabItem: {
+      backgroundColor: colors.accentTeal,
+      borderColor: colors.accentTeal,
+      shadowColor: colors.accentTeal,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    tabText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+    activeTabText: { color: '#FFF', fontWeight: '900' },
     neighborhoodLabel: { fontSize: 10, fontWeight: '800', color: colors.textMuted, letterSpacing: 1 },
     remarksText: { fontSize: 14, color: colors.textPrimary, lineHeight: 22, marginTop: 12 },
     mediaLabel: { fontSize: 10, fontWeight: '900', color: colors.textMuted, letterSpacing: 1 },
@@ -590,7 +661,61 @@ function getStyles(colors: any) {
     integrityCard: { backgroundColor: colors.cardBackground, borderRadius: 24, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: colors.cardBorder },
     integrityTrack: { width: '100%', height: 8, backgroundColor: colors.surfaceIcon, borderRadius: 4, overflow: 'hidden' },
     integrityFill: { height: '100%', backgroundColor: colors.accentTeal },
-    floatingEditBtn: { position: 'absolute', bottom: 30, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accentTeal, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 },
-    fabGradient: { width: '100%', height: '100%', borderRadius: 28, justifyContent: 'center', alignItems: 'center' }
+    floatingEditBtn: { position: 'absolute', bottom: 60, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accentTeal, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 },
+    fabGradient: { width: '100%', height: '100%', borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
+    placeholderCardWrap: {
+      margin: 20,
+      height: 320,
+      borderRadius: 24,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      overflow: 'hidden',
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'relative',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
+      elevation: 3,
+    },
+    placeholderGlow: {
+      position: 'absolute',
+      width: 140,
+      height: 140,
+      borderRadius: 70,
+      backgroundColor: colors.accentTeal + '15',
+      opacity: 0.6,
+      top: '25%',
+    },
+    placeholderBrandText: {
+      fontSize: 32,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: 4,
+      textTransform: 'uppercase',
+      marginBottom: 6,
+    },
+    placeholderSubText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      marginBottom: 16,
+    },
+    placeholderStatusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.surfaceIcon + '40',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+    },
+    placeholderStatusText: {
+      fontSize: 8,
+      fontWeight: '800',
+      color: colors.textMuted,
+      letterSpacing: 0.5
+    }
   });
 }

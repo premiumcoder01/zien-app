@@ -54,15 +54,18 @@ function StepAddress({
 
   const [predictions, setPredictions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchPredictions = async (text: string) => {
     setInput(text);
     if (text.length < 3) {
       setPredictions([]);
+      setErrorMsg(null);
       return;
     }
 
     setLoading(true);
+    setErrorMsg(null);
     try {
       const response = await fetch(
         "https://places.googleapis.com/v1/places:autocomplete",
@@ -81,7 +84,14 @@ function StepAddress({
       );
 
       const data = await response.json();
-      console.log(data)
+
+
+      if (data.error) {
+        setErrorMsg(data.error.message || "Places API access denied.");
+        setPredictions([]);
+        return;
+      }
+
       if (data.suggestions) {
         const formatted = data.suggestions.map((item: any) => ({
           place_id: item.placePrediction.placeId,
@@ -91,8 +101,10 @@ function StepAddress({
       } else {
         setPredictions([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Places API Error:", error);
+      setErrorMsg(error.message || "Places API request failed. Please check connection.");
+      setPredictions([]);
     } finally {
       setLoading(false);
     }
@@ -101,6 +113,7 @@ function StepAddress({
   const handleSelect = (pred: any) => {
     setInput(pred.description);
     setPredictions([]);
+    setErrorMsg(null);
   };
 
   return (
@@ -125,6 +138,13 @@ function StepAddress({
             {loading && <ActivityIndicator size="small" color={colors.accentTeal} style={{ marginRight: 10 }} />}
           </View>
         </View>
+
+        {errorMsg && (
+          <View style={styles.errorBox}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.danger} style={{ marginRight: 6 }} />
+            <Text style={styles.errorText}>{errorMsg}</Text>
+          </View>
+        )}
 
 
 
@@ -171,19 +191,18 @@ function StepAddress({
   );
 }
 
-function PropertyStatCard({ icon, label, value }: { icon: string, label: string, value: string }) {
+function PropertyStatCard({ icon, label, value, accent }: { icon: string, label: string, value: string, accent?: string }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  const accentColor = accent || colors.accentTeal;
 
   return (
-    <View style={styles.statCardPremium}>
-      <View style={styles.statIconBoxPremium}>
-        <MaterialCommunityIcons name={icon as any} size={20} color={colors.accentTeal} />
+    <View style={[styles.statCardPremium, { borderColor: accentColor + '30' }]}>
+      <View style={[styles.statIconBoxPremium, { backgroundColor: accentColor + '18' }]}>
+        <MaterialCommunityIcons name={icon as any} size={22} color={accentColor} />
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.statLabelPremium}>{label}</Text>
-        <Text style={styles.statValuePremium}>{value || '—'}</Text>
-      </View>
+      <Text style={[styles.statLabelPremium, { color: accentColor }]}>{label}</Text>
+      <Text style={styles.statValuePremium}>{value || '—'}</Text>
     </View>
   );
 }
@@ -192,9 +211,11 @@ function PropertyDetailItem({ icon, label, value, isPill }: { icon: string, labe
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
 
-  const renderValue = () => {
-    if (!value) return <Text style={{ fontSize: 16, fontWeight: '900', color: colors.textPrimary }}>—</Text>;
+  // Skip rendering if no meaningful value
+  const isEmpty = !value || (Array.isArray(value) && value.length === 0);
+  if (isEmpty) return null;
 
+  const renderValue = () => {
     if (Array.isArray(value) || isPill) {
       const items = Array.isArray(value) ? value : [value];
       return (
@@ -207,9 +228,8 @@ function PropertyDetailItem({ icon, label, value, isPill }: { icon: string, labe
         </View>
       );
     }
-
     return (
-      <Text style={{ fontSize: 16, fontWeight: '900', color: colors.textPrimary }} numberOfLines={2}>
+      <Text style={{ fontSize: 15, fontWeight: '900', color: colors.textPrimary }} numberOfLines={3}>
         {value}
       </Text>
     );
@@ -217,9 +237,11 @@ function PropertyDetailItem({ icon, label, value, isPill }: { icon: string, labe
 
   return (
     <View style={styles.structuralDetailCard}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <MaterialCommunityIcons name={icon as any} size={18} color={colors.textSecondary} />
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <View style={styles.detailIconBox}>
+          <MaterialCommunityIcons name={icon as any} size={15} color={colors.accentTeal} />
+        </View>
+        <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' }}>{label}</Text>
       </View>
       {renderValue()}
     </View>
@@ -253,7 +275,7 @@ function StepDetails({
         </View>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-            <Text style={styles.intelTitle}>Property Intelligence</Text>
+            <Text style={[styles.intelTitle, { flexShrink: 1 }]} numberOfLines={1}>Property Intelligence</Text>
             <View style={styles.verifiedPill}>
               <Text style={styles.verifiedPillText}>{formData.confidence || 90}% VERIFIED</Text>
             </View>
@@ -269,11 +291,13 @@ function StepDetails({
             icon="bed-outline"
             label="BEDROOMS"
             value={formData.beds}
+            accent="#0D9488"
           />
           <PropertyStatCard
             icon="shower"
             label="BATHROOMS"
             value={totalBaths > 0 ? totalBaths.toString() : ''}
+            accent="#0891B2"
           />
         </View>
 
@@ -282,11 +306,13 @@ function StepDetails({
             icon="ruler-square"
             label="LIVING AREA"
             value={formData.sqft ? `${formData.sqft} Sq Ft` : ''}
+            accent="#7C3AED"
           />
           <PropertyStatCard
             icon="currency-usd"
             label="LIST PRICE"
             value={formData.price}
+            accent="#059669"
           />
         </View>
       </View>
@@ -294,221 +320,135 @@ function StepDetails({
       {/* Structural Section - Matching Screenshot */}
       <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>STRUCTURAL</Text>
-
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          <PropertyDetailItem
-            icon="office-building-outline"
-            label="Property Type"
-            value={formData.type}
-          />
-          <PropertyDetailItem
-            icon="map-marker-outline"
-            label="Address"
-            value={formData.address}
-          />
-          <PropertyDetailItem
-            icon="calendar-blank-outline"
-            label="Year Built"
-            value={formData.year}
-          />
-          <PropertyDetailItem
-            icon="layers-outline"
-            label="Stories"
-            value={formData.stories}
-          />
-          <PropertyDetailItem
-            icon="home-roof"
-            label="Roof Material"
-            value={formData.roof}
-            isPill
-          />
-          <PropertyDetailItem
-            icon="shape-outline"
-            label="Foundation"
-            value={formData.foundation}
-            isPill
-          />
-          <PropertyDetailItem
-            icon="wind-power-outline"
-            label="Structure Type"
-            value={formData.structureType}
-          />
+        <View style={{ gap: 10 }}>
+          <PropertyDetailItem icon="office-building-outline" label="Property Type" value={formData.type} />
+          <PropertyDetailItem icon="map-marker-outline" label="Address" value={formData.address} />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="calendar-blank-outline" label="Year Built" value={formData.year} /></View>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="layers-outline" label="Stories" value={formData.stories} /></View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="home-roof" label="Roof" value={formData.roof} isPill /></View>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="shape-outline" label="Foundation" value={formData.foundation} isPill /></View>
+          </View>
+          <PropertyDetailItem icon="wind-power-outline" label="Structure Type" value={formData.structureType} />
+          <PropertyDetailItem icon="palette-outline" label="Architectural Style" value={formData.architecturalStyle} isPill />
+          <PropertyDetailItem icon="wall" label="Construction" value={formData.construction} isPill />
         </View>
       </View>
 
-      {/* Exterior Section - Matching Screenshot */}
-      <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
+      {/* Exterior */}
+      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>EXTERIOR</Text>
-
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          <PropertyDetailItem
-            icon="arrow-expand-all"
-            label="Lot Size"
-            value={formData.lotSize}
-          />
-          <PropertyDetailItem
-            icon="earth"
-            label="Lot Features"
-            value={formData.lotFeatures}
-          />
-          <PropertyDetailItem
-            icon="shield-outline"
-            label="Fencing"
-            value={formData.fencing}
-            isPill
-          />
-          <PropertyDetailItem
-            icon="car-outline"
-            label="Parking Features"
-            value={formData.parkingFeatures}
-          />
-          <PropertyDetailItem
-            icon="home-outline"
-            label="Exterior Features"
-            value={formData.exteriorFeatures}
-          />
-          <PropertyDetailItem
-            icon="coffee-outline"
-            label="Patio Features"
-            value={formData.patioFeatures}
-          />
-          <PropertyDetailItem
-            icon="water-outline"
-            label="Sewer"
-            value={formData.sewer}
-            isPill
-          />
+        <View style={{ gap: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="arrow-expand-all" label="Lot Size" value={formData.lotSize} /></View>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="earth" label="Lot Sq Ft" value={formData.lotSqFt} /></View>
+          </View>
+          <PropertyDetailItem icon="tag-multiple-outline" label="Lot Features" value={formData.lotFeatures} isPill />
+          <PropertyDetailItem icon="shield-outline" label="Fencing" value={formData.fencing} isPill />
+          <PropertyDetailItem icon="car-outline" label="Parking" value={formData.parkingFeatures} isPill />
+          <PropertyDetailItem icon="home-outline" label="Exterior Features" value={formData.exteriorFeatures} isPill />
+          <PropertyDetailItem icon="table-furniture" label="Patio Features" value={formData.patioFeatures} isPill />
+          <PropertyDetailItem icon="water-pump" label="Sewer" value={formData.sewer} isPill />
+          <PropertyDetailItem icon="water-outline" label="Water Source" value={formData.waterSource} isPill />
         </View>
       </View>
 
-      {/* Interior Section - Matching Screenshot */}
-      <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
+      {/* Interior */}
+      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>INTERIOR</Text>
-
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          <PropertyDetailItem
-            icon="view-grid-outline"
-            label="Flooring"
-            value={formData.flooring}
-          />
-          <PropertyDetailItem
-            icon="lightning-bolt-outline"
-            label="Appliances"
-            value={formData.appliances}
-          />
-          <PropertyDetailItem
-            icon="silverware-variant"
-            label="Kitchen Features"
-            value={formData.kitchenFeatures}
-          />
-          <PropertyDetailItem
-            icon="bathtub-outline"
-            label="Bath Features"
-            value={formData.bathFeatures}
-          />
-          <PropertyDetailItem
-            icon="weather-windy"
-            label="Laundry Features"
-            value={formData.laundryFeatures}
-          />
-          <PropertyDetailItem
-            icon="creation"
-            label="Interior Features"
-            value={formData.interiorFeatures}
-          />
-          <PropertyDetailItem
-            icon="office-building"
-            label="Room Description"
-            value={formData.roomDescription}
-          />
+        <View style={{ gap: 10 }}>
+          <PropertyDetailItem icon="view-grid-outline" label="Flooring" value={formData.flooring} isPill />
+          <PropertyDetailItem icon="lightning-bolt-outline" label="Appliances" value={formData.appliances} isPill />
+          <PropertyDetailItem icon="silverware-variant" label="Kitchen Features" value={formData.kitchenFeatures} isPill />
+          <PropertyDetailItem icon="bathtub-outline" label="Bath Features" value={formData.bathFeatures} isPill />
+          <PropertyDetailItem icon="washing-machine" label="Laundry" value={formData.laundryFeatures} isPill />
+          <PropertyDetailItem icon="creation" label="Interior Features" value={formData.interiorFeatures} isPill />
+          <PropertyDetailItem icon="floor-plan" label="Room Description" value={formData.roomDescription} isPill />
         </View>
       </View>
 
-      {/* Utilities Section - Matching Screenshot */}
-      <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
-        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>UTILITIES & LOCATION</Text>
-
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          <PropertyDetailItem
-            icon="thermometer"
-            label="Heating"
-            value={formData.heating}
-          />
-          <PropertyDetailItem
-            icon="snowflake"
-            label="Cooling"
-            value={formData.cooling}
-          />
-          <PropertyDetailItem
-            icon="water-outline"
-            label="Water Source"
-            value={formData.waterSource}
-          />
-          <PropertyDetailItem
-            icon="map-marker-outline"
-            label="City"
-            value={formData.city}
-          />
+      {/* Utilities */}
+      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>UTILITIES</Text>
+        <View style={{ gap: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="thermometer" label="Heating" value={Array.isArray(formData.heating) ? formData.heating.join(', ') : formData.heating} /></View>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="snowflake" label="Cooling" value={Array.isArray(formData.cooling) ? formData.cooling.join(', ') : formData.cooling} /></View>
+          </View>
         </View>
       </View>
 
-      {/* Legal Section - Matching Screenshot */}
-      <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
-        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>LEGAL & COMMUNITY</Text>
-
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          <PropertyDetailItem
-            icon="pound"
-            label="ListingId"
-            value={formData.listingId}
-          />
-          <PropertyDetailItem
-            icon="pulse"
-            label="Status"
-            value={formData.standardStatus}
-          />
-          <PropertyDetailItem
-            icon="file-document-outline"
-            label="Listing Terms"
-            value={formData.listingTerms}
-          />
-          <PropertyDetailItem
-            icon="currency-usd"
-            label="Tax Exemptions"
-            value={formData.taxExemptions}
-          />
-          <PropertyDetailItem
-            icon="lock-outline"
-            label="Restrictions"
-            value={formData.restrictions}
-          />
-          <PropertyDetailItem
-            icon="account-group-outline"
-            label="Community Features"
-            value={formData.communityFeatures}
-          />
+      {/* Financial */}
+      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>FINANCIAL</Text>
+        <View style={{ gap: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="currency-usd" label="Annual Tax" value={formData.taxAnnualAmount} /></View>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="percent" label="Tax Rate" value={formData.taxRate} /></View>
+          </View>
+          <PropertyDetailItem icon="file-document-outline" label="Legal Description" value={formData.taxLegalDescription} />
+          <PropertyDetailItem icon="tag-outline" label="Listing Terms" value={formData.listingTerms} isPill />
+          <PropertyDetailItem icon="currency-usd" label="Tax Exemptions" value={formData.taxExemptions} isPill />
+          <PropertyDetailItem icon="lock-outline" label="Restrictions" value={formData.restrictions} isPill />
         </View>
       </View>
 
-      {/* Remarks Section - Matching Screenshot */}
-      <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
+      {/* Schools */}
+      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>SCHOOLS</Text>
+        <View style={{ gap: 10 }}>
+          <PropertyDetailItem icon="school-outline" label="District" value={formData.highSchoolDistrict} />
+          <PropertyDetailItem icon="school" label="Elementary" value={formData.elemSchool} />
+          <PropertyDetailItem icon="school" label="Middle School" value={formData.midSchool} />
+          <PropertyDetailItem icon="school" label="High School" value={formData.highSchool} />
+        </View>
+      </View>
+
+      {/* MLS & Legal */}
+      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>MLS & LEGAL</Text>
+        <View style={{ gap: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="pound" label="Listing ID" value={formData.listingId} /></View>
+            <View style={{ flex: 1 }}><PropertyDetailItem icon="pulse" label="Status" value={formData.standardStatus} /></View>
+          </View>
+          <PropertyDetailItem icon="calendar-check" label="Listed On" value={formData.listingContractDate} />
+          <PropertyDetailItem icon="calendar-clock" label="Days on Market" value={formData.daysOnMarket} />
+          <PropertyDetailItem icon="account-group-outline" label="Community Features" value={formData.communityFeatures} isPill />
+          <PropertyDetailItem icon="alert-circle-outline" label="Disclosures" value={formData.disclosures} isPill />
+          <PropertyDetailItem icon="map-marker-path" label="Subdivision" value={formData.subdivision} />
+          <PropertyDetailItem icon="map" label="Geo Market Area" value={formData.geoMarketArea} />
+        </View>
+      </View>
+
+      {/* Directions */}
+      {!!formData.directions && (
+        <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+          <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>DIRECTIONS</Text>
+          <View style={styles.directionsCard}>
+            <MaterialCommunityIcons name="directions" size={20} color={colors.accentTeal} style={{ marginBottom: 10 }} />
+            <Text style={styles.directionsText}>{formData.directions}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Remarks */}
+      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 12 }]}>REMARKS</Text>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.inputLabel, { marginBottom: 12 }]}>Public Remarks</Text>
-          <View style={styles.remarkCard}>
-            <Text style={styles.remarkText}>{formData.publicRemarks || 'No public remarks available.'}</Text>
+        {!!formData.publicRemarks && (
+          <View style={[styles.remarkCard, { marginBottom: 12 }]}>
+            <Text style={styles.remarkLabel}>PUBLIC</Text>
+            <Text style={styles.remarkText}>{formData.publicRemarks}</Text>
           </View>
-        </View>
-
-        <View style={[styles.inputGroup, { marginTop: 20 }]}>
-          <Text style={[styles.inputLabel, { marginBottom: 12 }]}>Private Remarks (Agent Only)</Text>
-          <View style={styles.remarkCard}>
-            <Text style={[styles.remarkText, { fontStyle: 'italic' }]}>
-              {formData.privateRemarks || 'No private notes provided.'}
-            </Text>
+        )}
+        {!!formData.privateRemarks && (
+          <View style={[styles.remarkCard, { borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }]}>
+            <Text style={[styles.remarkLabel, { color: '#D97706' }]}>AGENT ONLY</Text>
+            <Text style={[styles.remarkText, { fontStyle: 'italic', color: '#92400E' }]}>{formData.privateRemarks}</Text>
           </View>
-        </View>
+        )}
       </View>
 
       <View style={{ height: 160 }} />
@@ -533,182 +473,233 @@ function StepMedia({
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
-
+  const [activeTab, setActiveTab] = useState<'mls' | 'uploads'>('mls');
   const [enhancedImages, setEnhancedImages] = useState<Set<string>>(new Set());
   const [enhancingMap, setEnhancingMap] = useState<Record<string, boolean>>({});
 
   const toggleEnhance = (url: string) => {
     if (enhancingMap[url]) return;
-
     setEnhancingMap(prev => ({ ...prev, [url]: true }));
-
-    // Simulate AI Enhancement delay
     setTimeout(() => {
       setEnhancedImages(prev => {
         const next = new Set(prev);
-        if (next.has(url)) next.delete(url);
-        else next.add(url);
+        if (next.has(url)) next.delete(url); else next.add(url);
         return next;
       });
       setEnhancingMap(prev => ({ ...prev, [url]: false }));
     }, 1200);
   };
 
-  const removeUserPhoto = (uri: string) => {
-    setUserPhotos(prev => prev.filter(p => p !== uri));
-  };
+  const removeUserPhoto = (uri: string) => setUserPhotos(prev => prev.filter(p => p !== uri));
+  const removeMlsPhoto = (uri: string) => setMlsPhotos(prev => prev.filter(p => p !== uri));
 
-  const removeMlsPhoto = (uri: string) => {
-    setMlsPhotos(prev => prev.filter(p => p !== uri));
-  };
+  const PHOTO_W = '47%' as any;
 
   return (
     <View style={styles.stepContainer}>
-      <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
-        <Text style={styles.intelTitle}>Media & Assets</Text>
-        <Text style={styles.intelSubtitle}>Visuals define the listing. Review MLS shots or add your own.</Text>
-      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* MLS Section */}
-        <View style={styles.mediaSection}>
-          <View style={styles.mediaSectionHeader}>
-            <Text style={styles.mediaSectionTitle}>MLS PHOTOS</Text>
-            <View style={styles.lockedBadge}>
-              <MaterialCommunityIcons name="lock" size={14} color={colors.textMuted} />
-              <Text style={styles.lockedBadgeText}>READ ONLY</Text>
-            </View>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
-            {mlsPhotos.length > 0 ? mlsPhotos.map((url, idx) => (
-              <View key={idx} style={styles.premiumPhotoCard}>
-                <View style={styles.photoContainerLarge}>
-                  <Image source={{ uri: url }} style={styles.photoCard} contentFit="cover" />
-                  <TouchableOpacity style={styles.deletePhotoBtn} onPress={() => removeMlsPhoto(url)}>
-                    <MaterialCommunityIcons name="close" size={16} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.photoCardFooter}>
-                  <View>
-                    <Text style={styles.photoFooterLabel}>VERIFIED MLS</Text>
-                    <Text style={styles.photoFooterTitle}>Scene {idx + 1}</Text>
-                  </View>
-                  <View style={styles.photoStatusBadgeReadOnly}>
-                    <MaterialCommunityIcons name="lock-outline" size={12} color={colors.textSecondary} />
-                    <Text style={styles.photoStatusBadgeTextReadOnly}>Read Only</Text>
-                  </View>
-                </View>
-              </View>
-            )) : (
-              <View style={styles.emptyGalleryCard}>
-                <Text style={styles.emptyGalleryText}>No MLS photos found</Text>
-              </View>
-            )}
-          </ScrollView>
+        {/* Header */}
+        <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+          <Text style={styles.intelTitle}>AI Media</Text>
+          <Text style={styles.intelSubtitle}>Upload your photos or use Zien AI to generate high-end architectural visuals.</Text>
         </View>
 
-        {/* My Uploads Section */}
-        <View style={[styles.mediaSection, { marginTop: 32 }]}>
-          <View style={styles.mediaSectionHeader}>
-            <Text style={styles.mediaSectionTitle}>MY UPLOADS</Text>
-            <TouchableOpacity style={styles.addMediaBtnSmall} onPress={onPickerOpen}>
-              <MaterialCommunityIcons name="plus" size={20} color={colors.accentTeal} />
-              <Text style={styles.addMediaBtnText}>Add Media</Text>
+        {/* Top action cards */}
+        <View style={{ paddingHorizontal: 16, gap: 12, marginBottom: 24 }}>
+
+          {/* Upload Media Card */}
+          <TouchableOpacity style={styles.mediaUploadCard} onPress={onPickerOpen} activeOpacity={0.8}>
+            <View style={styles.mediaUploadIconWrap}>
+              <MaterialCommunityIcons name="tray-arrow-up" size={26} color={colors.textSecondary} />
+            </View>
+            <Text style={styles.mediaUploadTitle}>Upload Media</Text>
+            <Text style={styles.mediaUploadSub}>Add multiple property photos</Text>
+            <View style={styles.mediaSelectBtn}>
+              <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
+              <Text style={styles.mediaSelectBtnText}>Select Photos</Text>
+            </View>
+            {isUploading && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                <ActivityIndicator size="small" color={colors.accentTeal} />
+                <Text style={{ fontSize: 12, color: colors.accentTeal, fontWeight: '600' }}>Securing to vault...</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* AI Studio Card */}
+          <View style={styles.aiStudioCardNew}>
+            <LinearGradient
+              colors={['rgba(13,148,136,0.07)', 'rgba(99,102,241,0.07)']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.aiStudioCardHeader}>
+              <View style={styles.aiStudioIconBox}>
+                <MaterialCommunityIcons name="creation" size={20} color="#FFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.aiStudioCardTitle}>AI Studio Generator</Text>
+                <Text style={styles.aiStudioCardSub}>Describe the architectural scene to synthesize.</Text>
+              </View>
+              <View style={styles.aiStudioComingSoon}>
+                <Text style={styles.aiStudioComingSoonText}>SOON</Text>
+              </View>
+            </View>
+            <Text style={styles.aiStudioPromptLabel}>GENERATION PROMPT</Text>
+            <View style={styles.aiStudioPromptBox}>
+              <TextInput
+                style={styles.aiStudioPromptInput}
+                placeholder="e.g. A high-end modern living room with floor-to-ceiling windows at golden hour, minimalist furniture, marble floors..."
+                placeholderTextColor={colors.textMuted}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+            <TouchableOpacity style={styles.aiStudioGenerateBtn} activeOpacity={0.85}>
+              <MaterialCommunityIcons name="creation" size={16} color="#FFF" />
+              <Text style={styles.aiStudioGenerateBtnText}>Generate with AI</Text>
             </TouchableOpacity>
           </View>
+        </View>
 
-          {isUploading && (
-            <View style={[styles.uploadingOverlay, { paddingHorizontal: 20, justifyContent: 'flex-start' }]}>
-              <ActivityIndicator color={colors.accentTeal} />
-              <Text style={styles.uploadingText}>Securing to vault...</Text>
-            </View>
-          )}
+        {/* Tab bar */}
+        <View style={styles.mediaTabBar}>
+          <TouchableOpacity
+            style={[styles.mediaTab, activeTab === 'mls' && styles.mediaTabActive]}
+            onPress={() => setActiveTab('mls')}
+          >
+            <Text style={[styles.mediaTabText, activeTab === 'mls' && styles.mediaTabTextActive]}>
+              MLS Professional ({mlsPhotos.length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.mediaTab, activeTab === 'uploads' && styles.mediaTabActive]}
+            onPress={() => setActiveTab('uploads')}
+          >
+            <Text style={[styles.mediaTabText, activeTab === 'uploads' && styles.mediaTabTextActive]}>
+              My Uploads ({userPhotos.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
-            {userPhotos.map((url, idx) => {
-              const isEnhanced = enhancedImages.has(url);
-              const isProcessing = enhancingMap[url];
+        {/* Divider */}
+        <View style={{ height: 1, backgroundColor: colors.cardBorder, marginBottom: 16 }} />
 
-              return (
-                <View key={idx} style={styles.premiumPhotoCard}>
-                  <View style={styles.photoContainerLarge}>
-                    <Image source={{ uri: url }} style={styles.photoCard} contentFit="cover" />
-
-                    {isProcessing && (
-                      <View style={styles.enhancementOverlay}>
-                        <ActivityIndicator color="#FFF" size="small" />
-                        <Text style={styles.enhancementOverlayText}>Optimizing...</Text>
-                      </View>
-                    )}
-
-                    <TouchableOpacity style={styles.deletePhotoBtn} onPress={() => removeUserPhoto(url)}>
-                      <MaterialCommunityIcons name="close" size={16} color="#FFF" />
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.photoCardFooter}>
-                    <View>
-                      <Text style={styles.photoFooterLabel}>AI OPTIMIZED</Text>
-                      <Text style={styles.photoFooterTitle}>Scene {idx + 1}</Text>
-                    </View>
-
-                    {isEnhanced ? (
-                      <View style={styles.enhancedBadge}>
-                        <MaterialCommunityIcons name="check-circle" size={14} color={colors.accentTeal} />
-                        <Text style={styles.enhancedBadgeText}>Enhanced</Text>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={[styles.magicBtn, isProcessing && { opacity: 0.5 }]}
-                        onPress={() => toggleEnhance(url)}
-                        disabled={isProcessing}
-                      >
-                        <MaterialCommunityIcons name="creation" size={14} color={colors.accentTeal} />
-                        <Text style={styles.magicBtnText}>Magic Enhance</Text>
+        {/* MLS Grid */}
+        {activeTab === 'mls' && (
+          <View style={{ paddingHorizontal: 16 }}>
+            {mlsPhotos.length > 0 ? (
+              <View style={styles.photoGrid}>
+                {mlsPhotos.map((url, idx) => (
+                  <View key={idx} style={[styles.photoGridCard, { width: PHOTO_W }]}>
+                    <View style={styles.photoGridImgWrap}>
+                      <Image source={{ uri: url }} style={styles.photoGridImg} contentFit="cover" />
+                      <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => removeMlsPhoto(url)}>
+                        <MaterialCommunityIcons name="close" size={14} color="#FFF" />
                       </TouchableOpacity>
-                    )}
+                    </View>
+                    <View style={styles.photoGridFooter}>
+                      <Text style={styles.photoGridLabel}>VERIFIED MLS</Text>
+                      <Text style={styles.photoGridScene}>Scene {idx + 1}</Text>
+                      <View style={styles.photoGridReadOnly}>
+                        <MaterialCommunityIcons name="lock-outline" size={11} color={colors.textMuted} />
+                        <Text style={styles.photoGridReadOnlyText}>Read Only</Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              );
-            })}
+                ))}
+              </View>
+            ) : (
+              <View style={styles.mediaEmptyState}>
+                <MaterialCommunityIcons name="image-multiple-outline" size={40} color={colors.textMuted} />
+                <Text style={styles.mediaEmptyTitle}>No MLS photos found</Text>
+                <Text style={styles.mediaEmptySub}>MLS photos will appear here after enrichment</Text>
+              </View>
+            )}
+          </View>
+        )}
 
-            {(userPhotos.length === 0 && !isUploading) && (
-              <TouchableOpacity
-                style={[styles.premiumPhotoCard, styles.uploadPlaceholderCard, { height: 260 }]}
-                onPress={onPickerOpen}
-              >
-                <MaterialCommunityIcons name="cloud-upload-outline" size={32} color={colors.textMuted} />
-                <Text style={styles.placeholderTitleSmall}>Add Photos</Text>
+        {/* Uploads Grid */}
+        {activeTab === 'uploads' && (
+          <View style={{ paddingHorizontal: 16 }}>
+            {userPhotos.length > 0 ? (
+              <View style={styles.photoGrid}>
+                {userPhotos.map((url, idx) => {
+                  const isEnhanced = enhancedImages.has(url);
+                  const isProcessing = enhancingMap[url];
+                  return (
+                    <View key={idx} style={[styles.photoGridCard, { width: PHOTO_W }]}>
+                      <View style={styles.photoGridImgWrap}>
+                        <Image source={{ uri: url }} style={styles.photoGridImg} contentFit="cover" />
+                        {isProcessing && (
+                          <View style={styles.photoGridOverlay}>
+                            <ActivityIndicator color="#FFF" size="small" />
+                            <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700', marginTop: 4 }}>Optimizing...</Text>
+                          </View>
+                        )}
+                        <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => removeUserPhoto(url)}>
+                          <MaterialCommunityIcons name="close" size={14} color="#FFF" />
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.photoGridFooter}>
+                        <Text style={[styles.photoGridLabel, { color: '#7C3AED' }]}>AI OPTIMIZED</Text>
+                        <Text style={styles.photoGridScene}>Scene {idx + 1}</Text>
+                        {isEnhanced ? (
+                          <View style={styles.enhancedBadgeSmall}>
+                            <MaterialCommunityIcons name="check-circle" size={11} color={colors.accentTeal} />
+                            <Text style={styles.enhancedBadgeSmallText}>Enhanced</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={[styles.magicBtnSmall, isProcessing && { opacity: 0.5 }]}
+                            onPress={() => toggleEnhance(url)}
+                            disabled={isProcessing}
+                          >
+                            <MaterialCommunityIcons name="creation" size={11} color={colors.accentTeal} />
+                            <Text style={styles.magicBtnSmallText}>Enhance</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+                {/* Add more tile — same dimensions as photo card */}
+                <TouchableOpacity
+                  style={[styles.photoGridCard, styles.photoGridAddTile, { width: PHOTO_W }]}
+                  onPress={onPickerOpen}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.photoGridImgWrap, { alignItems: 'center', justifyContent: 'center' }]}>
+                    <MaterialCommunityIcons name="plus" size={32} color={colors.textMuted} />
+                  </View>
+                  <View style={styles.photoGridFooter}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textMuted, textAlign: 'center' }}>Add Photo</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.mediaEmptyState} onPress={onPickerOpen} activeOpacity={0.8}>
+                <View style={styles.mediaEmptyIconCircle}>
+                  <MaterialCommunityIcons name="cloud-upload-outline" size={32} color={colors.accentTeal} />
+                </View>
+                <Text style={styles.mediaEmptyTitle}>No uploads yet</Text>
+                <Text style={styles.mediaEmptySub}>Tap to add your own property photos</Text>
+                <View style={[styles.mediaSelectBtn, { marginTop: 16, alignSelf: 'center' }]}>
+                  <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
+                  <Text style={styles.mediaSelectBtnText}>Select Photos</Text>
+                </View>
               </TouchableOpacity>
             )}
-          </ScrollView>
-        </View>
+          </View>
+        )}
 
-        {/* AI Studio Section (UI Only) */}
-        <View style={styles.aiStudioCard}>
-          <LinearGradient
-            colors={['rgba(13, 148, 136, 0.1)', 'rgba(236, 72, 153, 0.1)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.aiStudioGradient}
-          >
-            <View style={styles.aiStudioContent}>
-              <View style={styles.aiStudioInfo}>
-                <Text style={styles.aiStudioTitle}>AI Studio Generator</Text>
-                <Text style={styles.aiStudioDesc}>Perfect lighting and staging in one tap.</Text>
-              </View>
-              <View style={styles.aiStudioBadge}>
-                <Text style={styles.aiStudioBadgeText}>COMING SOON</Text>
-              </View>
-            </View>
-          </LinearGradient>
-        </View>
-
-        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
+
 
 
 function StepReview({ onNext, onBack, mlsPhotos, userPhotos, formData }: {
@@ -805,10 +796,34 @@ function StepSuccess({ propertyId, address }: { propertyId: string, address: str
   const router = useRouter();
 
   const cards = [
-    { id: 'inventory', title: 'Property Inventory', subtitle: 'Return to your vault and manage all listings.', icon: 'bank' },
-    { id: 'openhouse', title: 'Schedule Open House', subtitle: 'Activate digital check-in and visitor tracking.', icon: 'calendar-clock-outline' },
-    { id: 'social', title: 'Add to Social Media', subtitle: 'Broadcast this listing to Instagram and LinkedIn.', icon: 'share-variant-outline' },
-    { id: 'campaign', title: 'Add to Campaign', subtitle: 'Connect to active marketing and drip flows.', icon: 'bullhorn-outline' },
+    {
+      id: 'inventory',
+      title: 'Property Inventory',
+      subtitle: 'Return to your vault and manage all listings.',
+      icon: 'bank',
+      route: '/(main)/properties',
+    },
+    {
+      id: 'openhouse',
+      title: 'Schedule Open House',
+      subtitle: 'Activate digital check-in and visitor tracking.',
+      icon: 'calendar-clock-outline',
+      route: '/(main)/open-house',
+    },
+    {
+      id: 'social',
+      title: 'Add to Social Media',
+      subtitle: 'Broadcast this listing to Instagram and LinkedIn.',
+      icon: 'share-variant-outline',
+      route: '/(main)/social-hub/create-post',
+    },
+    {
+      id: 'campaign',
+      title: 'Add to Campaign',
+      subtitle: 'Connect to active marketing and drip flows.',
+      icon: 'bullhorn-outline',
+      route: '/(main)/crm/campaigns',
+    },
   ];
 
   return (
@@ -850,7 +865,7 @@ function StepSuccess({ propertyId, address }: { propertyId: string, address: str
                 borderColor: colors.cardBorder,
                 minHeight: 140
               }}
-              onPress={() => card.id === 'inventory' ? router.replace('/(main)/properties') : null}
+              onPress={() => router.push(card.route as any)}
             >
               <View style={{
                 width: 36,
@@ -889,9 +904,7 @@ export default function CreateListingScreen() {
   const [input, setInput] = useState('');
 
   const [formData, setFormData] = useState({
-    // Metadata
     confidence: 0,
-    // Structural
     address: '',
     price: '',
     type: 'Residential SFH',
@@ -901,10 +914,11 @@ export default function CreateListingScreen() {
     garage: 'None',
     sqft: '',
     lotArea: '',
+    lotSqFt: '',
     year: '',
     stories: '',
     structureType: '',
-    // Exterior
+    architecturalStyle: [] as string[],
     lotSize: '',
     lotFeatures: [] as string[],
     fencing: '',
@@ -915,7 +929,6 @@ export default function CreateListingScreen() {
     construction: [] as string[],
     roof: '',
     foundation: '',
-    // Interior
     appliances: [] as string[],
     flooring: [] as string[],
     kitchenFeatures: [] as string[],
@@ -923,19 +936,17 @@ export default function CreateListingScreen() {
     laundryFeatures: [] as string[],
     interiorFeatures: [] as string[],
     roomDescription: [] as string[],
-    // Utilities
     heating: [] as string[],
     cooling: [] as string[],
     waterSource: [] as string[],
     fireplace: false,
-    // Location & Schools
     city: '',
     county: '',
     subdivision: '',
     elemSchool: '',
     midSchool: '',
     highSchool: '',
-    // Listing Info
+    highSchoolDistrict: '',
     mlsStatus: '',
     listingId: '',
     standardStatus: '',
@@ -943,8 +954,14 @@ export default function CreateListingScreen() {
     taxExemptions: [] as string[],
     restrictions: [] as string[],
     communityFeatures: [] as string[],
+    disclosures: [] as string[],
     daysOnMarket: '',
-    // Remarks
+    listingContractDate: '',
+    taxAnnualAmount: '',
+    taxRate: '',
+    taxLegalDescription: '',
+    directions: '',
+    geoMarketArea: '',
     publicRemarks: '',
     privateRemarks: '',
   });
@@ -953,7 +970,7 @@ export default function CreateListingScreen() {
   const { mutate: analyzeProperty, isPending: analyzing } = useMutation({
     mutationFn: (address: string) => analyzePropertyService(address, accessToken || ''),
     onSuccess: (resData) => {
-      console.log("AI Enrichment Analysis Result:", resData);
+      console.log("AI Enrichment Analysis Result:", JSON.stringify(resData));
 
       if (resData.success && resData.data) {
         const d = resData.data;
@@ -965,6 +982,7 @@ export default function CreateListingScreen() {
           address: d.UnparsedAddress || d.FullAddress || input,
           stories: String(d.StoriesTotal || d.Levels?.[0] || d.Stories || ''),
           structureType: Array.isArray(d.StructureType) ? d.StructureType[0] : d.StructureType || '',
+          architecturalStyle: Array.isArray(d.ArchitecturalStyle) ? d.ArchitecturalStyle : [],
           price: d.ListPrice ? `$${d.ListPrice.toLocaleString()}` : '',
           type: d.PropertySubType || d.PropertyType || 'Residential',
           beds: String(d.BedroomsTotal || ''),
@@ -972,14 +990,13 @@ export default function CreateListingScreen() {
           bathsHalf: String(d.BathroomsHalf || ''),
           sqft: d.LivingArea ? `${d.LivingArea.toLocaleString()}` : '',
           lotArea: d.LotSizeSquareFeet ? `${d.LotSizeSquareFeet.toLocaleString()}` : '',
+          lotSqFt: d.LotSizeSquareFeet ? `${Math.round(d.LotSizeSquareFeet).toLocaleString()} Sq Ft` : '',
           year: String(d.YearBuilt || ''),
-
           lotSize: d.LotSizeAcres ? `${d.LotSizeAcres} Acres` : d.LotSizeSquareFeet ? `${(d.LotSizeSquareFeet / 43560).toFixed(4)} Acres` : '',
           lotFeatures: Array.isArray(d.LotFeatures) ? d.LotFeatures : [],
           parkingFeatures: Array.isArray(d.ParkingFeatures) ? d.ParkingFeatures : [],
           patioFeatures: Array.isArray(d.PatioAndPorchFeatures) ? d.PatioAndPorchFeatures : [],
-          sewer: Array.isArray(d.Sewer) ? d.Sewer[0] : d.Sewer || 'Public Sewer',
-
+          sewer: Array.isArray(d.Sewer) ? d.Sewer[0] : d.Sewer || '',
           garage: d.GarageSpaces ? `${d.GarageSpaces} Car` : d.ParkingTotal ? `${d.ParkingTotal} Car` : 'None',
           appliances: Array.isArray(d.Appliances) ? d.Appliances : [],
           flooring: Array.isArray(d.Flooring) ? d.Flooring : [],
@@ -988,24 +1005,22 @@ export default function CreateListingScreen() {
           laundryFeatures: Array.isArray(d.LaundryFeatures) ? d.LaundryFeatures : [],
           interiorFeatures: Array.isArray(d.InteriorFeatures) ? d.InteriorFeatures : [],
           roomDescription: Array.isArray(d.HAR_RoomDescription) ? d.HAR_RoomDescription : Array.isArray(d.RoomType) ? d.RoomType : [],
-
           heating: Array.isArray(d.Heating) ? d.Heating : [],
           cooling: Array.isArray(d.Cooling) ? d.Cooling : [],
           waterSource: Array.isArray(d.WaterSource) ? d.WaterSource : [],
-          fireplace: !!d.FireplaceYN || d.FireplacesTotal > 0,
-
+          fireplace: !!d.FireplaceYN || (d.FireplacesTotal > 0),
           construction: Array.isArray(d.ConstructionMaterials) ? d.ConstructionMaterials : [],
           roof: Array.isArray(d.Roof) ? d.Roof[0] : '',
           foundation: Array.isArray(d.FoundationDetails) ? d.FoundationDetails[0] : '',
           exteriorFeatures: Array.isArray(d.ExteriorFeatures) ? d.ExteriorFeatures : [],
           fencing: Array.isArray(d.Fencing) ? d.Fencing[0] : d.Fencing || '',
-
           city: d.City || '',
           county: d.CountyOrParish || '',
           subdivision: d.SubdivisionName || '',
           elemSchool: d.ElementarySchool || '',
           midSchool: d.MiddleOrJuniorSchool || '',
           highSchool: d.HighSchool || '',
+          highSchoolDistrict: d.HighSchoolDistrict || '',
           mlsStatus: d.MlsStatus || '',
           listingId: d.ListingId || '',
           standardStatus: d.StandardStatus || '',
@@ -1013,7 +1028,14 @@ export default function CreateListingScreen() {
           taxExemptions: Array.isArray(d.TaxExemptions) ? d.TaxExemptions : [],
           restrictions: Array.isArray(d.HAR_Restrictions) ? d.HAR_Restrictions : [],
           communityFeatures: Array.isArray(d.CommunityFeatures) ? d.CommunityFeatures : [],
-          daysOnMarket: String(d.DaysOnMarket || ''),
+          disclosures: Array.isArray(d.Disclosures) ? d.Disclosures : [],
+          daysOnMarket: d.DaysOnMarket ? String(d.DaysOnMarket) : '',
+          listingContractDate: d.ListingContractDate || '',
+          taxAnnualAmount: d.TaxAnnualAmount ? `$${d.TaxAnnualAmount.toLocaleString()}` : '',
+          taxRate: d.HAR_TaxRate ? `${d.HAR_TaxRate}%` : '',
+          taxLegalDescription: d.TaxLegalDescription || '',
+          directions: d.Directions || '',
+          geoMarketArea: d.HAR_GeoMarketArea || '',
           publicRemarks: d.PublicRemarks || '',
           privateRemarks: d.PrivateRemarks || '',
         });
@@ -1249,13 +1271,21 @@ export default function CreateListingScreen() {
                 style={styles.sheetActionItem}
                 onPress={async () => {
                   setIsPickingMedia(false);
+
+                  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                  if (status !== 'granted') {
+                    alert("Photo library permission is required to select photos.");
+                    return;
+                  }
+
                   const result = await ImagePicker.launchImageLibraryAsync({
                     mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                    allowsMultipleSelection: false,
+                    allowsMultipleSelection: true,
                     quality: 0.8,
                   });
-                  if (!result.canceled && result.assets[0]) {
-                    uploadMutation(result.assets[0].uri);
+
+                  if (!result.canceled && result.assets.length > 0) {
+                    result.assets.forEach(asset => uploadMutation(asset.uri));
                   }
                 }}
               >
@@ -2132,38 +2162,39 @@ function getStyles(colors: any) {
       paddingBottom: 24,
     },
     statCardPremium: {
-      flex: 1, // Take half width in a 2-item row
+      flex: 1,
       backgroundColor: colors.cardBackground,
-      borderRadius: 24,
+      borderRadius: 20,
       padding: 16,
       borderWidth: 1.5,
       borderColor: colors.cardBorder,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.1,
-      shadowRadius: 15,
-      elevation: 6,
-      gap: 12,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      elevation: 5,
+      gap: 8,
+      alignItems: 'flex-start',
     },
     statIconBoxPremium: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      backgroundColor: '#F0FDFB',
+      width: 40,
+      height: 40,
+      borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
+      marginBottom: 4,
     },
     statLabelPremium: {
       fontSize: 9,
       fontWeight: '900',
-      color: colors.textMuted,
       letterSpacing: 1,
-      marginBottom: 4,
+      marginBottom: 2,
     },
     statValuePremium: {
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '900',
       color: colors.textPrimary,
+      letterSpacing: -0.5,
     },
     infoBoxPremium: {
       flexDirection: 'row',
@@ -2255,39 +2286,66 @@ function getStyles(colors: any) {
 
     structuralDetailCard: {
       backgroundColor: colors.cardBackground,
-      borderRadius: 20,
-      padding: 16,
-      width: '100%', // Full width cards
-      borderWidth: 1.5,
+      borderRadius: 16,
+      padding: 14,
+      width: '100%',
+      borderWidth: 1,
       borderColor: colors.cardBorder,
-      minHeight: 100,
+    },
+    detailIconBox: {
+      width: 24,
+      height: 24,
+      borderRadius: 7,
+      backgroundColor: colors.accentTeal + '18',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     pillContainer: {
       backgroundColor: '#F0FDFB',
       alignSelf: 'flex-start',
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: '#CCFBF1',
     },
     pillText: {
       color: '#0D9488',
-      fontWeight: '900',
-      fontSize: 12,
+      fontWeight: '800',
+      fontSize: 11,
       textTransform: 'capitalize',
     },
     remarkCard: {
       backgroundColor: colors.cardBackground,
-      borderRadius: 20,
-      padding: 20,
-      borderWidth: 1.5,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
       borderColor: colors.cardBorder,
     },
+    remarkLabel: {
+      fontSize: 9,
+      fontWeight: '900',
+      color: colors.accentTeal,
+      letterSpacing: 1.2,
+      marginBottom: 8,
+    },
     remarkText: {
-      fontSize: 14,
+      fontSize: 13,
       color: colors.textPrimary,
-      lineHeight: 22,
+      lineHeight: 20,
+      fontWeight: '500',
+    },
+    directionsCard: {
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.accentTeal + '30',
+      backgroundColor: colors.accentTeal + '08',
+    },
+    directionsText: {
+      fontSize: 13,
+      color: colors.textPrimary,
+      lineHeight: 20,
       fontWeight: '500',
     },
     galleryScroll: {
@@ -2514,45 +2572,113 @@ function getStyles(colors: any) {
       color: colors.textMuted,
       marginTop: 4,
     },
-    aiStudioCard: {
-      marginHorizontal: 20,
-      marginTop: 32,
-      borderRadius: 24,
-      overflow: 'hidden',
+    aiStudioCard: { marginHorizontal: 20, marginTop: 32, borderRadius: 24, overflow: 'hidden' },
+    aiStudioGradient: { padding: 24 },
+    aiStudioContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    aiStudioInfo: { flex: 1, paddingRight: 16 },
+    aiStudioTitle: { fontSize: 18, fontWeight: '900', color: colors.textPrimary },
+    aiStudioDesc: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
+    aiStudioBadge: { backgroundColor: colors.accentTeal, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+    aiStudioBadgeText: { fontSize: 10, fontWeight: '900', color: '#FFF' },
+    mediaUploadCard: {
+      backgroundColor: colors.cardBackground, borderRadius: 20, padding: 20,
+      alignItems: 'center' as const, borderWidth: 1.5, borderColor: colors.cardBorder, borderStyle: 'dashed' as const,
     },
-    aiStudioGradient: {
-      padding: 24,
+    mediaUploadIconWrap: {
+      width: 52, height: 52, borderRadius: 16, backgroundColor: colors.surfaceIcon,
+      alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 10,
     },
-    aiStudioContent: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+    mediaUploadTitle: { fontSize: 16, fontWeight: '900', color: colors.textPrimary, marginBottom: 4 },
+    mediaUploadSub: { fontSize: 12, color: colors.textMuted, fontWeight: '500', marginBottom: 14 },
+    mediaSelectBtn: {
+      flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+      paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10,
+      borderWidth: 1.5, borderColor: colors.cardBorder, backgroundColor: colors.surfaceIcon,
     },
-    aiStudioInfo: {
-      flex: 1,
-      paddingRight: 16,
+    mediaSelectBtnText: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
+    aiStudioCardNew: {
+      backgroundColor: colors.cardBackground, borderRadius: 20, padding: 18,
+      borderWidth: 1, borderColor: colors.cardBorder, overflow: 'hidden' as const,
     },
-    aiStudioTitle: {
-      fontSize: 18,
-      fontWeight: '900',
+    aiStudioCardHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, marginBottom: 16 },
+    aiStudioIconBox: {
+      width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentTeal,
+      alignItems: 'center' as const, justifyContent: 'center' as const,
+    },
+    aiStudioCardTitle: { fontSize: 15, fontWeight: '900', color: colors.textPrimary },
+    aiStudioCardSub: { fontSize: 11, color: colors.textSecondary, fontWeight: '500' },
+    aiStudioComingSoon: { backgroundColor: colors.accentTeal + '20', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    aiStudioComingSoonText: { fontSize: 9, fontWeight: '900', color: colors.accentTeal, letterSpacing: 0.5 },
+    aiStudioPromptLabel: { fontSize: 9, fontWeight: '900', color: colors.textMuted, letterSpacing: 1, marginBottom: 8 },
+    aiStudioPromptBox: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      minHeight: 80,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    aiStudioPromptInput: {
+      fontSize: 13,
       color: colors.textPrimary,
+      lineHeight: 20,
+      minHeight: 56,
     },
-    aiStudioDesc: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      marginTop: 4,
+    aiStudioPromptInputStatic: {
+      fontSize: 12,
+      color: colors.textMuted,
+      lineHeight: 18,
+      fontStyle: 'italic',
     },
-    aiStudioBadge: {
-      backgroundColor: colors.accentTeal,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 8,
+    aiStudioGenerateBtn: {
+      backgroundColor: colors.textPrimary, borderRadius: 12, height: 44,
+      flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
     },
-    aiStudioBadgeText: {
-      fontSize: 10,
-      fontWeight: '900',
-      color: '#FFF',
+    aiStudioGenerateBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
+    mediaTabBar: { flexDirection: 'row' as const, paddingHorizontal: 16, gap: 4 },
+    mediaTab: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+    mediaTabActive: { borderBottomWidth: 2, borderBottomColor: colors.accentTeal, borderRadius: 0 },
+    mediaTabText: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
+    mediaTabTextActive: { color: colors.textPrimary, fontWeight: '900' },
+    photoGrid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, justifyContent: 'space-between' as const, rowGap: 12 },
+    photoGridCard: {
+      backgroundColor: colors.cardBackground, borderRadius: 16,
+      overflow: 'hidden' as const, borderWidth: 1, borderColor: colors.cardBorder,
     },
+    photoGridImgWrap: { width: '100%', aspectRatio: 4 / 3, position: 'relative' as const },
+    photoGridImg: { width: '100%', height: '100%' },
+    photoGridOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,23,42,0.7)', alignItems: 'center' as const, justifyContent: 'center' as const },
+    photoGridDeleteBtn: {
+      position: 'absolute' as const, top: 8, right: 8, width: 26, height: 26,
+      borderRadius: 13, backgroundColor: 'rgba(239,68,68,0.85)',
+      alignItems: 'center' as const, justifyContent: 'center' as const,
+    },
+    photoGridFooter: { padding: 10 },
+    photoGridLabel: { fontSize: 8, fontWeight: '900', color: colors.accentTeal, letterSpacing: 0.5, marginBottom: 2 },
+    photoGridScene: { fontSize: 13, fontWeight: '900', color: colors.textPrimary, marginBottom: 6 },
+    photoGridReadOnly: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4 },
+    photoGridReadOnlyText: { fontSize: 10, fontWeight: '700', color: colors.textMuted },
+    enhancedBadgeSmall: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4 },
+    enhancedBadgeSmallText: { fontSize: 10, fontWeight: '800', color: colors.accentTeal },
+    magicBtnSmall: {
+      flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
+      backgroundColor: colors.accentTeal + '15', paddingHorizontal: 8, paddingVertical: 4,
+      borderRadius: 6, borderWidth: 1, borderColor: colors.accentTeal + '30',
+    },
+    magicBtnSmallText: { fontSize: 10, fontWeight: '800', color: colors.accentTeal },
+    photoGridAddTile: {
+      alignItems: 'center' as const, justifyContent: 'center' as const,
+      borderStyle: 'dashed' as const, borderWidth: 2, borderColor: colors.cardBorder, backgroundColor: colors.surfaceIcon,
+    },
+    mediaEmptyState: { alignItems: 'center' as const, paddingVertical: 48, paddingHorizontal: 24 },
+    mediaEmptyIconCircle: {
+      width: 72, height: 72, borderRadius: 36, backgroundColor: colors.accentTeal + '15',
+      alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 16,
+    },
+    mediaEmptyTitle: { fontSize: 16, fontWeight: '900', color: colors.textPrimary, marginTop: 12, marginBottom: 6 },
+    mediaEmptySub: { fontSize: 12, color: colors.textMuted, fontWeight: '500', textAlign: 'center' as const },
     modalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.4)',
@@ -2653,6 +2779,22 @@ function getStyles(colors: any) {
       backgroundColor: colors.accentTeal,
     },
     contentWrapMobile: {
+      flex: 1,
+    },
+    errorBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.dangerBg || '#FEF2F2',
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.dangerBorder || '#FECACA',
+      marginBottom: 20,
+    },
+    errorText: {
+      fontSize: 12,
+      color: colors.danger || '#DC2626',
+      fontWeight: '600',
       flex: 1,
     },
   });

@@ -25,6 +25,7 @@ export interface OpenHouseEvent {
   logo_text?: string | null;
   visitor_registration?: boolean;
   send_report?: boolean;
+  feedback_rating?: number;
   enquiries?: any[];
   property: {
     id: number;

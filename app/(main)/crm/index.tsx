@@ -41,6 +41,7 @@ const CRM_SECTIONS: Array<{
 
 const OVERVIEW_TABS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'activity-log', label: 'Activity Log' },
   { id: 'lead-sources', label: 'Lead Sources' },
   { id: 'conversion-roi', label: 'Conversion ROI' },
   { id: 'heat-index', label: 'Heat Index Stats' },
@@ -327,6 +328,62 @@ export default function CRMScreen() {
               </Pressable>
             </View>
           </>
+        )}
+
+        {overviewTab === 'activity-log' && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Neural Activity Log</Text>
+            </View>
+            
+            {displayActivityLog.length === 0 ? (
+              <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+                <MaterialCommunityIcons name="pulse" size={48} color={colors.textMuted || '#94A3B8'} />
+                <Text style={{ marginTop: 12, fontSize: 14, fontWeight: '700', color: colors.textSecondary, textAlign: 'center' }}>
+                  No recent activities found
+                </Text>
+              </View>
+            ) : (
+              <View style={{ gap: 12 }}>
+                {displayActivityLog.map((activity, idx) => (
+                  <View
+                    key={activity.id}
+                    style={[
+                      styles.activityLogItem,
+                      {
+                        backgroundColor: colors.surfaceSoft,
+                        borderLeftColor: activity.leftBorder === 'transparent' ? colors.cardBorder : (activity.leftBorder || colors.cardBorder),
+                        borderLeftWidth: activity.leftBorder !== 'transparent' ? 4 : 0,
+                        borderRadius: 12,
+                      },
+                      idx === displayActivityLog.length - 1 && { marginBottom: 0 }
+                    ]}>
+                    <View style={styles.activityLogIcon}>
+                      <MaterialCommunityIcons name={activity.icon || 'circle-outline'} size={20} color={colors.textPrimary} />
+                    </View>
+                    <View style={styles.activityLogDetails}>
+                      <View style={styles.activityLogRow}>
+                        <Text style={styles.activityLogActor}>{activity.actor}</Text>
+                        <Text style={styles.activityLogAction}>{activity.action}</Text>
+                      </View>
+                      <Text style={styles.activityLogDetail}>{activity.detail}</Text>
+                      {activity.score && (
+                        <View style={styles.activityLogScoreBadge}>
+                          <Text style={styles.activityLogScoreText}>{activity.score}</Text>
+                        </View>
+                      )}
+                      {activity.scoreChange && (
+                        <View style={styles.activityLogScoreChangeBadge}>
+                          <Text style={styles.activityLogScoreChangeText}>{activity.scoreChange}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.activityLogTime}>{activity.time}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
         )}
 
         {overviewTab === 'lead-sources' && (

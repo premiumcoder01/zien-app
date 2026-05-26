@@ -220,7 +220,7 @@ function StepMedia({ mlsPhotos, setMlsPhotos, userPhotos, setUserPhotos, onPicke
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.mediaSection}>
-          <Text style={styles.mediaSectionTitle}>MLS PHOTOS</Text>
+          <Text style={styles.mediaSectionTitle}>MLS Professional</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
             {mlsPhotos.map((url: string, idx: number) => (
               <View key={idx} style={styles.premiumPhotoCard}>
@@ -311,10 +311,10 @@ function StepSuccess({ propertyId, address }: { propertyId: string, address: str
   const router = useRouter();
 
   const cards = [
-    { id: 'inventory', title: 'Property Inventory', subtitle: 'Return to your vault and manage all listings.', icon: 'bank' },
-    { id: 'openhouse', title: 'Schedule Open House', subtitle: 'Activate digital check-in and visitor tracking.', icon: 'calendar-clock-outline' },
-    { id: 'social', title: 'Add to Social Media', subtitle: 'Broadcast this listing to Instagram and LinkedIn.', icon: 'share-variant-outline' },
-    { id: 'campaign', title: 'Add to Campaign', subtitle: 'Connect to active marketing and drip flows.', icon: 'bullhorn-outline' },
+    { id: 'inventory', title: 'Property Inventory', subtitle: 'Return to your vault and manage all listings.', icon: 'bank', route: '/(main)/properties' },
+    { id: 'openhouse', title: 'Schedule Open House', subtitle: 'Activate digital check-in and visitor tracking.', icon: 'calendar-clock-outline', route: '/(main)/open-house' },
+    { id: 'social', title: 'Add to Social Media', subtitle: 'Broadcast this listing to Instagram and LinkedIn.', icon: 'share-variant-outline', route: '/(main)/social-hub/create-post' },
+    { id: 'campaign', title: 'Add to Campaign', subtitle: 'Connect to active marketing and drip flows.', icon: 'bullhorn-outline', route: '/(main)/crm/campaigns' },
   ];
 
   return (
@@ -333,7 +333,7 @@ function StepSuccess({ propertyId, address }: { propertyId: string, address: str
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
           {cards.map(card => (
-            <TouchableOpacity key={card.id} style={{ width: (SCREEN_WIDTH - 44) / 2, backgroundColor: colors.cardBackground, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: colors.cardBorder, minHeight: 140 }} onPress={() => card.id === 'inventory' ? router.replace('/(main)/properties') : null}>
+            <TouchableOpacity key={card.id} style={{ width: (SCREEN_WIDTH - 44) / 2, backgroundColor: colors.cardBackground, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: colors.cardBorder, minHeight: 140 }} onPress={() => router.push(card.route as any)}>
               <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.surfaceSoft, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
                 <MaterialCommunityIcons name={card.icon as any} size={20} color={colors.textPrimary} />
               </View>

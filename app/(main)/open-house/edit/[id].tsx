@@ -2,6 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { getOpenHouseById, updateOpenHouse } from '@/services/openHouseService';
 import { RawPropertyItem, uploadPropertyImage } from '@/services/propertyService';
+import { generateAiText } from '@/services/aiContentService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,10 +24,15 @@ import {
   TextInput,
   useWindowDimensions,
   View,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  Keyboard,
+  Clipboard
 } from 'react-native';
 import { ProgressStep, ProgressSteps } from 'react-native-progress-steps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import GradientButton from '@/components/ui/GradientButton';
+import OutlineButton from '@/components/ui/OutlineButton';
+import ColorPickerModal from '@/components/ui/ColorPickerModal';
 
 function formatDisplayDate(d: Date): string {
   const day = String(d.getDate()).padStart(2, '0');
@@ -79,6 +85,18 @@ export default function OpenHouseEditScreen() {
   const [agentEmail, setAgentEmail] = useState('');
   const [sendReport, setSendReport] = useState(true);
   const [accentIndex, setAccentIndex] = useState(0);
+  const [brandColors, setBrandColors] = useState<string[]>([...EXTENDED_BRAND_COLORS]);
+
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
   const [description, setDescription] = useState(DEFAULT_DESCRIPTION);
   const [descStyle, setDescStyle] = useState<DescStyleKey>('luxury');
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
@@ -86,6 +104,38 @@ export default function OpenHouseEditScreen() {
   const [logoMode, setLogoMode] = useState<'text' | 'image'>('text');
   const [agencyLogoUri, setAgencyLogoUri] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const [errors, setErrors] = useState<{ agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string }>({});
+
+  const validateStep2 = () => {
+    const newErrors: { agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string } = {};
+    if (!eventDate) {
+      newErrors.eventDate = 'Date is required';
+    }
+    if (!startTimeDate) {
+      newErrors.startTimeDate = 'Start time is required';
+    }
+    if (!endTimeDate) {
+      newErrors.endTimeDate = 'End time is required';
+    }
+    if (!agentName.trim()) {
+      newErrors.agentName = 'Agent Name is required';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!agentEmail.trim()) {
+      newErrors.agentEmail = 'Agent Email is required';
+    } else if (!emailRegex.test(agentEmail.trim())) {
+      newErrors.agentEmail = 'Please enter a valid email address';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return false;
+    }
+
+    setErrors({});
+    return true;
+  };
 
   useEffect(() => {
     if (openHouseData) {
@@ -123,8 +173,17 @@ export default function OpenHouseEditScreen() {
         setLogoMode('text');
       }
 
-      const colorIdx = EXTENDED_BRAND_COLORS.indexOf(openHouseData.brand_color);
-      if (colorIdx !== -1) setAccentIndex(colorIdx);
+      if (openHouseData.brand_color) {
+        const cleanedColor = openHouseData.brand_color.toUpperCase();
+        const baseColorsUpper = EXTENDED_BRAND_COLORS.map(c => c.toUpperCase());
+        const colorIdx = baseColorsUpper.indexOf(cleanedColor);
+        if (colorIdx !== -1) {
+          setAccentIndex(colorIdx);
+        } else {
+          setBrandColors([...EXTENDED_BRAND_COLORS, cleanedColor]);
+          setAccentIndex(EXTENDED_BRAND_COLORS.length);
+        }
+      }
     }
   }, [openHouseData]);
 
@@ -168,7 +227,7 @@ export default function OpenHouseEditScreen() {
         end_time: endTimeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
         agent_details: { name: agentName, brokerage: brokerageName, license: licenseNumber, email: agentEmail, phone: agentPhone },
         ai_description: description,
-        brand_color: EXTENDED_BRAND_COLORS[accentIndex],
+        brand_color: brandColors[accentIndex],
         gallery_images: uploadedGalleryUrls,
         uploaded_logo: uploadedLogoUrl,
         logo_text: logoMode === 'text' ? agentName : null,
@@ -201,7 +260,8 @@ export default function OpenHouseEditScreen() {
       style={[styles.background, { paddingTop: insets.top }]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
 
       <Modal transparent visible={isUpdating} animationType="fade">
@@ -262,8 +322,8 @@ export default function OpenHouseEditScreen() {
               setAgentEmail={setAgentEmail}
               sendReport={sendReport}
               setSendReport={setSendReport}
-              onBack={() => router.back()}
-              onContinue={() => setActiveStep(1)}
+              errors={errors}
+              setErrors={setErrors}
             />
           </ProgressStep>
           <ProgressStep label="CUSTOMIZATION" removeBtnRow>
@@ -277,6 +337,8 @@ export default function OpenHouseEditScreen() {
                 endTimeDate={endTimeDate}
                 accentIndex={accentIndex}
                 setAccentIndex={setAccentIndex}
+                brandColors={brandColors}
+                setBrandColors={setBrandColors}
                 description={description}
                 setDescription={setDescription}
                 descStyle={descStyle}
@@ -289,18 +351,59 @@ export default function OpenHouseEditScreen() {
                 setLogoMode={setLogoMode}
                 agencyLogoUri={agencyLogoUri}
                 setAgencyLogoUri={setAgencyLogoUri}
-                onBack={() => setActiveStep(0)}
-                onFinalize={handleUpdate}
-                isSubmitting={updateMutation.isPending || isUpdating}
               />
             ) : (
               <Step5SheetReady
+                createdId={id as string}
                 onGoToDashboard={() => router.push('/(main)/open-house' as any)}
               />
             )}
           </ProgressStep>
         </ProgressSteps>
       </View>
+
+      {/* Global Fixed Bottom Bar */}
+      {!isFinalized && !isKeyboardVisible && (
+        <View style={[styles.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          {activeStep === 0 && (
+            <View style={styles.fixedBtnRow}>
+              <OutlineButton
+                title="Back"
+                onPress={() => router.back()}
+                style={styles.fixedSecondaryBtn}
+                textStyle={styles.fixedBtnText}
+              />
+              <GradientButton
+                title="Continue to Customization"
+                onPress={() => {
+                  if (validateStep2()) {
+                    setActiveStep(1);
+                  }
+                }}
+                style={styles.fixedPrimaryBtnHalf}
+                textStyle={styles.fixedBtnText}
+              />
+            </View>
+          )}
+          {activeStep === 1 && (
+            <View style={styles.fixedBtnRow}>
+              <OutlineButton
+                title="Back"
+                onPress={() => setActiveStep(0)}
+                style={styles.fixedSecondaryBtn}
+                textStyle={styles.fixedBtnText}
+              />
+              <GradientButton
+                title="Save Changes"
+                isLoading={updateMutation.isPending || isUpdating}
+                onPress={handleUpdate}
+                style={styles.fixedPrimaryBtnHalf}
+                textStyle={styles.fixedBtnText}
+              />
+            </View>
+          )}
+        </View>
+      )}
     </KeyboardAvoidingView>
   </LinearGradient>
   );
@@ -311,7 +414,8 @@ type PickerType = 'date' | 'start' | 'end' | null;
 function Step2Details({
   eventDate, setEventDate, startTimeDate, setStartTimeDate, endTimeDate, setEndTimeDate,
   agentName, setAgentName, brokerageName, setBrokerageName, licenseNumber, setLicenseNumber,
-  agentPhone, setAgentPhone, agentEmail, setAgentEmail, sendReport, setSendReport, onBack, onContinue,
+  agentPhone, setAgentPhone, agentEmail, setAgentEmail, sendReport, setSendReport,
+  errors, setErrors,
 }: {
   eventDate: Date; setEventDate: (d: Date) => void;
   startTimeDate: Date; setStartTimeDate: (d: Date) => void;
@@ -322,35 +426,15 @@ function Step2Details({
   agentPhone: string; setAgentPhone: (v: string) => void;
   agentEmail: string; setAgentEmail: (v: string) => void;
   sendReport: boolean; setSendReport: (v: boolean) => void;
-  onBack: () => void; onContinue: () => void;
+  errors: { agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string };
+  setErrors: React.Dispatch<React.SetStateAction<{ agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string }>>;
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
   const [pickerOpen, setPickerOpen] = useState<PickerType>(null);
   const [tempValue, setTempValue] = useState<Date>(eventDate);
-  const [errors, setErrors] = useState<{ agentName?: string; agentEmail?: string }>({});
 
-  const handleContinue = () => {
-    const newErrors: { agentName?: string; agentEmail?: string } = {};
-    if (!agentName.trim()) {
-      newErrors.agentName = 'Agent Name is required';
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!agentEmail.trim()) {
-      newErrors.agentEmail = 'Agent Email is required';
-    } else if (!emailRegex.test(agentEmail.trim())) {
-      newErrors.agentEmail = 'Please enter a valid email address';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setErrors({});
-    onContinue();
-  };
   const openPicker = (type: PickerType) => {
     if (type === 'date') setTempValue(eventDate);
     else if (type === 'start') setTempValue(startTimeDate);
@@ -382,116 +466,113 @@ function Step2Details({
 
   return (
     <View style={styles.stepContent}>
-      <View style={styles.formCardWrap}>
-        <View style={[styles.formCard, { borderTopWidth: 1, borderRadius: 18, padding: 32 }]}>
-          <View style={styles.fieldSingle}>
-            <Text style={styles.fieldLabel}>DATE *</Text>
-            <Pressable style={styles.inputWrap} onPress={() => openPicker('date')} android_ripple={{ color: 'rgba(13,148,136,0.08)' }}>
-              <Text style={[styles.inputText, { color: colors.textPrimary }]} numberOfLines={1}>{formatDisplayDate(eventDate)}</Text>
-              <MaterialCommunityIcons name="calendar-outline" size={16} color={colors.textPrimary} />
-            </Pressable>
-          </View>
-
-          <View style={styles.fieldSingle}>
-            <Text style={styles.fieldLabel}>START *</Text>
-            <Pressable style={styles.inputWrap} onPress={() => openPicker('start')} android_ripple={{ color: 'rgba(13,148,136,0.08)' }}>
-              <Text style={[styles.inputText, { color: colors.textPrimary }]} numberOfLines={1}>{formatDisplayTime(startTimeDate)}</Text>
-              <MaterialCommunityIcons name="clock-outline" size={16} color={colors.textPrimary} />
-            </Pressable>
-          </View>
-
-          <View style={styles.fieldSingle}>
-            <Text style={styles.fieldLabel}>END *</Text>
-            <Pressable style={styles.inputWrap} onPress={() => openPicker('end')} android_ripple={{ color: 'rgba(13,148,136,0.08)' }}>
-              <Text style={[styles.inputText, { color: colors.textPrimary }]} numberOfLines={1}>{formatDisplayTime(endTimeDate)}</Text>
-              <MaterialCommunityIcons name="clock-outline" size={16} color={colors.textPrimary} />
-            </Pressable>
-          </View>
-
-          <View style={styles.fieldSingle}>
-            <Text style={styles.fieldLabel}>AGENT NAME *</Text>
-            <View style={[styles.inputWrap, errors.agentName && { borderColor: '#EF4444' }]}>
-              <TextInput
-                style={styles.input}
-                value={agentName}
-                onChangeText={(val) => {
-                  setAgentName(val);
-                  if (errors.agentName) setErrors((prev) => ({ ...prev, agentName: undefined }));
-                }}
-                placeholder="e.g. John Smith"
-                placeholderTextColor="#9CA3AF"
-              />
+      <ScrollView
+        style={styles.detailsScroll}
+        contentContainerStyle={{ paddingBottom: 140 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.formCardWrap}>
+          <View style={[styles.formCard, { borderTopWidth: 1, borderRadius: 18, padding: 32 }]}>
+            <View style={styles.fieldSingle}>
+              <Text style={styles.fieldLabel}>DATE *</Text>
+              <Pressable style={styles.inputWrap} onPress={() => { openPicker('date'); if (errors.eventDate) setErrors(prev => ({ ...prev, eventDate: undefined })); }} android_ripple={{ color: 'rgba(13,148,136,0.08)' }}>
+                <Text style={[styles.inputText, { color: colors.textPrimary }]} numberOfLines={1}>{formatDisplayDate(eventDate)}</Text>
+                <MaterialCommunityIcons name="calendar-outline" size={16} color={colors.textPrimary} />
+              </Pressable>
+              {errors.eventDate && <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>{errors.eventDate}</Text>}
             </View>
-            {errors.agentName && (
-              <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>
-                {errors.agentName}
-              </Text>
-            )}
-          </View>
 
-          <View style={styles.fieldSingle}>
-            <Text style={styles.fieldLabel}>BROKERAGE NAME</Text>
-            <View style={styles.inputWrap}>
-              <TextInput style={styles.input} value={brokerageName} onChangeText={setBrokerageName} placeholder="e.g. Zien Estates" placeholderTextColor="#9CA3AF" />
+            <View style={styles.fieldSingle}>
+              <Text style={styles.fieldLabel}>START *</Text>
+              <Pressable style={styles.inputWrap} onPress={() => { openPicker('start'); if (errors.startTimeDate) setErrors(prev => ({ ...prev, startTimeDate: undefined })); }} android_ripple={{ color: 'rgba(13,148,136,0.08)' }}>
+                <Text style={[styles.inputText, { color: colors.textPrimary }]} numberOfLines={1}>{formatDisplayTime(startTimeDate)}</Text>
+                <MaterialCommunityIcons name="clock-outline" size={16} color={colors.textPrimary} />
+              </Pressable>
+              {errors.startTimeDate && <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>{errors.startTimeDate}</Text>}
             </View>
-          </View>
 
-          <View style={styles.fieldSingle}>
-            <Text style={styles.fieldLabel}>LICENSE NUMBER (DRE#)</Text>
-            <View style={styles.inputWrap}>
-              <TextInput style={styles.input} value={licenseNumber} onChangeText={setLicenseNumber} placeholder="e.g. DRE# 000000" placeholderTextColor="#9CA3AF" />
+            <View style={styles.fieldSingle}>
+              <Text style={styles.fieldLabel}>END *</Text>
+              <Pressable style={styles.inputWrap} onPress={() => { openPicker('end'); if (errors.endTimeDate) setErrors(prev => ({ ...prev, endTimeDate: undefined })); }} android_ripple={{ color: 'rgba(13,148,136,0.08)' }}>
+                <Text style={[styles.inputText, { color: colors.textPrimary }]} numberOfLines={1}>{formatDisplayTime(endTimeDate)}</Text>
+                <MaterialCommunityIcons name="clock-outline" size={16} color={colors.textPrimary} />
+              </Pressable>
+              {errors.endTimeDate && <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>{errors.endTimeDate}</Text>}
             </View>
-          </View>
 
-          <View style={styles.fieldSingle}>
-            <Text style={styles.fieldLabel}>AGENT PHONE</Text>
-            <View style={styles.inputWrap}>
-              <TextInput style={styles.input} value={agentPhone} onChangeText={setAgentPhone} placeholder="(555) 000-0000" placeholderTextColor="#9CA3AF" />
+            <View style={styles.fieldSingle}>
+              <Text style={styles.fieldLabel}>AGENT NAME *</Text>
+              <View style={[styles.inputWrap, errors.agentName && { borderColor: '#EF4444' }]}>
+                <TextInput
+                  style={styles.input}
+                  value={agentName}
+                  onChangeText={(val) => {
+                    setAgentName(val);
+                    if (errors.agentName) setErrors((prev) => ({ ...prev, agentName: undefined }));
+                  }}
+                  placeholder="e.g. John Smith"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              {errors.agentName && (
+                <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>
+                  {errors.agentName}
+                </Text>
+              )}
             </View>
-          </View>
 
-          <View style={styles.fieldSingle}>
-            <Text style={styles.fieldLabel}>AGENT EMAIL *</Text>
-            <View style={[styles.inputWrap, errors.agentEmail && { borderColor: '#EF4444' }]}>
-              <TextInput
-                style={styles.input}
-                value={agentEmail}
-                onChangeText={(val) => {
-                  setAgentEmail(val);
-                  if (errors.agentEmail) setErrors((prev) => ({ ...prev, agentEmail: undefined }));
-                }}
-                placeholder="agent@example.com"
-                placeholderTextColor="#9CA3AF"
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
+            <View style={styles.fieldSingle}>
+              <Text style={styles.fieldLabel}>BROKERAGE NAME</Text>
+              <View style={styles.inputWrap}>
+                <TextInput style={styles.input} value={brokerageName} onChangeText={setBrokerageName} placeholder="e.g. Zien Estates" placeholderTextColor="#9CA3AF" />
+              </View>
             </View>
-            {errors.agentEmail && (
-              <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>
-                {errors.agentEmail}
-              </Text>
-            )}
-          </View>
 
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>SEND PERFORMANCE REPORT TO SELLER</Text>
-            <Switch value={sendReport} onValueChange={setSendReport} trackColor={{ false: '#E4EAF2', true: '#0D9488' }} thumbColor="#FFFFFF" />
-          </View>
+            <View style={styles.fieldSingle}>
+              <Text style={styles.fieldLabel}>LICENSE NUMBER (DRE#)</Text>
+              <View style={styles.inputWrap}>
+                <TextInput style={styles.input} value={licenseNumber} onChangeText={setLicenseNumber} placeholder="e.g. DRE# 000000" placeholderTextColor="#9CA3AF" />
+              </View>
+            </View>
 
-          <View style={[styles.buttonRow, { justifyContent: 'flex-end', marginTop: 16 }]}>
-            <Pressable
-              style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}
-              onPress={onBack}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>Back</Text>
-            </Pressable>
-            <Pressable
-              style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, backgroundColor: '#0F172A' }}
-              onPress={handleContinue}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>Continue to Customization</Text>
-            </Pressable>
+            <View style={styles.fieldSingle}>
+              <Text style={styles.fieldLabel}>AGENT PHONE</Text>
+              <View style={styles.inputWrap}>
+                <TextInput style={styles.input} value={agentPhone} onChangeText={setAgentPhone} placeholder="(555) 000-0000" placeholderTextColor="#9CA3AF" />
+              </View>
+            </View>
+
+            <View style={styles.fieldSingle}>
+              <Text style={styles.fieldLabel}>AGENT EMAIL *</Text>
+              <View style={[styles.inputWrap, errors.agentEmail && { borderColor: '#EF4444' }]}>
+                <TextInput
+                  style={styles.input}
+                  value={agentEmail}
+                  onChangeText={(val) => {
+                    setAgentEmail(val);
+                    if (errors.agentEmail) setErrors((prev) => ({ ...prev, agentEmail: undefined }));
+                  }}
+                  placeholder="agent@example.com"
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+              </View>
+              {errors.agentEmail && (
+                <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>
+                  {errors.agentEmail}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>SEND PERFORMANCE REPORT TO SELLER</Text>
+              <Switch value={sendReport} onValueChange={setSendReport} trackColor={{ false: '#E4EAF2', true: '#0D9488' }} thumbColor="#FFFFFF" />
+            </View>
           </View>
         </View>
-      </View>
+      </ScrollView>
 
       {Platform.OS === 'android' && pickerOpen != null && (
         <DateTimePicker value={tempValue} mode={isDatePicker ? 'date' : 'time'} display="default" onChange={onPickerChange} minimumDate={isDatePicker ? new Date() : undefined} />
@@ -518,9 +599,9 @@ function Step2Details({
 
 function Step4Customization({
   selectedPropertyId, properties, agentName, eventDate, startTimeDate, endTimeDate,
-  accentIndex, setAccentIndex, description, setDescription, descStyle, setDescStyle,
+  accentIndex, setAccentIndex, brandColors, setBrandColors, description, setDescription, descStyle, setDescStyle,
   galleryImages, setGalleryImages, enableVisitorReg, setEnableVisitorReg,
-  logoMode, setLogoMode, agencyLogoUri, setAgencyLogoUri, onBack, onFinalize, isSubmitting,
+  logoMode, setLogoMode, agencyLogoUri, setAgencyLogoUri,
 }: {
   selectedPropertyId: string | null;
   properties: RawPropertyItem[];
@@ -529,19 +610,20 @@ function Step4Customization({
   startTimeDate: Date;
   endTimeDate: Date;
   accentIndex: number; setAccentIndex: (i: number) => void;
+  brandColors: string[]; setBrandColors: React.Dispatch<React.SetStateAction<string[]>>;
   description: string; setDescription: (v: string) => void;
   descStyle: DescStyleKey; setDescStyle: (v: DescStyleKey) => void;
   galleryImages: string[]; setGalleryImages: (v: string[] | ((prev: string[]) => string[])) => void;
   enableVisitorReg: boolean; setEnableVisitorReg: (v: boolean) => void;
   logoMode: 'text' | 'image'; setLogoMode: (v: 'text' | 'image') => void;
   agencyLogoUri: string | null; setAgencyLogoUri: (v: string | null) => void;
-  onBack: () => void; onFinalize: () => void; isSubmitting: boolean;
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [colorPickerVisible, setColorPickerVisible] = useState(false);
 
   const { accessToken } = useAuth();
   const [aiPrompt, setAiPrompt] = useState('');
@@ -554,25 +636,8 @@ function Step4Customization({
     }
     setIsGenerating(true);
     try {
-      const response = await fetch('https://staging-api.zien.ai/api/shared/ai/generate-text', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: aiPrompt.trim(),
-          complexity: 'complex'
-        })
-      });
-
-      const json = await response.json();
-      if (!response.ok) {
-        throw new Error(json.message || 'Failed to generate narrative');
-      }
-
-      const text = json.result || json.data?.result || '';
+      const data = await generateAiText(aiPrompt.trim(), accessToken || '', 'complex');
+      const text = data.result;
       if (text) {
         setDescription(text);
       } else {
@@ -601,7 +666,7 @@ function Step4Customization({
   }, [galleryImages, property]);
 
   const currentPreviewImage = allPreviewImages[activeImageIndex % allPreviewImages.length];
-  const currentAccent = EXTENDED_BRAND_COLORS[accentIndex];
+  const currentAccent = brandColors[accentIndex] || brandColors[0] || '#0B2D3E';
   const nextImage = () => setActiveImageIndex((prev) => (prev + 1) % allPreviewImages.length);
   const prevImage = () => setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : allPreviewImages.length - 1));
 
@@ -653,7 +718,7 @@ function Step4Customization({
 
   return (
     <View style={styles.stepContent}>
-      <ScrollView style={styles.customizationScroll} contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.customizationScroll} contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
         <View style={[styles.titleBlock, isMobile ? styles.titleBlockMobile : styles.titleBlockDesktop]}>
           <Text style={styles.screenTitle}>Personalize Your Event</Text>
           <Text style={styles.screenSubtitle}>Customize the look and feel for visitors.</Text>
@@ -665,10 +730,10 @@ function Step4Customization({
             <View style={styles.customCard}>
               <Text style={styles.customCardTitle}>Design & Branding</Text>
               <View style={styles.swatchRow}>
-                {EXTENDED_BRAND_COLORS.map((color, i) => (
+                {brandColors.map((color, i) => (
                   <Pressable key={color} style={[styles.colorSwatch, { backgroundColor: color }, i === accentIndex && styles.colorSwatchActive]} onPress={() => setAccentIndex(i)} />
                 ))}
-                <Pressable style={styles.addColorBtn}><Text style={styles.addColorBtnText}>+</Text></Pressable>
+                <Pressable style={styles.addColorBtn} onPress={() => setColorPickerVisible(true)}><Text style={styles.addColorBtnText}>+</Text></Pressable>
               </View>
               <Text style={styles.selectedColorText}>Current accent: <Text style={{ fontWeight: '800', color: currentAccent }}>{currentAccent}</Text></Text>
 
@@ -836,49 +901,103 @@ function Step4Customization({
           </View>
         </View>
 
-        <View style={styles.bottomActions}>
-          <Pressable style={styles.actionBackBtn} onPress={onBack}>
-            <Text style={styles.actionBackText}>Back</Text>
-          </Pressable>
-          <Pressable style={[styles.actionFinalizeBtn, isSubmitting && { opacity: 0.7 }]} onPress={onFinalize} disabled={isSubmitting}>
-            {isSubmitting ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.actionFinalizeText}>Save & Update Event</Text>}
-          </Pressable>
-        </View>
+
       </ScrollView>
+      <ColorPickerModal
+        visible={colorPickerVisible}
+        onClose={() => setColorPickerVisible(false)}
+        initialColor={currentAccent}
+        onSelectColor={(color) => {
+          const cleaned = color.toUpperCase();
+          const existingIdx = brandColors.findIndex(c => c.toUpperCase() === cleaned);
+          if (existingIdx !== -1) {
+            setAccentIndex(existingIdx);
+          } else {
+            setBrandColors(prev => [...prev, cleaned]);
+            setAccentIndex(brandColors.length);
+          }
+        }}
+      />
     </View>
   );
 }
 
-function Step5SheetReady({ onGoToDashboard }: { onGoToDashboard: () => void }) {
+function Step5SheetReady({
+  createdId,
+  onGoToDashboard,
+}: {
+  createdId?: string | number;
+  onGoToDashboard: () => void;
+}) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalDescription, setModalDescription] = useState('');
+  const [modalIcon, setModalIcon] = useState('bullhorn-outline');
+  const [modalColor, setModalColor] = useState('#0D9488');
+
+  const showFeatureModal = (title: string, desc: string, icon: string, color: string) => {
+    setModalTitle(title);
+    setModalDescription(desc);
+    setModalIcon(icon);
+    setModalColor(color);
+    setModalVisible(true);
+  };
+
+  const handleCopyLink = () => {
+    const linkId = createdId || '27';
+    const link = `https://staging.zien.ai/open-house/check-in/${linkId}`;
+    Clipboard.setString(link);
+    Alert.alert(
+      'Link Copied',
+      `The check-in portfolio link has been copied to your clipboard:\n\n${link}`
+    );
+  };
 
   return (
     <View style={styles.stepContent}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.readyMobileScrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.readyMobileScrollContent}
+      >
         <View style={styles.readyMobileHeader}>
           <Text style={styles.readyMobileTitle}>Changes Saved!</Text>
-          <Text style={styles.readyMobileSubtitle}>Your open house event has been successfully updated and is live.</Text>
+          <Text style={styles.readyMobileSubtitle}>
+            Your open house event has been successfully updated and is live.
+          </Text>
         </View>
 
         <View style={styles.readyMobileGrid}>
-          <Pressable style={styles.readyMobileCard}>
-            <MaterialCommunityIcons name="file-document-outline" size={32} color={colors.textPrimary} />
+          <Pressable
+            style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+            onPress={() => showFeatureModal('PDF Dossier Preparation', "We are finalising Zien's PDF document generation engine. Soon you will be able to export rich property flyers directly to your phone!", 'file-pdf-box', '#EF4444')}
+          >
+            <MaterialCommunityIcons name="file-document-outline" size={32} color="#EF4444" />
             <Text style={styles.readyMobileCardLabel}>Download PDF</Text>
             <Text style={styles.readyMobileCardSubLabel}>PROPERTY DOSSIER</Text>
           </Pressable>
-          <Pressable style={styles.readyMobileCard}>
-            <MaterialCommunityIcons name="link-variant" size={32} color={colors.textPrimary} />
+          <Pressable
+            style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+            onPress={handleCopyLink}
+          >
+            <MaterialCommunityIcons name="link-variant" size={32} color={colors.accentTeal} />
             <Text style={styles.readyMobileCardLabel}>Digital Share Link</Text>
             <Text style={styles.readyMobileCardSubLabel}>VISITOR PORTAL</Text>
           </Pressable>
-          <Pressable style={styles.readyMobileCard}>
-            <MaterialCommunityIcons name="bullhorn-outline" size={32} color={colors.textPrimary} />
+          <Pressable
+            style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+            onPress={() => showFeatureModal('Campaign Syncing', "Match leads automatically with active campaigns. Complete bi-directional synchronization with your CRM dashboard will launch soon!", 'bullhorn-outline', '#4F46E5')}
+          >
+            <MaterialCommunityIcons name="bullhorn-outline" size={32} color="#4F46E5" />
             <Text style={styles.readyMobileCardLabel}>Add to campaigns</Text>
             <Text style={styles.readyMobileCardSubLabel}>ADD TO CAMPAIGNS</Text>
           </Pressable>
-          <Pressable style={styles.readyMobileCard}>
-            <MaterialCommunityIcons name="email-plus-outline" size={32} color={colors.textPrimary} />
+          <Pressable
+            style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+            onPress={() => showFeatureModal('Smart AI Follow-Ups', "Set up Zien's dynamic AI email responders for check-ins. Automated personalized visitor nurture workflows will be ready soon!", 'email-plus-outline', '#0D9488')}
+          >
+            <MaterialCommunityIcons name="email-plus-outline" size={32} color="#0D9488" />
             <Text style={styles.readyMobileCardLabel}>Email Automation</Text>
             <Text style={styles.readyMobileCardSubLabel}>CREATE AI AUTOMATION</Text>
           </Pressable>
@@ -890,6 +1009,48 @@ function Step5SheetReady({ onGoToDashboard }: { onGoToDashboard: () => void }) {
           </Pressable>
         </View>
       </ScrollView>
+
+      {/* Premium Coming Soon Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setModalVisible(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.modalIconBg, { backgroundColor: modalColor + '15' }]}>
+              <MaterialCommunityIcons name={modalIcon as any} size={42} color={modalColor} />
+            </View>
+
+            <Text style={styles.modalTitle}>{modalTitle}</Text>
+
+            <View style={styles.badgeRow}>
+              <View style={[styles.badge, { backgroundColor: modalColor + '20' }]}>
+                <Text style={[styles.badgeText, { color: modalColor }]}>COMING SOON</Text>
+              </View>
+            </View>
+
+            <Text style={styles.modalDescription}>
+              {modalDescription}
+            </Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.modalCloseBtn,
+                { backgroundColor: modalColor },
+                pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }
+              ]}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.modalCloseBtnText}>Awesome, Got It!</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1064,6 +1225,46 @@ function getStyles(colors: any) {
     actionBackText: { fontSize: 14, fontWeight: '800', color: '#0F172A' },
     actionFinalizeBtn: { backgroundColor: '#0F172A', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignItems: 'center' },
     actionFinalizeText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+    fixedBottomBar: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: colors.cardBackgroundSemi,
+      borderTopWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: H_PADDING,
+      paddingTop: 16,
+      shadowColor: colors.cardShadowColor,
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      elevation: 8,
+    },
+    fixedBtnRow: {
+      flexDirection: 'row',
+      gap: 12,
+      alignItems: 'center',
+    },
+    fixedPrimaryBtn: {
+      flex: 1,
+      height: 54,
+    },
+    fixedPrimaryBtnHalf: {
+      flex: 2,
+      height: 54,
+    },
+    fixedSecondaryBtn: {
+      flex: 1,
+      height: 54,
+      paddingVertical: 0,
+    },
+    fixedBtnText: {
+      fontSize: 13.5,
+    },
+    detailsScroll: {
+      flex: 1,
+    },
 
     // Loader
     loaderOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
@@ -1094,5 +1295,80 @@ function getStyles(colors: any) {
     readyMobileActions: { width: '100%', paddingHorizontal: 16, gap: 12 },
     readyMobilePrimaryBtn: { backgroundColor: colors.accentTeal, width: '100%', paddingVertical: 18, borderRadius: 14, alignItems: 'center' },
     readyMobilePrimaryBtnText: { fontSize: 15, fontWeight: '800', color: colors.cardBackground },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    modalContent: {
+      width: '90%',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 28,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      ...Platform.select({
+        ios: {
+          shadowColor: colors.cardShadowColor,
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.15,
+          shadowRadius: 20,
+        },
+        android: { elevation: 8 },
+      }),
+    },
+    modalIconBg: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    modalTitle: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginBottom: 8,
+    },
+    badgeRow: {
+      marginBottom: 16,
+    },
+    badge: {
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 8,
+    },
+    badgeText: {
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    modalDescription: {
+      fontSize: 14.5,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: 28,
+      fontWeight: '500',
+      paddingHorizontal: 8,
+    },
+    modalCloseBtn: {
+      width: '100%',
+      paddingVertical: 16,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalCloseBtnText: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
   });
 }

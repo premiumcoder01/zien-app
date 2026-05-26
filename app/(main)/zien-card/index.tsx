@@ -1,9 +1,11 @@
 import { useAuth } from '@/context/AuthContext';
 import { useDigitalCards } from '@/hooks/useDigitalCards';
+import { useLeadEnquiries } from '@/hooks/useLeadEnquiries';
+import { exportLeadsToCSV } from '@/utils/csvExport';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useState, useCallback } from 'react';
-import { ActivityIndicator, Pressable, View, Modal, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, View, StyleSheet, Text, Alert } from 'react-native';
 import { ZienCardNav } from './_components/ZienCardNav';
 import { ZienCardScreenShell } from './_components/ZienCardScreenShell';
 
@@ -51,9 +53,9 @@ export default function ZienCardDashboardScreen() {
 
   // Lifted state
   const { data: cards = [], isLoading, refetch } = useDigitalCards();
+  const { data: leads = [] } = useLeadEnquiries();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [saveTrigger, setSaveTrigger] = useState(0);
-  const [showExportModal, setShowExportModal] = useState(false);
 
   // Sync with server whenever screen is focused
   useFocusEffect(
@@ -85,7 +87,27 @@ export default function ZienCardDashboardScreen() {
   };
 
   const onExportPress = () => {
-    setShowExportModal(true);
+    if (leads.length === 0) {
+      Alert.alert(
+        "Export Leads",
+        "You do not have any leads to export yet!"
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Export Leads",
+      `Do you want to export all ${leads.length} leads as a CSV file?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Export",
+          onPress: () => {
+            exportLeadsToCSV(leads);
+          }
+        }
+      ]
+    );
   };
 
   const headerRight = ((showGlobalSave || showExport) && cards.length > 0) ? (
@@ -157,103 +179,11 @@ export default function ZienCardDashboardScreen() {
           onSectionChange={handleSectionChange}
         />
       </View>
-
-      {/* Premium Integration Modal */}
-      <Modal
-        visible={showExportModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowExportModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalIconWrap}>
-              <MaterialCommunityIcons name="clock-outline" size={32} color="#0BA0B2" />
-            </View>
-            <Text style={styles.modalTitle}>Feature Coming Soon!</Text>
-            <Text style={styles.modalSubtitle}>
-              We are actively integrating lead exports. You will soon be able to download your enquiries directly as a CSV or premium PDF report.
-            </Text>
-            <Pressable
-              style={({ pressed }) => [styles.modalBtn, pressed && { opacity: 0.9 }]}
-              onPress={() => setShowExportModal(false)}
-            >
-              <Text style={styles.modalBtnText}>Got It</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </ZienCardScreenShell>
   );
 }
 
 const getStyles = (colors: any) => StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(11, 45, 62, 0.65)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: colors.cardBackground || '#FFFFFF',
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: colors.cardBorder || '#E2E8F0',
-    width: '100%',
-    maxWidth: 320,
-    padding: 28,
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  modalIconWrap: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(13, 160, 178, 0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(13, 160, 178, 0.15)',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.textPrimary || '#0B2D3E',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary || '#5B6B7A',
-    textAlign: 'center',
-    lineHeight: 19,
-    marginBottom: 24,
-  },
-  modalBtn: {
-    backgroundColor: '#0BA0B2',
-    borderRadius: 16,
-    paddingVertical: 14,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#0BA0B2',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  modalBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
