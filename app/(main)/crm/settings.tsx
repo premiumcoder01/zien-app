@@ -1,10 +1,13 @@
+import { useAuth } from '@/context/AuthContext';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAppTheme } from '@/context/ThemeContext';
+import { updateCRMSettings, getCRMSettings } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,13 +15,19 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TABS = ['General', 'Email Delivery', 'Automation Rules', 'Zien Extension'] as const;
 type Tab = (typeof TABS)[number];
 
-const LEAD_DISTRIBUTION_OPTIONS = ['Round Robin (Team)', 'First to Claim', 'Priority (Broker Selection)'] as const;
+const LEAD_DISTRIBUTION_OPTIONS = [
+  'Assign to Me (Default)',
+  'Round Robin (Team)',
+  'First to Claim',
+  'Priority (Broker Selection)',
+] as const;
 const AUTOMATED_ACTION_OPTIONS = ["Send 'Just Checking In' Email", 'Create Follow-Up Task', 'Send SMS Reminder'] as const;
 
 const EMAIL_PROVIDERS = [
@@ -43,12 +52,15 @@ const SENDER_IDENTITY_OPTIONS = [
 ] as const;
 
 export default function CRMSettingsScreen() {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const { colors, theme } = useAppTheme();
+  const { accessToken } = useAuth();
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('General');
-  const [leadDistribution, setLeadDistribution] = useState<(typeof LEAD_DISTRIBUTION_OPTIONS)[number]>('Round Robin (Team)');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [leadDistribution, setLeadDistribution] = useState<(typeof LEAD_DISTRIBUTION_OPTIONS)[number]>('Assign to Me (Default)');
   const [autoMergeDuplicates, setAutoMergeDuplicates] = useState(true);
   const [leadDistOpen, setLeadDistOpen] = useState(false);
   const [inactivityDays, setInactivityDays] = useState<(typeof INACTIVITY_OPTIONS)[number]>('90 Days (Recommended)');
@@ -75,6 +87,124 @@ export default function CRMSettingsScreen() {
   const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
   const [newMilestoneName, setNewMilestoneName] = useState('');
 
+  // ── Transactional Email Providers State ──
+  const [connectedProviders, setConnectedProviders] = useState<Record<string, { apiKey: string; domain: string }>>({});
+  const [providerModalOpen, setProviderModalOpen] = useState(false);
+  const [activeProvider, setActiveProvider] = useState<{ id: string; name: string } | null>(null);
+  const [modalApiKey, setModalApiKey] = useState('');
+  const [modalDomain, setModalDomain] = useState('');
+
+  useEffect(() => {
+    async function loadSettings() {
+      if (!accessToken) return;
+      try {
+        setLoading(true);
+        const data = await getCRMSettings(accessToken);
+        if (data) {
+          if (data.lead_distribution) {
+            setLeadDistribution(data.lead_distribution as any);
+          }
+          if (data.auto_merge !== undefined) {
+            setAutoMergeDuplicates(data.auto_merge);
+          }
+          if (data.inactivity_threshold) {
+            setInactivityDays(data.inactivity_threshold as any);
+          }
+          if (data.safety_limit) {
+            setSafetyLimit(data.safety_limit as any);
+          }
+          if (data.target_segment) {
+            setTargetSegmentGhost(data.target_segment as any);
+          }
+          if (data.reengagement_channel) {
+            setReEngagementChannel(data.reengagement_channel as any);
+          }
+          if (data.protocol_identity) {
+            setProtocolIdentity(data.protocol_identity as any);
+          }
+          if (data.recovery_script) {
+            setEmailBodyPreview(data.recovery_script);
+          }
+          if (data.ghost_protocol !== undefined) {
+            setGhostProtocolEnabled(data.ghost_protocol);
+          }
+          if (data.anniversary_settings) {
+            setAnniversaryToggles({
+              home: !!data.anniversary_settings.homeAnniversary,
+              birthday: !!data.anniversary_settings.birthdayAnniversary,
+              marriage: !!data.anniversary_settings.marriageAnniversary,
+            });
+          }
+          if (data.anniversaries) {
+            const standardKeys = ['homeAnniversary', 'birthdayAnniversary', 'marriageAnniversary'];
+            const custom = data.anniversaries
+              .filter((ann: any) => !standardKeys.includes(ann.key))
+              .map((ann: any) => ({
+                id: ann.key,
+                label: ann.event,
+                icon: ann.icon === 'star' ? 'star-outline' : ann.icon,
+                enabled: !!data.anniversary_settings?.[ann.key]
+              }));
+            setCustomRules(custom);
+          }
+        }
+      } catch (err: any) {
+        console.warn('Failed to load CRM settings:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadSettings();
+  }, [accessToken]);
+
+  const handleOpenConnect = (provider: { id: string; name: string }) => {
+    setActiveProvider(provider);
+    const existing = connectedProviders[provider.id];
+    setModalApiKey(existing?.apiKey || '');
+    setModalDomain(existing?.domain || '');
+    setProviderModalOpen(true);
+  };
+
+  const handleSaveConnection = () => {
+    if (!activeProvider) return;
+    if (!modalApiKey.trim() || !modalDomain.trim()) {
+      Alert.alert('Required Fields', 'Please fill in both the API Key and Verified Domain.');
+      return;
+    }
+    setConnectedProviders(prev => ({
+      ...prev,
+      [activeProvider.id]: {
+        apiKey: modalApiKey,
+        domain: modalDomain,
+      }
+    }));
+    setProviderModalOpen(false);
+    setActiveProvider(null);
+    setModalApiKey('');
+    setModalDomain('');
+  };
+
+  const handleDisconnectProvider = (providerId: string) => {
+    Alert.alert(
+      'Disconnect Provider',
+      'Are you sure you want to disconnect this email provider?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: () => {
+            setConnectedProviders(prev => {
+              const copy = { ...prev };
+              delete copy[providerId];
+              return copy;
+            });
+          }
+        }
+      ]
+    );
+  };
+
   const setAnniversaryToggle = (id: string, value: boolean) =>
     setAnniversaryToggles((prev) => ({ ...prev, [id]: value }));
 
@@ -94,8 +224,58 @@ export default function CRMSettingsScreen() {
     setIsMilestoneModalOpen(false);
   };
 
-  const handleSave = () => {
-    // persist settings
+  const handleSave = async () => {
+    if (!accessToken) {
+      Alert.alert('Unauthorized', 'You must be signed in to save settings.');
+      return;
+    }
+    if (saving) return;
+
+    const anniversaries = [
+      ...ANNIVERSARY_RULES.map(rule => ({
+        event: rule.label,
+        icon: rule.id === 'birthday' ? 'gift' : rule.id === 'marriage' ? 'heart' : 'home',
+        key: `${rule.id}Anniversary`
+      })),
+      ...customRules.map(rule => ({
+        event: rule.label,
+        icon: 'star',
+        key: rule.id
+      }))
+    ];
+
+    const anniversarySettings: Record<string, boolean> = {
+      homeAnniversary: !!anniversaryToggles.home,
+      birthdayAnniversary: !!anniversaryToggles.birthday,
+      marriageAnniversary: !!anniversaryToggles.marriage,
+    };
+    customRules.forEach(rule => {
+      anniversarySettings[rule.id] = rule.enabled;
+    });
+
+    const payload = {
+      lead_distribution: leadDistribution,
+      auto_merge: autoMergeDuplicates,
+      inactivity_threshold: inactivityDays,
+      safety_limit: safetyLimit,
+      target_segment: targetSegmentGhost,
+      reengagement_channel: reEngagementChannel,
+      protocol_identity: protocolIdentity,
+      recovery_script: emailBodyPreview,
+      ghost_protocol: ghostProtocolEnabled,
+      anniversaries,
+      anniversary_settings: anniversarySettings,
+    };
+
+    try {
+      setSaving(true);
+      await updateCRMSettings(accessToken, payload);
+      Alert.alert('Success', 'CRM settings saved successfully.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -110,7 +290,13 @@ export default function CRMSettingsScreen() {
         onBack={() => router.back()}
       />
 
-      {/* Tabs — horizontal scroll on mobile */}
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.accentTeal} />
+        </View>
+      ) : (
+        <>
+          {/* Tabs — horizontal scroll on mobile */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -168,7 +354,7 @@ export default function CRMSettingsScreen() {
                             }}>
                             <View style={styles.optionInner}>
                               {isSelected && (
-                                <MaterialCommunityIcons name="check" size={18} color="#FFFFFF" style={{ marginRight: 10 }} />
+                                <MaterialCommunityIcons name="check" size={18} color={colors.accent} style={{ marginRight: 10 }} />
                               )}
                               <Text style={[styles.optionLabelText, isSelected && styles.optionLabelTextActive]}>
                                 {opt}
@@ -207,16 +393,59 @@ export default function CRMSettingsScreen() {
               Connect your preferred provider for scalable delivery (Mailgun, SendGrid, etc.).
             </Text>
             <View style={styles.card}>
-              {EMAIL_PROVIDERS.map((provider, idx) => (
-                <Pressable
-                  key={provider.id}
-                  style={[styles.providerRow, idx === EMAIL_PROVIDERS.length - 1 && styles.providerRowLast]}>
-                  <Text style={styles.providerName}>{provider.name}</Text>
-                  <Pressable style={styles.connectApiBtn}>
-                    <Text style={styles.connectApiBtnText}>Connect API Key</Text>
-                  </Pressable>
-                </Pressable>
-              ))}
+              {EMAIL_PROVIDERS.map((provider, idx) => {
+                const conn = connectedProviders[provider.id];
+                const isConnected = !!conn;
+
+                return (
+                  <View
+                    key={provider.id}
+                    style={[
+                      styles.providerRow,
+                      idx === EMAIL_PROVIDERS.length - 1 && styles.providerRowLast,
+                      isConnected && styles.providerRowConnected
+                    ]}
+                  >
+                    {isConnected ? (
+                      <>
+                        <View style={styles.providerInfoColumn}>
+                          <View style={styles.providerNameBadgeRow}>
+                            <Text style={styles.providerName}>{provider.name}</Text>
+                            <View style={styles.connectedBadgeCapsule}>
+                              <Text style={styles.connectedBadgeText}>CONNECTED</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.providerDomainText}>Domain: {conn.domain}</Text>
+                        </View>
+                        <View style={styles.providerActionsRow}>
+                          <Pressable
+                            style={styles.connectApiBtnConnected}
+                            onPress={() => handleOpenConnect(provider)}
+                          >
+                            <Text style={styles.connectApiBtnTextConnected}>Manage API Key</Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.disconnectProviderBtn}
+                            onPress={() => handleDisconnectProvider(provider.id)}
+                          >
+                            <Text style={styles.disconnectProviderBtnText}>Disconnect</Text>
+                          </Pressable>
+                        </View>
+                      </>
+                    ) : (
+                      <View style={styles.providerRowLayout}>
+                        <Text style={styles.providerName}>{provider.name}</Text>
+                        <Pressable
+                          style={styles.connectApiBtn}
+                          onPress={() => handleOpenConnect(provider)}
+                        >
+                          <Text style={styles.connectApiBtnText}>Connect API Key</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}
@@ -238,7 +467,7 @@ export default function CRMSettingsScreen() {
                       style={styles.premiumSelect}
                       onPress={() => setInactivityOpen(!inactivityOpen)}>
                       <Text style={styles.premiumSelectText}>{inactivityDays}</Text>
-                      <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                      <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textSecondary} />
                     </Pressable>
                     {inactivityOpen && (
                       <View style={styles.premiumDropdown}>
@@ -252,7 +481,7 @@ export default function CRMSettingsScreen() {
                             }}>
                             <View style={styles.premiumDropdownCheck}>
                               {inactivityDays === opt && (
-                                <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
+                                <MaterialCommunityIcons name="check" size={16} color={colors.accent} />
                               )}
                             </View>
                             <Text style={styles.premiumDropdownText}>{opt}</Text>
@@ -267,7 +496,7 @@ export default function CRMSettingsScreen() {
                       style={styles.premiumSelect}
                       onPress={() => setSafetyLimitOpen(!safetyLimitOpen)}>
                       <Text style={styles.premiumSelectText}>{safetyLimit}</Text>
-                      <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                      <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textSecondary} />
                     </Pressable>
                     {safetyLimitOpen && (
                       <View style={styles.premiumDropdown}>
@@ -281,7 +510,7 @@ export default function CRMSettingsScreen() {
                             }}>
                             <View style={styles.premiumDropdownCheck}>
                               {safetyLimit === opt && (
-                                <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
+                                <MaterialCommunityIcons name="check" size={16} color={colors.accent} />
                               )}
                             </View>
                             <Text style={styles.premiumDropdownText}>{opt}</Text>
@@ -299,7 +528,7 @@ export default function CRMSettingsScreen() {
                       style={styles.premiumSelect}
                       onPress={() => setTargetSegmentOpen(!targetSegmentOpen)}>
                       <Text style={styles.premiumSelectText} numberOfLines={2}>{targetSegmentGhost}</Text>
-                      <MaterialCommunityIcons name="chevron-down" size={16} color="#475569" />
+                      <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textSecondary} />
                     </Pressable>
                     {targetSegmentOpen && (
                       <View style={styles.premiumDropdown}>
@@ -313,7 +542,7 @@ export default function CRMSettingsScreen() {
                             }}>
                             <View style={styles.premiumDropdownCheck}>
                               {targetSegmentGhost === opt && (
-                                <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
+                                <MaterialCommunityIcons name="check" size={16} color={colors.accent} />
                               )}
                             </View>
                             <Text style={styles.premiumDropdownText}>{opt}</Text>
@@ -328,7 +557,7 @@ export default function CRMSettingsScreen() {
                       style={styles.premiumSelect}
                       onPress={() => setProtocolIdentityOpen(!protocolIdentityOpen)}>
                       <Text style={styles.premiumSelectText} numberOfLines={2}>{protocolIdentity}</Text>
-                      <MaterialCommunityIcons name="chevron-down" size={16} color="#475569" />
+                      <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textSecondary} />
                     </Pressable>
                     {protocolIdentityOpen && (
                       <View style={styles.premiumDropdownFloating}>
@@ -345,7 +574,7 @@ export default function CRMSettingsScreen() {
                                 }}>
                                 <View style={styles.optionInner}>
                                   {isSelected && (
-                                    <MaterialCommunityIcons name="check" size={18} color="#FFFFFF" style={{ marginRight: 10 }} />
+                                    <MaterialCommunityIcons name="check" size={18} color={colors.accent} style={{ marginRight: 10 }} />
                                   )}
                                   <Text style={[styles.optionLabelText, isSelected && styles.optionLabelTextActive]}>
                                     {opt}
@@ -585,19 +814,83 @@ export default function CRMSettingsScreen() {
         </View>
       )}
 
-      {/* Save Changes — sticky at bottom on mobile */}
-      <View style={[styles.saveBar, { paddingBottom: 16 + insets.bottom }]}>
-        <Pressable
-          style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.92 }]}
-          onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Save Changes</Text>
-        </Pressable>
-      </View>
+      {/* Connect API Provider Modal */}
+      {providerModalOpen && activeProvider && (
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setProviderModalOpen(false)} />
+          <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitleText}>Connect {activeProvider.name}</Text>
+              <Pressable onPress={() => setProviderModalOpen(false)}>
+                <MaterialCommunityIcons name="close" size={22} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.modalSectionCard}>
+              <View style={{ marginBottom: 16 }}>
+                <Text style={styles.modalLabel}>API KEY / CREDENTIALS *</Text>
+                <View style={styles.modalInputWrap}>
+                  <MaterialCommunityIcons name="key-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.modalInputText}
+                    placeholder="Paste your transactional API secret..."
+                    placeholderTextColor={colors.inputPlaceholder}
+                    value={modalApiKey}
+                    onChangeText={setModalApiKey}
+                    secureTextEntry
+                  />
+                </View>
+              </View>
+
+              <View>
+                <Text style={styles.modalLabel}>VERIFIED DOMAIN / SENDER EMAIL *</Text>
+                <View style={[styles.modalInputWrap, styles.modalInputWrapLast]}>
+                  <MaterialCommunityIcons name="earth" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.modalInputText}
+                    placeholder="e.g., mail.youragency.com or sender@agency.com"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    value={modalDomain}
+                    onChangeText={setModalDomain}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable style={styles.modalCancelBtn} onPress={() => setProviderModalOpen(false)}>
+                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.modalCreateBtn} onPress={handleSaveConnection}>
+                <Text style={styles.modalCreateBtnText}>Save Connection</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
+
+          {/* Save Changes — sticky at bottom on mobile */}
+          <View style={[styles.saveBar, { paddingBottom: 16 + insets.bottom }]}>
+            <Pressable
+              style={({ pressed }) => [styles.saveBtn, (pressed || saving) && { opacity: 0.92 }]}
+              onPress={handleSave}
+              disabled={saving}>
+              {saving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.saveBtnText}>Save Changes</Text>
+              )}
+            </Pressable>
+          </View>
+        </>
+      )}
     </LinearGradient>
   );
 }
 
-function getStyles(colors: any) {
+function getStyles(colors: any, theme: string) {
   return StyleSheet.create({
     background: { flex: 1 },
     header: {
@@ -632,7 +925,7 @@ function getStyles(colors: any) {
       borderRadius: 10,
       marginRight: 8,
     },
-    tabActive: { backgroundColor: 'rgba(11, 45, 62, 0.08)' },
+    tabActive: { backgroundColor: colors.surfaceMuted },
     tabText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
     tabTextActive: { color: colors.textPrimary, fontWeight: '800' },
     tabIndicator: {
@@ -748,7 +1041,7 @@ function getStyles(colors: any) {
       alignItems: 'center',
       paddingVertical: 14,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: '#F0F4F8',
+      borderTopColor: colors.cardBorder,
       gap: 12,
     },
     anniversaryRowFirst: { borderTopWidth: 0 },
@@ -968,7 +1261,7 @@ function getStyles(colors: any) {
       borderTopColor: colors.cardBorder,
     },
     tokenBadge: {
-      backgroundColor: '#E0F2F1',
+      backgroundColor: theme === 'dark' ? 'rgba(0, 137, 123, 0.2)' : '#E0F2F1',
       paddingHorizontal: 8,
       paddingVertical: 4,
       borderRadius: 6,
@@ -976,7 +1269,7 @@ function getStyles(colors: any) {
     tokenText: {
       fontSize: 11,
       fontWeight: '800',
-      color: '#00897B',
+      color: theme === 'dark' ? '#4DB6AC' : '#00897B',
     },
     fieldHint: {
       fontSize: 11,
@@ -1042,7 +1335,7 @@ function getStyles(colors: any) {
     },
     modalBackdrop: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(11, 45, 62, 0.4)',
+      backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.6)' : 'rgba(11, 45, 62, 0.4)',
     },
     bottomSheet: {
       backgroundColor: colors.cardBackground,
@@ -1123,12 +1416,12 @@ function getStyles(colors: any) {
       top: 76,
       left: 0,
       right: 0,
-      backgroundColor: '#525252',
+      backgroundColor: colors.cardBackground,
       borderRadius: 12,
       paddingVertical: 8,
       zIndex: 1000,
       borderWidth: 1,
-      borderColor: '#666',
+      borderColor: colors.cardBorder,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.2,
@@ -1150,7 +1443,7 @@ function getStyles(colors: any) {
     premiumDropdownText: {
       fontSize: 14,
       fontWeight: '600',
-      color: '#FFFFFF',
+      color: colors.textPrimary,
     },
     premiumCardTitle: {
       fontSize: 18,
@@ -1200,7 +1493,7 @@ function getStyles(colors: any) {
       top: 90,
       left: 0,
       right: 0,
-      backgroundColor: '#4B5563', // Dark grey from screenshot
+      backgroundColor: colors.cardBackground,
       borderRadius: 18,
       padding: 8,
       shadowColor: '#000',
@@ -1209,6 +1502,8 @@ function getStyles(colors: any) {
       shadowRadius: 24,
       elevation: 10,
       zIndex: 1000,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
     },
     premiumDropdownOption: {
       paddingVertical: 14,
@@ -1222,10 +1517,10 @@ function getStyles(colors: any) {
     optionLabelText: {
       fontSize: 15,
       fontWeight: '600',
-      color: 'rgba(255,255,255,0.7)',
+      color: colors.textSecondary,
     },
     optionLabelTextActive: {
-      color: '#FFFFFF',
+      color: colors.textPrimary,
       fontWeight: '800',
     },
     premiumToggleRow: {
@@ -1250,7 +1545,7 @@ function getStyles(colors: any) {
     },
     premiumSegmentedControl: {
       flexDirection: 'row',
-      backgroundColor: '#0F172A', // Dark navy/black pill background
+      backgroundColor: colors.inputBackground,
       borderRadius: 18,
       padding: 6,
       gap: 4,
@@ -1265,12 +1560,12 @@ function getStyles(colors: any) {
       gap: 10,
     },
     premiumSegmentBtnActive: {
-      backgroundColor: '#0a2341', // Teal active state
+      backgroundColor: colors.accentTeal,
     },
     premiumSegmentBtnText: {
       fontSize: 13,
       fontWeight: '800',
-      color: '#94A3B8',
+      color: colors.textSecondary,
       letterSpacing: 0.5,
     },
     premiumSegmentBtnTextActive: {
@@ -1381,6 +1676,120 @@ function getStyles(colors: any) {
       color: colors.textSecondary,
       fontWeight: '600',
       lineHeight: 20,
+    },
+    modalHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 20,
+    },
+    modalTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '100%',
+    },
+    modalSectionCard: {
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 24,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    modalInputWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      height: 48,
+      marginTop: 6,
+    },
+    modalInputWrapLast: {
+      marginBottom: 0,
+    },
+    modalInputText: {
+      flex: 1,
+      fontSize: 14,
+      color: colors.textPrimary,
+      fontWeight: '500',
+      padding: 0,
+    },
+    providerRowConnected: {
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      backgroundColor: colors.cardBackground,
+      borderColor: 'rgba(11, 160, 178, 0.25)',
+      gap: 12,
+      paddingVertical: 16,
+    },
+    providerRowLayout: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '100%',
+    },
+    providerInfoColumn: {
+      flexDirection: 'column',
+      gap: 4,
+    },
+    providerNameBadgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    connectedBadgeCapsule: {
+      backgroundColor: 'rgba(11, 160, 178, 0.1)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    connectedBadgeText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: colors.accent,
+      letterSpacing: 0.5,
+    },
+    providerDomainText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    providerActionsRow: {
+      flexDirection: 'row',
+      gap: 12,
+      width: '100%',
+    },
+    connectApiBtnConnected: {
+      flex: 1,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    connectApiBtnTextConnected: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    disconnectProviderBtn: {
+      flex: 1,
+      height: 40,
+      backgroundColor: '#EF4444',
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    disconnectProviderBtnText: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: '700',
     },
   });
 }

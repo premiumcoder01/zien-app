@@ -362,11 +362,26 @@ export default function DealsScreen() {
     }
   };
 
-  const renderDealCard = (deal: CRMDeal) => {
+  // Premium stage color palette for visual discrimination
+  const STAGE_COLORS = [
+    { bg: 'rgba(10, 35, 65, 0.06)', border: 'rgba(10, 35, 65, 0.15)', accent: '#0a2341', dot: '#0a2341', badge: 'rgba(10, 35, 65, 0.1)', badgeText: '#0a2341' },
+    { bg: 'rgba(59, 130, 246, 0.06)', border: 'rgba(59, 130, 246, 0.15)', accent: '#3B82F6', dot: '#3B82F6', badge: 'rgba(59, 130, 246, 0.1)', badgeText: '#3B82F6' },
+    { bg: 'rgba(139, 92, 246, 0.06)', border: 'rgba(139, 92, 246, 0.15)', accent: '#8B5CF6', dot: '#8B5CF6', badge: 'rgba(139, 92, 246, 0.1)', badgeText: '#8B5CF6' },
+    { bg: 'rgba(236, 72, 153, 0.06)', border: 'rgba(236, 72, 153, 0.15)', accent: '#EC4899', dot: '#EC4899', badge: 'rgba(236, 72, 153, 0.1)', badgeText: '#EC4899' },
+    { bg: 'rgba(245, 158, 11, 0.06)', border: 'rgba(245, 158, 11, 0.15)', accent: '#F59E0B', dot: '#F59E0B', badge: 'rgba(245, 158, 11, 0.1)', badgeText: '#D97706' },
+    { bg: 'rgba(16, 185, 129, 0.06)', border: 'rgba(16, 185, 129, 0.15)', accent: '#10B981', dot: '#10B981', badge: 'rgba(16, 185, 129, 0.1)', badgeText: '#059669' },
+    { bg: 'rgba(239, 68, 68, 0.06)', border: 'rgba(239, 68, 68, 0.15)', accent: '#EF4444', dot: '#EF4444', badge: 'rgba(239, 68, 68, 0.1)', badgeText: '#DC2626' },
+    { bg: 'rgba(20, 184, 166, 0.06)', border: 'rgba(20, 184, 166, 0.15)', accent: '#14B8A6', dot: '#14B8A6', badge: 'rgba(20, 184, 166, 0.1)', badgeText: '#0D9488' },
+  ];
+
+  const getStageColor = (index: number) => STAGE_COLORS[index % STAGE_COLORS.length];
+
+  const renderDealCard = (deal: CRMDeal, stageColor: typeof STAGE_COLORS[0]) => {
     const isMenuOpen = transferingDealId === deal.id;
 
     return (
       <View key={deal.id} style={styles.dealCard}>
+        <View style={{ position: 'absolute', left: 0, top: 14, bottom: 14, width: 3.5, borderRadius: 2, backgroundColor: stageColor.accent }} />
         <View style={styles.dealCardHeader}>
           <Text style={[styles.dealCardName, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>
             {deal.contact ? `${deal.contact.first_name} ${deal.contact.last_name || ''}` : 'No Contact'}
@@ -381,16 +396,16 @@ export default function DealsScreen() {
         </View>
         <Text style={styles.dealCardAddress}>{deal.related_property}</Text>
         <View style={styles.dealCardBottom}>
-          <Text style={styles.dealCardValue}>
+          <Text style={[styles.dealCardValue, { color: stageColor.accent }]}>
             {typeof deal.deal_value === 'number' ? `$${deal.deal_value.toLocaleString()}` : formatPrice(deal.deal_value)}
           </Text>
           <View style={styles.cardActions}>
             <Pressable
-              style={styles.transferBtn}
+              style={[styles.transferBtn, { backgroundColor: stageColor.badge }]}
               onPress={() => setTransferingDealId(isMenuOpen ? null : deal.id)}
             >
-              <Text style={styles.transferBtnText}>Transfer</Text>
-              <MaterialCommunityIcons name={isMenuOpen ? "chevron-up" : "chevron-down"} size={14} color={colors.accentTeal} />
+              <Text style={[styles.transferBtnText, { color: stageColor.accent }]}>Transfer</Text>
+              <MaterialCommunityIcons name={isMenuOpen ? "chevron-up" : "chevron-down"} size={14} color={stageColor.accent} />
             </Pressable>
             <Text style={styles.dealCardTime}>{getTimeAgo(deal.last_activity_at)}</Text>
           </View>
@@ -400,15 +415,19 @@ export default function DealsScreen() {
           <View style={styles.transferMenu}>
             <Text style={styles.transferMenuTitle}>Move to:</Text>
             <View style={styles.transferOptionsRow}>
-              {currentStages.filter(s => s.id !== deal.stage_id).map((stage) => (
-                <Pressable
-                  key={stage.id}
-                  style={styles.transferOption}
-                  onPress={() => handleMoveDeal(deal.id, stage.id)}
-                >
-                  <Text style={styles.transferOptionText}>{stage.name}</Text>
-                </Pressable>
-              ))}
+              {currentStages.filter(s => s.id !== deal.stage_id).map((stage, idx) => {
+                const targetColor = getStageColor(currentStages.indexOf(stage));
+                return (
+                  <Pressable
+                    key={stage.id}
+                    style={[styles.transferOption, { backgroundColor: targetColor.badge }]}
+                    onPress={() => handleMoveDeal(deal.id, stage.id)}
+                  >
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: targetColor.accent, marginRight: 6 }} />
+                    <Text style={[styles.transferOptionText, { color: targetColor.accent }]}>{stage.name}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         )}
@@ -416,21 +435,25 @@ export default function DealsScreen() {
     );
   };
 
-  const renderStage = (stage: CRMStage) => {
+  const renderStage = (stage: CRMStage, index: number) => {
     const deals = dealsByStage[stage.id] || [];
+    const sc = getStageColor(index);
     return (
-      <View key={stage.id} style={styles.stageColumn}>
+      <View key={stage.id} style={[styles.stageColumn, { backgroundColor: sc.bg, borderColor: sc.border }]}>
         <View style={styles.stageHeader}>
-          <Text style={styles.stageHeaderText}>{stage.name.toUpperCase()}</Text>
-          <View style={styles.stageCountBadge}>
-            <Text style={styles.stageCountText}>{deals.length}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: sc.dot }} />
+            <Text style={[styles.stageHeaderText, { color: sc.accent }]}>{stage.name.toUpperCase()}</Text>
+          </View>
+          <View style={[styles.stageCountBadge, { backgroundColor: sc.badge }]}>
+            <Text style={[styles.stageCountText, { color: sc.badgeText }]}>{deals.length}</Text>
           </View>
         </View>
         <View style={styles.stageContent}>
           {deals.length > 0 ? (
-            deals.map(deal => renderDealCard(deal))
+            deals.map(deal => renderDealCard(deal, sc))
           ) : (
-            <View style={styles.dragPlaceholder}>
+            <View style={[styles.dragPlaceholder, { borderColor: sc.border }]}>
               <Text style={styles.dragPlaceholderText}>No deal here</Text>
             </View>
           )}
@@ -505,7 +528,7 @@ export default function DealsScreen() {
             </View>
           ) : (
             <View style={styles.stagesList}>
-              {currentStages.map(stage => renderStage(stage))}
+              {currentStages.map((stage, index) => renderStage(stage, index))}
             </View>
           )}
         </ScrollView>
@@ -1288,29 +1311,30 @@ function getStyles(colors: any, insets: any) {
       paddingRight: 20,
     },
     pillBtn: {
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 11,
+      borderRadius: 100,
       backgroundColor: colors.cardBackground,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: colors.cardBorder,
     },
     pillBtnActive: {
       backgroundColor: colors.accentTeal,
       borderColor: colors.accentTeal,
       shadowColor: colors.accentTeal,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      elevation: 4,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+      elevation: 6,
     },
     pillBtnText: {
-      fontSize: 12,
-      fontWeight: '800',
+      fontSize: 13,
+      fontWeight: '700',
       color: colors.textSecondary,
     },
     pillBtnTextActive: {
       color: '#FFFFFF',
+      fontWeight: '800',
     },
     topActions: {
       paddingHorizontal: 20,
@@ -1324,16 +1348,21 @@ function getStyles(colors: any, insets: any) {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.cardBackground,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingHorizontal: 18,
+      paddingVertical: 11,
       borderRadius: 14,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: colors.cardBorder,
       gap: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 6,
+      elevation: 2,
     },
     filterBtnText: {
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: '700',
       color: colors.textPrimary,
     },
     stagesList: {
@@ -1342,10 +1371,11 @@ function getStyles(colors: any, insets: any) {
     stageColumn: {
       backgroundColor: colors.surfaceSoft,
       borderRadius: 24,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: colors.cardBorder,
       padding: 20,
-      marginBottom: 24,
+      marginBottom: 20,
+      overflow: 'hidden',
     },
     stageHeader: {
       flexDirection: 'row',
@@ -1354,45 +1384,49 @@ function getStyles(colors: any, insets: any) {
       marginBottom: 16,
     },
     stageHeaderText: {
-      fontSize: 13,
+      fontSize: 12,
       fontWeight: '900',
-      color: colors.textPrimary,
-      letterSpacing: 0.5,
+      letterSpacing: 1,
     },
     stageCountBadge: {
-      backgroundColor: colors.surfaceMuted,
       paddingHorizontal: 10,
-      height: 22,
-      borderRadius: 11,
+      height: 24,
+      borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
+      minWidth: 28,
     },
     stageCountText: {
-      fontSize: 10,
-      fontWeight: '800',
-      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '900',
     },
     stageContent: {
       gap: 12,
     },
     dealCard: {
       backgroundColor: colors.cardBackground,
-      padding: 16,
-      borderRadius: 20,
-      shadowColor: colors.cardShadowColor,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: colors.cardShadowOpacity,
-      shadowRadius: 8,
-      elevation: 2,
+      paddingVertical: 16,
+      paddingLeft: 20,
+      paddingRight: 16,
+      borderRadius: 18,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.06,
+      shadowRadius: 12,
+      elevation: 3,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      overflow: 'hidden',
     },
     dealCardName: {
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: '800',
       color: colors.textPrimary,
       marginBottom: 2,
+      letterSpacing: -0.2,
     },
     dealCardAddress: {
-      fontSize: 13,
+      fontSize: 12,
       fontWeight: '500',
       color: colors.textMuted,
       marginBottom: 12,
@@ -1401,31 +1435,29 @@ function getStyles(colors: any, insets: any) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginTop: 8,
+      marginTop: 4,
     },
     dealCardValue: {
-      fontSize: 15,
-      fontWeight: '800',
-      color: colors.accentTeal,
+      fontSize: 17,
+      fontWeight: '900',
+      letterSpacing: -0.3,
     },
     cardActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      gap: 10,
     },
     transferBtn: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.badgeNewBg,
       paddingHorizontal: 10,
-      paddingVertical: 5,
+      paddingVertical: 6,
       borderRadius: 8,
       gap: 4,
     },
     transferBtnText: {
       fontSize: 12,
       fontWeight: '700',
-      color: colors.accentTeal,
     },
     dealCardTime: {
       fontSize: 11,
@@ -1433,16 +1465,17 @@ function getStyles(colors: any, insets: any) {
       color: colors.textMuted,
     },
     transferMenu: {
-      marginTop: 16,
-      paddingTop: 16,
+      marginTop: 14,
+      paddingTop: 14,
       borderTopWidth: 1,
       borderTopColor: colors.divider,
     },
     transferMenuTitle: {
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: '800',
       color: colors.textMuted,
       textTransform: 'uppercase',
+      letterSpacing: 0.8,
       marginBottom: 10,
     },
     transferOptionsRow: {
@@ -1451,7 +1484,8 @@ function getStyles(colors: any, insets: any) {
       gap: 8,
     },
     transferOption: {
-      backgroundColor: colors.surfaceMuted,
+      flexDirection: 'row',
+      alignItems: 'center',
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 10,
@@ -1459,17 +1493,16 @@ function getStyles(colors: any, insets: any) {
     transferOptionText: {
       fontSize: 11,
       fontWeight: '700',
-      color: colors.textSecondary,
     },
     dragPlaceholder: {
-      height: 80,
+      height: 72,
       backgroundColor: colors.cardBackground,
       borderWidth: 1.5,
       borderStyle: 'dashed',
-      borderColor: colors.borderLight,
-      borderRadius: 20,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
+      opacity: 0.7,
     },
     dragPlaceholderText: {
       fontSize: 13,

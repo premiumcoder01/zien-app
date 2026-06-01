@@ -56,9 +56,9 @@ const OVERVIEW_TABS = [
 
 
 export default function CRMScreen() {
-  const { colors } = useAppTheme();
+  const { colors, theme } = useAppTheme();
   const { accessToken } = useAuth();
-  const styles = getStyles(colors);
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -146,14 +146,16 @@ export default function CRMScreen() {
 
   const displayConversionFunnel = useMemo(() => {
     if (!crmData?.conversionRoi?.funnel) return [];
-    const colors = ['#CAD8E4', '#B8CCDC', '#9FC5D8', '#5BA8C9', '#0a2341'];
+    const barColors = theme === 'dark'
+      ? ['#202E3B', '#27384A', '#2D445B', '#007A87', '#00a7b5']
+      : ['#CAD8E4', '#B8CCDC', '#9FC5D8', '#5BA8C9', '#0a2341'];
     return crmData.conversionRoi.funnel.map((item, index) => ({
       id: `funnel-${index}`,
       label: item.level,
       value: item.count.toString(),
-      barColor: colors[Math.min(index, colors.length - 1)]
+      barColor: barColors[Math.min(index, barColors.length - 1)]
     }));
-  }, [crmData]);
+  }, [crmData, theme]);
 
   const displayHeatDistribution = useMemo(() => {
     if (!crmData?.heatIndex) return [];
@@ -163,10 +165,10 @@ export default function CRMScreen() {
 
     return [
       { id: 'cold', label: 'Cold', pct: getPct(cold), sub: 'Cold (0-30)', color: '#5B6B7A' },
-      { id: 'warm', label: 'Warm', pct: getPct(warm), sub: 'Warm (31-70)', color: '#0a2341' },
+      { id: 'warm', label: 'Warm', pct: getPct(warm), sub: 'Warm (31-70)', color: theme === 'dark' ? '#00a7b5' : '#0a2341' },
       { id: 'hot', label: 'Hot', pct: getPct(hot), sub: 'Hot (71-100)', color: '#EA580C' },
     ];
-  }, [crmData]);
+  }, [crmData, theme]);
 
   const displayHeatSurgeTriggers = useMemo(() => {
     if (!crmData?.heatIndex?.scoringRules) return [];
@@ -322,7 +324,7 @@ export default function CRMScreen() {
                 <View key={card.title} style={[styles.statCard, { width: statCardWidth }]}>
                   <View style={styles.statHeader}>
                     <View style={styles.statIconWrap}>
-                      <MaterialCommunityIcons name={card.icon as any} size={18} color="#0a2341" />
+                      <MaterialCommunityIcons name={card.icon as any} size={18} color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
                     </View>
                     <View style={styles.metaBadge}>
                       <Text style={styles.statMeta}>{card.meta}</Text>
@@ -407,7 +409,7 @@ export default function CRMScreen() {
               ))}
               <Pressable style={styles.cardLinkBtn} onPress={() => router.push('/(main)/crm/leads')}>
                 <Text style={styles.cardLinkText}>View Leads</Text>
-                <MaterialCommunityIcons name="chevron-right" size={16} color="#0a2341" />
+                <MaterialCommunityIcons name="chevron-right" size={16} color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
               </Pressable>
             </View>
           </>
@@ -499,7 +501,7 @@ export default function CRMScreen() {
                   key={trigger.id}
                   style={[styles.heatTriggerRow, idx === displayHeatSurgeTriggers.length - 1 && styles.heatTriggerRowLast]}>
                   <View style={styles.triggerIconWrap}>
-                    <MaterialCommunityIcons name="flash-outline" size={16} color="#0a2341" />
+                    <MaterialCommunityIcons name="flash-outline" size={16} color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
                   </View>
                   <Text style={styles.heatTriggerLabel}>{trigger.label}</Text>
                   <Text style={styles.heatTriggerPts}>{trigger.pts}</Text>
@@ -625,7 +627,7 @@ export default function CRMScreen() {
   );
 }
 
-function getStyles(colors: any) {
+function getStyles(colors: any, theme: string) {
   return StyleSheet.create({
     background: { flex: 1 },
     scroll: { flex: 1 },
@@ -766,7 +768,7 @@ function getStyles(colors: any) {
       marginBottom: 20,
     },
     cardTitle: { fontSize: 16, fontWeight: '800', color: colors.textPrimary },
-    viewAllText: { fontSize: 13, fontWeight: '700', color: '#0a2341' },
+    viewAllText: { fontSize: 13, fontWeight: '700', color: theme === 'dark' ? '#00a7b5' : '#0a2341' },
     chartWrap: { alignItems: 'center', marginVertical: 10 },
     chart: { borderRadius: 16 },
     velocityFooter: {
@@ -807,7 +809,7 @@ function getStyles(colors: any) {
       paddingVertical: 4,
       borderRadius: 8,
     },
-    scoreText: { fontSize: 13, fontWeight: '800', color: '#0a2341' },
+    scoreText: { fontSize: 13, fontWeight: '800', color: theme === 'dark' ? '#00a7b5' : '#0a2341' },
     leadScore: { fontSize: 15, fontWeight: '800', color: colors.textPrimary },
     leadTime: { fontSize: 12, color: colors.inputPlaceholder, fontWeight: '600' },
     cardLinkBtn: {
@@ -820,7 +822,7 @@ function getStyles(colors: any) {
       borderRadius: 12,
       gap: 6,
     },
-    cardLinkText: { fontSize: 14, fontWeight: '700', color: '#0a2341' },
+    cardLinkText: { fontSize: 14, fontWeight: '700', color: theme === 'dark' ? '#00a7b5' : '#0a2341' },
     leadSourceList: {
       flexDirection: 'column',
       gap: 14,
@@ -906,7 +908,7 @@ function getStyles(colors: any) {
       fontWeight: '800',
       color: colors.textPrimary,
     },
-    leadSourceConvTeal: { color: '#0a2341' },
+    leadSourceConvTeal: { color: theme === 'dark' ? '#00a7b5' : '#0a2341' },
     roiBadge: {
       paddingHorizontal: 8,
       paddingVertical: 4,
@@ -1009,7 +1011,7 @@ function getStyles(colors: any) {
       justifyContent: 'center',
     },
     heatTriggerLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flex: 1 },
-    heatTriggerPts: { fontSize: 13, fontWeight: '800', color: '#0a2341' },
+    heatTriggerPts: { fontSize: 13, fontWeight: '800', color: theme === 'dark' ? '#00a7b5' : '#0a2341' },
     sectionsList: {
       backgroundColor: colors.cardBackground,
       borderRadius: 24,
@@ -1246,7 +1248,7 @@ function getStyles(colors: any) {
       fontWeight: '800',
     },
     customChartContainerWrap: {
-      backgroundColor: '#F8FAFB',
+      backgroundColor: theme === 'dark' ? colors.surfaceSoft : '#F8FAFB',
       borderRadius: 16,
       padding: 16,
       marginVertical: 16,
@@ -1264,7 +1266,7 @@ function getStyles(colors: any) {
     customChartValue: {
       fontSize: 11,
       fontWeight: '800',
-      color: '#0a2341',
+      color: colors.textPrimary,
       marginBottom: 6,
     },
     customChartBarTrack: {
@@ -1280,12 +1282,12 @@ function getStyles(colors: any) {
       minHeight: 4,
     },
     customChartBarFillToday: {
-      backgroundColor: '#0a2341',
+      backgroundColor: theme === 'dark' ? '#00a7b5' : '#0a2341',
     },
     customChartLabel: {
       fontSize: 9,
       fontWeight: '700',
-      color: '#94A3B8',
+      color: colors.textSecondary,
       width: 40,
       textAlign: 'center',
     },

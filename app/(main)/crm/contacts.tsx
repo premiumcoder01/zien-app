@@ -30,8 +30,8 @@ const STATUS_OPTIONS = ['All status', 'Active', 'Inactive (archived)'];
 const TYPE_OPTIONS = ['Buyer', 'Seller', 'Investor'] as const;
 
 export default function ContactsScreen() {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const { colors, theme } = useAppTheme();
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { accessToken } = useAuth();
@@ -327,7 +327,25 @@ export default function ContactsScreen() {
             const fullName = `${contact.first_name} ${contact.last_name}`;
             const groupName = contact.group?.name || 'Standard';
             const tagName = contact.tag?.name || 'General';
-            const tagColor = contact.tag?.tag_color || '#64748B';
+            const rawTagColor = contact.tag?.tag_color || '#64748B';
+            const adjustTagColor = (color: string) => {
+              if (theme !== 'dark') return color;
+              const darkColors = ['#0A2341', '#0B2D3E', '#000000'];
+              if (darkColors.includes(color.toUpperCase())) {
+                return '#00a7b5';
+              }
+              if (color.startsWith('#') && color.length === 7) {
+                const r = parseInt(color.slice(1, 3), 16);
+                const g = parseInt(color.slice(3, 5), 16);
+                const b = parseInt(color.slice(5, 7), 16);
+                const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                if (brightness < 120) {
+                  return '#00a7b5';
+                }
+              }
+              return color;
+            };
+            const tagColor = adjustTagColor(rawTagColor);
             const phoneNumber = contact.phone ? `${contact.country_code} ${contact.phone}` : 'N/A';
             const dateJoined = new Date(contact.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -352,7 +370,7 @@ export default function ContactsScreen() {
                       </View>
                     )}
                   </View>
-                  <View style={[styles.heatBadge, { backgroundColor: contact.heat_index > 70 ? '#FEF2F2' : colors.surfaceIcon }]}>
+                  <View style={[styles.heatBadge, { backgroundColor: contact.heat_index > 70 ? (theme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2') : colors.surfaceIcon }]}>
                     <MaterialCommunityIcons name="fire" size={16} color={contact.heat_index > 70 ? '#EF4444' : colors.iconMuted} />
                     <Text style={[styles.heatValue, { color: contact.heat_index > 70 ? '#EF4444' : colors.textPrimary }]}>{contact.heat_index}</Text>
                   </View>
@@ -374,8 +392,8 @@ export default function ContactsScreen() {
                     <Text style={[styles.dataBadgeText, { color: tagColor }]}>{tagName}</Text>
                   </View>
                   {contact.pipeline_stage && (
-                    <View style={[styles.dataBadge, { backgroundColor: '#F0F9FA' }]}>
-                      <Text style={[styles.dataBadgeText, { color: '#0a2341' }]}>{contact.pipeline_stage}</Text>
+                    <View style={[styles.dataBadge, { backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.12)' : '#F0F9FA' }]}>
+                      <Text style={[styles.dataBadgeText, { color: theme === 'dark' ? '#00a7b5' : '#0a2341' }]}>{contact.pipeline_stage}</Text>
                     </View>
                   )}
                 </View>
@@ -410,7 +428,7 @@ export default function ContactsScreen() {
                 {contact.latest_note && (
                   <View style={styles.noteBox}>
                     <View style={styles.noteHeader}>
-                      <MaterialCommunityIcons name="text-box-search-outline" size={14} color="#0a2341" />
+                      <MaterialCommunityIcons name="text-box-search-outline" size={14} color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
                       <Text style={styles.noteHeaderText}>
                         LATEST NOTE • {new Date(contact.latest_note.created_at).toLocaleDateString()}
                       </Text>
@@ -460,7 +478,7 @@ export default function ContactsScreen() {
                     style={styles.profileAction}
                     onPress={() => router.push({ pathname: '/(main)/crm/profile', params: { id: contact.id } })}>
                     <Text style={styles.profileActionText}>Profile</Text>
-                    <MaterialCommunityIcons name="chevron-right" size={18} color="#0a2341" />
+                    <MaterialCommunityIcons name="chevron-right" size={18} color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
                   </Pressable>
                 </View>
               </View>
@@ -562,7 +580,7 @@ export default function ContactsScreen() {
   );
 }
 
-const getStyles = (colors: ThemeColors) => StyleSheet.create({
+const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
   background: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 10 },
@@ -790,14 +808,14 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: '#0a234108',
+    backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.08)' : '#0a234108',
     borderWidth: 1,
-    borderColor: '#0a234120',
+    borderColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.2)' : '#0a234120',
   },
   profileActionText: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#0a2341',
+    color: theme === 'dark' ? '#00a7b5' : '#0a2341',
   },
   loaderContainer: { alignItems: 'center', paddingVertical: 60 },
   loaderText: { marginTop: 12, fontSize: 15, fontWeight: '700', color: colors.textSecondary },
@@ -829,10 +847,10 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 63,
     height: 63,
     borderRadius: 31.5,
-    backgroundColor: '#0a2341',
+    backgroundColor: theme === 'dark' ? '#00a7b5' : '#0a2341',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0a2341',
+    shadowColor: theme === 'dark' ? '#00a7b5' : '#0a2341',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 16,

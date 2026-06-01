@@ -8,6 +8,7 @@ import {
   getCRMAutomations,
   getCRMMeta,
   getCRMTemplates,
+  updateCRMAutomation,
   updateCRMAutomationStatus
 } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -44,9 +45,9 @@ const FLOWS_DATA: IntelligentFlow[] = [
 ];
 
 export default function CRM_AutomationsScreen() {
-  const { colors } = useAppTheme();
+  const { colors, theme } = useAppTheme();
   const { accessToken } = useAuth();
-  const styles = getStyles(colors);
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -70,6 +71,24 @@ export default function CRM_AutomationsScreen() {
   const [executionWhen, setExecutionWhen] = useState('Immediate');
   const [automatedAction, setAutomatedAction] = useState('Send Welcome Email');
   const [activePicker, setActivePicker] = useState<'trigger' | 'execution' | 'action' | 'segment' | null>(null);
+
+  // Edit / View states
+  const [selectedRule, setSelectedRule] = useState<CRMAutomation | null>(null);
+  const [viewModalVisible, setViewModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+
+  const [editName, setEditName] = useState('');
+  const [editTrigger, setEditTrigger] = useState('');
+  const [editAction, setEditAction] = useState('');
+  const [editTarget, setEditTarget] = useState('All Leads');
+  const [editExecution, setEditExecution] = useState('Immediate');
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
+  const [editTemplateId, setEditTemplateId] = useState<string | null>(null);
+  const [editTargetType, setEditTargetType] = useState<'all' | 'group' | 'tag'>('all');
+  const [editActivePicker, setEditActivePicker] = useState<'trigger' | 'execution' | 'action' | 'segment' | null>(null);
+  const [editTemplatePickerVisible, setEditTemplatePickerVisible] = useState(false);
+  const [editCategory, setEditCategory] = useState('AI-Generated');
+  const [editIcon, setEditIcon] = useState('Sparkles');
 
   // Proposed AI values state
   const [proposedTrigger, setProposedTrigger] = useState('Heat Index > 85');
@@ -155,6 +174,22 @@ export default function CRM_AutomationsScreen() {
     },
     onError: (error: any) => {
       Alert.alert('Error', error.message || 'Failed to delete automation');
+    }
+  });
+
+  // Edit Mutation
+  const editMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<CRMAutomation> }) =>
+      updateCRMAutomation(accessToken!, id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-automations'] });
+      setEditModalVisible(false);
+      setViewModalVisible(false);
+      setSelectedRule(null);
+      Alert.alert('Success', 'Automation updated successfully');
+    },
+    onError: (error: any) => {
+      Alert.alert('Error', error.message || 'Failed to update automation');
     }
   });
 
@@ -281,7 +316,6 @@ export default function CRM_AutomationsScreen() {
 
   const renderRuleItem = (rule: CRMAutomation) => {
     const isActive = rule.status === 1;
-    const accentColor = isActive ? '#10B981' : colors.textSecondary;
 
     // Map icon names from API to MaterialCommunityIcons
     const getIconName = (name: string): any => {
@@ -291,102 +325,125 @@ export default function CRM_AutomationsScreen() {
         case 'AccountPlus': return 'account-plus-outline';
         case 'Clock': return 'clock-outline';
         case 'Lightning': return 'lightning-bolt-outline';
-        default: return 'lightning-bolt';
+        default: return 'cellphone';
       }
     };
 
+    // Color definitions matching the mock design
+    const iconBgColor = '#FFEFE6';
+    const iconColor = '#FF6B00';
+
     return (
-      <View key={rule.id} style={styles.premiumCard}>
-        <LinearGradient
-          colors={isActive ? ['rgba(16, 185, 129, 0.08)', 'transparent'] : ['rgba(148, 163, 184, 0.05)', 'transparent']}
-          style={styles.cardGradient}
-        >
-          <View style={styles.cardHeaderSmall}>
-            <View style={styles.cardIconBox}>
-              <MaterialCommunityIcons name={getIconName(rule.icon)} size={20} color={accentColor} />
-            </View>
-            <View style={styles.categoryBadge}>
-              <Text style={[styles.categoryText, { color: accentColor }]}>{rule.category?.toUpperCase()}</Text>
-            </View>
-            <View style={{ flex: 1 }} />
-            <Pressable
-              onPress={() => toggleRuleStatus(rule.id, rule.status)}
-              style={styles.switchWrapper}
-            >
-              <Text style={[styles.statusToggleLabel, { color: isActive ? '#10B981' : colors.textSecondary }]}>
+      <View key={rule.id} style={styles.horizontalCard}>
+        {/* TOP ROW: Icon + Rule Name + ACTIVE/PAUSED Badge */}
+        <View style={styles.horizontalCardTopRow}>
+          {/* Left: Peach Square Icon Box */}
+          <View style={styles.horizontalCardIconBox}>
+            <MaterialCommunityIcons name={getIconName(rule.icon)} size={20} color={iconColor} />
+          </View>
+
+          {/* Middle: Title/Identity */}
+          <View style={styles.horizontalCardInfo}>
+            <Text style={styles.horizontalCardTitle} numberOfLines={1}>
+              {rule.name}
+            </Text>
+          </View>
+
+          {/* Right: Badge (Interactive Toggle) */}
+          <Pressable
+            style={[
+              styles.horizontalCardBadge,
+              {
+                backgroundColor: isActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.08)',
+                borderColor: isActive ? 'rgba(16, 185, 129, 0.25)' : 'rgba(148, 163, 184, 0.15)',
+              }
+            ]}
+            onPress={() => toggleRuleStatus(rule.id, rule.status)}
+            disabled={toggleStatusMutation.isPending && toggleStatusMutation.variables?.id === rule.id}
+          >
+            {toggleStatusMutation.isPending && toggleStatusMutation.variables?.id === rule.id ? (
+              <ActivityIndicator size="small" color={isActive ? '#10B981' : '#94A3B8'} style={{ scaleX: 0.8, scaleY: 0.8 }} />
+            ) : (
+              <Text style={[styles.horizontalCardBadgeText, { color: isActive ? '#10B981' : '#94A3B8' }]}>
                 {isActive ? 'ACTIVE' : 'PAUSED'}
               </Text>
-              <View style={[
-                styles.customToggleContainer,
-                { backgroundColor: isActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(148, 163, 184, 0.1)' }
-              ]}>
-                <View style={[
-                  styles.customToggleThumb,
-                  {
-                    backgroundColor: isActive ? '#10B981' : '#94A3B8',
-                    transform: [{ translateX: isActive ? 20 : 2 }]
-                  }
-                ]} />
-              </View>
-              {toggleStatusMutation.isPending && toggleStatusMutation.variables?.id === rule.id && (
-                <ActivityIndicator
-                  size="small"
-                  color={isActive ? '#10B981' : colors.textSecondary}
-                  style={{ marginLeft: 6 }}
-                />
-              )}
-            </Pressable>
+            )}
+          </Pressable>
+        </View>
+
+        {/* MIDDLE ROW: Timing & Segment Badge Pills */}
+        <View style={styles.horizontalCardMiddleRow}>
+          {/* Timing */}
+          <View style={styles.horizontalCardMetaItem}>
+            <MaterialCommunityIcons name="clock-outline" size={14} color="#64748B" />
+            <Text style={styles.horizontalCardMetaText} numberOfLines={1}>
+              {rule.execution}
+            </Text>
           </View>
 
-          <View style={styles.cardMainContent}>
-            <Text style={styles.premiumRuleName}>{rule.name}</Text>
-
-            <View style={styles.logicFlowContainer}>
-              <View style={styles.logicStep}>
-                <View style={styles.logicIndicator}>
-                  <Text style={styles.logicLabelSmall}>IF</Text>
-                </View>
-                <View style={styles.logicContent}>
-                  <Text style={styles.logicTitle}>Trigger Condition</Text>
-                  <Text style={styles.logicValue} numberOfLines={1}>{rule.trigger}</Text>
-                </View>
-              </View>
-
-              <View style={styles.logicConnector}>
-                <View style={styles.connectorLine} />
-              </View>
-
-              <View style={styles.logicStep}>
-                <View style={[styles.logicIndicator, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
-                  <Text style={[styles.logicLabelSmall, { color: '#3B82F6' }]}>THEN</Text>
-                </View>
-                <View style={styles.logicContent}>
-                  <Text style={styles.logicTitle}>Automated Action</Text>
-                  <Text style={styles.logicValue} numberOfLines={1}>{rule.action}</Text>
-                </View>
-              </View>
-            </View>
+          {/* Target Segment */}
+          <View style={styles.horizontalCardMetaItem}>
+            <MaterialCommunityIcons name="target" size={14} color="#64748B" />
+            <Text style={styles.horizontalCardMetaText} numberOfLines={1}>
+              {rule.target}
+            </Text>
           </View>
+        </View>
 
-          <View style={styles.cardFooterPremium}>
-            <View style={styles.footerInfoBox}>
-              <MaterialCommunityIcons name="target" size={12} color={colors.textSecondary} />
-              <Text style={styles.footerInfoText} numberOfLines={1}>{rule.target}</Text>
-            </View>
-            <View style={styles.footerDivider} />
-            <View style={styles.footerInfoBox}>
-              <MaterialCommunityIcons name="timer-outline" size={12} color={colors.textSecondary} />
-              <Text style={styles.footerInfoText}>{rule.execution}</Text>
-            </View>
-            <View style={{ flex: 1 }} />
-            <Pressable
-              style={styles.trashBtn}
-              onPress={() => handleDeletePress(rule.id)}
-            >
-              <MaterialCommunityIcons name="delete-outline" size={18} color="#EF4444" />
-            </Pressable>
-          </View>
-        </LinearGradient>
+        {/* BOTTOM ROW: Dynamic Actions Row */}
+        <View style={styles.horizontalCardActionsRow}>
+          {/* View Details */}
+          <Pressable
+            style={styles.horizontalCardActionBtn}
+            onPress={() => {
+              setSelectedRule(rule);
+              setViewModalVisible(true);
+            }}
+            hitSlop={8}
+          >
+            <MaterialCommunityIcons name="eye-outline" size={16} color={colors.textPrimary} />
+            <Text style={styles.horizontalCardActionBtnText}>View</Text>
+          </Pressable>
+
+          {/* Modify */}
+          <Pressable
+            style={styles.horizontalCardActionBtn}
+            onPress={() => {
+              setSelectedRule(rule);
+              setEditName(rule.name);
+              setEditTrigger(rule.trigger);
+              setEditAction(rule.action);
+              setEditTarget(rule.target);
+              setEditExecution(rule.execution);
+              setEditTargetId(rule.target_id?.toString() || null);
+              setEditTemplateId(rule.template_id || null);
+              setEditCategory(rule.category || 'AI-Generated');
+              setEditIcon(rule.icon || 'Sparkles');
+              if (rule.target.startsWith('Group:')) {
+                setEditTargetType('group');
+              } else if (rule.target.startsWith('Tag:')) {
+                setEditTargetType('tag');
+              } else {
+                setEditTargetType('all');
+              }
+              setEditModalVisible(true);
+            }}
+            hitSlop={8}
+          >
+            <MaterialCommunityIcons name="pencil-outline" size={16} color="#0EA5E9" />
+            <Text style={styles.horizontalCardActionBtnText}>Modify</Text>
+          </Pressable>
+
+          {/* Delete */}
+          <Pressable
+            style={[styles.horizontalCardActionBtn, styles.deleteActionBtn]}
+            onPress={() => handleDeletePress(rule.id)}
+            hitSlop={8}
+          >
+            <MaterialCommunityIcons name="delete-outline" size={16} color="#EF4444" />
+            <Text style={[styles.horizontalCardActionBtnText, styles.deleteActionBtnText]}>Delete</Text>
+          </Pressable>
+        </View>
       </View>
     );
   };
@@ -515,7 +572,7 @@ export default function CRM_AutomationsScreen() {
               onPress={() => handleFlowPress(flow)}
             >
               <View style={styles.flowIconBox}>
-                <MaterialCommunityIcons name="dots-hexagon" size={20} color="#0a2341" />
+                <MaterialCommunityIcons name="dots-hexagon" size={20} color={colors.accent} />
               </View>
               <View style={styles.flowInfo}>
                 <Text style={styles.flowTitle}>{flow.title}</Text>
@@ -695,28 +752,6 @@ export default function CRM_AutomationsScreen() {
                     <Text style={styles.segmentValue} numberOfLines={1}>{triggerLogic}</Text>
                     <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
                   </Pressable>
-                  <Modal visible={activePicker === 'trigger'} transparent animationType="fade" onRequestClose={() => setActivePicker(null)}>
-                    <Pressable style={styles.pickerOverlay} onPress={() => setActivePicker(null)}>
-                      <View style={styles.selectionModalContainer}>
-                        <View style={styles.selectionModalHeader}>
-                          <Text style={styles.selectionModalTitle}>Select Trigger</Text>
-                          <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                        </View>
-                        <View style={styles.pickerSearchBoxSmall}>
-                          <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                          <TextInput style={styles.pickerSearchInputSmall} placeholder="Search trigger..." placeholderTextColor={colors.textMuted} value={triggerSearch} onChangeText={setTriggerSearch} />
-                        </View>
-                        <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                          {filteredTriggers.map(opt => (
-                            <Pressable key={opt} style={[styles.selectionModalItem, triggerLogic === opt && styles.selectionModalItemActive]} onPress={() => { setTriggerLogic(opt); setActivePicker(null); }}>
-                              <Text style={[styles.selectionModalItemText, triggerLogic === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
-                              {triggerLogic === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />}
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    </Pressable>
-                  </Modal>
                 </View>
 
                 {/* Execution Timing */}
@@ -729,28 +764,6 @@ export default function CRM_AutomationsScreen() {
                     <Text style={styles.segmentValue} numberOfLines={1}>{executionWhen}</Text>
                     <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
                   </Pressable>
-                  <Modal visible={activePicker === 'execution'} transparent animationType="fade" onRequestClose={() => setActivePicker(null)}>
-                    <Pressable style={styles.pickerOverlay} onPress={() => setActivePicker(null)}>
-                      <View style={styles.selectionModalContainer}>
-                        <View style={styles.selectionModalHeader}>
-                          <Text style={styles.selectionModalTitle}>Select Timing</Text>
-                          <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                        </View>
-                        <View style={styles.pickerSearchBoxSmall}>
-                          <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                          <TextInput style={styles.pickerSearchInputSmall} placeholder="Search timing..." placeholderTextColor={colors.textMuted} value={executionSearch} onChangeText={setExecutionSearch} />
-                        </View>
-                        <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                          {filteredExecutions.map(opt => (
-                            <Pressable key={opt} style={[styles.selectionModalItem, executionWhen === opt && styles.selectionModalItemActive]} onPress={() => { setExecutionWhen(opt); setActivePicker(null); }}>
-                              <Text style={[styles.selectionModalItemText, executionWhen === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
-                              {executionWhen === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />}
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    </Pressable>
-                  </Modal>
                 </View>
 
                 {/* Action */}
@@ -763,28 +776,6 @@ export default function CRM_AutomationsScreen() {
                     <Text style={styles.segmentValue} numberOfLines={1}>{automatedAction}</Text>
                     <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                   </Pressable>
-                  <Modal visible={activePicker === 'action'} transparent animationType="fade" onRequestClose={() => setActivePicker(null)}>
-                    <Pressable style={styles.pickerOverlay} onPress={() => setActivePicker(null)}>
-                      <View style={styles.selectionModalContainer}>
-                        <View style={styles.selectionModalHeader}>
-                          <Text style={styles.selectionModalTitle}>Select Action</Text>
-                          <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                        </View>
-                        <View style={styles.pickerSearchBoxSmall}>
-                          <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                          <TextInput style={styles.pickerSearchInputSmall} placeholder="Search action..." placeholderTextColor={colors.textMuted} value={actionSearch} onChangeText={setActionSearch} />
-                        </View>
-                        <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                          {filteredActions.map(opt => (
-                            <Pressable key={opt} style={[styles.selectionModalItem, automatedAction === opt && styles.selectionModalItemActive]} onPress={() => { setAutomatedAction(opt); setActivePicker(null); }}>
-                              <Text style={[styles.selectionModalItemText, automatedAction === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
-                              {automatedAction === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />}
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    </Pressable>
-                  </Modal>
                 </View>
 
                 {/* Template Specific Picker (if Email from Template selected) */}
@@ -800,24 +791,6 @@ export default function CRM_AutomationsScreen() {
                       </Text>
                       <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                     </Pressable>
-                    <Modal visible={templatePickerVisible} transparent animationType="fade" onRequestClose={() => setTemplatePickerVisible(false)}>
-                      <Pressable style={styles.pickerOverlay} onPress={() => setTemplatePickerVisible(false)}>
-                        <View style={styles.selectionModalContainer}>
-                          <View style={styles.selectionModalHeader}>
-                            <Text style={styles.selectionModalTitle}>Select Template</Text>
-                            <Pressable onPress={() => setTemplatePickerVisible(false)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                          </View>
-                          <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                            {templates.map(t => (
-                              <Pressable key={t.id} style={[styles.selectionModalItem, selectedTemplateId === t.id && styles.selectionModalItemActive]} onPress={() => { setSelectedTemplateId(t.id); setTemplatePickerVisible(false); }}>
-                                <Text style={[styles.selectionModalItemText, selectedTemplateId === t.id && styles.selectionModalItemTextActive]}>{t.name}</Text>
-                                {selectedTemplateId === t.id && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />}
-                              </Pressable>
-                            ))}
-                          </ScrollView>
-                        </View>
-                      </Pressable>
-                    </Modal>
                   </View>
                 )}
 
@@ -831,53 +804,6 @@ export default function CRM_AutomationsScreen() {
                     <Text style={styles.segmentValue}>{targetSegment}</Text>
                     <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                   </Pressable>
-                  <Modal visible={activePicker === 'segment'} transparent animationType="fade" onRequestClose={() => setActivePicker(null)}>
-                    <Pressable style={styles.pickerOverlay} onPress={() => setActivePicker(null)}>
-                      <View style={styles.selectionModalContainer}>
-                        <View style={styles.selectionModalHeader}>
-                          <Text style={styles.selectionModalTitle}>Select Segment</Text>
-                          <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                        </View>
-                        <View style={styles.pickerSearchBoxSmall}>
-                          <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                          <TextInput style={styles.pickerSearchInputSmall} placeholder="Search segment..." placeholderTextColor={colors.textMuted} value={segmentSearch} onChangeText={setSegmentSearch} />
-                        </View>
-                        <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                          <Pressable style={[styles.selectionModalItem, targetSegment === 'All Leads' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment('All Leads'); setTargetSegmentId(null); setTargetSegmentType('all'); setActivePicker(null); }}>
-                            <Text style={[styles.selectionModalItemText, targetSegment === 'All Leads' && styles.selectionModalItemTextActive]}>All Leads</Text>
-                            {targetSegment === 'All Leads' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />}
-                          </Pressable>
-
-                          {metaData?.groups && metaData.groups.length > 0 && (
-                            <View style={styles.dropdownCategory}>
-                              <Text style={styles.dropdownCategoryText}>Groups</Text>
-                              {metaData.groups.map(group => (
-                                <Pressable key={`group-${group.id}`} style={[styles.selectionModalItem, targetSegmentId === group.id && targetSegmentType === 'group' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment(`Group: ${group.name}`); setTargetSegmentId(group.id); setTargetSegmentType('group'); setActivePicker(null); }}>
-                                  <Text style={[styles.selectionModalItemText, targetSegmentId === group.id && targetSegmentType === 'group' && styles.selectionModalItemTextActive]}>{group.name}</Text>
-                                  {targetSegmentId === group.id && targetSegmentType === 'group' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />}
-                                </Pressable>
-                              ))}
-                            </View>
-                          )}
-
-                          {metaData?.tags && metaData.tags.length > 0 && (
-                            <View style={styles.dropdownCategory}>
-                              <Text style={styles.dropdownCategoryText}>Tags</Text>
-                              {metaData.tags.map(tag => (
-                                <Pressable key={`tag-${tag.id}`} style={[styles.selectionModalItem, targetSegmentId === tag.id && targetSegmentType === 'tag' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment(`Tag: ${tag.name}`); setTargetSegmentId(tag.id); setTargetSegmentType('tag'); setActivePicker(null); }}>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tag.tag_color }} />
-                                    <Text style={[styles.selectionModalItemText, targetSegmentId === tag.id && targetSegmentType === 'tag' && styles.selectionModalItemTextActive]}>{tag.name}</Text>
-                                  </View>
-                                  {targetSegmentId === tag.id && targetSegmentType === 'tag' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />}
-                                </Pressable>
-                              ))}
-                            </View>
-                          )}
-                        </ScrollView>
-                      </View>
-                    </Pressable>
-                  </Modal>
                 </View>
               </ScrollView>
             </View>
@@ -901,6 +827,139 @@ export default function CRM_AutomationsScreen() {
                 )}
               </Pressable>
             </View>
+
+            {/* Selector Overlay Inside the Modal (rendered absolutely over the Modal contents) */}
+            {(activePicker !== null || templatePickerVisible) && (
+              <View style={styles.pickerOverlayAbsolute}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={() => { setActivePicker(null); setTemplatePickerVisible(false); }} />
+                
+                {activePicker === 'trigger' && (
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Trigger</Text>
+                      <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                    </View>
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search trigger..." placeholderTextColor={colors.textMuted} value={triggerSearch} onChangeText={setTriggerSearch} />
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      {filteredTriggers.map(opt => (
+                        <Pressable key={opt} style={[styles.selectionModalItem, triggerLogic === opt && styles.selectionModalItemActive]} onPress={() => { setTriggerLogic(opt); setActivePicker(null); }}>
+                          <Text style={[styles.selectionModalItemText, triggerLogic === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                          {triggerLogic === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {activePicker === 'execution' && (
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Timing</Text>
+                      <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                    </View>
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search timing..." placeholderTextColor={colors.textMuted} value={executionSearch} onChangeText={setExecutionSearch} />
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      {filteredExecutions.map(opt => (
+                        <Pressable key={opt} style={[styles.selectionModalItem, executionWhen === opt && styles.selectionModalItemActive]} onPress={() => { setExecutionWhen(opt); setActivePicker(null); }}>
+                          <Text style={[styles.selectionModalItemText, executionWhen === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                          {executionWhen === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {activePicker === 'action' && (
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Action</Text>
+                      <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                    </View>
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search action..." placeholderTextColor={colors.textMuted} value={actionSearch} onChangeText={setActionSearch} />
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      {filteredActions.map(opt => (
+                        <Pressable key={opt} style={[styles.selectionModalItem, automatedAction === opt && styles.selectionModalItemActive]} onPress={() => { setAutomatedAction(opt); setActivePicker(null); }}>
+                          <Text style={[styles.selectionModalItemText, automatedAction === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                          {automatedAction === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {templatePickerVisible && (
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Template</Text>
+                      <Pressable onPress={() => setTemplatePickerVisible(false)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      {templates.map(t => (
+                        <Pressable key={t.id} style={[styles.selectionModalItem, selectedTemplateId === t.id && styles.selectionModalItemActive]} onPress={() => { setSelectedTemplateId(t.id); setTemplatePickerVisible(false); }}>
+                          <Text style={[styles.selectionModalItemText, selectedTemplateId === t.id && styles.selectionModalItemTextActive]}>{t.name}</Text>
+                          {selectedTemplateId === t.id && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {activePicker === 'segment' && (
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Segment</Text>
+                      <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                    </View>
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search segment..." placeholderTextColor={colors.textMuted} value={segmentSearch} onChangeText={setSegmentSearch} />
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      <Pressable style={[styles.selectionModalItem, targetSegment === 'All Leads' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment('All Leads'); setTargetSegmentId(null); setTargetSegmentType('all'); setActivePicker(null); }}>
+                        <Text style={[styles.selectionModalItemText, targetSegment === 'All Leads' && styles.selectionModalItemTextActive]}>All Leads</Text>
+                        {targetSegment === 'All Leads' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                      </Pressable>
+
+                      {metaData?.groups && metaData.groups.length > 0 && (
+                        <View style={styles.dropdownCategory}>
+                          <Text style={styles.dropdownCategoryText}>Groups</Text>
+                          {metaData.groups.map(group => (
+                            <Pressable key={`group-${group.id}`} style={[styles.selectionModalItem, targetSegmentId === group.id && targetSegmentType === 'group' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment(`Group: ${group.name}`); setTargetSegmentId(group.id); setTargetSegmentType('group'); setActivePicker(null); }}>
+                              <Text style={[styles.selectionModalItemText, targetSegmentId === group.id && targetSegmentType === 'group' && styles.selectionModalItemTextActive]}>{group.name}</Text>
+                              {targetSegmentId === group.id && targetSegmentType === 'group' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+
+                      {metaData?.tags && metaData.tags.length > 0 && (
+                        <View style={styles.dropdownCategory}>
+                          <Text style={styles.dropdownCategoryText}>Tags</Text>
+                          {metaData.tags.map(tag => (
+                            <Pressable key={`tag-${tag.id}`} style={[styles.selectionModalItem, targetSegmentId === tag.id && targetSegmentType === 'tag' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment(`Tag: ${tag.name}`); setTargetSegmentId(tag.id); setTargetSegmentType('tag'); setActivePicker(null); }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tag.tag_color }} />
+                                <Text style={[styles.selectionModalItemText, targetSegmentId === tag.id && targetSegmentType === 'tag' && styles.selectionModalItemTextActive]}>{tag.name}</Text>
+                              </View>
+                              {targetSegmentId === tag.id && targetSegmentType === 'tag' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
         </LinearGradient>
       </Modal>
@@ -937,7 +996,7 @@ export default function CRM_AutomationsScreen() {
 
             <View style={styles.intelligenceBox}>
               <View style={styles.proposedBadge}>
-                <MaterialCommunityIcons name="check" size={14} color="#0a2341" />
+                <MaterialCommunityIcons name="check" size={14} color={colors.accent} />
                 <Text style={styles.proposedBadgeText}>INTELLIGENCE PROPOSED</Text>
               </View>
 
@@ -962,6 +1021,17 @@ export default function CRM_AutomationsScreen() {
 
             <View style={styles.proposalFooter}>
               <Pressable
+                style={styles.deployBtn}
+                onPress={deployAutomation}
+              >
+                {addMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.deployBtnText}>Deploy Automation</Text>
+                )}
+              </Pressable>
+
+              <Pressable
                 style={styles.refineBtn}
                 onPress={() => {
                   setFlowModalVisible(false);
@@ -971,19 +1041,6 @@ export default function CRM_AutomationsScreen() {
                 }}
               >
                 <Text style={styles.refineBtnText}>Refine Prompt</Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.deployBtn}
-                onPress={deployAutomation}
-              >
-                {addMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Text style={styles.deployBtnText}>Deploy Automation</Text>
-                  </>
-                )}
               </Pressable>
             </View>
           </Pressable>
@@ -1016,12 +1073,433 @@ export default function CRM_AutomationsScreen() {
             </View>
           </View>
         </View>
+          </Modal>
+
+      {/* ── VIEW / PREVIEW AUTOMATION MODAL ── */}
+      <Modal
+        visible={viewModalVisible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => { setViewModalVisible(false); setSelectedRule(null); }}
+      >
+        <LinearGradient
+          colors={colors.backgroundGradient as any}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={[styles.fullModalContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+        >
+          <View style={styles.assistantModalContent}>
+            {/* Badges and Close button header */}
+            <View style={styles.viewModalHeader}>
+              <View style={styles.viewModalBadges}>
+                <View style={styles.viewModalCategoryBadge}>
+                  <Text style={styles.viewModalCategoryText}>
+                    {selectedRule?.category?.toUpperCase() || 'AI-GENERATED'}
+                  </Text>
+                </View>
+                <View style={[
+                  styles.viewModalStatusBadge,
+                  {
+                    backgroundColor: selectedRule?.status === 1 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.08)',
+                    borderWidth: 1,
+                    borderColor: selectedRule?.status === 1 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(148, 163, 184, 0.15)'
+                  }
+                ]}>
+                  <Text style={[
+                    styles.viewModalStatusText,
+                    {
+                      color: selectedRule?.status === 1 ? '#10B981' : '#94A3B8',
+                      fontWeight: '800'
+                    }
+                  ]}>
+                    {selectedRule?.status === 1 ? 'ACTIVE' : 'PAUSED'}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                style={styles.viewModalCloseBtn}
+                onPress={() => { setViewModalVisible(false); setSelectedRule(null); }}
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            {/* Title / Identity */}
+            <Text style={styles.viewModalTitle}>{selectedRule?.name}</Text>
+
+            {/* Logic Box (Trigger -> Action) */}
+            <View style={styles.viewModalLogicBox}>
+              <View style={styles.viewModalLogicStep}>
+                <Text style={styles.viewModalLogicLabel}>IF (TRIGGER)</Text>
+                <Text style={styles.viewModalLogicValue}>{selectedRule?.trigger}</Text>
+              </View>
+              <View style={styles.viewModalDivider} />
+              <View style={styles.viewModalLogicStep}>
+                <Text style={styles.viewModalLogicLabel}>THEN (ACTION)</Text>
+                <Text style={styles.viewModalLogicValue}>{selectedRule?.action}</Text>
+              </View>
+            </View>
+
+            {/* Target Segment & Timing Columns */}
+            <View style={styles.viewModalMetadataRow}>
+              <View style={styles.viewModalMetadataCol}>
+                <Text style={styles.viewModalLogicLabel}>TARGET SEGMENT</Text>
+                <Text style={styles.viewModalMetadataValue}>{selectedRule?.target}</Text>
+              </View>
+              <View style={styles.viewModalMetadataCol}>
+                <Text style={styles.viewModalLogicLabel}>EXECUTION LAG</Text>
+                <Text style={styles.viewModalMetadataValue}>{selectedRule?.execution}</Text>
+              </View>
+            </View>
+
+            {/* Actions: Close / Modify */}
+            <View style={styles.viewModalActionsRow}>
+              <Pressable
+                style={styles.viewModalCancelBtn}
+                onPress={() => { setViewModalVisible(false); setSelectedRule(null); }}
+              >
+                <Text style={styles.viewModalCancelBtnText}>Close</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.viewModalModifyBtn}
+                onPress={() => {
+                  if (selectedRule) {
+                    const rule = selectedRule;
+                    // Transition to edit modal
+                    setViewModalVisible(false);
+                    setEditName(rule.name);
+                    setEditTrigger(rule.trigger);
+                    setEditAction(rule.action);
+                    setEditTarget(rule.target);
+                    setEditExecution(rule.execution);
+                    setEditTargetId(rule.target_id?.toString() || null);
+                    setEditTemplateId(rule.template_id || null);
+                    setEditCategory(rule.category || 'AI-Generated');
+                    setEditIcon(rule.icon || 'Sparkles');
+                    // Detect target type
+                    if (rule.target.startsWith('Group:')) {
+                      setEditTargetType('group');
+                    } else if (rule.target.startsWith('Tag:')) {
+                      setEditTargetType('tag');
+                    } else {
+                      setEditTargetType('all');
+                    }
+                    setTimeout(() => {
+                      setEditModalVisible(true);
+                    }, 300);
+                  }
+                }}
+              >
+                <MaterialCommunityIcons name="pencil-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.viewModalModifyBtnText}>Modify</Text>
+              </Pressable>
+            </View>
+          </View>
+        </LinearGradient>
+      </Modal>
+
+      {/* ── EDIT / MODIFY AUTOMATION MODAL ── */}
+      <Modal
+        visible={editModalVisible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => { setEditModalVisible(false); setSelectedRule(null); }}
+      >
+        <LinearGradient
+          colors={colors.backgroundGradient as any}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={[styles.fullModalContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+        >
+          <View style={styles.assistantModalContent}>
+            {/* Header */}
+            <View style={styles.assistantHeader}>
+              <View>
+                <Text style={styles.assistantTitle}>Modify Rule</Text>
+                <Text style={styles.assistantSubtitle}>Define your automation logic with precision.</Text>
+              </View>
+              <Pressable
+                style={styles.closeBtnSmall}
+                onPress={() => { setEditModalVisible(false); setSelectedRule(null); }}
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }} style={{ flex: 1 }}>
+              {/* Rule Identity */}
+              <View style={styles.assistantField}>
+                <Text style={styles.fieldLabel}>RULE IDENTITY <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.fieldInput}
+                    placeholder="e.g. VIP Concierge Follow-up"
+                    placeholderTextColor="#94A3B8"
+                    value={editName}
+                    onChangeText={setEditName}
+                  />
+                </View>
+              </View>
+
+              {/* Trigger Logic & Execution When - Columns */}
+              <View style={styles.editModalTwoColRow}>
+                <View style={[styles.assistantField, { flex: 1 }]}>
+                  <Text style={styles.fieldLabel}>TRIGGER LOGIC (IF) <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <Pressable
+                    style={styles.segmentPickerTrigger}
+                    onPress={() => { setEditActivePicker('trigger'); setTriggerSearch(''); }}
+                  >
+                    <Text style={styles.segmentValue} numberOfLines={1}>{editTrigger}</Text>
+                    <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
+
+                <View style={[styles.assistantField, { flex: 1, marginLeft: 12 }]}>
+                  <Text style={styles.fieldLabel}>EXECUTION (WHEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <Pressable
+                    style={styles.segmentPickerTrigger}
+                    onPress={() => { setEditActivePicker('execution'); setExecutionSearch(''); }}
+                  >
+                    <Text style={styles.segmentValue} numberOfLines={1}>{editExecution}</Text>
+                    <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Automated Action */}
+              <View style={styles.assistantField}>
+                <Text style={styles.fieldLabel}>AUTOMATED ACTION (THEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                <Pressable
+                  style={styles.segmentPickerTrigger}
+                  onPress={() => { setEditActivePicker('action'); setActionSearch(''); }}
+                >
+                  <Text style={styles.segmentValue} numberOfLines={1}>{editAction}</Text>
+                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+
+              {/* Email Template Specific Selector */}
+              {editAction === 'Send Email from Template' && (
+                <View style={styles.assistantField}>
+                  <Text style={styles.fieldLabel}>EMAIL TEMPLATE <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <Pressable
+                    style={styles.segmentPickerTrigger}
+                    onPress={() => setEditTemplatePickerVisible(true)}
+                  >
+                    <Text style={styles.segmentValue} numberOfLines={1}>
+                      {templates.find(t => t.id === editTemplateId)?.name || 'Choose...'}
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
+              )}
+
+              {/* Target Segment */}
+              <View style={styles.assistantField}>
+                <Text style={styles.fieldLabel}>TARGET SEGMENT <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                <Pressable
+                  style={styles.segmentPickerTrigger}
+                  onPress={() => { setEditActivePicker('segment'); setSegmentSearch(''); }}
+                >
+                  <Text style={styles.segmentValue} numberOfLines={1}>{editTarget}</Text>
+                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+            </ScrollView>
+
+            {/* Actions: Cancel / Save Rule */}
+            <View style={styles.viewModalActionsRow}>
+              <Pressable
+                style={styles.viewModalCancelBtn}
+                onPress={() => { setEditModalVisible(false); setSelectedRule(null); }}
+              >
+                <Text style={styles.viewModalCancelBtnText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.editModalSaveBtn}
+                onPress={() => {
+                  if (!editName.trim()) {
+                    Alert.alert('Error', 'Please provide a rule identity (name)');
+                    return;
+                  }
+                  if (editAction === 'Send Email from Template' && !editTemplateId) {
+                    Alert.alert('Error', 'Please select an email template');
+                    return;
+                  }
+
+                  const payload: Partial<CRMAutomation> = {
+                    name: editName,
+                    trigger: editTrigger,
+                    action: editAction === 'Send Email from Template' ? `Email: ${editTemplateId}` : editAction,
+                    target: editTarget,
+                    target_id: editTargetId,
+                    template_id: editTemplateId,
+                    execution: editExecution,
+                    category: editCategory,
+                    icon: editIcon,
+                  };
+
+                  editMutation.mutate({
+                    id: selectedRule!.id,
+                    payload
+                  });
+                }}
+              >
+                {editMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.editModalSaveBtnText}>Save Rule</Text>
+                )}
+              </Pressable>
+            </View>
+            {/* Edit Modal Pickers (rendered inline as absolute overlay to avoid breaking dark mode / nested modal issues) */}
+            {(editActivePicker !== null || editTemplatePickerVisible) && (
+              <View style={styles.pickerOverlayAbsolute}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={() => { setEditActivePicker(null); setEditTemplatePickerVisible(false); }} />
+                
+                {editActivePicker === 'trigger' && (
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Trigger</Text>
+                      <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                    </View>
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search trigger..." placeholderTextColor={colors.textMuted} value={triggerSearch} onChangeText={setTriggerSearch} />
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      {filteredTriggers.map(opt => (
+                        <Pressable key={opt} style={[styles.selectionModalItem, editTrigger === opt && styles.selectionModalItemActive]} onPress={() => { setEditTrigger(opt); setEditActivePicker(null); }}>
+                          <Text style={[styles.selectionModalItemText, editTrigger === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                          {editTrigger === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {editActivePicker === 'execution' && (
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Timing</Text>
+                      <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                    </View>
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search timing..." placeholderTextColor={colors.textMuted} value={executionSearch} onChangeText={setExecutionSearch} />
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      {filteredExecutions.map(opt => (
+                        <Pressable key={opt} style={[styles.selectionModalItem, editExecution === opt && styles.selectionModalItemActive]} onPress={() => { setEditExecution(opt); setEditActivePicker(null); }}>
+                          <Text style={[styles.selectionModalItemText, editExecution === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                          {editExecution === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {editActivePicker === 'action' && (
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Action</Text>
+                      <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                    </View>
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search action..." placeholderTextColor={colors.textMuted} value={actionSearch} onChangeText={setActionSearch} />
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      {filteredActions.map(opt => (
+                        <Pressable key={opt} style={[styles.selectionModalItem, editAction === opt && styles.selectionModalItemActive]} onPress={() => { setEditAction(opt); setEditActivePicker(null); }}>
+                          <Text style={[styles.selectionModalItemText, editAction === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                          {editAction === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {editTemplatePickerVisible && (
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Email Template</Text>
+                      <Pressable onPress={() => setEditTemplatePickerVisible(false)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      {templates.map(t => (
+                        <Pressable key={t.id} style={[styles.selectionModalItem, editTemplateId === t.id && styles.selectionModalItemActive]} onPress={() => { setEditTemplateId(t.id); setEditTemplatePickerVisible(false); }}>
+                          <Text style={[styles.selectionModalItemText, editTemplateId === t.id && styles.selectionModalItemTextActive]}>{t.name}</Text>
+                          {editTemplateId === t.id && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {editActivePicker === 'segment' && (
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Target Segment</Text>
+                      <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                    </View>
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search segment..." placeholderTextColor={colors.textMuted} value={segmentSearch} onChangeText={setSegmentSearch} />
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      {filteredSegments.map(opt => {
+                        const isGroup = opt.startsWith('Group:');
+                        const isTag = opt.startsWith('Tag:');
+                        let targetId: string | number | null = null;
+                        let targetType: 'all' | 'group' | 'tag' = 'all';
+
+                        if (isGroup) {
+                          const gName = opt.replace('Group: ', '');
+                          targetId = metaData?.groups?.find(g => g.name === gName)?.id || null;
+                          targetType = 'group';
+                        } else if (isTag) {
+                          const tName = opt.replace('Tag: ', '');
+                          targetId = metaData?.tags?.find(t => t.name === tName)?.id || null;
+                          targetType = 'tag';
+                        }
+
+                        const isActiveSegment = editTarget === opt;
+
+                        return (
+                          <Pressable
+                            key={opt}
+                            style={[styles.selectionModalItem, isActiveSegment && styles.selectionModalItemActive]}
+                            onPress={() => {
+                              setEditTarget(opt);
+                              setEditTargetId(targetId ? targetId.toString() : null);
+                              setEditTargetType(targetType);
+                              setEditActivePicker(null);
+                            }}
+                          >
+                            <Text style={[styles.selectionModalItemText, isActiveSegment && styles.selectionModalItemTextActive]}>{opt}</Text>
+                            {isActiveSegment && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </LinearGradient>
       </Modal>
     </LinearGradient>
   );
 }
 
-function getStyles(colors: any) {
+function getStyles(colors: any, theme?: string) {
+  const isDark = theme === 'dark';
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -1453,7 +1931,7 @@ function getStyles(colors: any) {
       color: colors.textSecondary,
     },
     optionTextSelected: {
-      color: '#0a2341',
+      color: colors.accent,
       fontWeight: '800',
     },
     modalFooter: {
@@ -1610,7 +2088,7 @@ function getStyles(colors: any) {
     proposedBadgeText: {
       fontSize: 10,
       fontWeight: '900',
-      color: '#0a2341',
+      color: colors.accent,
       letterSpacing: 1,
     },
     proposalDetailRow: {
@@ -1641,47 +2119,41 @@ function getStyles(colors: any) {
       color: colors.textSecondary,
     },
     proposalFooter: {
-      flexDirection: 'row',
+      flexDirection: 'column',
       gap: 12,
+      marginTop: 8,
     },
     refineBtn: {
-      flex: 1,
-      height: 58,
-      borderRadius: 20,
-      backgroundColor: 'rgba(100, 116, 139, 0.1)',
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: 'transparent',
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1.5,
       borderColor: colors.cardBorder,
     },
     refineBtnText: {
-      fontSize: 12,
-      fontWeight: '800',
-      color: colors.textPrimary,
-      letterSpacing: 0.5,
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textSecondary,
     },
     deployBtn: {
-      flex: 1,
-      height: 58,
-      borderRadius: 20,
-      backgroundColor: '#0a2341',
-      flexDirection: 'row',
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: colors.accent,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#0a2341',
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.3,
-      shadowRadius: 15,
-      elevation: 8,
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.2)',
+      shadowColor: colors.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 4,
     },
     deployBtnText: {
-      fontSize: 12,
-      fontWeight: '900',
+      fontSize: 14,
+      fontWeight: '800',
       color: '#FFFFFF',
-      letterSpacing: 1,
-      textTransform: 'uppercase',
+      letterSpacing: 0.5,
     },
     modalOverlay: {
       flex: 1,
@@ -1770,6 +2242,297 @@ function getStyles(colors: any) {
       marginBottom: 4,
       zIndex: 100,
     },
+    // Upgraded Horizontal Card & Modals Styles
+    horizontalCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      padding: 16,
+      marginBottom: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: isDark ? 0.2 : 0.04,
+      shadowRadius: 12,
+      elevation: 3,
+    },
+    horizontalCardTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
+    horizontalCardIconBox: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: '#FFEFE6',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+    horizontalCardInfo: {
+      flex: 1,
+      justifyContent: 'center',
+      marginRight: 8,
+    },
+    horizontalCardTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      letterSpacing: -0.3,
+    },
+    horizontalCardBadge: {
+      borderRadius: 12,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    horizontalCardBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontWeight: '900',
+      letterSpacing: 0.5,
+    },
+    horizontalCardMiddleRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 16,
+    },
+    horizontalCardMetaItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
+      borderRadius: 12,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      gap: 6,
+    },
+    horizontalCardMetaText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    horizontalCardActionsRow: {
+      flexDirection: 'row',
+      width: '100%',
+      gap: 8,
+    },
+    horizontalCardActionBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      height: 42,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.6)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    horizontalCardActionBtnText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    deleteActionBtnText: {
+      color: '#EF4444',
+    },
+
+    // View Modal styles
+    viewModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    viewModalContent: {
+      width: '100%',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 32,
+      padding: 28,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 16 },
+      shadowOpacity: 0.12,
+      shadowRadius: 24,
+      elevation: 12,
+    },
+    viewModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    viewModalBadges: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    viewModalCategoryBadge: {
+      backgroundColor: '#0F172A',
+      borderRadius: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+    },
+    viewModalCategoryText: {
+      color: '#FFFFFF',
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 0.5,
+    },
+    viewModalStatusBadge: {
+      backgroundColor: '#E2E8F0',
+      borderRadius: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+    },
+    viewModalStatusText: {
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 0.5,
+    },
+    viewModalCloseBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.surfaceSoft || 'rgba(100, 116, 139, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    viewModalTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+      marginBottom: 20,
+    },
+    viewModalLogicBox: {
+      backgroundColor: colors.surfaceSoft || 'rgba(100, 116, 139, 0.03)',
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      marginBottom: 16,
+    },
+    viewModalLogicStep: {
+      marginVertical: 4,
+    },
+    viewModalLogicLabel: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: '#94A3B8',
+      letterSpacing: 1,
+      marginBottom: 6,
+    },
+    viewModalLogicValue: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+    },
+    viewModalDivider: {
+      height: 1,
+      backgroundColor: colors.cardBorder,
+      marginVertical: 14,
+    },
+    viewModalMetadataRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 24,
+    },
+    viewModalMetadataCol: {
+      flex: 1,
+      backgroundColor: colors.surfaceSoft || 'rgba(100, 116, 139, 0.03)',
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    viewModalMetadataValue: {
+      fontSize: 15,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+    },
+    viewModalActionsRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 8,
+    },
+    viewModalCancelBtn: {
+      flex: 1,
+      height: 52,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.cardBackground,
+    },
+    viewModalCancelBtnText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    viewModalModifyBtn: {
+      flex: 1.2,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: '#00A7B5', // Cyan/teal from the mock
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    viewModalModifyBtnText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+
+    // Edit Modal styles
+    editModalContent: {
+      width: '100%',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 32,
+      padding: 24,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 16 },
+      shadowOpacity: 0.12,
+      shadowRadius: 24,
+      elevation: 12,
+      maxHeight: '90%',
+    },
+    editModalHeaderTitle: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+    },
+    editModalTwoColRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 0,
+    },
+    editModalSaveBtn: {
+      flex: 1.2,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: '#0F172A', // Dark blue/black matching mock Save Rule
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    editModalSaveBtnText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+
     // Premium Card Styles
     premiumCard: {
       backgroundColor: colors.cardBackground,
@@ -1957,6 +2720,18 @@ function getStyles(colors: any) {
       alignItems: 'center',
       paddingHorizontal: 20,
     },
+    pickerOverlayAbsolute: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(15, 23, 42, 0.65)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+      zIndex: 9999,
+    },
     selectionModalContainer: {
       backgroundColor: colors.cardBackground,
       borderRadius: 28,
@@ -2004,7 +2779,7 @@ function getStyles(colors: any) {
       color: colors.textPrimary,
     },
     selectionModalItemTextActive: {
-      color: colors.accentTeal,
+      color: colors.accent,
       fontWeight: '800',
     },
     pickerSearchBoxSmall: {

@@ -1,4 +1,5 @@
 import { useAppTheme } from '@/context/ThemeContext';
+import { ThemeColors } from '@/constants/theme';
 import { addCRMContact, AddCRMContactPayload, analyzeContactsFile } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
@@ -52,8 +53,8 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
   metaData,
   onImportSuccess,
 }) => {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const { colors, theme } = useAppTheme();
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
 
   const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
@@ -372,7 +373,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                   {/* Advice Card */}
                   <View style={styles.tooltipCard}>
                     <View style={styles.tooltipIconBadge}>
-                      <MaterialCommunityIcons name="robot-outline" size={15} color={colors.accentTeal} />
+                      <MaterialCommunityIcons name="robot-outline" size={15} color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
                     </View>
                     <Text style={styles.tooltipText}>
                       Optional: Describing your data helps the AI map ambiguous fields and group contacts by intent.
@@ -549,7 +550,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                         <View style={{ flex: 1 }}>
                           <Text style={styles.reviewCardLabel}>BUDGET / TIMELINE</Text>
                           <Text style={styles.reviewCardValueBold}>{contact.budget || 'N/A'}</Text>
-                          <Text style={[styles.reviewCardValueBold, { color: '#0a2341', marginTop: 2 }]}>
+                          <Text style={[styles.reviewCardValueBold, { color: theme === 'dark' ? '#00a7b5' : '#0a2341', marginTop: 2 }]}>
                             {contact.timeline || 'Active'}
                           </Text>
                         </View>
@@ -645,7 +646,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                     cx={48}
                     cy={48}
                     r={42}
-                    stroke={colors.accentTeal}
+                    stroke={theme === 'dark' ? '#00a7b5' : '#0a2341'}
                     strokeWidth={4.5}
                     fill="none"
                     strokeDasharray="50 180"
@@ -656,7 +657,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
               <View style={styles.analysisLoaderInner}>
                 <View style={styles.analysisLoaderWhiteRing} />
                 <View style={styles.analysisBrainIconWrap}>
-                  <MaterialCommunityIcons name="brain" size={32} color={colors.accentTeal} />
+                  <MaterialCommunityIcons name="brain" size={32} color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
                 </View>
               </View>
             </View>
@@ -686,7 +687,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                         <MaterialCommunityIcons name="check" size={12} color="#FFFFFF" />
                       </View>
                     ) : inProgress ? (
-                      <ActivityIndicator size="small" color={colors.accentTeal} />
+                      <ActivityIndicator size="small" color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
                     ) : (
                       <View style={styles.pendingBadge} />
                     )}
@@ -701,7 +702,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
   );
 };
 
-const getStyles = (colors: any) => StyleSheet.create({
+const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: '#000000',
@@ -726,7 +727,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0a2341',
+    shadowColor: theme === 'dark' ? '#000000' : '#0a2341',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
@@ -826,7 +827,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     borderWidth: 1.2,
     borderColor: colors.borderLight,
     alignItems: 'center',
@@ -847,7 +848,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1.2,
     borderColor: colors.borderLight,
     borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     padding: 3,
   },
   badgeGreen: {
@@ -893,7 +894,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     fontSize: 12,
     fontWeight: '700',
-    color: colors.accentTeal,
+    color: theme === 'dark' ? '#00a7b5' : colors.accentTeal,
     lineHeight: 16,
   },
   uploadSection: {
@@ -958,7 +959,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#0b2341',
+    backgroundColor: theme === 'dark' ? '#00a7b5' : '#0b2341',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -974,7 +975,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   attachedFileName: {
     fontSize: 15,
     fontWeight: '900',
-    color: '#0b2341',
+    color: theme === 'dark' ? '#00a7b5' : '#0b2341',
   },
   attachedStatusRow: {
     flexDirection: 'row',
@@ -994,7 +995,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   initializeBtn: {
     borderRadius: 14,
     overflow: 'hidden',
-    shadowColor: '#0a2341',
+    shadowColor: theme === 'dark' ? '#000000' : '#0a2341',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -1037,7 +1038,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#0a234112',
+    backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.12)' : '#0a234112',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1183,7 +1184,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1.2,
     borderColor: colors.borderLight,
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.cardBackground,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
@@ -1191,13 +1192,13 @@ const getStyles = (colors: any) => StyleSheet.create({
   adjustInstructionsBtnText: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0B2D3E',
+    color: colors.textPrimary,
   },
   confirmImportBtn: {
     width: '100%',
     borderRadius: 14,
     overflow: 'hidden',
-    shadowColor: '#0a2341',
+    shadowColor: theme === 'dark' ? '#000000' : '#0a2341',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -1312,13 +1313,13 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '600',
   },
   stepLabelInProgress: {
-    color: colors.accentTeal,
+    color: theme === 'dark' ? '#00a7b5' : colors.accentTeal,
   },
   checkBadge: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: colors.accentTeal,
+    backgroundColor: theme === 'dark' ? '#00a7b5' : colors.accentTeal,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -47,6 +47,8 @@ export default function CRM_TemplatesScreen() {
     const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
     const [createModalVisible, setCreateModalVisible] = useState(false);
     const [webOnlyModalVisible, setWebOnlyModalVisible] = useState(false);
+    const [previewTemplate, setPreviewTemplate] = useState<CRMTemplate | null>(null);
+    const [previewVisible, setPreviewVisible] = useState(false);
 
     const queryClient = useQueryClient();
 
@@ -116,26 +118,349 @@ export default function CRM_TemplatesScreen() {
     const getChannelConfig = (type: string) => {
         const upper = type.toUpperCase();
         if (upper === 'EMAIL') return {
-            icon: 'email-open-outline' as const,
-            color: '#60A5FA',
-            gradientColors: ['rgba(59,130,246,0.18)', 'rgba(59,130,246,0.04)'],
+            icon: 'email-outline' as const,
+            color: '#3B82F6', // Vibrant Royal Blue
+            gradientColors: ['#3B82F6', '#60A5FA'],
             label: 'Email',
-            accentBorder: 'rgba(96,165,250,0.35)',
+            accentBorder: 'rgba(59,130,246,0.3)',
         };
         if (upper === 'SMS') return {
             icon: 'message-text-outline' as const,
-            color: '#34D399',
-            gradientColors: ['rgba(16,185,129,0.18)', 'rgba(16,185,129,0.04)'],
+            color: '#7C3AED', // Vibrant Violet
+            gradientColors: ['#7C3AED', '#A78BFA'],
             label: 'SMS',
-            accentBorder: 'rgba(52,211,153,0.35)',
+            accentBorder: 'rgba(124,58,237,0.3)',
         };
         return {
             icon: 'whatsapp' as const,
-            color: '#4ADE80',
-            gradientColors: ['rgba(37,211,102,0.18)', 'rgba(37,211,102,0.04)'],
+            color: '#10B981', // Vibrant Emerald Green
+            gradientColors: ['#10B981', '#34D399'],
             label: 'WhatsApp',
-            accentBorder: 'rgba(74,222,128,0.35)',
+            accentBorder: 'rgba(16,185,129,0.3)',
         };
+    };
+
+    const renderPreviewContent = (template: CRMTemplate) => {
+        const type = template.template_type.toUpperCase();
+        const components = template.content_json?.components || [];
+
+        const replaceTokens = (text: string) => {
+            if (!text) return '';
+            return text
+                .replace(/\{\{\s*name\s*\}\}/gi, 'Jessica Miller')
+                .replace(/\{\{\s*property\s*\}\}/gi, 'Malibu Oceanview Estate')
+                .replace(/\{\{\s*company\s*\}\}/gi, 'Zien Realty');
+        };
+
+        if (type === 'EMAIL') {
+            return (
+                <View style={styles.emailPreviewContainer}>
+                    {/* Mock Email Header */}
+                    <View style={styles.emailMetaHeader}>
+                        <View style={styles.emailMetaRow}>
+                            <Text style={styles.emailMetaLabel}>To:</Text>
+                            <Text style={styles.emailMetaVal}>Jessica Miller <Text style={{ color: '#94A3B8' }}>(jessica.m@example.com)</Text></Text>
+                        </View>
+                        <View style={styles.emailMetaRow}>
+                            <Text style={styles.emailMetaLabel}>From:</Text>
+                            <Text style={styles.emailMetaVal}>Jordan Smith <Text style={{ color: '#94A3B8' }}>(jordan@zienrealty.com)</Text></Text>
+                        </View>
+                        <View style={styles.emailMetaRow}>
+                            <Text style={styles.emailMetaLabel}>Subject:</Text>
+                            <Text style={[styles.emailMetaVal, { fontWeight: '700', color: theme === 'dark' ? '#FFFFFF' : '#0F172A' }]} numberOfLines={1}>
+                                {replaceTokens(template.subject || 'Hi Jessica, Welcome to Malibu Oceanview Estate!')}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Email Body Scroll */}
+                    <ScrollView style={styles.emailBodyContainer} contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+                        <View style={styles.emailCardMock}>
+                            {components.map((comp: any, index: number) => {
+                                if (comp.type === 'Branding') {
+                                    return (
+                                        <View key={index} style={[styles.emailBrandingHeader, { borderTopColor: comp.brandColor || '#3B82F6' }]}>
+                                            <Text style={styles.emailBrandingTitle}>{comp.content || 'Elite Realty Group'}</Text>
+                                            {comp.subtext ? <Text style={styles.emailBrandingSub}>{comp.subtext}</Text> : null}
+                                        </View>
+                                    );
+                                }
+                                if (comp.type === 'Property Header') {
+                                    return (
+                                        <View key={index} style={styles.emailPropHeaderContainer}>
+                                            <LinearGradient
+                                                colors={['#1E293B', '#0F172A']}
+                                                style={styles.emailPropHeaderGradient}
+                                            >
+                                                <MaterialCommunityIcons name="home-city" size={32} color="#2DD4BF" />
+                                                <Text style={styles.emailPropHeaderTitle}>EXQUISITE PROPERTY FEATURE</Text>
+                                                <Text style={styles.emailPropHeaderSub}>Curated Luxury by Zien</Text>
+                                            </LinearGradient>
+                                        </View>
+                                    );
+                                }
+                                if (comp.type === 'Text Block') {
+                                    return (
+                                        <Text key={index} style={styles.emailTextContent}>
+                                            {replaceTokens(comp.content)}
+                                        </Text>
+                                    );
+                                }
+                                if (comp.type === 'CTA Button') {
+                                    return (
+                                        <View key={index} style={{ alignItems: 'center', marginBottom: 16 }}>
+                                            <Pressable style={styles.emailCtaBtn}>
+                                                <Text style={styles.emailCtaBtnText}>{comp.content}</Text>
+                                            </Pressable>
+                                        </View>
+                                    );
+                                }
+                                if (comp.type === 'Page Link') {
+                                    return (
+                                        <Pressable key={index} style={styles.emailPageLinkRow}>
+                                            <MaterialCommunityIcons name="link-variant" size={16} color="#0D9488" style={{ marginRight: 8 }} />
+                                            <Text style={styles.emailPageLinkText}>{comp.content || 'Visit Page'}</Text>
+                                            <MaterialCommunityIcons name="chevron-right" size={16} color="#94A3B8" style={{ marginLeft: 'auto' }} />
+                                        </Pressable>
+                                    );
+                                }
+                                if (comp.type === 'Spacer') {
+                                    const heightVal = parseInt(comp.content) || 16;
+                                    return <View key={index} style={{ height: heightVal }} />;
+                                }
+                                if (comp.type === 'Property Details') {
+                                    return (
+                                        <View key={index} style={styles.emailPropDetailsCard}>
+                                            <Text style={styles.emailPropTitle}>{comp.content || 'Malibu Oceanview Estate'}</Text>
+                                            <Text style={styles.emailPropPrice}>{comp.price || '$5,450,000'}</Text>
+                                            <Text style={styles.emailPropSpecs}>{comp.specs || '5 Beds • 6 Baths • 4,500 SqFt'}</Text>
+                                            {comp.address ? <Text style={styles.emailPropAddress}>{comp.address}</Text> : null}
+                                        </View>
+                                    );
+                                }
+                                if (comp.type === 'Document Attachment') {
+                                    return (
+                                        <View key={index} style={styles.emailAttachmentCard}>
+                                            <MaterialCommunityIcons name="file-pdf-box" size={24} color="#EF4444" />
+                                            <View style={{ marginLeft: 10, flex: 1 }}>
+                                                <Text style={styles.emailAttachmentName}>{comp.content || 'Brochure.pdf'}</Text>
+                                                <Text style={styles.emailAttachmentSize}>2.4 MB • PDF Document</Text>
+                                            </View>
+                                            <MaterialCommunityIcons name="download" size={20} color="#64748B" />
+                                        </View>
+                                    );
+                                }
+                                if (comp.type === 'Email Signature') {
+                                    return (
+                                        <View key={index} style={styles.emailSignatureBox}>
+                                            <View style={styles.signatureDivider} />
+                                            <Text style={styles.emailSignatureText}>{comp.content}</Text>
+                                            <View style={styles.signatureSocialRow}>
+                                                {(comp.socialLinks || []).map((social: any, sIdx: number) => {
+                                                    let iconName: any = 'link';
+                                                    if (social.platform === 'email') iconName = 'email';
+                                                    else if (social.platform === 'phone') iconName = 'phone';
+                                                    else if (social.platform === 'linkedin') iconName = 'linkedin';
+                                                    else if (social.platform === 'instagram') iconName = 'instagram';
+                                                    return (
+                                                        <View key={sIdx} style={styles.sigSocialIconBadge}>
+                                                            <MaterialCommunityIcons 
+                                                                name={iconName} 
+                                                                size={12} 
+                                                                color="#64748B" 
+                                                            />
+                                                        </View>
+                                                    );
+                                                })}
+                                            </View>
+                                        </View>
+                                    );
+                                }
+                                return null;
+                            })}
+                        </View>
+                    </ScrollView>
+                </View>
+            );
+        }
+
+        if (type === 'SMS') {
+            return (
+                <View style={styles.smsPreviewContainer}>
+                    {/* iMessage Style Header */}
+                    <View style={styles.smsHeader}>
+                        <MaterialCommunityIcons name="chevron-left" size={24} color="#007AFF" />
+                        <View style={{ alignItems: 'center' }}>
+                            <View style={styles.smsAvatar}>
+                                <Text style={styles.smsAvatarText}>JM</Text>
+                            </View>
+                            <Text style={styles.smsContactName}>Jessica Miller</Text>
+                        </View>
+                        <MaterialCommunityIcons name="phone-outline" size={20} color="#007AFF" />
+                    </View>
+
+                    {/* Chat Area */}
+                    <ScrollView style={styles.smsChatArea} contentContainerStyle={{ padding: 16, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+                        <Text style={styles.smsDateStamp}>Today 1:14 PM</Text>
+                        
+                        {components.map((comp: any, index: number) => {
+                            if (comp.type === 'Text Block') {
+                                return (
+                                    <View key={index} style={styles.smsBubbleContainer}>
+                                        <View style={styles.smsBubble}>
+                                            <Text style={styles.smsBubbleText}>
+                                                {replaceTokens(comp.content)}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                );
+                            }
+                            if (comp.type === 'CTA Button' || comp.type === 'Page Link') {
+                                return (
+                                    <View key={index} style={styles.smsBubbleContainer}>
+                                        <View style={styles.smsBubbleLink}>
+                                            <View style={styles.smsLinkPreviewHeader}>
+                                                <MaterialCommunityIcons name="link-variant" size={16} color="#007AFF" />
+                                                <Text style={styles.smsLinkPreviewTitle}>{comp.content || 'Interactive Link'}</Text>
+                                            </View>
+                                            <Text style={styles.smsLinkUrlText} numberOfLines={1}>{comp.linkUrl || 'zien.ai/l/10293'}</Text>
+                                        </View>
+                                    </View>
+                                );
+                            }
+                            if (comp.type === 'Spacer') {
+                                const heightVal = parseInt(comp.content) || 12;
+                                return <View key={index} style={{ height: heightVal }} />;
+                            }
+                            return null;
+                        })}
+                        <Text style={[styles.smsTimeText, { alignSelf: 'flex-start', marginLeft: 12 }]}>Delivered</Text>
+                    </ScrollView>
+
+                    {/* iMessage Input Footer */}
+                    <View style={[styles.smsInputFooter, { paddingBottom: Math.max(10, insets.bottom) }]}>
+                        <MaterialCommunityIcons name="camera-outline" size={24} color="#8E8E93" />
+                        <View style={styles.smsInputField}>
+                            <Text style={{ color: '#C7C7CC', fontSize: 14 }}>Text Message</Text>
+                            <View style={styles.smsSendBtnCircle}>
+                                <MaterialCommunityIcons name="arrow-up" size={14} color="#FFFFFF" />
+                            </View>
+                        </View>
+                    </View>
+                </View>
+            );
+        }
+
+        // WhatsApp Design
+        return (
+            <View style={styles.waPreviewContainer}>
+                {/* WhatsApp Header */}
+                <View style={styles.waHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <MaterialCommunityIcons name="arrow-left" size={22} color="#FFFFFF" />
+                        <View style={styles.waAvatar}>
+                            <Text style={styles.waAvatarText}>JM</Text>
+                        </View>
+                        <View>
+                            <Text style={styles.waContactName}>Jessica Miller</Text>
+                            <Text style={styles.waStatus}>online</Text>
+                        </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 16 }}>
+                        <MaterialCommunityIcons name="video" size={20} color="#FFFFFF" />
+                        <MaterialCommunityIcons name="phone" size={18} color="#FFFFFF" />
+                        <MaterialCommunityIcons name="dots-vertical" size={20} color="#FFFFFF" />
+                    </View>
+                </View>
+
+                {/* WhatsApp Chat Body */}
+                <View style={styles.waBackgroundWrapper}>
+                    <ScrollView style={styles.waChatArea} contentContainerStyle={{ padding: 16, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+                        <View style={styles.waDateBadge}>
+                            <Text style={styles.waDateBadgeText}>TODAY</Text>
+                        </View>
+
+                        {components.map((comp: any, index: number) => {
+                            if (comp.type === 'Text Block') {
+                                return (
+                                    <View key={index} style={styles.waBubbleContainer}>
+                                        <View style={styles.waBubble}>
+                                            <Text style={styles.waBubbleText}>
+                                                {replaceTokens(comp.content)}
+                                            </Text>
+                                            <View style={styles.waBubbleFooter}>
+                                                <Text style={styles.waTimeText}>1:14 PM</Text>
+                                                <MaterialCommunityIcons name="check-all" size={14} color="#34B7F1" style={{ marginLeft: 3 }} />
+                                            </View>
+                                        </View>
+                                    </View>
+                                );
+                            }
+                            if (comp.type === 'CTA Button' || comp.type === 'Page Link') {
+                                return (
+                                    <View key={index} style={styles.waBubbleContainer}>
+                                        <View style={styles.waTemplateButtonContainer}>
+                                            <View style={styles.waBubble}>
+                                                <Text style={[styles.waBubbleText, { fontStyle: 'italic', color: theme === 'dark' ? '#8696A0' : '#667781', fontSize: 13 }]}>
+                                                    Template Action
+                                                </Text>
+                                                <View style={styles.waBubbleFooter}>
+                                                    <Text style={styles.waTimeText}>1:14 PM</Text>
+                                                    <MaterialCommunityIcons name="check-all" size={14} color="#34B7F1" style={{ marginLeft: 3 }} />
+                                                </View>
+                                            </View>
+                                            <Pressable style={styles.waTemplateActionBtn}>
+                                                <MaterialCommunityIcons name={comp.type === 'CTA Button' ? 'open-in-new' : 'link-variant'} size={14} color="#00A884" style={{ marginRight: 6 }} />
+                                                <Text style={styles.waTemplateActionBtnText}>{comp.content || 'Click Here'}</Text>
+                                            </Pressable>
+                                        </View>
+                                    </View>
+                                );
+                            }
+                            if (comp.type === 'Social Links') {
+                                return (
+                                    <View key={index} style={styles.waBubbleContainer}>
+                                        <View style={styles.waBubble}>
+                                            <Text style={[styles.waBubbleText, { fontWeight: '700', color: theme === 'dark' ? '#25D366' : '#00A884', fontSize: 13, marginBottom: 4 }]}>
+                                                {comp.content || 'Follow our updates'}
+                                            </Text>
+                                            {(comp.socialLinks || []).map((social: any, sIdx: number) => (
+                                                <View key={sIdx} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 3 }}>
+                                                    <MaterialCommunityIcons name={social.platform === 'instagram' ? 'instagram' : 'facebook'} size={14} color={theme === 'dark' ? '#8696A0' : '#50606B'} />
+                                                    <Text style={{ fontSize: 12, color: theme === 'dark' ? '#E9EDEF' : '#303030' }}>{social.platform}</Text>
+                                                </View>
+                                            ))}
+                                            <View style={styles.waBubbleFooter}>
+                                                <Text style={styles.waTimeText}>1:14 PM</Text>
+                                                <MaterialCommunityIcons name="check-all" size={14} color="#34B7F1" style={{ marginLeft: 3 }} />
+                                            </View>
+                                        </View>
+                                    </View>
+                                );
+                            }
+                            if (comp.type === 'Spacer') {
+                                const heightVal = parseInt(comp.content) || 12;
+                                return <View key={index} style={{ height: heightVal }} />;
+                            }
+                            return null;
+                        })}
+                    </ScrollView>
+                </View>
+
+                {/* WhatsApp Input Footer */}
+                <View style={[styles.waInputFooter, { paddingBottom: Math.max(8, insets.bottom) }]}>
+                    <View style={styles.waInputField}>
+                        <MaterialCommunityIcons name="emoticon-happy-outline" size={22} color="#8E8E93" />
+                        <Text style={{ color: '#8E8E93', fontSize: 15, flex: 1, marginLeft: 8 }}>Message</Text>
+                        <MaterialCommunityIcons name="paperclip" size={20} color="#8E8E93" style={{ marginRight: 12 }} />
+                        <MaterialCommunityIcons name="camera" size={22} color="#8E8E93" />
+                    </View>
+                    <View style={styles.waMicBtn}>
+                        <MaterialCommunityIcons name="microphone" size={20} color="#FFFFFF" />
+                    </View>
+                </View>
+            </View>
+        );
     };
 
     const renderTemplateCard = (template: CRMTemplate) => {
@@ -159,10 +484,12 @@ export default function CRM_TemplatesScreen() {
                         <LinearGradient
                             colors={channel.gradientColors as any}
                             style={styles.channelIconGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
                         >
-                            <MaterialCommunityIcons name={channel.icon} size={18} color={channel.color} />
+                            <MaterialCommunityIcons name={channel.icon} size={18} color="#FFFFFF" />
                         </LinearGradient>
-                        <View style={[styles.channelTypeTag, { borderColor: channel.accentBorder }]}>
+                        <View style={[styles.channelTypeTag, { borderColor: channel.color + '40', backgroundColor: channel.color + '0F' }]}>
                             <View style={[styles.channelDot, { backgroundColor: channel.color }]} />
                             <Text style={[styles.channelTypeText, { color: channel.color }]}>{channel.label}</Text>
                         </View>
@@ -171,7 +498,10 @@ export default function CRM_TemplatesScreen() {
                     {/* Action icons */}
                     <View style={styles.actionGroup}>
                         <Pressable
-                            onPress={() => setWebOnlyModalVisible(true)}
+                            onPress={() => {
+                                setPreviewTemplate(template);
+                                setPreviewVisible(true);
+                            }}
                             hitSlop={8}
                             style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
                         >
@@ -205,44 +535,47 @@ export default function CRM_TemplatesScreen() {
                 {/* Divider */}
                 <View style={styles.cardDivider} />
 
-                {/* Subject + Status row */}
-                <View style={styles.metaRow}>
-                    <View style={styles.metaBlock}>
-                        <Text style={styles.metaLabel}>SUBJECT</Text>
-                        <Text style={styles.metaValue} numberOfLines={2}>{previewText}</Text>
-                    </View>
-                    <View style={styles.metaBlockStatus}>
-                        <Text style={styles.metaLabel}>STATUS</Text>
-                        <View style={[
-                            styles.statusPill,
-                            { borderColor: isActive ? 'rgba(52,211,153,0.4)' : 'rgba(148,163,184,0.2)' }
-                        ]}>
+                {/* Subject Block (Full Width) */}
+                <View style={styles.fullWidthMetaBlock}>
+                    <Text style={styles.metaLabel}>SUBJECT</Text>
+                    <Text style={styles.metaValue} numberOfLines={3}>{previewText}</Text>
+                </View>
+
+                {/* Bottom Row containing Edit Template (left) and Status (right) */}
+                <View style={styles.bottomActionsRow}>
+                    {/* Edit Button */}
+                    <Pressable
+                        style={({ pressed }) => [styles.inlineEditBtn, pressed && styles.editBtnPressed]}
+                        onPress={() => setWebOnlyModalVisible(true)}
+                    >
+                        <Text style={styles.inlineEditBtnText}>Edit Template</Text>
+                        <MaterialCommunityIcons name="pencil-outline" size={14} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                    </Pressable>
+
+                    {/* Status Pill */}
+                    <View style={[
+                        styles.inlineStatusPill,
+                        { borderColor: isActive ? '#34D39950' : 'rgba(148,163,184,0.3)' }
+                    ]}>
+                        <Text style={styles.statusLabelMini}>STATUS</Text>
+                        <View style={styles.statusSwitchRow}>
                             <Switch
                                 value={isActive}
                                 onValueChange={(val) => toggleTemplateStatus(template.id, val ? 1 : 2)}
-                                trackColor={{ false: 'rgba(148,163,184,0.25)', true: 'rgba(52,211,153,0.35)' }}
-                                thumbColor={isActive ? '#34D399' : '#64748B'}
-                                ios_backgroundColor="rgba(148,163,184,0.2)"
-                                style={{ transform: [{ scaleX: 0.65 }, { scaleY: 0.65 }] }}
+                                trackColor={{ false: 'rgba(148,163,184,0.15)', true: 'rgba(16,185,129,0.25)' }}
+                                thumbColor={isActive ? '#10B981' : '#94A3B8'}
+                                ios_backgroundColor="rgba(148,163,184,0.12)"
+                                style={{ transform: [{ scaleX: 0.72 }, { scaleY: 0.72 }] }}
                             />
                             <Text style={[
-                                styles.statusLabel,
-                                { color: isActive ? '#34D399' : '#64748B' }
+                                styles.inlineStatusText,
+                                { color: isActive ? '#10B981' : '#64748B' }
                             ]}>
                                 {isActive ? 'LIVE' : 'PAUSED'}
                             </Text>
                         </View>
                     </View>
                 </View>
-
-                {/* Edit Button */}
-                <Pressable
-                    style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
-                    onPress={() => setWebOnlyModalVisible(true)}
-                >
-                    <Text style={styles.editBtnText}>Edit Template</Text>
-                    <MaterialCommunityIcons name="arrow-right" size={14} color={colors.textSecondary} />
-                </Pressable>
             </View>
         );
     };
@@ -268,36 +601,6 @@ export default function CRM_TemplatesScreen() {
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accentTeal} />
                 }
             >
-                {/* Stats ribbon */}
-                {!isLoading && templateList && templateList.length > 0 && (
-                    <View style={styles.statsRibbon}>
-                        <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>{templateList.length}</Text>
-                            <Text style={styles.statLabel}>Total</Text>
-                        </View>
-                        <View style={styles.statDivider} />
-                        <View style={styles.statItem}>
-                            <Text style={[styles.statNumber, { color: '#34D399' }]}>
-                                {templateList.filter(t => t.status === 1).length}
-                            </Text>
-                            <Text style={styles.statLabel}>Active</Text>
-                        </View>
-                        <View style={styles.statDivider} />
-                        <View style={styles.statItem}>
-                            <Text style={[styles.statNumber, { color: '#60A5FA' }]}>
-                                {templateList.filter(t => t.template_type.toUpperCase() === 'EMAIL').length}
-                            </Text>
-                            <Text style={styles.statLabel}>Email</Text>
-                        </View>
-                        <View style={styles.statDivider} />
-                        <View style={styles.statItem}>
-                            <Text style={[styles.statNumber, { color: '#4ADE80' }]}>
-                                {templateList.filter(t => t.template_type.toUpperCase() === 'WHATSAPP').length}
-                            </Text>
-                            <Text style={styles.statLabel}>WhatsApp</Text>
-                        </View>
-                    </View>
-                )}
 
                 {isLoading ? (
                     <View style={styles.loadingContainer}>
@@ -323,10 +626,12 @@ export default function CRM_TemplatesScreen() {
                 onPress={() => setCreateModalVisible(true)}
             >
                 <LinearGradient
-                    colors={['#1A4A60', '#0B2D3E']}
+                    colors={['#0D9488', '#2DD4BF']}
                     style={styles.fabGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                 >
-                    <MaterialCommunityIcons name="plus" size={28} color="#FFFFFF" />
+                    <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
                 </LinearGradient>
             </Pressable>
 
@@ -355,10 +660,10 @@ export default function CRM_TemplatesScreen() {
                 </View>
             </Modal>
 
-            {/* ── CREATE MODAL ── */}
+                  {/* ── CREATE MODAL ── */}
             <Modal visible={createModalVisible} transparent animationType="slide" onRequestClose={() => setCreateModalVisible(false)}>
-                <View style={styles.overlay}>
-                    <View style={styles.sheetModal}>
+                <View style={styles.bottomSheetOverlay}>
+                    <View style={[styles.sheetModal, { paddingBottom: Math.max(28, insets.bottom + 16) }]}>
                         <View style={styles.sheetHandle} />
                         <View style={styles.sheetHeader}>
                             <View>
@@ -372,20 +677,28 @@ export default function CRM_TemplatesScreen() {
 
                         <View style={styles.channelGrid}>
                             {[
-                                { icon: 'email-outline', label: 'Email', sub: 'Rich HTML campaigns', color: '#60A5FA', bg: 'rgba(59,130,246,0.1)' },
-                                { icon: 'cellphone', label: 'SMS', sub: 'Short text updates', color: '#34D399', bg: 'rgba(16,185,129,0.1)' },
-                                { icon: 'whatsapp', label: 'WhatsApp', sub: 'Direct engagement', color: '#4ADE80', bg: 'rgba(37,211,102,0.1)' },
+                                { icon: 'email-outline', label: 'Email', sub: 'Rich HTML campaigns', gradientColors: ['#3B82F6', '#60A5FA'] },
+                                { icon: 'message-text-outline', label: 'SMS', sub: 'Short text updates', gradientColors: ['#7C3AED', '#A78BFA'] },
+                                { icon: 'whatsapp', label: 'WhatsApp', sub: 'Direct engagement', gradientColors: ['#10B981', '#34D399'] },
                             ].map((ch) => (
                                 <Pressable
                                     key={ch.label}
                                     style={({ pressed }) => [styles.channelCard, pressed && styles.channelCardPressed]}
                                     onPress={handleSelectTemplateType}
                                 >
-                                    <View style={[styles.channelCardIcon, { backgroundColor: ch.bg }]}>
-                                        <MaterialCommunityIcons name={ch.icon as any} size={26} color={ch.color} />
+                                    <LinearGradient
+                                        colors={ch.gradientColors as any}
+                                        style={styles.channelCardIconGradient}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 1 }}
+                                    >
+                                        <MaterialCommunityIcons name={ch.icon as any} size={22} color="#FFFFFF" />
+                                    </LinearGradient>
+                                    <View style={{ flex: 1, marginLeft: 16 }}>
+                                        <Text style={[styles.channelCardTitle, { color: colors.textPrimary }]}>{ch.label}</Text>
+                                        <Text style={styles.channelCardSub}>{ch.sub}</Text>
                                     </View>
-                                    <Text style={[styles.channelCardTitle, { color: ch.color }]}>{ch.label}</Text>
-                                    <Text style={styles.channelCardSub}>{ch.sub}</Text>
+                                    <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSecondary} />
                                 </Pressable>
                             ))}
                         </View>
@@ -408,6 +721,39 @@ export default function CRM_TemplatesScreen() {
                             <Text style={styles.tealBtnText}>Got It</Text>
                         </Pressable>
                     </View>
+                </View>
+            </Modal>
+
+            {/* ── TEMPLATE PREVIEW MODAL ── */}
+            <Modal 
+                visible={previewVisible} 
+                transparent={false} 
+                animationType="slide"
+                presentationStyle="fullScreen"
+                onRequestClose={() => { setPreviewVisible(false); setPreviewTemplate(null); }}
+            >
+                <View style={[styles.fullPagePreviewContainer, { paddingTop: insets.top, backgroundColor: theme === 'dark' ? '#0F172A' : '#F8FAFC' }]}>
+                    {previewTemplate && (
+                        <>
+                            {/* Header */}
+                            <View style={styles.fullPagePreviewHeader}>
+                                <View style={{ width: 28 }} />
+                                <Text style={styles.fullPagePreviewTitle} numberOfLines={1}>
+                                    Preview: {previewTemplate.name}
+                                </Text>
+                                <Pressable 
+                                    onPress={() => { setPreviewVisible(false); setPreviewTemplate(null); }}
+                                    hitSlop={12}
+                                    style={styles.fullPageHeaderClose}
+                                >
+                                    <MaterialCommunityIcons name="close" size={24} color={colors.textPrimary} />
+                                </Pressable>
+                            </View>
+
+                            {/* Simulated Device Body */}
+                            {renderPreviewContent(previewTemplate)}
+                        </>
+                    )}
                 </View>
             </Modal>
         </LinearGradient>
@@ -581,28 +927,15 @@ function getStyles(colors: any, theme?: string) {
             marginVertical: 12,
         },
 
-        // Meta grid
-        metaRow: {
-            flexDirection: 'row',
-            gap: 10,
-            paddingHorizontal: 16,
+        // Full Width Meta Block
+        fullWidthMetaBlock: {
+            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC',
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: borderCol,
+            padding: 14,
+            marginHorizontal: 16,
             marginBottom: 12,
-        },
-        metaBlock: {
-            flex: 1.4,
-            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: borderCol,
-            padding: 12,
-        },
-        metaBlockStatus: {
-            flex: 1,
-            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: borderCol,
-            padding: 12,
         },
         metaLabel: {
             fontSize: 8,
@@ -617,40 +950,66 @@ function getStyles(colors: any, theme?: string) {
             color: colors.textPrimary,
             lineHeight: 16,
         },
-        statusPill: {
+
+        // Bottom Actions Row (side-by-side Edit and Status)
+        bottomActionsRow: {
             flexDirection: 'row',
-            alignItems: 'center',
-            borderWidth: 1,
-            borderRadius: 12,
-            paddingRight: 6,
-        },
-        statusLabel: {
-            fontSize: 9,
-            fontWeight: '900',
-            letterSpacing: 0.8,
+            gap: 12,
+            marginHorizontal: 16,
+            marginBottom: 16,
         },
 
-        // Edit button
-        editBtn: {
+        // Inline Edit Button
+        inlineEditBtn: {
+            flex: 1.2,
+            height: 48,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 6,
-            marginHorizontal: 16,
-            marginBottom: 14,
-            paddingVertical: 11,
+            backgroundColor: '#0B2D3E',
             borderRadius: 16,
+            shadowColor: '#0B2D3E',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 6,
+            elevation: 2,
+        },
+        inlineEditBtnText: {
+            fontSize: 13,
+            fontWeight: '800',
+            color: '#FFFFFF',
+        },
+
+        // Inline Status Pill
+        inlineStatusPill: {
+            flex: 1,
+            height: 48,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : '#F8FAFC',
             borderWidth: 1,
             borderColor: borderCol,
-            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+            borderRadius: 16,
+            paddingHorizontal: 10,
+            justifyContent: 'center',
+        },
+        statusLabelMini: {
+            fontSize: 7,
+            fontWeight: '900',
+            color: colors.textSecondary,
+            letterSpacing: 0.8,
+            marginBottom: 1,
+            textTransform: 'uppercase',
+        },
+        statusSwitchRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+        },
+        inlineStatusText: {
+            fontSize: 10,
+            fontWeight: '900',
+            letterSpacing: 0.5,
         },
         editBtnPressed: { opacity: 0.7 },
-        editBtnText: {
-            fontSize: 13,
-            fontWeight: '700',
-            color: colors.textSecondary,
-            letterSpacing: 0.2,
-        },
 
         // Loading & empty
         loadingContainer: {
@@ -695,18 +1054,26 @@ function getStyles(colors: any, theme?: string) {
         fab: {
             position: 'absolute',
             right: 24,
-            width: 50,
-            height: 50,
-            borderRadius: 15,
+            width: 60,
+            height: 60,
+            borderRadius: 30,
             overflow: 'hidden',
-            shadowColor: '#0B2D3E',
-            shadowOffset: { width: 0, height: 14 },
-            shadowOpacity: 0.5,
-            shadowRadius: 22,
-            elevation: 14,
+            borderWidth: 1.5,
+            borderColor: 'rgba(255, 255, 255, 0.45)',
+            ...Platform.select({
+                ios: {
+                    shadowColor: '#2DD4BF',
+                    shadowOffset: { width: 0, height: 10 },
+                    shadowOpacity: 0.45,
+                    shadowRadius: 16,
+                },
+                android: {
+                    elevation: 8,
+                },
+            }),
             zIndex: 1000,
         },
-        fabPressed: { transform: [{ scale: 0.94 }], opacity: 0.9 },
+        fabPressed: { transform: [{ scale: 0.9 }, { rotate: '45deg' }], opacity: 0.95 },
         fabGradient: {
             flex: 1,
             alignItems: 'center',
@@ -720,6 +1087,11 @@ function getStyles(colors: any, theme?: string) {
             justifyContent: 'center',
             alignItems: 'center',
             padding: 24,
+        },
+        bottomSheetOverlay: {
+            flex: 1,
+            backgroundColor: 'rgba(5, 10, 20, 0.72)',
+            justifyContent: 'flex-end',
         },
         centeredModal: {
             width: '100%',
@@ -909,12 +1281,17 @@ function getStyles(colors: any, theme?: string) {
             opacity: 0.7,
             transform: [{ scale: 0.98 }],
         },
-        channelCardIcon: {
-            width: 48,
-            height: 48,
-            borderRadius: 15,
+        channelCardIconGradient: {
+            width: 44,
+            height: 44,
+            borderRadius: 14,
             alignItems: 'center',
             justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 6,
+            elevation: 2,
         },
         channelCardTitle: {
             fontSize: 16,
@@ -925,6 +1302,512 @@ function getStyles(colors: any, theme?: string) {
             fontSize: 12,
             color: colors.textSecondary,
             fontWeight: '500',
+        },
+
+        // Preview Modal Layouts
+        fullPagePreviewContainer: {
+            flex: 1,
+        },
+        fullPagePreviewHeader: {
+            height: 56,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: borderCol,
+            backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+        },
+        fullPageHeaderClose: {
+            width: 28,
+            height: 28,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        fullPagePreviewTitle: {
+            fontSize: 16,
+            fontWeight: '900',
+            color: colors.textPrimary,
+            letterSpacing: -0.5,
+        },
+        emailPreviewContainer: {
+            flex: 1,
+            backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+        },
+        emailMetaHeader: {
+            backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+            borderBottomWidth: 1,
+            borderBottomColor: isDark ? '#334155' : borderCol,
+            padding: 12,
+            gap: 6,
+        },
+        emailMetaRow: {
+            flexDirection: 'row',
+            alignItems: 'baseline',
+        },
+        emailMetaLabel: {
+            width: 60,
+            fontSize: 12,
+            fontWeight: '600',
+            color: '#64748B',
+        },
+        emailMetaVal: {
+            fontSize: 12,
+            fontWeight: '500',
+            color: isDark ? '#E2E8F0' : '#1E293B',
+            flex: 1,
+        },
+        emailBodyContainer: {
+            flex: 1,
+            backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
+        },
+        emailCardMock: {
+            backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+            borderRadius: 16,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: isDark ? '#334155' : borderCol,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.03,
+            shadowRadius: 8,
+            elevation: 1,
+        },
+        emailBrandingHeader: {
+            paddingBottom: 12,
+            borderTopWidth: 4,
+            borderBottomWidth: 1,
+            borderBottomColor: isDark ? '#334155' : '#F1F5F9',
+            marginBottom: 16,
+        },
+        emailBrandingTitle: {
+            fontSize: 18,
+            fontWeight: '800',
+            color: isDark ? '#F1F5F9' : '#1E293B',
+            marginTop: 8,
+        },
+        emailBrandingSub: {
+            fontSize: 11,
+            color: isDark ? '#94A3B8' : '#64748B',
+            marginTop: 2,
+            fontWeight: '500',
+        },
+        emailTextContent: {
+            fontSize: 14,
+            color: isDark ? '#CBD5E1' : '#334155',
+            lineHeight: 22,
+            marginBottom: 16,
+        },
+        emailCtaBtn: {
+            backgroundColor: isDark ? '#0D9488' : '#0B2D3E',
+            paddingVertical: 12,
+            paddingHorizontal: 24,
+            borderRadius: 12,
+        },
+        emailCtaBtnText: {
+            color: '#FFFFFF',
+            fontSize: 14,
+            fontWeight: '700',
+        },
+        emailPropHeaderContainer: {
+            height: 180,
+            borderRadius: 16,
+            overflow: 'hidden',
+            marginBottom: 16,
+        },
+        emailPropHeaderGradient: {
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+        },
+        emailPropHeaderTitle: {
+            color: '#FFFFFF',
+            fontSize: 14,
+            fontWeight: '900',
+            letterSpacing: 1.5,
+            marginTop: 12,
+            textAlign: 'center',
+        },
+        emailPropHeaderSub: {
+            color: '#94A3B8',
+            fontSize: 11,
+            fontWeight: '600',
+            letterSpacing: 0.5,
+            marginTop: 4,
+            textAlign: 'center',
+        },
+        emailPageLinkRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+            borderWidth: 1,
+            borderColor: isDark ? '#334155' : borderCol,
+            borderRadius: 12,
+            padding: 12,
+            marginBottom: 16,
+        },
+        emailPageLinkText: {
+            fontSize: 13,
+            fontWeight: '700',
+            color: isDark ? '#2DD4BF' : '#0D9488',
+        },
+        emailPropDetailsCard: {
+            backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: isDark ? '#334155' : borderCol,
+            padding: 12,
+            marginBottom: 16,
+        },
+        emailPropTitle: {
+            fontSize: 15,
+            fontWeight: '800',
+            color: isDark ? '#F1F5F9' : '#1E293B',
+        },
+        emailPropPrice: {
+            fontSize: 18,
+            fontWeight: '900',
+            color: isDark ? '#2DD4BF' : '#0D9488',
+            marginVertical: 4,
+        },
+        emailPropSpecs: {
+            fontSize: 12,
+            color: isDark ? '#94A3B8' : '#64748B',
+            fontWeight: '600',
+        },
+        emailPropAddress: {
+            fontSize: 12,
+            color: isDark ? '#64748B' : '#94A3B8',
+            marginTop: 2,
+        },
+        emailAttachmentCard: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+            borderWidth: 1,
+            borderColor: isDark ? '#334155' : borderCol,
+            borderRadius: 12,
+            padding: 12,
+            marginBottom: 16,
+        },
+        emailAttachmentName: {
+            fontSize: 13,
+            fontWeight: '700',
+            color: isDark ? '#F1F5F9' : '#1E293B',
+        },
+        emailAttachmentSize: {
+            fontSize: 11,
+            color: isDark ? '#94A3B8' : '#64748B',
+            marginTop: 2,
+        },
+        emailSignatureBox: {
+            marginTop: 16,
+            marginBottom: 16,
+        },
+        signatureDivider: {
+            height: 1,
+            backgroundColor: isDark ? '#334155' : borderCol,
+            marginBottom: 16,
+        },
+        emailSignatureText: {
+            fontSize: 13,
+            color: isDark ? '#94A3B8' : '#64748B',
+            lineHeight: 18,
+        },
+        signatureSocialRow: {
+            flexDirection: 'row',
+            gap: 8,
+            marginTop: 10,
+        },
+        sigSocialIconBadge: {
+            width: 24,
+            height: 24,
+            borderRadius: 12,
+            backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+
+        // SMS Preview Styles
+        smsPreviewContainer: {
+            flex: 1,
+            backgroundColor: isDark ? '#000000' : '#FFFFFF',
+        },
+        smsHeader: {
+            height: 70,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 12,
+            borderBottomWidth: 1,
+            borderBottomColor: isDark ? '#2C2C2E' : '#E5E5EA',
+            backgroundColor: isDark ? '#1C1C1E' : '#F9F9F9',
+        },
+        smsAvatar: {
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: isDark ? '#3A3A3C' : '#8E8E93',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 2,
+        },
+        smsAvatarText: {
+            color: '#FFFFFF',
+            fontSize: 12,
+            fontWeight: '700',
+        },
+        smsContactName: {
+            fontSize: 11,
+            color: isDark ? '#FFFFFF' : '#000000',
+            fontWeight: '500',
+        },
+        smsChatArea: {
+            flex: 1,
+            backgroundColor: isDark ? '#000000' : '#FFFFFF',
+        },
+        smsDateStamp: {
+            textAlign: 'center',
+            fontSize: 11,
+            color: '#8E8E93',
+            fontWeight: '600',
+            marginVertical: 12,
+            textTransform: 'uppercase',
+        },
+        smsBubbleContainer: {
+            alignItems: 'flex-start',
+            marginBottom: 16,
+        },
+        smsBubble: {
+            backgroundColor: isDark ? '#262629' : '#E5E5EA',
+            borderRadius: 18,
+            paddingVertical: 10,
+            paddingHorizontal: 16,
+            maxWidth: '75%',
+        },
+        smsBubbleText: {
+            color: isDark ? '#FFFFFF' : '#000000',
+            fontSize: 15,
+            lineHeight: 20,
+        },
+        smsTimeText: {
+            fontSize: 10,
+            color: '#8E8E93',
+            marginTop: 4,
+            marginLeft: 12,
+        },
+        smsInputFooter: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: 10,
+            borderTopWidth: 1,
+            borderTopColor: isDark ? '#2C2C2E' : '#E5E5EA',
+            backgroundColor: isDark ? '#1C1C1E' : '#F9F9F9',
+            gap: 12,
+        },
+        smsInputField: {
+            flex: 1,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: isDark ? '#000000' : '#FFFFFF',
+            borderWidth: 1,
+            borderColor: isDark ? '#2C2C2E' : '#C7C7CC',
+            paddingLeft: 12,
+            paddingRight: 6,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+        },
+        smsSendBtnCircle: {
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            backgroundColor: '#007AFF',
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        smsBubbleLink: {
+            backgroundColor: isDark ? '#262629' : '#E5E5EA',
+            borderRadius: 18,
+            paddingVertical: 10,
+            paddingHorizontal: 16,
+            maxWidth: '75%',
+            borderLeftWidth: 3,
+            borderLeftColor: '#007AFF',
+        },
+        smsLinkPreviewHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            marginBottom: 2,
+        },
+        smsLinkPreviewTitle: {
+            fontSize: 14,
+            fontWeight: '700',
+            color: '#007AFF',
+        },
+        smsLinkUrlText: {
+            fontSize: 12,
+            color: '#8E8E93',
+            textDecorationLine: 'underline',
+        },
+
+        // WhatsApp Preview Styles
+        waPreviewContainer: {
+            flex: 1,
+            backgroundColor: isDark ? '#0B141A' : '#E5DDD5',
+        },
+        waHeader: {
+            height: 60,
+            backgroundColor: isDark ? '#202C33' : '#075E54',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 10,
+        },
+        waAvatar: {
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: isDark ? '#374248' : '#95A5A6',
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        waAvatarText: {
+            color: '#FFFFFF',
+            fontSize: 13,
+            fontWeight: '700',
+        },
+        waContactName: {
+            color: '#FFFFFF',
+            fontSize: 14,
+            fontWeight: '700',
+        },
+        waStatus: {
+            color: isDark ? '#8696A0' : 'rgba(255, 255, 255, 0.75)',
+            fontSize: 10,
+            marginTop: 1,
+        },
+        waBackgroundWrapper: {
+            flex: 1,
+            backgroundColor: isDark ? '#0B141A' : '#efeAE2',
+        },
+        waChatArea: {
+            flex: 1,
+        },
+        waDateBadge: {
+            alignSelf: 'center',
+            backgroundColor: isDark ? '#182229' : '#E1F3FB',
+            borderRadius: 8,
+            paddingVertical: 5,
+            paddingHorizontal: 10,
+            marginVertical: 12,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 1,
+            elevation: 1,
+        },
+        waDateBadgeText: {
+            fontSize: 10.5,
+            color: isDark ? '#8696A0' : '#50606B',
+            fontWeight: '700',
+        },
+        waBubbleContainer: {
+            alignItems: 'flex-start',
+            marginBottom: 16,
+        },
+        waBubble: {
+            backgroundColor: isDark ? '#005C4B' : '#D9FDD3',
+            borderRadius: 10,
+            paddingTop: 8,
+            paddingLeft: 10,
+            paddingRight: 10,
+            paddingBottom: 4,
+            maxWidth: '80%',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.1,
+            shadowRadius: 2,
+            elevation: 1,
+        },
+        waBubbleText: {
+            color: isDark ? '#E9EDEF' : '#303030',
+            fontSize: 14.5,
+            lineHeight: 19,
+        },
+        waBubbleFooter: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            marginTop: 4,
+            alignSelf: 'flex-end',
+        },
+        waTimeText: {
+            fontSize: 9.5,
+            color: isDark ? '#8696A0' : '#8696A0',
+        },
+        waInputFooter: {
+            flexDirection: 'row',
+            padding: 8,
+            backgroundColor: 'transparent',
+            alignItems: 'center',
+            gap: 6,
+        },
+        waInputField: {
+            flex: 1,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: isDark ? '#202C33' : '#FFFFFF',
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 12,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.08,
+            shadowRadius: 2,
+            elevation: 1,
+        },
+        waMicBtn: {
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: '#00A884',
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.08,
+            shadowRadius: 2,
+            elevation: 1,
+        },
+        waTemplateButtonContainer: {
+            alignItems: 'flex-start',
+            marginBottom: 16,
+            maxWidth: '80%',
+        },
+        waTemplateActionBtn: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: isDark ? '#202C33' : '#FFFFFF',
+            borderTopWidth: 1,
+            borderTopColor: isDark ? '#2F3B43' : '#F2F2F2',
+            paddingVertical: 10,
+            width: '100%',
+            borderBottomLeftRadius: 10,
+            borderBottomRightRadius: 10,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 1,
+            elevation: 1,
+        },
+        waTemplateActionBtnText: {
+            color: '#00A884',
+            fontSize: 13,
+            fontWeight: '700',
         },
     });
 }

@@ -1,4 +1,5 @@
 import { useAppTheme } from '@/context/ThemeContext';
+import { ThemeColors } from '@/constants/theme';
 import { addCRMLead, analyzeContactsFile } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
@@ -52,8 +53,8 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
   metaData,
   onImportSuccess,
 }) => {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const { colors, theme } = useAppTheme();
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
 
   const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
@@ -342,7 +343,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                   keyboardShouldPersistTaps="handled"
                 >
                   <View style={styles.sectionHeader}>
-                    <MaterialCommunityIcons name="comment-text-outline" size={16} color={colors.accentTeal} />
+                    <MaterialCommunityIcons name="comment-text-outline" size={16} color={theme === 'dark' ? '#00a7b5' : colors.accentTeal} />
                     <Text style={styles.sectionTitle}>Import Context & Instructions</Text>
                   </View>
 
@@ -376,7 +377,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                   {/* Advice Card */}
                   <View style={styles.tooltipCard}>
                     <View style={styles.tooltipIconBadge}>
-                      <MaterialCommunityIcons name="robot-outline" size={15} color={colors.accentTeal} />
+                      <MaterialCommunityIcons name="robot-outline" size={15} color={theme === 'dark' ? '#00a7b5' : colors.accentTeal} />
                     </View>
                     <Text style={styles.tooltipText}>
                       Optional: Describing your data helps the AI map ambiguous fields and group leads by intent.
@@ -492,7 +493,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                   <View style={styles.reviewBannerRow}>
                     <View style={styles.reviewBannerInfo}>
                       <View style={styles.reviewRobotFrame}>
-                        <MaterialCommunityIcons name="robot-outline" size={16} color={colors.accentTeal} />
+                        <MaterialCommunityIcons name="robot-outline" size={16} color={theme === 'dark' ? '#00a7b5' : colors.accentTeal} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.reviewBannerTitle}>Full Lead Field Mapping</Text>
@@ -553,7 +554,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                         <View style={{ flex: 1 }}>
                           <Text style={styles.reviewCardLabel}>BUDGET / TIMELINE</Text>
                           <Text style={styles.reviewCardValueBold}>{contact.budget || 'N/A'}</Text>
-                          <Text style={[styles.reviewCardValueBold, { color: '#0a2341', marginTop: 2 }]}>
+                          <Text style={[styles.reviewCardValueBold, { color: theme === 'dark' ? '#00a7b5' : '#0a2341', marginTop: 2 }]}>
                             {contact.timeline || 'Active'}
                           </Text>
                         </View>
@@ -649,7 +650,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                     cx={48}
                     cy={48}
                     r={42}
-                    stroke={colors.accentTeal}
+                    stroke={theme === 'dark' ? '#00a7b5' : colors.accentTeal}
                     strokeWidth={4.5}
                     fill="none"
                     strokeDasharray="50 180"
@@ -660,7 +661,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
               <View style={styles.analysisLoaderInner}>
                 <View style={styles.analysisLoaderWhiteRing} />
                 <View style={styles.analysisBrainIconWrap}>
-                  <MaterialCommunityIcons name="brain" size={32} color={colors.accentTeal} />
+                  <MaterialCommunityIcons name="brain" size={32} color={theme === 'dark' ? '#00a7b5' : colors.accentTeal} />
                 </View>
               </View>
             </View>
@@ -690,7 +691,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                         <MaterialCommunityIcons name="check" size={12} color="#FFFFFF" />
                       </View>
                     ) : inProgress ? (
-                      <ActivityIndicator size="small" color={colors.accentTeal} />
+                      <ActivityIndicator size="small" color={theme === 'dark' ? '#00a7b5' : colors.accentTeal} />
                     ) : (
                       <View style={styles.pendingBadge} />
                     )}
@@ -705,7 +706,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
   );
 };
 
-const getStyles = (colors: any) => StyleSheet.create({
+const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: '#000000',
@@ -730,7 +731,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0a2341',
+    shadowColor: theme === 'dark' ? '#000000' : '#0a2341',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
@@ -826,7 +827,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: colors.surfaceSoft,
+    backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.borderLight,
     alignItems: 'center',
@@ -839,6 +840,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    backgroundColor: colors.cardBackground,
+    borderRadius: 8,
   },
   badgeGreen: {
     width: 18,
@@ -865,10 +868,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: `${colors.accentTeal}08`,
+    backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.05)' : `${colors.accentTeal}08`,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: `${colors.accentTeal}15`,
+    borderColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.15)' : `${colors.accentTeal}15`,
     padding: 14,
     marginBottom: 20,
   },
@@ -876,14 +879,14 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: `${colors.accentTeal}15`,
+    backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.12)' : `${colors.accentTeal}15`,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tooltipText: {
     flex: 1,
     fontSize: 12,
-    color: colors.textSecondary,
+    color: theme === 'dark' ? '#00a7b5' : colors.textSecondary,
     fontWeight: '600',
     lineHeight: 16,
   },
@@ -949,7 +952,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: colors.accentTeal,
+    backgroundColor: theme === 'dark' ? '#00a7b5' : colors.accentTeal,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -974,13 +977,13 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   attachedChangeText: {
     fontSize: 12,
-    color: colors.accentTeal,
+    color: theme === 'dark' ? '#00a7b5' : colors.accentTeal,
     fontWeight: '800',
   },
   initializeBtn: {
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#0a2341',
+    shadowColor: theme === 'dark' ? '#000000' : '#0a2341',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -1055,7 +1058,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: `${colors.accentTeal}15`,
+    backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.12)' : `${colors.accentTeal}15`,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1095,7 +1098,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: colors.textMuted,
   },
   stepLabelInProgress: {
-    color: colors.accentTeal,
+    color: theme === 'dark' ? '#00a7b5' : colors.accentTeal,
   },
   checkBadge: {
     width: 20,
@@ -1136,7 +1139,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: `${colors.accentTeal}15`,
+    backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.12)' : `${colors.accentTeal}15`,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1169,7 +1172,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   confidenceValue: {
     fontSize: 16,
     fontWeight: '900',
-    color: colors.accentTeal,
+    color: theme === 'dark' ? '#00a7b5' : colors.accentTeal,
   },
   confidenceCheckCircle: {
     width: 14,
@@ -1211,7 +1214,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   reviewCardEmail: {
     fontSize: 13,
-    color: colors.accentTeal,
+    color: theme === 'dark' ? '#00a7b5' : colors.accentTeal,
     fontWeight: '700',
   },
   reviewCardPhone: {
@@ -1270,7 +1273,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   confirmImportBtn: {
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#0a2341',
+    shadowColor: theme === 'dark' ? '#000000' : '#0a2341',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -1292,7 +1295,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: colors.borderLight,
-    backgroundColor: colors.surfaceSoft,
+    backgroundColor: colors.cardBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },

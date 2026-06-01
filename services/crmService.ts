@@ -1740,6 +1740,36 @@ export const updateCRMAutomationStatus = async (accessToken: string, automationI
     }
 };
 
+export const updateCRMAutomation = async (accessToken: string, automationId: string, payload: any): Promise<void> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/automations/${automationId}`, {
+            method: 'PATCH',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
 export const addCRMAutomation = async (accessToken: string, payload: any): Promise<CRMAutomation> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -1815,3 +1845,83 @@ export const analyzeContactsFile = async (
         clearTimeout(timeoutId);
     }
 };
+
+export interface CRMSettingsPayload {
+    lead_distribution: string;
+    auto_merge: boolean;
+    inactivity_threshold: string;
+    safety_limit: string;
+    target_segment: string;
+    reengagement_channel: string;
+    protocol_identity: string;
+    recovery_script: string;
+    ghost_protocol: boolean;
+    anniversaries: Array<{ event: string; icon: string; key: string }>;
+    anniversary_settings: Record<string, boolean>;
+}
+
+export const updateCRMSettings = async (accessToken: string, payload: CRMSettingsPayload): Promise<any> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/settings`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export const getCRMSettings = async (accessToken: string): Promise<CRMSettingsPayload> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/settings`, {
+            method: 'GET',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+

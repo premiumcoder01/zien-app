@@ -45,18 +45,7 @@ interface Integration {
 }
 
 const INITIAL_INTEGRATIONS: Integration[] = [
-  { id: 'hubspot', name: 'HubSpot', category: 'CRM', desc: 'Automatically push leads and track marketing activity in HubSpot.', status: 'AVAILABLE', icon: 'database-outline', buttonLabel: 'Connect Now', gradient: ['#FF7A59', '#FF5C35'] },
-  { id: 'salesforce', name: 'Salesforce', category: 'CRM', desc: 'Deep bi-directional sync with Salesforce CRM for enterprise teams.', status: 'AVAILABLE', icon: 'cloud-outline', buttonLabel: 'Connect Now', gradient: ['#00A1E0', '#0070D2'] },
-  { id: 'mailchimp', name: 'Mailchimp', category: 'Email Marketing', desc: 'Sync your contact segments directly to Mailchimp audiences.', status: 'AVAILABLE', icon: 'email-outline', buttonLabel: 'Connect Now', gradient: ['#FFE01B', '#F0C808'] },
-  { id: 'gmail', name: 'Gmail', category: 'Email', desc: 'Send emails directly from ZIEN using your Gmail account.', status: 'AVAILABLE', icon: 'email-outline', buttonLabel: 'Connect Now', gradient: ['#EA4335', '#D93025'] },
-  { id: 'slack', name: 'Slack', category: 'Communication', desc: 'Get real-time notifications for leads and deals in your Slack workspace.', status: 'AVAILABLE', icon: 'message-outline', buttonLabel: 'Connect Now', gradient: ['#4A154B', '#611F69'] },
-  { id: 'gcal', name: 'Google Calendar', category: 'Calendar', desc: 'Sync appointments and schedule meetings directly from ZIEN.', status: 'AVAILABLE', icon: 'calendar-blank-outline', buttonLabel: 'Connect Now', gradient: ['#4285F4', '#1A73E8'] },
-  { id: 'zoom', name: 'Zoom', category: 'Video Conferencing', desc: 'Create and manage Zoom meetings for property tours and consultations.', status: 'AVAILABLE', icon: 'video-outline', buttonLabel: 'Connect Now', gradient: ['#2D8CFF', '#0B5CFF'] },
-  { id: 'docusign', name: 'DocuSign', category: 'Documents', desc: 'Send contracts and documents for electronic signature.', status: 'AVAILABLE', icon: 'file-document-outline', buttonLabel: 'Connect Now', gradient: ['#FFCE00', '#F5B800'] },
-  { id: 'stripe', name: 'Stripe', category: 'Payments', desc: 'Process payments and manage billing for your real estate services.', status: 'AVAILABLE', icon: 'currency-usd', buttonLabel: 'Connect Now', gradient: ['#635BFF', '#5046E5'] },
-  { id: 'twilio', name: 'Twilio', category: 'SMS', desc: 'Send SMS notifications and automate text message campaigns.', status: 'AVAILABLE', icon: 'cellphone', buttonLabel: 'Connect Now', gradient: ['#F22F46', '#D91A32'] },
-  { id: 'zapier', name: 'Zapier', category: 'Automation', desc: 'Connect ZIEN to 5,000+ apps with custom automation workflows.', status: 'AVAILABLE', icon: 'cog-outline', buttonLabel: 'Connect Now', gradient: ['#FF4A00', '#E04400'] },
-  { id: 'teams', name: 'Microsoft Teams', category: 'Communication', desc: 'Collaborate with your team and get notifications in Microsoft Teams.', status: 'AVAILABLE', icon: 'account-group-outline', buttonLabel: 'Connect Now', gradient: ['#5B5FC7', '#4B4FB5'] },
+  { id: 'hubspot', name: 'Hubspot', category: 'CRM', desc: 'Automatically push leads and track marketing activity in HubSpot.', status: 'AVAILABLE', icon: 'database-outline', buttonLabel: 'Connect Now', gradient: ['#FF7A59', '#FF5C35'] },
 ];
 
 export default function IntegrationsScreen() {
@@ -402,19 +391,19 @@ export default function IntegrationsScreen() {
         {/* Stats Banner */}
         <View style={styles.statsBanner}>
           <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: '#0a2341' }]} />
+            <View style={[styles.statDot, { backgroundColor: colors.accent }]} />
             <Text style={styles.statValue}>{connectedCount}</Text>
             <Text style={styles.statLabel}>Connected</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: '#1B5E9A' }]} />
+            <View style={[styles.statDot, { backgroundColor: colors.accentBlue }]} />
             <Text style={styles.statValue}>{availableCount}</Text>
             <Text style={styles.statLabel}>Available</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: '#94A3B8' }]} />
+            <View style={[styles.statDot, { backgroundColor: colors.textSecondary }]} />
             <Text style={styles.statValue}>{integrations.length}</Text>
             <Text style={styles.statLabel}>Total</Text>
           </View>
@@ -564,7 +553,7 @@ export default function IntegrationsScreen() {
               <View style={styles.hs2SectionCard}>
                 <View style={styles.hs2SectionHeader}>
                   <View style={styles.hs2IconWrapper}>
-                    <MaterialCommunityIcons name="folder-open-outline" size={18} color="#0C2340" />
+                    <MaterialCommunityIcons name="folder-open-outline" size={18} color={colors.textPrimary} />
                   </View>
                   <View style={styles.hs2SectionTitleGroup}>
                     <Text style={styles.hs2SectionTitleText}>Lead Routing (Defaults)</Text>
@@ -587,7 +576,7 @@ export default function IntegrationsScreen() {
                     <Text style={[styles.hs2DropdownText, !selectedGroupId && styles.hs2DropdownPlaceholder]}>
                       {getGroupName(selectedGroupId)}
                     </Text>
-                    <MaterialCommunityIcons name="chevron-down" size={18} color="#94A3B8" />
+                    <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textSecondary} />
                   </Pressable>
 
                   {groupPickerOpen && (
@@ -603,7 +592,7 @@ export default function IntegrationsScreen() {
                               {g.name}
                             </Text>
                             {selectedGroupId === g.id && (
-                              <MaterialCommunityIcons name="check" size={16} color="#0a2341" />
+                              <MaterialCommunityIcons name="check" size={16} color={colors.accent} />
                             )}
                           </Pressable>
                         ))}
@@ -628,7 +617,7 @@ export default function IntegrationsScreen() {
                     <Text style={[styles.hs2DropdownText, !selectedTagId && styles.hs2DropdownPlaceholder]}>
                       {getTagName(selectedTagId)}
                     </Text>
-                    <MaterialCommunityIcons name="chevron-down" size={18} color="#94A3B8" />
+                    <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textSecondary} />
                   </Pressable>
 
                   {tagPickerOpen && (
@@ -647,7 +636,7 @@ export default function IntegrationsScreen() {
                               </Text>
                             </View>
                             {selectedTagId === t.id && (
-                              <MaterialCommunityIcons name="check" size={16} color="#0a2341" />
+                              <MaterialCommunityIcons name="check" size={16} color={colors.accent} />
                             )}
                           </Pressable>
                         ))}
@@ -664,7 +653,7 @@ export default function IntegrationsScreen() {
               <View style={styles.hs2SectionCard}>
                 <View style={styles.hs2SectionHeader}>
                   <View style={styles.hs2IconWrapper}>
-                    <MaterialCommunityIcons name="database-outline" size={18} color="#0C2340" />
+                    <MaterialCommunityIcons name="database-outline" size={18} color={colors.textPrimary} />
                   </View>
                   <View style={styles.hs2SectionTitleGroup}>
                     <Text style={styles.hs2SectionTitleText}>Manual Data Sync</Text>
@@ -687,7 +676,7 @@ export default function IntegrationsScreen() {
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
                       <>
-                        <MaterialCommunityIcons name="database-sync-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                         <MaterialCommunityIcons name="database-sync-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                         <Text style={styles.hs2ForceSyncBtnText}>Force Sync Now</Text>
                       </>
                     )}
@@ -699,7 +688,7 @@ export default function IntegrationsScreen() {
               <View style={styles.hs2SectionCard}>
                 <View style={styles.hs2SectionHeader}>
                   <View style={styles.hs2IconWrapper}>
-                    <MaterialCommunityIcons name="cog-outline" size={18} color="#0C2340" />
+                    <MaterialCommunityIcons name="cog-outline" size={18} color={colors.textPrimary} />
                   </View>
                   <View style={styles.hs2SectionTitleGroup}>
                     <Text style={styles.hs2SectionTitleText}>Sync Direction Settings</Text>
@@ -718,7 +707,7 @@ export default function IntegrationsScreen() {
                   <Switch
                     value={syncPush}
                     onValueChange={handleTogglePush}
-                    trackColor={{ false: 'rgba(148,163,184,0.2)', true: '#0a2341' }}
+                    trackColor={{ false: colors.cardBorder, true: colors.accentTeal }}
                     thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
                   />
                 </View>
@@ -732,7 +721,7 @@ export default function IntegrationsScreen() {
                   <Switch
                     value={syncPull}
                     onValueChange={handleTogglePull}
-                    trackColor={{ false: 'rgba(148,163,184,0.2)', true: '#0a2341' }}
+                    trackColor={{ false: colors.cardBorder, true: colors.accentTeal }}
                     thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
                   />
                 </View>
@@ -1000,7 +989,7 @@ function getStyles(colors: any) {
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: '#0a2341',
+      backgroundColor: colors.accent,
     },
     statusBadgeText: {
       fontSize: 8,
@@ -1008,7 +997,7 @@ function getStyles(colors: any) {
       color: colors.textSecondary,
       letterSpacing: 0.6,
     },
-    statusBadgeTextConnected: { color: '#0a2341' },
+    statusBadgeTextConnected: { color: colors.accent },
 
     intMetaGroup: {
       marginBottom: 8,
@@ -1440,7 +1429,7 @@ function getStyles(colors: any) {
       paddingHorizontal: 16,
     },
     hs2Card: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.cardBackground,
       borderRadius: 24,
       width: '100%',
       maxHeight: '90%',
@@ -1461,19 +1450,19 @@ function getStyles(colors: any) {
     hs2Title: {
       fontSize: 20,
       fontWeight: '900',
-      color: '#0C2340',
+      color: colors.textPrimary,
       letterSpacing: -0.4,
     },
     hs2CloseBtn: {
       padding: 4,
     },
     hs2SectionCard: {
-      backgroundColor: '#F8FAFC',
+      backgroundColor: colors.surfaceSoft,
       borderRadius: 16,
       padding: 16,
       marginBottom: 16,
       borderWidth: 1,
-      borderColor: '#E2E8F0',
+      borderColor: colors.cardBorder,
     },
     hs2SectionHeader: {
       flexDirection: 'row',
@@ -1485,7 +1474,7 @@ function getStyles(colors: any) {
       width: 36,
       height: 36,
       borderRadius: 8,
-      backgroundColor: '#E6F0FA',
+      backgroundColor: colors.surfaceIcon,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1496,12 +1485,12 @@ function getStyles(colors: any) {
     hs2SectionTitleText: {
       fontSize: 15,
       fontWeight: '900',
-      color: '#0C2340',
+      color: colors.textPrimary,
     },
     hs2SectionSubtitleText: {
       fontSize: 12,
       fontWeight: '500',
-      color: '#64748B',
+      color: colors.textSecondary,
       lineHeight: 16,
     },
     hs2FieldGroup: {
@@ -1510,15 +1499,15 @@ function getStyles(colors: any) {
     hs2FieldLabel: {
       fontSize: 13,
       fontWeight: '700',
-      color: '#0C2340',
+      color: colors.textPrimary,
       marginBottom: 6,
     },
     hs2CustomDropdown: {
       height: 44,
       borderRadius: 12,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.cardBackground,
       borderWidth: 1,
-      borderColor: '#E2E8F0',
+      borderColor: colors.cardBorder,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -1527,16 +1516,16 @@ function getStyles(colors: any) {
     hs2DropdownText: {
       fontSize: 13.5,
       fontWeight: '600',
-      color: '#0C2340',
+      color: colors.textPrimary,
     },
     hs2DropdownPlaceholder: {
-      color: '#94A3B8',
+      color: colors.inputPlaceholder,
     },
     hs2PickerListInline: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.cardBackground,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: '#E2E8F0',
+      borderColor: colors.cardBorder,
       marginTop: 4,
       padding: 6,
       maxHeight: 180,
@@ -1550,21 +1539,21 @@ function getStyles(colors: any) {
       borderRadius: 8,
     },
     hs2PickerItemActive: {
-      backgroundColor: '#F1F5F9',
+      backgroundColor: colors.surfaceMuted,
     },
     hs2PickerItemTextInline: {
       fontSize: 13.5,
       fontWeight: '600',
-      color: '#334155',
+      color: colors.textSecondary,
     },
     hs2PickerItemTextActive: {
-      color: '#0C2340',
+      color: colors.textPrimary,
       fontWeight: '700',
     },
     hs2PickerEmptyInline: {
       fontSize: 12,
       fontWeight: '500',
-      color: '#94A3B8',
+      color: colors.inputPlaceholder,
       textAlign: 'center',
       paddingVertical: 12,
     },
@@ -1575,7 +1564,7 @@ function getStyles(colors: any) {
     hs2ForceSyncBtn: {
       height: 40,
       borderRadius: 10,
-      backgroundColor: '#0a2341',
+      backgroundColor: colors.accentTeal,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -1587,11 +1576,11 @@ function getStyles(colors: any) {
       color: '#FFFFFF',
     },
     hs2SwitchRowCard: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.cardBackground,
       borderRadius: 12,
       padding: 12,
       borderWidth: 1,
-      borderColor: '#E2E8F0',
+      borderColor: colors.cardBorder,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -1600,13 +1589,13 @@ function getStyles(colors: any) {
     hs2SwitchTitle: {
       fontSize: 13.5,
       fontWeight: '700',
-      color: '#0C2340',
+      color: colors.textPrimary,
       marginBottom: 2,
     },
     hs2SwitchSub: {
       fontSize: 11.5,
       fontWeight: '500',
-      color: '#64748B',
+      color: colors.textSecondary,
     },
 
     // ── Coming Soon Modal ──

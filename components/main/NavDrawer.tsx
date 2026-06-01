@@ -48,8 +48,8 @@ function NavDrawerComponent({
   customBackground,
   backToMainRoute,
 }: NavDrawerProps) {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const { colors, theme } = useAppTheme();
+  const styles = getStyles(colors, theme);
   const router = useRouter();
   const segments = useSegments();
   const { logout } = useAuth();
@@ -127,7 +127,11 @@ function NavDrawerComponent({
                   <MaterialCommunityIcons
                     name={item.icon as any}
                     size={20}
-                    color={isActive ? colors.accentTeal : (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary)}
+                    color={
+                      isActive
+                        ? (theme === 'dark' ? '#FFFFFF' : '#00a7b5')
+                        : (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary)
+                    }
                   />
                 </View>
 
@@ -136,7 +140,7 @@ function NavDrawerComponent({
                     styles.itemText,
                     isActive ? styles.itemTextActive : {},
                     !item.route ? styles.itemTextDisabled : {},
-                    customBackground ? { color: isActive ? colors.accentTeal : 'rgba(255,255,255,0.7)' } : {},
+                    customBackground ? { color: isActive ? '#00a7b5' : 'rgba(255,255,255,0.7)' } : {},
                   ]}
                 >
                   {item.label}
@@ -155,7 +159,7 @@ function NavDrawerComponent({
 
 export const NavDrawer = memo(NavDrawerComponent);
 
-function getStyles(colors: any) {
+function getStyles(colors: any, theme?: string) {
   return StyleSheet.create({
     backdrop: {
       ...StyleSheet.absoluteFillObject,
@@ -216,7 +220,7 @@ function getStyles(colors: any) {
       height: 48,
     },
     itemActive: {
-      backgroundColor: `${colors.accentTeal}15`,
+      backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.18)' : 'rgba(0, 167, 181, 0.10)',
     },
     itemPressed: {
       backgroundColor: colors.surfaceSoft,
@@ -227,7 +231,7 @@ function getStyles(colors: any) {
       top: 0,
       bottom: 0,
       width: 4,
-      backgroundColor: colors.accentTeal,
+      backgroundColor: '#00a7b5',
     },
     iconWrap: {
       width: 24,
@@ -241,7 +245,7 @@ function getStyles(colors: any) {
       color: colors.textSecondary,
     },
     itemTextActive: {
-      color: colors.textPrimary,
+      color: theme === 'dark' ? '#FFFFFF' : '#0a2341',
       fontWeight: '700',
     },
     itemTextDisabled: {
