@@ -1,36 +1,35 @@
 import { DashboardLayout } from '@/components/main';
-import { useAppTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { getAgencyDashboardStats, AgencyStat, AgencyUsageDetail } from '@/services/dashboardService';
+import { useAppTheme } from '@/context/ThemeContext';
+import { AgencyStat, AgencyUsageDetail, getAgencyDashboardStats } from '@/services/dashboardService';
+import { formatStatValue } from '@/utils/number-format';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, useRouter } from 'expo-router';
-import { 
-    Users, 
-    LayoutDashboard, 
-    Zap, 
-    Package, 
-    TrendingUp, 
-    Activity, 
+import {
+    Activity,
     ChevronRight,
     Layout,
-    ArrowUpRight,
-    UserPlus,
+    Package,
+    Settings,
     ShieldCheck,
-    Settings
+    TrendingUp,
+    UserPlus,
+    Users,
+    Zap
 } from 'lucide-react-native';
 import React from 'react';
-import { 
-    Image, 
-    ScrollView, 
-    StyleSheet, 
-    Text, 
-    TouchableOpacity, 
-    View, 
-    Dimensions, 
+import {
     ActivityIndicator,
-    RefreshControl
+    Dimensions,
+    Image,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -80,7 +79,7 @@ const formatRelativeTime = (dateString: string) => {
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
     if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-    
+
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
@@ -94,10 +93,10 @@ const getEventIcon = (event: string) => {
 
 const StatCard = ({ stat, index }: { stat: AgencyStat, index: number }) => {
     const { colors } = useAppTheme();
-    
+
     // Choose a gradient based on index for variety
     const gradients = [
-        ['#0BA0B2', '#065F6B'],
+        ['#0a2341', '#065F6B'],
         ['#F37021', '#C2410C'],
         ['#6366F1', '#4338CA'],
         ['#10B981', '#047857']
@@ -113,7 +112,7 @@ const StatCard = ({ stat, index }: { stat: AgencyStat, index: number }) => {
                 >
                     <LucideIcon name={stat.icon} size={20} color={currentGradient[0]} />
                 </LinearGradient>
-                
+
                 {stat.grow && (
                     <View style={[styles.growBadge, { backgroundColor: stat.grow.startsWith('+') ? '#10B98115' : '#6366F115' }]}>
                         <Text style={[styles.growText, { color: stat.grow.startsWith('+') ? '#10B981' : '#6366F1' }]}>
@@ -125,11 +124,11 @@ const StatCard = ({ stat, index }: { stat: AgencyStat, index: number }) => {
 
             <View style={styles.statContent}>
                 <Text style={[styles.statValue, { color: colors.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
-                    {stat.value}
+                    {formatStatValue(stat.value, false)}
                 </Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{stat.label}</Text>
             </View>
-            
+
             <View style={[styles.statDecorative, { backgroundColor: currentGradient[0], opacity: 0.05 }]} />
         </View>
     );
@@ -138,7 +137,7 @@ const StatCard = ({ stat, index }: { stat: AgencyStat, index: number }) => {
 const ActivityItem = ({ item }: { item: any }) => {
     const { colors } = useAppTheme();
     const iconName = getEventIcon(item.event);
-    
+
     return (
         <View style={styles.activityRow}>
             <View style={[styles.activityIconBox, { backgroundColor: colors.surfaceSoft }]}>
@@ -254,9 +253,9 @@ export default function AgencyDashboard() {
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
-            <ScrollView 
-                style={{ flex: 1 }} 
-                showsVerticalScrollIndicator={false} 
+            <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
                 refreshControl={
                     <RefreshControl
@@ -291,15 +290,15 @@ export default function AgencyDashboard() {
                                 <TrendingUp size={20} color={colors.accentTeal} />
                                 <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Recent Activity</Text>
                             </View>
-                            <TouchableOpacity 
-                                style={styles.viewAllRow} 
+                            <TouchableOpacity
+                                style={styles.viewAllRow}
                                 onPress={() => router.push('/(main)/agency/activity-logs')}
                             >
                                 <Text style={[styles.viewAllBtn, { color: colors.accentTeal }]}>View All</Text>
                                 <ChevronRight size={14} color={colors.accentTeal} />
                             </TouchableOpacity>
                         </View>
-                        
+
                         <View style={styles.activityList}>
                             {activity.length > 0 ? (
                                 activity.map((item, index) => (

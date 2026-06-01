@@ -33,7 +33,7 @@ const CONTENT_TOOLS = [
     title: 'Property Description',
     description: 'Generate high-converting listing copy automatically.',
     icon: 'home-variant-outline',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   {
     id: 'social-media',
@@ -195,8 +195,8 @@ export default function AiContentScreen() {
         return {
           label: 'Property Description',
           icon: 'home-variant-outline',
-          color: '#0BA0B2',
-          bg: '#0BA0B215',
+          color: '#0a2341',
+          bg: '#0a234115',
         };
       case 'social-media':
         return {
@@ -591,8 +591,8 @@ export default function AiContentScreen() {
               </View>
 
               <View style={styles.modalBody}>
-                <ScrollView 
-                  style={styles.modalTextBox} 
+                <ScrollView
+                  style={styles.modalTextBox}
                   contentContainerStyle={styles.modalTextBoxContent}
                   showsVerticalScrollIndicator={false}
                 >

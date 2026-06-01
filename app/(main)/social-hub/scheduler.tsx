@@ -51,7 +51,7 @@ function PostDetailModal({
   const mediaUrl = post.media?.[0]?.media_url;
   const captionFirstLine = (post.caption || '').split('\n')[0].trim();
   const statusLabel = post.published_at ? 'PUBLISHED' : 'SCHEDULED';
-  const statusColor = post.published_at ? '#10B981' : '#0BA0B2';
+  const statusColor = post.published_at ? '#10B981' : '#0a2341';
   const timeStr = post.scheduled_at ? formatTime(post.scheduled_at) : '';
 
   return (

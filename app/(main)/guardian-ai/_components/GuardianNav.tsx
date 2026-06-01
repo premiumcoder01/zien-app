@@ -1,7 +1,7 @@
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme } from '@/context/ThemeContext';
 
 export type GuardianTabId = 'overview' | 'monitoring' | 'logs-reports' | 'admin';
 
@@ -80,7 +80,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: 'transparent',
   },
   pillActive: {
-    backgroundColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,

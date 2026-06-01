@@ -196,3 +196,159 @@ export const getProfile = async (accessToken: string): Promise<UserProfile> => {
     clearTimeout(timeoutId);
   }
 };
+
+export interface GoogleLoginRequest {
+  token: string;
+}
+
+export const loginWithGoogle = async (payload: GoogleLoginRequest): Promise<LoginResponse> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/website/auth/google-login`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errorMessage = data?.message || data?.error?.message || data?.data?.message || `Server error: ${response.status} ${response.statusText}`;
+      throw new Error(errorMessage);
+    }
+
+    let accessToken = data?.access_token || data?.data?.access_token;
+
+    if (!accessToken) {
+      const setCookie = response.headers.get('set-cookie') || '';
+      const tokenMatch = setCookie.match(/website_access_token=([^;]+)/);
+      if (tokenMatch) {
+        accessToken = tokenMatch[1];
+      }
+    }
+
+    if (!accessToken) {
+      throw new Error('Google login failed: No access token received from server.');
+    }
+
+    return {
+      access_token: accessToken,
+      role: data.role || '',
+      complete_profile: data.complete_profile ?? false,
+      redirect_to: data.redirect_to || '',
+    };
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Google Sign-in request timed out. Please check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+export interface MicrosoftLoginRequest {
+  token: string;
+}
+
+export const loginWithMicrosoft = async (payload: MicrosoftLoginRequest): Promise<LoginResponse> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/website/auth/microsoft-login`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errorMessage = data?.message || data?.error?.message || data?.data?.message || `Server error: ${response.status} ${response.statusText}`;
+      throw new Error(errorMessage);
+    }
+
+    let accessToken = data?.access_token || data?.data?.access_token;
+
+    if (!accessToken) {
+      const setCookie = response.headers.get('set-cookie') || '';
+      const tokenMatch = setCookie.match(/website_access_token=([^;]+)/);
+      if (tokenMatch) {
+        accessToken = tokenMatch[1];
+      }
+    }
+
+    if (!accessToken) {
+      throw new Error('Microsoft login failed: No access token received from server.');
+    }
+
+    return {
+      access_token: accessToken,
+      role: data.role || '',
+      complete_profile: data.complete_profile ?? false,
+      redirect_to: data.redirect_to || '',
+    };
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Microsoft Sign-in request timed out. Please check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+export interface CheckExistsRequest {
+  email?: string;
+  country_code?: string;
+  phone?: string;
+}
+
+export interface CheckExistsResponse {
+  email?: { exists: boolean; message: string };
+  phone?: { exists: boolean; message: string };
+}
+
+export const checkUserExists = async (payload: CheckExistsRequest): Promise<CheckExistsResponse> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/website/register/check-exists`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errorMessage = data?.message || data?.error?.message || data?.data?.message || `Server error: ${response.status} ${response.statusText}`;
+      throw new Error(errorMessage);
+    }
+
+    return data;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Check exists request timed out. Please check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};

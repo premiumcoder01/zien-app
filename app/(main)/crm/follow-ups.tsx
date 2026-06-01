@@ -247,7 +247,7 @@ export default function FollowUpsScreen() {
     setModalGroupId(task.group_id);
     setModalTagId(task.tag_id);
     setModalPriority(task.priority);
-    setModalColor('#0BA0B2');
+    setModalColor('#0a2341');
     setErrors({});
     setAddTaskModalVisible(true);
   };
@@ -909,6 +909,7 @@ export default function FollowUpsScreen() {
                     value={modalDate || new Date()}
                     mode="datetime"
                     display="inline"
+                    minimumDate={new Date()}
                     onChange={(event, selectedDate) => {
                       if (selectedDate) {
                         setModalDate(selectedDate);
@@ -927,6 +928,7 @@ export default function FollowUpsScreen() {
                 value={modalDate || new Date()}
                 mode={androidPickerMode}
                 display="default"
+                minimumDate={new Date()}
                 onChange={(event, selectedDate) => {
                   if (event.type === 'set') {
                     const currentDate = selectedDate || modalDate || new Date();
@@ -1038,6 +1040,7 @@ export default function FollowUpsScreen() {
                   value={rescheduleDate}
                   mode="datetime"
                   display="spinner"
+                  minimumDate={new Date()}
                   onChange={(event, selectedDate) => {
                     if (selectedDate) setRescheduleDate(selectedDate);
                   }}
@@ -1052,6 +1055,7 @@ export default function FollowUpsScreen() {
               value={rescheduleDate}
               mode={androidPickerMode}
               display="default"
+              minimumDate={new Date()}
               onChange={(event, selectedDate) => {
                 if (event.type === 'set') {
                   const currentDate = selectedDate || rescheduleDate;

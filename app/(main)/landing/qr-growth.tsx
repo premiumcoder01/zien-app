@@ -105,7 +105,7 @@ export default function QRGrowthEngineScreen() {
 
                 <Pressable style={styles.actionButton} hitSlop={10}>
                   <Text style={styles.actionButtonText}>{node.action}</Text>
-                  <MaterialCommunityIcons name="arrow-down-circle-outline" size={16} color="#0BA0B2" />
+                  <MaterialCommunityIcons name="arrow-down-circle-outline" size={16} color="#0a2341" />
                 </Pressable>
               </View>
             </View>
@@ -124,7 +124,7 @@ export default function QRGrowthEngineScreen() {
               <View style={styles.mapDot1} />
               <View style={styles.mapDot2} />
               <View style={styles.mapPin}>
-                <MaterialCommunityIcons name="map-marker" size={24} color="#0BA0B2" />
+                <MaterialCommunityIcons name="map-marker" size={24} color="#0a2341" />
               </View>
               <View style={styles.pulseRing} />
             </View>
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   // Removed legacy table styles to clean up
   tableHeader: {},

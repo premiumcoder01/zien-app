@@ -1,7 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { Animated } from 'react-native';
 import { Controller, useForm } from 'react-hook-form';
 import {
   KeyboardAvoidingView,
@@ -13,6 +14,7 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import PhoneInput from 'react-native-phone-number-input';
@@ -41,10 +43,10 @@ const FEATURES = [
 ];
 
 const TEAM_SIZE_OPTIONS = [
-  '1-19 Agents',
-  '20-50 Agents',
-  '51-200 Agents',
-  '201-500 Agents',
+  '1–19 Agents',
+  '20–50 Agents',
+  '51–200 Agents',
+  '201–500 Agents',
   '500+ Agents',
 ];
 
@@ -70,6 +72,28 @@ export default function EnterpriseContactScreen() {
   const [teamSizeModalVisible, setTeamSizeModalVisible] = useState(false);
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [isTimePickerVisible, setTimePickerVisibility] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [formattedPhone, setFormattedPhone] = useState('');
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTranslateY = useRef(new Animated.Value(30)).current;
+
+  const showToast = () => {
+    setToastVisible(true);
+    Animated.parallel([
+      Animated.spring(toastOpacity, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }),
+      Animated.spring(toastTranslateY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 8 }),
+    ]).start();
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(toastOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.timing(toastTranslateY, { toValue: 30, duration: 400, useNativeDriver: true }),
+      ]).start(() => {
+        setToastVisible(false);
+        router.replace('/(auth)/login');
+      });
+    }, 2800);
+  };
 
   const insets = useSafeAreaInsets();
 
@@ -77,20 +101,64 @@ export default function EnterpriseContactScreen() {
     control,
     handleSubmit,
     setValue,
+    reset,
     watch,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      teamSize: TEAM_SIZE_OPTIONS[1],
+      teamSize: '',
       isHuman: false,
     },
   });
 
-  const onSubmit = (data: FormData) => {
-    console.log('Submitting data:', data);
-    // TODO: submit to API
-    router.back();
+  const onSubmit = async (data: FormData) => {
+    setIsSubmitting(true);
+    try {
+      const preferredDate = data.preferredDate as Date;
+      const preferredTime = data.preferredTime as Date;
+
+      const payload = {
+        full_name: data.fullName,
+        email: data.email,
+        company_name: data.company,
+        contact_number: formattedPhone || data.phone,
+        preferred_date: preferredDate.toISOString().split('T')[0], // "YYYY-MM-DD"
+        preferred_time: `${String(preferredTime.getHours()).padStart(2, '0')}:${String(preferredTime.getMinutes()).padStart(2, '0')}`, // "HH:mm"
+        source: 'contact_sales',
+        team_size: data.teamSize,
+        message: data.message || '',
+        is_human_verified: data.isHuman,
+      };
+
+      console.log('Demo request payload:', JSON.stringify(payload, null, 2));
+
+      const response = await fetch('https://staging.zien.ai/api/website/demo-requests', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const responseData = await response.json().catch(() => ({}));
+      console.log('Demo request response:', response.status, JSON.stringify(responseData, null, 2));
+
+      if (!response.ok) {
+        throw new Error(responseData.message || `Server error: ${response.status}`);
+      }
+
+      // Clear form and navigate
+      reset({ teamSize: '', isHuman: false });
+      setFormattedPhone('');
+      showToast();
+    } catch (error: any) {
+      console.error('Demo request error:', error);
+      // Show error inline (re-use _form style pattern)
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const selectedTeamSize = watch('teamSize');
@@ -220,7 +288,10 @@ export default function EnterpriseContactScreen() {
                         const cleaned = text.replace(/[^0-9]/g, '').slice(0, 15);
                         onChange(cleaned);
                       }}
-                      onChangeFormattedText={onChange}
+                      onChangeFormattedText={(text) => {
+                        setFormattedPhone(text); // e.g. "+91 8775845996"
+                        onChange(text);
+                      }}
                       withDarkTheme={theme === 'dark'}
                       withShadow={false}
                       autoFocus={false}
@@ -320,7 +391,7 @@ export default function EnterpriseContactScreen() {
                 <Pressable
                   style={styles.selectTouchable}
                   onPress={() => setTeamSizeModalVisible(true)}>
-                  <Text style={styles.selectText}>{selectedTeamSize}</Text>
+                  <Text style={[styles.selectText, !selectedTeamSize && styles.selectPlaceholder]}>{selectedTeamSize || 'Select your team size'}</Text>
                   <MaterialCommunityIcons name="chevron-down" size={20} color={colors.iconMuted} />
                 </Pressable>
               </View>
@@ -360,14 +431,24 @@ export default function EnterpriseContactScreen() {
               />
               {errors.isHuman && <Text style={[styles.errorText, { marginTop: -8 }]}>{errors.isHuman.message?.toString()}</Text>}
 
-              <Pressable style={styles.submitButton} onPress={handleSubmit(onSubmit)}>
+              <Pressable
+                style={[styles.submitButton, isSubmitting && { opacity: 0.75 }]}
+                onPress={handleSubmit(onSubmit)}
+                disabled={isSubmitting}
+              >
                 <LinearGradient
                   colors={colors.brandGradient as any}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.submitButtonGradient}>
-                  <Text style={styles.submitButtonText}>Request Demo</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={20} color={colors.gradientButtonText} />
+                  {isSubmitting ? (
+                    <ActivityIndicator color={colors.gradientButtonText} size="small" />
+                  ) : (
+                    <>
+                      <Text style={styles.submitButtonText}>Request Demo</Text>
+                      <MaterialCommunityIcons name="arrow-right" size={20} color={colors.gradientButtonText} />
+                    </>
+                  )}
                 </LinearGradient>
               </Pressable>
             </View>
@@ -404,8 +485,9 @@ export default function EnterpriseContactScreen() {
         isVisible={isDatePickerVisible}
         mode="date"
         onConfirm={handleConfirmDate}
-        display='calendar'
         onCancel={() => setDatePickerVisibility(false)}
+        minimumDate={new Date()}
+        display={Platform.OS === 'android' ? 'calendar' : 'inline'}
       />
 
       <DateTimePickerModal
@@ -413,7 +495,30 @@ export default function EnterpriseContactScreen() {
         mode="time"
         onConfirm={handleConfirmTime}
         onCancel={() => setTimePickerVisibility(false)}
+        display={Platform.OS === 'android' ? 'clock' : 'spinner'}
       />
+
+      {/* Success Toast */}
+      {toastVisible && (
+        <Animated.View
+          style={[
+            styles.toast,
+            {
+              opacity: toastOpacity,
+              transform: [{ translateY: toastTranslateY }],
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={styles.toastIconWrap}>
+            <MaterialCommunityIcons name="check-circle" size={22} color="#10B981" />
+          </View>
+          <View style={styles.toastTextWrap}>
+            <Text style={styles.toastTitle}>Request Sent!</Text>
+            <Text style={styles.toastSubtitle}>Our sales team will reach out to you shortly.</Text>
+          </View>
+        </Animated.View>
+      )}
     </AuthScreenBackground>
   );
 }
@@ -654,6 +759,48 @@ function getStyles(colors: any) {
     modalOptionText: {
       fontSize: 15,
       color: colors.textPrimary,
+    },
+    toast: {
+      position: 'absolute',
+      bottom: 48,
+      left: 20,
+      right: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      gap: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.18,
+      shadowRadius: 20,
+      elevation: 12,
+      borderWidth: 1,
+      borderColor: '#D1FAE5',
+    },
+    toastIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: '#D1FAE5',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    toastTextWrap: {
+      flex: 1,
+    },
+    toastTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    toastSubtitle: {
+      fontSize: 12.5,
+      color: colors.textSecondary,
+      marginTop: 2,
+      lineHeight: 17,
     },
   });
 }

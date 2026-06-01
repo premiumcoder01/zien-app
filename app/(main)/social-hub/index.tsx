@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getSocialPosts, SocialPost } from '@/services/socialService';
+import { getSocialOverview, getSocialPosts, SocialPost } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -32,12 +32,7 @@ const HUB_TOOLS = [
   { id: 'Automation', label: 'Automation', icon: 'lightning-bolt-outline' as const, route: '/(main)/social-hub/automation-rules' },
 ];
 
-const STAT_CARDS = [
-  { title: 'Scheduled', value: '12', meta: '+2', icon: 'calendar-clock-outline' as const },
-  { title: 'Published', value: '48', meta: '+15%', icon: 'share-outline' as const },
-  { title: 'Engagement', value: '4.8%', meta: '+0.6%', icon: 'heart-outline' as const },
-  { title: 'Growth', value: '', meta: '92% reach', icon: 'instagram' as const },
-];
+
 
 const PLACEHOLDER_POST_IMAGE = 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=400';
 
@@ -70,12 +65,46 @@ export default function SocialHubScreen() {
   const router = useRouter();
   const { accessToken } = useAuth();
 
+  // Fetch social overview (live stats)
+  const { data: overview, isLoading: overviewLoading } = useQuery({
+    queryKey: ['social-overview'],
+    queryFn: () => getSocialOverview(accessToken || ''),
+    enabled: !!accessToken,
+  });
+
   // Fetch upcoming posts (status=1)
   const { data: upcomingPosts, isLoading: postsLoading } = useQuery({
     queryKey: ['social-posts', 'upcoming'],
     queryFn: () => getSocialPosts(accessToken || '', 1),
     enabled: !!accessToken,
   });
+
+  const statCards = [
+    {
+      title: 'SCHEDULED POSTS',
+      value: overview ? String(overview.scheduled_posts?.length ?? 0) : '0',
+      meta: '+2',
+      icon: 'calendar-clock-outline' as const
+    },
+    {
+      title: 'PUBLISHED (30D)',
+      value: overview ? String(overview.published_posts_count ?? 0) : '0',
+      meta: '+15%',
+      icon: 'share-outline' as const
+    },
+    {
+      title: 'ENGAGEMENT RATE',
+      value: '4.8%',
+      meta: '+0.6%',
+      icon: 'heart-outline' as const
+    },
+    {
+      title: 'BEST PLATFORM',
+      value: 'Instagram',
+      meta: '92% reach',
+      icon: 'instagram' as const
+    },
+  ];
 
   return (
     <View style={styles.container}>
@@ -103,17 +132,27 @@ export default function SocialHubScreen() {
           </View>
 
           <View style={styles.statsGrid}>
-            {STAT_CARDS.map((card, i) => (
+            {statCards.map((card, i) => (
               <View key={i} style={styles.statCardPremium}>
-                <View style={styles.statIconBox}>
-                  <MaterialCommunityIcons name={card.icon} size={18} color={colors.accentTeal} />
-                </View>
-                <View>
-                  <Text style={styles.statLabelPremium}>{card.title}</Text>
-                  <View style={styles.statRow}>
-                    <Text style={styles.statValuePremium}>{card.value}</Text>
-                    <Text style={styles.statMetaPremium}>{card.meta}</Text>
+                <View style={styles.statCardHeader}>
+                  <View style={styles.statIconBox}>
+                    <MaterialCommunityIcons name={card.icon} size={16} color={colors.accentTeal} />
                   </View>
+                  <Text style={styles.statMetaPremium}>{card.meta}</Text>
+                </View>
+                <View style={styles.statCardBody}>
+                  <Text style={styles.statLabelPremium} numberOfLines={1}>
+                    {card.title}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.statValuePremium,
+                      card.value.length > 5 && { fontSize: 13.5 }
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {card.value}
+                  </Text>
                 </View>
               </View>
             ))}
@@ -225,7 +264,7 @@ export default function SocialHubScreen() {
         style={[styles.fab, { bottom: insets.bottom + 20 }]}
         onPress={() => router.push('/(main)/social-hub/create-post')}
       >
-        <LinearGradient colors={['#0BA0B2', '#0D9488']} style={styles.fabGradient}>
+        <LinearGradient colors={['#0a2341', '#0D9488']} style={styles.fabGradient}>
           <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
         </LinearGradient>
       </Pressable>
@@ -243,11 +282,13 @@ function getStyles(colors: any) {
     sectionTitlePremium: { fontSize: 16, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.2 },
     sectionLinkPremium: { fontSize: 13, fontWeight: '800', color: colors.accentTeal },
     statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    statCardPremium: { width: (SCREEN_WIDTH - 52) / 2, backgroundColor: colors.cardBackground, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: colors.cardBorder, flexDirection: 'row', alignItems: 'center', gap: 12 },
-    statIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' },
-    statLabelPremium: { fontSize: 10, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 2 },
-    statValuePremium: { fontSize: 15, fontWeight: '900', color: colors.textPrimary },
-    statMetaPremium: { fontSize: 10, fontWeight: '800', color: '#10B981', marginLeft: 4 },
+    statCardPremium: { width: (SCREEN_WIDTH - 52) / 2, backgroundColor: colors.cardBackground, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: colors.cardBorder, flexDirection: 'column', alignItems: 'stretch', gap: 12 },
+    statCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    statCardBody: { gap: 4 },
+    statIconBox: { width: 32, height: 32, borderRadius: 8, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' },
+    statLabelPremium: { fontSize: 9, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.3 },
+    statValuePremium: { fontSize: 15.5, fontWeight: '900', color: colors.textPrimary },
+    statMetaPremium: { fontSize: 10, fontWeight: '800', color: '#10B981' },
     statRow: { flexDirection: 'row', alignItems: 'center' },
     horizontalScroll: { gap: 12, paddingRight: 20 },
     postCardPremium: { width: 220, height: 140, borderRadius: 20, overflow: 'hidden', backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.cardBorder },
@@ -273,7 +314,7 @@ function getStyles(colors: any) {
     usageCount: { fontSize: 12, fontWeight: '900', color: colors.accentTeal },
     usageBar: { height: 6, backgroundColor: colors.surfaceSoft, borderRadius: 3, overflow: 'hidden' },
     usageFill: { height: '100%', backgroundColor: colors.accentTeal, borderRadius: 3 },
-    fab: { position: 'absolute', right: 20, borderRadius: 28, ...Platform.select({ ios: { shadowColor: '#0BA0B2', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 5 } }, android: { elevation: 8 } }) },
+    fab: { position: 'absolute', right: 20, borderRadius: 28, ...Platform.select({ ios: { shadowColor: '#0a2341', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 5 } }, android: { elevation: 8 } }) },
     fabGradient: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   });
 }

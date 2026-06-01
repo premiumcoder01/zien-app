@@ -1,9 +1,9 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '@/context/ThemeContext';
-import { useState, useEffect } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Clipboard,
@@ -83,9 +83,9 @@ export default function EmailTemplatesScreen() {
     const [campaignContext, setCampaignContext] = useState(prefill || '');
     const [selectedStyle, setSelectedStyle] = useState('Spam-Safe');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [outputEmail, setOutputEmail] = useState({ 
-        subject: content ? content.split('\n')[0].replace(/^Subject:\s*/i, '') : '', 
-        body: content ? content.substring(content.indexOf('\n') + 1).trim() : '' 
+    const [outputEmail, setOutputEmail] = useState({
+        subject: content ? content.split('\n')[0].replace(/^Subject:\s*/i, '') : '',
+        body: content ? content.substring(content.indexOf('\n') + 1).trim() : ''
     });
     const [hasGenerated, setHasGenerated] = useState(!!content);
 
@@ -259,7 +259,7 @@ export default function EmailTemplatesScreen() {
                         <View style={styles.outputContent}>
                             {isGenerating ? (
                                 <View style={styles.loaderState}>
-                                    <ActivityIndicator size="large" color="#0BA0B2" />
+                                    <ActivityIndicator size="large" color="#0a2341" />
                                     <Text style={styles.loaderText}>Drafting your high-conversion email...</Text>
                                 </View>
                             ) : hasGenerated ? (
@@ -322,8 +322,8 @@ function getStyles(colors: any) {
             borderColor: colors.cardBorder,
         },
         typeTabActive: {
-            backgroundColor: '#0BA0B2',
-            borderColor: '#0BA0B2',
+            backgroundColor: '#0a2341',
+            borderColor: '#0a2341',
         },
         typeTabText: {
             fontSize: 13,
@@ -444,7 +444,7 @@ function getStyles(colors: any) {
             width: 6,
             height: 6,
             borderRadius: 3,
-            backgroundColor: '#0BA0B2',
+            backgroundColor: '#0a2341',
             marginRight: 6,
         },
         outputTitle: {
@@ -469,7 +469,7 @@ function getStyles(colors: any) {
         exportBtn: {
             flexDirection: 'row',
             alignItems: 'center',
-            backgroundColor: '#0BA0B2',
+            backgroundColor: '#0a2341',
             paddingHorizontal: 12,
             paddingVertical: 7,
             borderRadius: 8,

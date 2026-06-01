@@ -1,8 +1,8 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '@/context/ThemeContext';
 import { useState } from 'react';
 import {
   Alert,
@@ -298,11 +298,11 @@ export default function AutomationRulesScreen() {
               ]}
             >
               <View style={styles.ruleRowMain}>
-                <View style={[styles.ruleIconBox, { backgroundColor: rule.status === 'PAUSED' ? '#F1F5F9' : '#0BA0B210' }]}>
+                <View style={[styles.ruleIconBox, { backgroundColor: rule.status === 'PAUSED' ? '#F1F5F9' : '#0a234110' }]}>
                   <MaterialCommunityIcons
                     name={rule.icon}
                     size={22}
-                    color={rule.status === 'PAUSED' ? '#94A3B8' : '#0BA0B2'}
+                    color={rule.status === 'PAUSED' ? '#94A3B8' : '#0a2341'}
                   />
                 </View>
                 <View style={styles.ruleContent}>
@@ -318,7 +318,7 @@ export default function AutomationRulesScreen() {
                 <Switch
                   value={rule.status === 'ACTIVE'}
                   onValueChange={() => toggleRuleStatus(rule.id)}
-                  trackColor={{ false: '#E2E8F0', true: '#0BA0B2' }}
+                  trackColor={{ false: '#E2E8F0', true: '#0a2341' }}
                   thumbColor={Platform.OS === 'ios' ? '#FFFFFF' : rule.status === 'ACTIVE' ? '#FFFFFF' : '#FFFFFF'}
                   ios_backgroundColor="#E2E8F0"
                 />
@@ -348,7 +348,7 @@ export default function AutomationRulesScreen() {
           style={styles.impactWidget}>
           <View style={styles.widgetHeader}>
             <View style={styles.widgetIconBox}>
-              <MaterialCommunityIcons name="lightning-bolt" size={20} color="#0BA0B2" />
+              <MaterialCommunityIcons name="lightning-bolt" size={20} color="#0a2341" />
             </View>
             <View>
               <Text style={styles.widgetTitle}>System Impact</Text>
@@ -381,7 +381,7 @@ export default function AutomationRulesScreen() {
               onPress={() => openSuggestionModal(flow)}
               style={({ pressed }) => [styles.suggestedCard, pressed && { opacity: 0.7 }]}>
               <View style={styles.suggestedIconWrap}>
-                <MaterialCommunityIcons name="auto-fix" size={20} color="#0BA0B2" />
+                <MaterialCommunityIcons name="auto-fix" size={20} color="#0a2341" />
               </View>
               <Text style={styles.suggestedText}>{flow.label}</Text>
               <MaterialCommunityIcons name="plus" size={20} color={colors.textMuted} />
@@ -559,438 +559,438 @@ export default function AutomationRulesScreen() {
 
 function getStyles(colors: any) {
   return StyleSheet.create({
-  background: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20 },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.cardBackground,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingHorizontal: 16,
-    marginBottom: 24,
-    ...Platform.select({
-      ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 12 },
-      android: { elevation: 2 },
-    }),
-  },
-  searchIconBox: { marginRight: 12 },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 14,
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.textPrimary,
-  },
-  sectionCount: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textMuted,
-  },
-  ruleList: { gap: 16, marginBottom: 24 },
-  ruleCard: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    ...Platform.select({
-      ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.03, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
-      android: { elevation: 2 },
-    }),
-  },
-  ruleCardPaused: {
-    backgroundColor: colors.surfaceSoft,
-    borderColor: colors.cardBorder,
-  },
-  ruleRowMain: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  ruleIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ruleContent: { flex: 1 },
-  ruleLabelTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  textPaused: { color: colors.textMuted },
-  logicFlow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logicText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  logicBold: {
-    color: '#0BA0B2',
-    fontWeight: '900',
-  },
-  ruleFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-  },
-  footerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  footerText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textMuted,
-  },
-  footerActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  footerBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  impactWidget: {
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 32,
-    ...Platform.select({
-      ios: { shadowColor: '#0B2341', shadowOpacity: 0.15, shadowOffset: { width: 0, height: 10 }, shadowRadius: 15 },
-      android: { elevation: 6 },
-    }),
-  },
-  widgetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 24,
-  },
-  widgetIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(11, 160, 178, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  widgetTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  widgetSubtitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.6)',
-  },
-  widgetStats: {},
-  statRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statVal: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0BA0B2',
-    marginTop: 4,
-    letterSpacing: 0.5,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: colors.surfaceIcon,
-  },
-  suggestionsContainer: { gap: 12 },
-  suggestedCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.cardBackground,
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    gap: 12,
-  },
-  suggestedIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#0BA0B210',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  suggestedText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  floatingAction: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    alignItems: 'center',
-  },
-  createRuleFab: {
-    backgroundColor: colors.accentTeal,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 18,
-    borderRadius: 30,
-    shadowColor: '#0B2341',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 15,
-    elevation: 8,
-  },
-  fabText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
-    justifyContent: 'flex-start',
-  },
-  modalContent: {
-    backgroundColor: colors.cardBackground,
-    height: '100%',
-    width: '100%',
-    shadowColor: colors.cardShadowColor,
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: -10 },
-    shadowRadius: 20,
-    elevation: 20,
-  },
-  dropdownOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  dropdownMenuContent: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 16,
-    width: '100%',
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    shadowColor: colors.cardShadowColor,
-    shadowOpacity: 0.4,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 12,
-    elevation: 12,
-  },
-  dropdownMenuItem: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  dropdownMenuItemInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dropdownMenuItemText: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  dropdownValue: {
-    fontSize: 16,
-    color: colors.textPrimary,
-    fontWeight: '600',
-  },
-  customCheckbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: colors.cardBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  customCheckboxActive: {
-    backgroundColor: '#0BA0B2',
-    borderColor: '#0BA0B2',
-  },
-  modalHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
-  },
-  modalScroll: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    paddingTop: 20,
-  },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: colors.textPrimary
-  },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 10,
-  },
-  inputGroup: {
-    marginBottom: 24,
-  },
-  formRow: {
-    gap: 16,
-    marginBottom: 24,
-  },
-  formCol: {
-    flex: 1,
-  },
-  input: {
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: colors.textPrimary,
-  },
-  dropdownStub: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: colors.textPrimary,
-    fontWeight: '600',
-  },
-  platformGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  platformToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    width: '48.5%',
-  },
-  platformToggleActive: {
-    backgroundColor: '#0BA0B205',
-    borderColor: '#0BA0B220',
-  },
-  platformLabel: {
-    paddingLeft: 4,
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 16,
-    padding: 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-    backgroundColor: colors.cardBackground,
-  },
-  modalCancelBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.cardBackground
-  },
-  modalCancelText: {
-    color: colors.textPrimary,
-    fontWeight: '700',
-    fontSize: 15
-  },
-  modalSaveBtn: {
-    flex: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: colors.accentTeal,
-  },
-  modalSaveText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 15
-  }
+    background: { flex: 1 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 20 },
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 16,
+      marginBottom: 24,
+      ...Platform.select({
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 12 },
+        android: { elevation: 2 },
+      }),
+    },
+    searchIconBox: { marginRight: 12 },
+    searchInput: {
+      flex: 1,
+      paddingVertical: 14,
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    sectionCount: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.textMuted,
+    },
+    ruleList: { gap: 16, marginBottom: 24 },
+    ruleCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      ...Platform.select({
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.03, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
+        android: { elevation: 2 },
+      }),
+    },
+    ruleCardPaused: {
+      backgroundColor: colors.surfaceSoft,
+      borderColor: colors.cardBorder,
+    },
+    ruleRowMain: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 16,
+    },
+    ruleIconBox: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    ruleContent: { flex: 1 },
+    ruleLabelTitle: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    textPaused: { color: colors.textMuted },
+    logicFlow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    logicText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    logicBold: {
+      color: '#0a2341',
+      fontWeight: '900',
+    },
+    ruleFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 14,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+    },
+    footerInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    footerText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textMuted,
+    },
+    footerActions: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    footerBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    impactWidget: {
+      borderRadius: 24,
+      padding: 24,
+      marginBottom: 32,
+      ...Platform.select({
+        ios: { shadowColor: '#0B2341', shadowOpacity: 0.15, shadowOffset: { width: 0, height: 10 }, shadowRadius: 15 },
+        android: { elevation: 6 },
+      }),
+    },
+    widgetHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 24,
+    },
+    widgetIconBox: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: 'rgba(11, 160, 178, 0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    widgetTitle: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: '#FFFFFF',
+    },
+    widgetSubtitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: 'rgba(255,255,255,0.6)',
+    },
+    widgetStats: {},
+    statRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-around',
+    },
+    statItem: {
+      alignItems: 'center',
+    },
+    statVal: {
+      fontSize: 28,
+      fontWeight: '900',
+      color: '#FFFFFF',
+    },
+    statLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#0a2341',
+      marginTop: 4,
+      letterSpacing: 0.5,
+    },
+    statDivider: {
+      width: 1,
+      height: 40,
+      backgroundColor: colors.surfaceIcon,
+    },
+    suggestionsContainer: { gap: 12 },
+    suggestedCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      gap: 12,
+    },
+    suggestedIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: '#0a234110',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    suggestedText: {
+      flex: 1,
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    floatingAction: {
+      position: 'absolute',
+      left: 20,
+      right: 20,
+      alignItems: 'center',
+    },
+    createRuleFab: {
+      backgroundColor: colors.accentTeal,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 24,
+      paddingVertical: 18,
+      borderRadius: 30,
+      shadowColor: '#0B2341',
+      shadowOpacity: 0.3,
+      shadowOffset: { width: 0, height: 10 },
+      shadowRadius: 15,
+      elevation: 8,
+    },
+    fabText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '900',
+    },
+    // Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(15, 23, 42, 0.4)',
+      justifyContent: 'flex-start',
+    },
+    modalContent: {
+      backgroundColor: colors.cardBackground,
+      height: '100%',
+      width: '100%',
+      shadowColor: colors.cardShadowColor,
+      shadowOpacity: 0.15,
+      shadowOffset: { width: 0, height: -10 },
+      shadowRadius: 20,
+      elevation: 20,
+    },
+    dropdownOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    dropdownMenuContent: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      width: '100%',
+      paddingVertical: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: colors.cardShadowColor,
+      shadowOpacity: 0.4,
+      shadowOffset: { width: 0, height: 6 },
+      shadowRadius: 12,
+      elevation: 12,
+    },
+    dropdownMenuItem: {
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+    },
+    dropdownMenuItemInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    dropdownMenuItemText: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    dropdownValue: {
+      fontSize: 16,
+      color: colors.textPrimary,
+      fontWeight: '600',
+    },
+    customCheckbox: {
+      width: 20,
+      height: 20,
+      borderRadius: 4,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 8,
+    },
+    customCheckboxActive: {
+      backgroundColor: '#0a2341',
+      borderColor: '#0a2341',
+    },
+    modalHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 24,
+      paddingVertical: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    modalScroll: {
+      paddingHorizontal: 24,
+      paddingBottom: 40,
+      paddingTop: 20,
+    },
+    closeBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalTitle: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: colors.textPrimary
+    },
+    fieldLabel: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 10,
+    },
+    inputGroup: {
+      marginBottom: 24,
+    },
+    formRow: {
+      gap: 16,
+      marginBottom: 24,
+    },
+    formCol: {
+      flex: 1,
+    },
+    input: {
+      backgroundColor: colors.cardBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: colors.textPrimary,
+    },
+    dropdownStub: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.cardBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    dropdownText: {
+      fontSize: 16,
+      color: colors.textPrimary,
+      fontWeight: '600',
+    },
+    platformGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    platformToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+      width: '48.5%',
+    },
+    platformToggleActive: {
+      backgroundColor: '#0a234105',
+      borderColor: '#0a234120',
+    },
+    platformLabel: {
+      paddingLeft: 4,
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      gap: 16,
+      padding: 24,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+      backgroundColor: colors.cardBackground,
+    },
+    modalCancelBtn: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.cardBackground
+    },
+    modalCancelText: {
+      color: colors.textPrimary,
+      fontWeight: '700',
+      fontSize: 15
+    },
+    modalSaveBtn: {
+      flex: 2,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: colors.accentTeal,
+    },
+    modalSaveText: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+      fontSize: 15
+    }
   });
 }

@@ -180,7 +180,7 @@ export const ManageMetaModal: React.FC<ManageMetaModalProps> = ({ visible, onClo
                     onPress={handleAddGroup}
                     disabled={!newGroupName.trim() || addGroupMutation.isPending}>
                     <LinearGradient
-                      colors={newGroupName.trim() ? ['#0B213E', '#0BA0B2'] : ['#334155', '#334155']}
+                      colors={newGroupName.trim() ? ['#0B213E', '#0a2341'] : ['#334155', '#334155']}
                       style={styles.managementAddBtnGradient}>
                       {addGroupMutation.isPending ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
@@ -235,7 +235,7 @@ export const ManageMetaModal: React.FC<ManageMetaModalProps> = ({ visible, onClo
                     onPress={handleAddTag}
                     disabled={!newTagName.trim() || addTagMutation.isPending}>
                     <LinearGradient
-                      colors={newTagName.trim() ? ['#0B213E', '#0BA0B2'] : ['#334155', '#334155']}
+                      colors={newTagName.trim() ? ['#0B213E', '#0a2341'] : ['#334155', '#334155']}
                       style={styles.managementAddBtnGradient}>
                       {addTagMutation.isPending ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
@@ -411,7 +411,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   managementAddBtn: {
     borderRadius: 18,
     overflow: 'hidden',
-    shadowColor: '#0BA0B2',
+    shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,

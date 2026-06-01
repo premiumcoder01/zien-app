@@ -1,3 +1,4 @@
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
@@ -11,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme } from '@/context/ThemeContext';
 
 const AUDIT_ITEMS = [
   { id: '1', label: 'ENCRYPTION LAYER', value: 'AES-256 GCM', status: 'Optimal', icon: 'lock-outline' as const },
@@ -42,7 +42,7 @@ const RESPONDERS = [
 const ACTIVE_ALERTS = [
   { id: '1', icon: 'bell-outline' as const, title: 'Silent check-in required', time: 'Now', color: '#EAB308' },
   { id: '2', icon: 'map-marker-alert-outline' as const, title: 'Geo-fence deviation', time: '8m ago', color: '#DC2626' },
-  { id: '3', icon: 'heart-pulse' as const, title: 'System heartbeat normal', time: '14m ago', color: '#0BA0B2' },
+  { id: '3', icon: 'heart-pulse' as const, title: 'System heartbeat normal', time: '14m ago', color: '#0a2341' },
 ];
 
 export function MonitoringView() {
@@ -378,7 +378,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     gap: 4,
   },
   statusCardValue: { fontSize: 16, fontWeight: '900', color: colors.textPrimary },
-  statusCardSub: { fontSize: 12, fontWeight: '700', color: '#0BA0B2' },
+  statusCardSub: { fontSize: 12, fontWeight: '700', color: '#0a2341' },
   statusCardLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.3 },
   card: {
     backgroundColor: colors.cardBackground,

@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppTheme } from '@/context/ThemeContext';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface QuickFilterModalProps {
@@ -151,7 +151,7 @@ export const QuickFilterModal: React.FC<QuickFilterModalProps> = ({
                           <MaterialCommunityIcons
                             name="check-circle"
                             size={24}
-                            color="#0BA0B2"
+                            color="#0a2341"
                           />
                         )}
                       </Pressable>

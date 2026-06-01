@@ -320,7 +320,7 @@ export default function CRMCampaignsScreen() {
 
   const renderCampaignCard = (campaign: Campaign) => {
     const statusInfo = getStatusDisplay(campaign.status);
-    const channelColor = campaign.channel.toLowerCase() === 'email' ? '#3B82F6' : campaign.channel.toLowerCase() === 'sms' ? '#0BA0B2' : '#25D366';
+    const channelColor = campaign.channel.toLowerCase() === 'email' ? '#3B82F6' : campaign.channel.toLowerCase() === 'sms' ? '#0a2341' : '#25D366';
 
     const formatDate = (dateStr: string | null) => {
       if (!dateStr) return 'N/A';
@@ -960,7 +960,7 @@ export default function CRMCampaignsScreen() {
                 {/* Rows */}
                 {[
                   { name: 'Jessica Miller', action: 'CLICKED LINK', score: '+15', color: '#10B981' },
-                  { name: 'Michael Chen', action: 'REPLIED', score: '+45', color: '#0BA0B2' },
+                  { name: 'Michael Chen', action: 'REPLIED', score: '+45', color: '#0a2341' },
                   { name: 'Sarah Johnson', action: 'OPENED', score: '+5', color: '#F59E0B' },
                   { name: 'David Wilson', action: 'CLICKED LINK', score: '+12', color: '#3B82F6' },
                 ].map((row, idx) => (
@@ -1195,7 +1195,7 @@ export default function CRMCampaignsScreen() {
           <View style={styles.bottomSheetContent}>
             {/* Drag Handle */}
             <View style={styles.dragHandle} />
-            
+
             <View style={styles.bottomSheetHeader}>
               <Text style={styles.bottomSheetTitle}>Select Target Segment</Text>
               <Pressable style={styles.closeBtnSmall} onPress={() => setSegmentDropdown(false)}>
@@ -1254,7 +1254,7 @@ export default function CRMCampaignsScreen() {
         <Pressable style={styles.bottomSheetBackdrop} onPress={() => setTemplateDropdown(false)}>
           <View style={styles.bottomSheetContent}>
             <View style={styles.dragHandle} />
-            
+
             <View style={styles.bottomSheetHeader}>
               <Text style={styles.bottomSheetTitle}>Select {commChannel.charAt(0) + commChannel.slice(1).toLowerCase()} Template</Text>
               <Pressable style={styles.closeBtnSmall} onPress={() => setTemplateDropdown(false)}>
@@ -1319,7 +1319,7 @@ export default function CRMCampaignsScreen() {
         <Pressable style={styles.bottomSheetBackdrop} onPress={() => setAccountDropdown(false)}>
           <View style={styles.bottomSheetContent}>
             <View style={styles.dragHandle} />
-            
+
             <View style={styles.bottomSheetHeader}>
               <Text style={styles.bottomSheetTitle}>Select Sending Account</Text>
               <Pressable style={styles.closeBtnSmall} onPress={() => setAccountDropdown(false)}>
@@ -1710,7 +1710,7 @@ function getStyles(colors: any, theme?: string) {
     manageLink: {
       fontSize: 12,
       fontWeight: '700',
-      color: '#0BA0B2',
+      color: '#0a2341',
       textDecorationLine: 'underline',
     },
     channelTabs: {
@@ -1880,7 +1880,7 @@ function getStyles(colors: any, theme?: string) {
     audienceCount: {
       fontSize: 32,
       fontWeight: '900',
-      color: '#0BA0B2',
+      color: '#0a2341',
       marginVertical: 4,
     },
     audienceSubText: {
@@ -2637,7 +2637,7 @@ function getStyles(colors: any, theme?: string) {
     pickerDoneBtn: {
       fontSize: 16,
       fontWeight: '700',
-      color: '#0BA0B2', // Using primary teal for visibility
+      color: '#0a2341', // Using primary teal for visibility
     },
     errorText: {
       color: '#EF4444',

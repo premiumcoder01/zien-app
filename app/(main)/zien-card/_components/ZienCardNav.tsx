@@ -1,20 +1,19 @@
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { usePathname, useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme } from '@/context/ThemeContext';
 
 const SECTIONS: Array<{
   route: string;
   label: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }> = [
-  { route: '/(main)/zien-card', label: 'Dashboard', icon: 'view-dashboard-outline' },
-  { route: '/(main)/zien-card/basic-information', label: 'Basic Information', icon: 'card-account-details-outline' },
-  { route: '/(main)/zien-card/themes-color', label: 'Themes & Color', icon: 'palette-outline' },
-  { route: '/(main)/zien-card/lead-enquiries', label: 'Lead Enquiries', icon: 'account-group-outline' },
-  { route: '/(main)/zien-card/analytics', label: 'Analytics', icon: 'chart-bar' },
-];
+    { route: '/(main)/zien-card', label: 'Dashboard', icon: 'view-dashboard-outline' },
+    { route: '/(main)/zien-card/basic-information', label: 'Basic Information', icon: 'card-account-details-outline' },
+    { route: '/(main)/zien-card/themes-color', label: 'Themes & Color', icon: 'palette-outline' },
+    { route: '/(main)/zien-card/lead-enquiries', label: 'Lead Enquiries', icon: 'account-group-outline' },
+    { route: '/(main)/zien-card/analytics', label: 'Analytics', icon: 'chart-bar' },
+  ];
 
 interface ZienCardNavProps {
   activeSection: string;
@@ -81,10 +80,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   pillActive: {
-    backgroundColor: '#0BA0B2',
-    borderColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
+    borderColor: '#0a2341',
     elevation: 4,
-    shadowColor: '#0BA0B2',
+    shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

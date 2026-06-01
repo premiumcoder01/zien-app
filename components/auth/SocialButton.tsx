@@ -7,9 +7,10 @@ type SocialButtonProps = {
   icon: ImageSourcePropType;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  disabled?: boolean;
 };
 
-export default function SocialButton({ label, icon, onPress, style }: SocialButtonProps) {
+export default function SocialButton({ label, icon, onPress, style, disabled }: SocialButtonProps) {
   const { colors } = useAppTheme();
   return (
     <Pressable
@@ -25,9 +26,11 @@ export default function SocialButton({ label, icon, onPress, style }: SocialButt
           borderColor: colors.socialButtonBorder,
           paddingVertical: 10,
           borderRadius: colors.inputBorderRadius,
+          opacity: disabled ? 0.65 : 1,
         },
         style,
       ]}
+      disabled={disabled}
       onPress={onPress}>
       <Image source={icon} style={{ width: 18, height: 18 }} resizeMode="contain" />
       <Text

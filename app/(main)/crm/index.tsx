@@ -4,11 +4,14 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { getCRMOverview } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Modal,
   Pressable,
@@ -18,7 +21,6 @@ import {
   Text,
   View
 } from 'react-native';
-import { BarChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const CRM_SECTIONS: Array<{
@@ -41,7 +43,6 @@ const CRM_SECTIONS: Array<{
 
 const OVERVIEW_TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'activity-log', label: 'Activity Log' },
   { id: 'lead-sources', label: 'Lead Sources' },
   { id: 'conversion-roi', label: 'Conversion ROI' },
   { id: 'heat-index', label: 'Heat Index Stats' },
@@ -50,33 +51,8 @@ const OVERVIEW_TABS = [
 
 
 
-const LEAD_SOURCE_CARDS = [
-  { id: '1', source: 'OPEN HOUSE QR', dotColor: '#0BA0B2', leads: 432, convRate: '18.4%', roi: 'High', roiHigh: true },
-  { id: '2', source: 'INSTAGRAM ADS', dotColor: '#EA580C', leads: 215, convRate: '12.1%', roi: 'Medium', roiHigh: false },
-  { id: '3', source: 'ZILLOW CLIPPER', dotColor: '#0B2D3E', leads: 184, convRate: '9.2%', roi: 'Low', roiHigh: false },
-  { id: '4', source: 'WEBSITE FORMS', dotColor: '#7C3AED', leads: 98, convRate: '15.5%', roi: 'High', roiHigh: true },
-];
-
-const CONVERSION_FUNNEL_STAGES = [
-  { id: '1', label: 'Total Captured Leads', value: '1284', barColor: '#CAD8E4' },
-  { id: '2', label: 'Contacted & Engaged', value: '856', barColor: '#B8CCDC' },
-  { id: '3', label: 'Showing / Site Visits', value: '412', barColor: '#9FC5D8' },
-  { id: '4', label: 'Offers & Negotiations', value: '84', barColor: '#5BA8C9' },
-  { id: '5', label: 'Closed Deals', value: '18', barColor: '#0BA0B2' },
-];
-
-const HEAT_DISTRIBUTION = [
-  { id: 'cold', label: 'Cold', pct: '45%', sub: 'Cold (0-30)', color: '#5B6B7A' },
-  { id: 'warm', label: 'Warm', pct: '65%', sub: 'Warm (31-70)', color: '#0BA0B2' },
-  { id: 'hot', label: 'Hot', pct: '30%', sub: 'Hot (71-100)', color: '#EA580C' },
-];
-
-const HEAT_SURGE_TRIGGERS = [
-  { id: '1', label: '3+ Property Views in 24h', pts: '+25 pts' },
-  { id: '2', label: 'Email Open (Open House Kit)', pts: '+10 pts' },
-  { id: '3', label: 'Video Walkthrough Completion', pts: '+15 pts' },
-  { id: '4', label: 'Multiple Listing Comparisons', pts: '+20 pts' },
-];
+// The original hardcoded values LEAD_SOURCE_CARDS, CONVERSION_FUNNEL_STAGES, 
+// HEAT_DISTRIBUTION, HEAT_SURGE_TRIGGERS are replaced with dynamic API values.
 
 
 export default function CRMScreen() {
@@ -114,34 +90,36 @@ export default function CRMScreen() {
   const statCardWidth = (width - padding * 2 - gap) / 2;
   const chartWidth = Math.max(260, width - padding * 2 - 24);
 
-  const velocityData = useMemo(
-    () => ({
-      labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'],
-      datasets: [{ data: [8, 12, 10, 15, 14, 18] }],
-    }),
-    []
-  );
+  const velocityData = useMemo(() => {
+    let data = crmData?.leadVelocity || [];
+    if (data.length === 0) data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
 
-  const chartConfig = useMemo(
-    () => ({
-      backgroundGradientFrom: colors.cardBackground,
-      backgroundGradientTo: colors.cardBackground,
-      decimalPlaces: 0,
-      color: (opacity = 1) => `rgba(11, 160, 178, ${opacity * 0.85})`,
-      labelColor: (opacity = 1) => colors.textSecondary,
-      barPercentage: 0.65,
-      propsForBackgroundLines: { stroke: colors.cardBorder, strokeDasharray: '4 6' },
-    }),
-    [colors]
-  );
+    const padded = new Array(12).fill(0);
+    const slice = data.slice(-12);
+    for (let i = 0; i < slice.length; i++) {
+      padded[12 - slice.length + i] = slice[i];
+    }
+    const maxVal = Math.max(...padded, 1);
+
+    return padded.map((val, i) => ({
+      id: `vel-${i}`,
+      value: val,
+      heightPct: `${(val / maxVal) * 100}%`,
+      label: i === 11 ? 'Today' : `${11 - i}d`,
+      isToday: i === 11,
+    }));
+  }, [crmData]);
+
 
   const displayStats = useMemo(() => {
     const stats = crmData?.stats;
     return [
       { title: 'TOTAL CONTACTS', value: stats?.totalContacts?.value || '0', meta: stats?.totalContacts?.change || '0%', icon: 'account-group-outline' as const },
+      { title: 'TOTAL LEADS', value: stats?.totalLeads?.value || '0', meta: stats?.totalLeads?.change || '0', icon: 'account-outline' as const },
+      { title: 'PENDING FOLLOW-UPS', value: stats?.pendingFollowUps?.value || '0', meta: stats?.pendingFollowUps?.change || '0', icon: 'calendar-blank-outline' as const },
       { title: 'ACTIVE DEALS', value: stats?.activeDeals?.value || '0', meta: stats?.activeDeals?.change || '0', icon: 'briefcase-outline' as const },
       { title: 'HOT LEADS', value: stats?.hotLeads?.value || '0', meta: stats?.hotLeads?.change || '0', icon: 'fire' as const },
-      { title: 'AVG. HEAT INDEX', value: stats?.avgHeatIndex?.value || '75', meta: stats?.avgHeatIndex?.change || '0 pts', icon: 'trending-up' as const },
+      { title: 'AVG. HEAT INDEX', value: stats?.avgHeatIndex?.value || '0', meta: stats?.avgHeatIndex?.change || '0 pts', icon: 'trending-up' as const },
     ];
   }, [crmData]);
 
@@ -154,8 +132,50 @@ export default function CRMScreen() {
   }, [crmData]);
 
   const displaySourceAttribution = useMemo(() => {
-    return LEAD_SOURCE_CARDS;
-  }, []);
+    if (!crmData?.sourceAttribution) return [];
+    return crmData.sourceAttribution.map((item, index) => ({
+      id: `source-${index}`,
+      source: item.source,
+      dotColor: item.color || '#0a2341',
+      leads: item.leads,
+      convRate: item.conversion,
+      roi: item.roi,
+      roiHigh: item.roi.toLowerCase() === 'high' || item.roi.toLowerCase() === 'medium',
+    }));
+  }, [crmData]);
+
+  const displayConversionFunnel = useMemo(() => {
+    if (!crmData?.conversionRoi?.funnel) return [];
+    const colors = ['#CAD8E4', '#B8CCDC', '#9FC5D8', '#5BA8C9', '#0a2341'];
+    return crmData.conversionRoi.funnel.map((item, index) => ({
+      id: `funnel-${index}`,
+      label: item.level,
+      value: item.count.toString(),
+      barColor: colors[Math.min(index, colors.length - 1)]
+    }));
+  }, [crmData]);
+
+  const displayHeatDistribution = useMemo(() => {
+    if (!crmData?.heatIndex) return [];
+    const { cold, warm, hot } = crmData.heatIndex;
+    const total = cold + warm + hot;
+    const getPct = (val: number) => total > 0 ? `${Math.round((val / total) * 100)}%` : '0%';
+
+    return [
+      { id: 'cold', label: 'Cold', pct: getPct(cold), sub: 'Cold (0-30)', color: '#5B6B7A' },
+      { id: 'warm', label: 'Warm', pct: getPct(warm), sub: 'Warm (31-70)', color: '#0a2341' },
+      { id: 'hot', label: 'Hot', pct: getPct(hot), sub: 'Hot (71-100)', color: '#EA580C' },
+    ];
+  }, [crmData]);
+
+  const displayHeatSurgeTriggers = useMemo(() => {
+    if (!crmData?.heatIndex?.scoringRules) return [];
+    return crmData.heatIndex.scoringRules.map((rule, index) => ({
+      id: `trigger-${index}`,
+      label: rule.event,
+      pts: rule.weight
+    }));
+  }, [crmData]);
 
   const displayActivityLog = useMemo(() => {
     if (!crmData?.activityLog || crmData.activityLog.length === 0) return [];
@@ -172,6 +192,59 @@ export default function CRMScreen() {
     // Pick the source with the most leads or the first one if only one exists
     return [...crmData.sourceAttribution].sort((a, b) => b.leads - a.leads)[0];
   }, [crmData]);
+
+  const handleDownloadROIReport = async () => {
+    try {
+      const stats = crmData?.stats;
+      const roi = crmData?.conversionRoi;
+      const heat = crmData?.heatIndex;
+
+      const formatCurrency = (val: number | undefined) => {
+        if (val === undefined) return '$0';
+        return '$' + val.toLocaleString();
+      };
+
+      const csvData = [
+        ['Metric', 'Value'],
+        ['Total Contacts', stats?.totalContacts?.value || '0'],
+        ['Active Deals', stats?.activeDeals?.value || '0'],
+        ['Hot Leads', stats?.hotLeads?.value || '0'],
+        ['Average Heat Index', stats?.avgHeatIndex?.value || '0 pts'],
+        ['Total Pipeline Value', formatCurrency(roi?.totalPipelineValue)],
+        ['Closed Deal Revenue', formatCurrency(roi?.closedWonValue)],
+        ['Estimated Ad Campaign Spend', formatCurrency(roi?.estimatedAdCost)],
+        ['Marketing Net ROI', `${roi?.netROI || 0}%`],
+        ['Top Performing Lead Source', topSource?.source || 'N/A'],
+        ['Lead Source Conversion Rate', topSource?.conversion || '0%'],
+        ['Cold Leads (0-30)', heat?.cold?.toString() || '0'],
+        ['Warm Leads (31-70)', heat?.warm?.toString() || '0'],
+        ['Hot Leads (71-100)', heat?.hot?.toString() || '0'],
+      ];
+
+      const csvString = csvData
+        .map((row, index) => index === 0 ? row.join(',') : row.map(cell => `"${cell}"`).join(','))
+        .join('\n');
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      const fileName = `CRM_ROI_Report_${dateStr}.csv`;
+      const fileUri = FileSystem.documentDirectory + fileName;
+
+      await FileSystem.writeAsStringAsync(fileUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Download ROI Report',
+          UTI: 'public.comma-separated-values-text'
+        });
+      } else {
+        Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+      }
+    } catch (error) {
+      console.error('Error sharing CSV:', error);
+      Alert.alert('Error', 'Failed to generate the report.');
+    }
+  };
 
   return (
     <LinearGradient
@@ -190,12 +263,12 @@ export default function CRMScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0BA0B2" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0a2341" />
         }>
 
         {loading && !refreshing && (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#0BA0B2" />
+            <ActivityIndicator size="large" color="#0a2341" />
           </View>
         )}
 
@@ -210,7 +283,10 @@ export default function CRMScreen() {
         )}
         {/* Action buttons */}
         <View style={styles.actionsRow}>
-          <Pressable style={[styles.secondaryBtn, { flex: 1, justifyContent: 'center' }]}>
+          <Pressable
+            style={[styles.secondaryBtn, { flex: 1, justifyContent: 'center' }]}
+            onPress={handleDownloadROIReport}
+          >
             <Text style={styles.secondaryBtnText}>Download ROI Report</Text>
           </Pressable>
         </View>
@@ -246,7 +322,7 @@ export default function CRMScreen() {
                 <View key={card.title} style={[styles.statCard, { width: statCardWidth }]}>
                   <View style={styles.statHeader}>
                     <View style={styles.statIconWrap}>
-                      <MaterialCommunityIcons name={card.icon as any} size={18} color="#0BA0B2" />
+                      <MaterialCommunityIcons name={card.icon as any} size={18} color="#0a2341" />
                     </View>
                     <View style={styles.metaBadge}>
                       <Text style={styles.statMeta}>{card.meta}</Text>
@@ -264,21 +340,28 @@ export default function CRMScreen() {
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>Lead Velocity & Source Attribution</Text>
               </View>
-              <View style={styles.chartWrap}>
-                <BarChart
-                  data={velocityData}
-                  width={chartWidth}
-                  height={180}
-                  fromZero
-                  showValuesOnTopOfBars={false}
-                  withInnerLines
-                  withHorizontalLabels
-                  withVerticalLabels
-                  yAxisLabel=""
-                  yAxisSuffix=""
-                  chartConfig={chartConfig as any}
-                  style={styles.chart}
-                />
+              <View style={styles.customChartContainerWrap}>
+                <View style={styles.customChartContainer}>
+                  {velocityData.map((item) => (
+                    <View key={item.id} style={styles.customChartBarCol}>
+                      {item.value > 0 ? (
+                        <Text style={styles.customChartValue}>{item.value}</Text>
+                      ) : (
+                        <Text style={[styles.customChartValue, { opacity: 0 }]}>0</Text>
+                      )}
+                      <View style={styles.customChartBarTrack}>
+                        <View
+                          style={[
+                            styles.customChartBarFill,
+                            { height: item.heightPct as any },
+                            item.isToday && styles.customChartBarFillToday
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.customChartLabel}>{item.label}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
               <LinearGradient
                 colors={[colors.cardBackground, colors.surfaceSoft]}
@@ -324,90 +407,43 @@ export default function CRMScreen() {
               ))}
               <Pressable style={styles.cardLinkBtn} onPress={() => router.push('/(main)/crm/leads')}>
                 <Text style={styles.cardLinkText}>View Leads</Text>
-                <MaterialCommunityIcons name="chevron-right" size={16} color="#0BA0B2" />
+                <MaterialCommunityIcons name="chevron-right" size={16} color="#0a2341" />
               </Pressable>
             </View>
           </>
         )}
 
-        {overviewTab === 'activity-log' && (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Neural Activity Log</Text>
-            </View>
-            
-            {displayActivityLog.length === 0 ? (
-              <View style={{ paddingVertical: 30, alignItems: 'center' }}>
-                <MaterialCommunityIcons name="pulse" size={48} color={colors.textMuted || '#94A3B8'} />
-                <Text style={{ marginTop: 12, fontSize: 14, fontWeight: '700', color: colors.textSecondary, textAlign: 'center' }}>
-                  No recent activities found
-                </Text>
-              </View>
-            ) : (
-              <View style={{ gap: 12 }}>
-                {displayActivityLog.map((activity, idx) => (
-                  <View
-                    key={activity.id}
-                    style={[
-                      styles.activityLogItem,
-                      {
-                        backgroundColor: colors.surfaceSoft,
-                        borderLeftColor: activity.leftBorder === 'transparent' ? colors.cardBorder : (activity.leftBorder || colors.cardBorder),
-                        borderLeftWidth: activity.leftBorder !== 'transparent' ? 4 : 0,
-                        borderRadius: 12,
-                      },
-                      idx === displayActivityLog.length - 1 && { marginBottom: 0 }
-                    ]}>
-                    <View style={styles.activityLogIcon}>
-                      <MaterialCommunityIcons name={activity.icon || 'circle-outline'} size={20} color={colors.textPrimary} />
-                    </View>
-                    <View style={styles.activityLogDetails}>
-                      <View style={styles.activityLogRow}>
-                        <Text style={styles.activityLogActor}>{activity.actor}</Text>
-                        <Text style={styles.activityLogAction}>{activity.action}</Text>
-                      </View>
-                      <Text style={styles.activityLogDetail}>{activity.detail}</Text>
-                      {activity.score && (
-                        <View style={styles.activityLogScoreBadge}>
-                          <Text style={styles.activityLogScoreText}>{activity.score}</Text>
-                        </View>
-                      )}
-                      {activity.scoreChange && (
-                        <View style={styles.activityLogScoreChangeBadge}>
-                          <Text style={styles.activityLogScoreChangeText}>{activity.scoreChange}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.activityLogTime}>{activity.time}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
+
 
         {overviewTab === 'lead-sources' && (
-          <View style={styles.leadSourceGrid}>
+          <View style={styles.leadSourceList}>
             {displaySourceAttribution.map((item) => (
-              <View key={item.id} style={[styles.leadSourceCard, { width: statCardWidth }]}>
-                <View style={styles.leadSourceHeader}>
-                  <View style={[styles.leadSourceDot, { backgroundColor: item.dotColor }]} />
-                  <Text style={styles.leadSourceLabel}>{item.source}</Text>
+              <View key={item.id} style={styles.leadSourceCardFull}>
+                <View style={styles.leadSourceMain}>
+                  <View style={styles.leadSourceHeader}>
+                    <View style={[styles.leadSourceDot, { backgroundColor: item.dotColor }]} />
+                    <Text style={styles.leadSourceLabel}>{item.source}</Text>
+                  </View>
+                  <View style={styles.leadSourceValueContainer}>
+                    <Text style={styles.leadSourceValue}>{item.leads}</Text>
+                    <Text style={styles.leadSourceMeta}>Leads</Text>
+                  </View>
                 </View>
-                <Text style={styles.leadSourceValue}>{item.leads}</Text>
-                <Text style={styles.leadSourceMeta}>Leads Captured</Text>
-                <View style={styles.leadSourceFooter}>
-                  <View style={styles.leadSourceRow}>
+
+                <View style={styles.leadSourceMetrics}>
+                  <View style={styles.leadSourceMetricBox}>
                     <Text style={styles.leadSourceLabelSmall}>CONV.</Text>
                     <Text style={[styles.leadSourceConv, item.roiHigh && styles.leadSourceConvTeal]}>
                       {item.convRate}
                     </Text>
                   </View>
-                  <View style={styles.leadSourceRow}>
+                  <View style={styles.leadSourceMetricBox}>
                     <Text style={styles.leadSourceLabelSmall}>ROI</Text>
-                    <Text style={[styles.leadSourceRoi, item.roiHigh && styles.leadSourceRoiGreen]}>
-                      {item.roi}
-                    </Text>
+                    <View style={[styles.roiBadge, item.roiHigh ? styles.roiBadgeHigh : styles.roiBadgeLow]}>
+                      <Text style={[styles.leadSourceRoi, item.roiHigh && styles.leadSourceRoiGreen]}>
+                        {item.roi}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </View>
@@ -421,13 +457,13 @@ export default function CRMScreen() {
               <Text style={styles.funnelTitle}>Lead-to-Deal Funnel</Text>
               <MaterialCommunityIcons name="filter-outline" size={20} color="#94A3B8" />
             </View>
-            {CONVERSION_FUNNEL_STAGES.map((stage, idx) => (
+            {displayConversionFunnel.map((stage, idx) => (
               <View
                 key={stage.id}
                 style={[
                   styles.funnelBar,
                   { backgroundColor: stage.barColor, opacity: 1 - idx * 0.1 },
-                  idx === CONVERSION_FUNNEL_STAGES.length - 1 && styles.funnelBarLast,
+                  idx === displayConversionFunnel.length - 1 && styles.funnelBarLast,
                 ]}>
                 <Text style={styles.funnelBarLabel}>{stage.label}</Text>
                 <View style={styles.funnelValueContainer}>
@@ -446,7 +482,7 @@ export default function CRMScreen() {
                 <MaterialCommunityIcons name="lightning-bolt" size={20} color="#FFD700" />
               </View>
               <View style={styles.heatDistributionRow}>
-                {HEAT_DISTRIBUTION.map((item) => (
+                {displayHeatDistribution.map((item) => (
                   <View key={item.id} style={styles.heatDistributionItem}>
                     <Text style={[styles.heatDistributionPct, { color: item.color }]}>{item.pct}</Text>
                     <Text style={styles.heatDistributionSub}>{item.label}</Text>
@@ -458,12 +494,12 @@ export default function CRMScreen() {
               <View style={styles.cardHeader}>
                 <Text style={styles.heatCardTitle}>Interest Surge Triggers</Text>
               </View>
-              {HEAT_SURGE_TRIGGERS.map((trigger, idx) => (
+              {displayHeatSurgeTriggers.map((trigger, idx) => (
                 <View
                   key={trigger.id}
-                  style={[styles.heatTriggerRow, idx === HEAT_SURGE_TRIGGERS.length - 1 && styles.heatTriggerRowLast]}>
+                  style={[styles.heatTriggerRow, idx === displayHeatSurgeTriggers.length - 1 && styles.heatTriggerRowLast]}>
                   <View style={styles.triggerIconWrap}>
-                    <MaterialCommunityIcons name="flash-outline" size={16} color="#0BA0B2" />
+                    <MaterialCommunityIcons name="flash-outline" size={16} color="#0a2341" />
                   </View>
                   <Text style={styles.heatTriggerLabel}>{trigger.label}</Text>
                   <Text style={styles.heatTriggerPts}>{trigger.pts}</Text>
@@ -730,7 +766,7 @@ function getStyles(colors: any) {
       marginBottom: 20,
     },
     cardTitle: { fontSize: 16, fontWeight: '800', color: colors.textPrimary },
-    viewAllText: { fontSize: 13, fontWeight: '700', color: '#0BA0B2' },
+    viewAllText: { fontSize: 13, fontWeight: '700', color: '#0a2341' },
     chartWrap: { alignItems: 'center', marginVertical: 10 },
     chart: { borderRadius: 16 },
     velocityFooter: {
@@ -771,7 +807,7 @@ function getStyles(colors: any) {
       paddingVertical: 4,
       borderRadius: 8,
     },
-    scoreText: { fontSize: 13, fontWeight: '800', color: '#0BA0B2' },
+    scoreText: { fontSize: 13, fontWeight: '800', color: '#0a2341' },
     leadScore: { fontSize: 15, fontWeight: '800', color: colors.textPrimary },
     leadTime: { fontSize: 12, color: colors.inputPlaceholder, fontWeight: '600' },
     cardLinkBtn: {
@@ -784,82 +820,105 @@ function getStyles(colors: any) {
       borderRadius: 12,
       gap: 6,
     },
-    cardLinkText: { fontSize: 14, fontWeight: '700', color: '#0BA0B2' },
-    leadSourceGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 12,
-      marginBottom: 20,
+    cardLinkText: { fontSize: 14, fontWeight: '700', color: '#0a2341' },
+    leadSourceList: {
+      flexDirection: 'column',
+      gap: 14,
+      marginBottom: 24,
     },
-    leadSourceCard: {
+    leadSourceCardFull: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       backgroundColor: colors.cardBackground,
-      borderRadius: 20,
-      padding: 16,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.03,
-      shadowRadius: 12,
-      elevation: 2,
+      borderRadius: 24,
+      padding: 20,
+      shadowColor: '#0F172A',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.05,
+      shadowRadius: 16,
+      elevation: 3,
       borderWidth: 1,
       borderColor: colors.cardBorder,
     },
+    leadSourceMain: {
+      flex: 1,
+      paddingRight: 16,
+    },
     leadSourceHeader: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       gap: 8,
-      marginBottom: 12,
+      marginBottom: 8,
     },
     leadSourceDot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      marginTop: 3,
     },
     leadSourceLabel: {
-      fontSize: 10,
+      flex: 1,
+      fontSize: 11,
       fontWeight: '800',
-      color: colors.inputPlaceholder,
-      letterSpacing: 0.8,
+      color: colors.textSecondary,
+      letterSpacing: 0.5,
       textTransform: 'uppercase',
     },
+    leadSourceValueContainer: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 8,
+    },
     leadSourceValue: {
-      fontSize: 28,
+      fontSize: 32,
       fontWeight: '900',
       color: colors.textPrimary,
-      letterSpacing: -0.5,
+      letterSpacing: -1,
     },
     leadSourceMeta: {
-      fontSize: 12,
+      fontSize: 14,
       fontWeight: '600',
-      color: colors.textSecondary,
-      marginTop: 2,
+      color: colors.inputPlaceholder,
     },
-    leadSourceFooter: {
-      marginTop: 16,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: colors.cardBorder,
-      gap: 6,
-    },
-    leadSourceRow: {
+    leadSourceMetrics: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+      gap: 10,
+    },
+    leadSourceMetricBox: {
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceSoft,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 16,
+      minWidth: 72,
     },
     leadSourceLabelSmall: {
       fontSize: 10,
       fontWeight: '700',
       color: colors.inputPlaceholder,
+      marginBottom: 6,
+      letterSpacing: 0.3,
     },
     leadSourceConv: {
-      fontSize: 12,
+      fontSize: 15,
       fontWeight: '800',
       color: colors.textPrimary,
     },
-    leadSourceConvTeal: { color: '#0BA0B2' },
+    leadSourceConvTeal: { color: '#0a2341' },
+    roiBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+    },
+    roiBadgeHigh: { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.2)' },
+    roiBadgeLow: { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.2)' },
     leadSourceRoi: {
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: '800',
-      color: colors.textPrimary,
+      color: '#EF4444',
     },
     leadSourceRoiGreen: { color: '#10B981' },
     funnelCard: {
@@ -950,7 +1009,7 @@ function getStyles(colors: any) {
       justifyContent: 'center',
     },
     heatTriggerLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, flex: 1 },
-    heatTriggerPts: { fontSize: 13, fontWeight: '800', color: '#0BA0B2' },
+    heatTriggerPts: { fontSize: 13, fontWeight: '800', color: '#0a2341' },
     sectionsList: {
       backgroundColor: colors.cardBackground,
       borderRadius: 24,
@@ -1098,7 +1157,7 @@ function getStyles(colors: any) {
       color: '#FFFFFF',
     },
     activityLogScoreChangeBadge: {
-      backgroundColor: '#0BA0B2',
+      backgroundColor: '#0a2341',
       paddingHorizontal: 8,
       paddingVertical: 3,
       borderRadius: 6,
@@ -1185,6 +1244,50 @@ function getStyles(colors: any) {
       color: '#FFFFFF',
       fontSize: 12,
       fontWeight: '800',
+    },
+    customChartContainerWrap: {
+      backgroundColor: '#F8FAFB',
+      borderRadius: 16,
+      padding: 16,
+      marginVertical: 16,
+    },
+    customChartContainer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+      height: 180,
+    },
+    customChartBarCol: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    customChartValue: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#0a2341',
+      marginBottom: 6,
+    },
+    customChartBarTrack: {
+      flex: 1,
+      width: 14,
+      justifyContent: 'flex-end',
+      marginBottom: 8,
+    },
+    customChartBarFill: {
+      width: '100%',
+      backgroundColor: '#A5D6D9',
+      borderRadius: 4,
+      minHeight: 4,
+    },
+    customChartBarFillToday: {
+      backgroundColor: '#0a2341',
+    },
+    customChartLabel: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: '#94A3B8',
+      width: 40,
+      textAlign: 'center',
     },
   });
 }

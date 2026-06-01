@@ -1,22 +1,22 @@
 import { DashboardLayout } from '@/components/main';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getTeamSubscription, SubscriptionDetail, getWebsitePlans, WebsitePlan } from '@/services/dashboardService';
+import { getTeamSubscription, getWebsitePlans, SubscriptionDetail, WebsitePlan } from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { 
-    ScrollView, 
-    StyleSheet, 
-    Text, 
-    TouchableOpacity, 
-    View, 
+import {
     ActivityIndicator,
-    Platform,
     Modal,
-    SafeAreaView
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
@@ -111,8 +111,8 @@ export default function BillingPlan() {
 
     if (isLoading) {
         return (
-            <DashboardLayout 
-                menuItems={AGENCY_MENU_ITEMS} 
+            <DashboardLayout
+                menuItems={AGENCY_MENU_ITEMS}
                 customLogo={<AgencyLogo />}
                 customBackground={AGENCY_BG}
                 customHeaderBackground="#FFFFFF"
@@ -120,7 +120,7 @@ export default function BillingPlan() {
                 isAgency={true}
             >
                 <View style={styles.loadingWrapper}>
-                    <ActivityIndicator size="large" color="#0BA0B2" />
+                    <ActivityIndicator size="large" color="#0a2341" />
                     <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
                         Retrieving subscription packages...
                     </Text>
@@ -175,17 +175,17 @@ export default function BillingPlan() {
     };
 
     return (
-        <DashboardLayout 
-            menuItems={AGENCY_MENU_ITEMS} 
+        <DashboardLayout
+            menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
             customHeaderBackground="#FFFFFF"
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
-            <ScrollView 
-                style={{ flex: 1 }} 
-                contentContainerStyle={styles.scrollContent} 
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
@@ -211,10 +211,10 @@ export default function BillingPlan() {
                                 {subscription.is_trial ? 'TRIALING PLAN' : 'ACTIVE PLAN'}
                             </Text>
                         </View>
-                        <MaterialCommunityIcons 
-                            name={subscription.is_trial ? "star-circle" : "shield-check"} 
-                            size={28} 
-                            color={subscription.is_trial ? "#F59E0B" : "#10B981"} 
+                        <MaterialCommunityIcons
+                            name={subscription.is_trial ? "star-circle" : "shield-check"}
+                            size={28}
+                            color={subscription.is_trial ? "#F59E0B" : "#10B981"}
                         />
                     </View>
 
@@ -238,21 +238,21 @@ export default function BillingPlan() {
                     {/* Stats Metrics Sub-grid */}
                     <View style={styles.metricsGridContainer}>
                         {subscription.is_trial && (
-                            <PlanMetricRow 
-                                label="Trial Ends In" 
-                                value={getTrialDaysLeft(subscription.trial_end)} 
-                                icon="clock-alert-outline" 
+                            <PlanMetricRow
+                                label="Trial Ends In"
+                                value={getTrialDaysLeft(subscription.trial_end)}
+                                icon="clock-alert-outline"
                             />
                         )}
-                        <PlanMetricRow 
-                            label="Next Billing" 
-                            value={subscription.is_trial ? formatBillingDate(subscription.trial_end) : formatBillingDate(subscription.next_payment_at)} 
-                            icon="calendar-sync-outline" 
+                        <PlanMetricRow
+                            label="Next Billing"
+                            value={subscription.is_trial ? formatBillingDate(subscription.trial_end) : formatBillingDate(subscription.next_payment_at)}
+                            icon="calendar-sync-outline"
                         />
-                        <PlanMetricRow 
-                            label="Plan Status" 
-                            value={subscription.status_text || 'Active'} 
-                            icon="information-outline" 
+                        <PlanMetricRow
+                            label="Plan Status"
+                            value={subscription.status_text || 'Active'}
+                            icon="information-outline"
                         />
                     </View>
 
@@ -281,7 +281,7 @@ export default function BillingPlan() {
 
                     {/* Call to action buttons inside dock card */}
                     <View style={styles.planActionsWrapper}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             activeOpacity={0.9}
                             onPress={() => setIsUpgradeModalVisible(true)}
                         >
@@ -294,8 +294,8 @@ export default function BillingPlan() {
                             </LinearGradient>
                         </TouchableOpacity>
 
-                        <TouchableOpacity 
-                            style={styles.manageBillingOutlineBtn} 
+                        <TouchableOpacity
+                            style={styles.manageBillingOutlineBtn}
                             activeOpacity={0.8}
                             onPress={() => router.push('/(main)/agency/team-management')}
                         >
@@ -324,7 +324,7 @@ export default function BillingPlan() {
                                 </View>
                                 <Text style={styles.benefitBlockTitleText}>{plan.name} Summary</Text>
                             </View>
-                            
+
                             <View style={styles.benefitsBulletsWrap}>
                                 {planFeatures.map((feat, idx) => (
                                     <View key={idx} style={styles.bulletItemRow}>
@@ -386,7 +386,7 @@ export default function BillingPlan() {
                                 </Text>
                             </View>
                         </View>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={styles.modalCloseBtn}
                             onPress={() => setIsUpgradeModalVisible(false)}
                             activeOpacity={0.8}
@@ -397,12 +397,12 @@ export default function BillingPlan() {
 
                     {isLoadingPlans ? (
                         <View style={styles.modalLoadingWrapper}>
-                            <ActivityIndicator size="large" color="#0BA0B2" />
+                            <ActivityIndicator size="large" color="#0a2341" />
                             <Text style={styles.modalLoadingText}>Loading available agency plans...</Text>
                         </View>
                     ) : (
-                        <ScrollView 
-                            style={{ flex: 1 }} 
+                        <ScrollView
+                            style={{ flex: 1 }}
                             contentContainerStyle={styles.modalScrollContent}
                             showsVerticalScrollIndicator={false}
                         >
@@ -410,11 +410,11 @@ export default function BillingPlan() {
                             <View style={styles.toggleWrapper}>
                                 <View style={styles.toggleRowContainer}>
                                     <Text style={[styles.toggleLabel, !isYearly && styles.toggleLabelActive]}>Monthly</Text>
-                                    
-                                    <TouchableOpacity 
+
+                                    <TouchableOpacity
                                         style={[
-                                            styles.toggleSwitchBg, 
-                                            { backgroundColor: isYearly ? '#0BA0B2' : '#CBD5E1' }
+                                            styles.toggleSwitchBg,
+                                            { backgroundColor: isYearly ? '#0a2341' : '#CBD5E1' }
                                         ]}
                                         activeOpacity={0.9}
                                         onPress={() => setIsYearly(!isYearly)}
@@ -440,8 +440,8 @@ export default function BillingPlan() {
                                     const intervalLabel = isYearly ? '/yr' : '/mo';
 
                                     return (
-                                        <View 
-                                            key={itemPlan.id} 
+                                        <View
+                                            key={itemPlan.id}
                                             style={[
                                                 styles.planOutlineCard,
                                                 active && styles.planOutlineCardActive
@@ -1008,8 +1008,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     addonCheckboxChecked: {
-        backgroundColor: '#0BA0B2',
-        borderColor: '#0BA0B2',
+        backgroundColor: '#0a2341',
+        borderColor: '#0a2341',
     },
     modalEnhancementName: {
         fontSize: 12,
@@ -1050,14 +1050,14 @@ const styles = StyleSheet.create({
     },
     modalSelectPlanBtn: {
         borderWidth: 1.5,
-        borderColor: '#0BA0B2',
+        borderColor: '#0a2341',
         height: 48,
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
     },
     modalSelectPlanBtnText: {
-        color: '#0BA0B2',
+        color: '#0a2341',
         fontSize: 13,
         fontWeight: '800',
     },

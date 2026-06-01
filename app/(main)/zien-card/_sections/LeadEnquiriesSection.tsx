@@ -1,17 +1,17 @@
 import { useAppTheme } from '@/context/ThemeContext';
+import { useLeadEnquiries } from '@/hooks/useLeadEnquiries';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
-  Linking,
-  ActivityIndicator
+  View
 } from 'react-native';
-import { useLeadEnquiries } from '@/hooks/useLeadEnquiries';
 
 interface LeadEnquiriesSectionProps {
   onSectionChange?: (section: string) => void;
@@ -150,13 +150,13 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
             </View>
 
             <View style={styles.leadActions}>
-              <Pressable 
+              <Pressable
                 style={[styles.actionBtn, { backgroundColor: '#10B981' }]}
                 onPress={() => Linking.openURL(`tel:${lead.phone}`)}>
                 <MaterialCommunityIcons name="phone" size={18} color="#FFFFFF" />
                 <Text style={styles.actionBtnText}>Call</Text>
               </Pressable>
-              <Pressable 
+              <Pressable
                 style={[styles.actionBtn, { backgroundColor: colors.accentTeal }]}
                 onPress={() => Linking.openURL(`mailto:${lead.email}`)}>
                 <MaterialCommunityIcons name="email" size={18} color="#FFFFFF" />
@@ -185,7 +185,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 15,

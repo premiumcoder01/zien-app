@@ -1,8 +1,8 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '@/context/ThemeContext';
 import { useState } from 'react';
 import {
     ActivityIndicator,
@@ -37,7 +37,7 @@ const PROPERTIES: PropertyContext[] = [
 
 const NARRATIVE_STYLES = [
     { id: 'luxury', title: 'Luxury Executive', icon: 'book-open-variant' },
-    { id: 'minimal', title: 'Modern Minimal', icon: 'view-quilt', color: '#0BA0B2' },
+    { id: 'minimal', title: 'Modern Minimal', icon: 'view-quilt', color: '#0a2341' },
     { id: 'bold', title: 'Bold Investment', icon: 'file-document-outline', color: '#F97316' },
 ];
 
@@ -162,7 +162,7 @@ export default function PresentationBuilderScreen() {
                                                 <Text style={styles.optionTitle}>{p.title}</Text>
                                                 <Text style={styles.optionSubtitle}>{p.address}</Text>
                                             </View>
-                                            {property.id === p.id && <MaterialCommunityIcons name="check" size={16} color="#0BA0B2" />}
+                                            {property.id === p.id && <MaterialCommunityIcons name="check" size={16} color="#0a2341" />}
                                         </Pressable>
                                     ))}
                                 </View>
@@ -196,7 +196,7 @@ export default function PresentationBuilderScreen() {
                                         >
                                             <MaterialCommunityIcons name={s.icon as any} size={18} color={s.color || colors.textPrimary} />
                                             <Text style={styles.optionTitleStyle}>{s.title}</Text>
-                                            {style.id === s.id && <MaterialCommunityIcons name="check" size={16} color="#0BA0B2" />}
+                                            {style.id === s.id && <MaterialCommunityIcons name="check" size={16} color="#0a2341" />}
                                         </Pressable>
                                     ))}
                                 </View>
@@ -261,7 +261,7 @@ export default function PresentationBuilderScreen() {
                         <View style={styles.outputContent}>
                             {isGenerating ? (
                                 <View style={styles.loaderState}>
-                                    <ActivityIndicator size="large" color="#0BA0B2" />
+                                    <ActivityIndicator size="large" color="#0a2341" />
                                     <Text style={styles.loaderText}>Assembling architectural deck...</Text>
                                 </View>
                             ) : hasGenerated ? (
@@ -358,7 +358,7 @@ function getStyles(colors: any) {
             elevation: 1,
         },
         selectorBtnActive: {
-            borderColor: '#0BA0B2',
+            borderColor: '#0a2341',
             borderWidth: 2,
         },
         selectorValue: {
@@ -501,7 +501,7 @@ function getStyles(colors: any) {
             width: 6,
             height: 6,
             borderRadius: 3,
-            backgroundColor: '#0BA0B2',
+            backgroundColor: '#0a2341',
             marginRight: 8
         },
         outputTitle: {
@@ -538,7 +538,7 @@ function getStyles(colors: any) {
         },
         editBtnText: { color: '#CBD5E1', fontSize: 8, fontWeight: '900' },
         exportBtn: {
-            backgroundColor: '#0BA0B2',
+            backgroundColor: '#0a2341',
             paddingHorizontal: 12,
             paddingVertical: 8,
             borderRadius: 10,
@@ -563,7 +563,7 @@ function getStyles(colors: any) {
         slideContent: { padding: 20, justifyContent: 'flex-start' },
         slideChapter: { fontSize: 10, fontWeight: '900', color: colors.textMuted, marginBottom: 6, letterSpacing: 1 },
         slideTitle: { fontSize: 24, fontWeight: '900', color: colors.textPrimary, lineHeight: 28, marginBottom: 8 },
-        slideSubtitle: { fontSize: 14, fontWeight: '700', color: '#0BA0B2', marginBottom: 12 },
+        slideSubtitle: { fontSize: 14, fontWeight: '700', color: '#0a2341', marginBottom: 12 },
         slideDivider: { width: 30, height: 2, backgroundColor: colors.textPrimary, marginBottom: 16 },
         slideDescription: { fontSize: 13, color: colors.textSecondary, lineHeight: 20 },
 
@@ -571,10 +571,10 @@ function getStyles(colors: any) {
         navigationRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24 },
         progressDots: { flexDirection: 'row', gap: 6 },
         dot: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.surfaceSoft },
-        dotActive: { backgroundColor: '#0BA0B2' },
+        dotActive: { backgroundColor: '#0a2341' },
         navControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
         navBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' },
-        navBtnPrimary: { borderWidth: 2, borderColor: '#0BA0B2' },
+        navBtnPrimary: { borderWidth: 2, borderColor: '#0a2341' },
         pageIndicator: { color: colors.textPrimary, fontSize: 14, fontWeight: '900' },
 
         // States

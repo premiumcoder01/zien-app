@@ -129,7 +129,7 @@ export default function GenerationCompleteScreen() {
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.download4kBtn, pressed && styles.btnPressed]}
-            onPress={() => {}}>
+            onPress={() => { }}>
             <MaterialCommunityIcons name="download" size={18} color="#FFFFFF" />
             <Text style={styles.download4kText}>Download 4K Master</Text>
           </Pressable>
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#0BA0B2',
+    borderColor: '#0a2341',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,

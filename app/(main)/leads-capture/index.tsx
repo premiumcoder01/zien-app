@@ -85,7 +85,7 @@ export default function LeadsCaptureScreen() {
     const { colors, theme } = useAppTheme();
     const isDark = theme === 'dark';
     const styles = getStyles(colors);
-    
+
     const router = useRouter();
     const [showModal, setShowModal] = useState(false);
     const [captureHistory, setCaptureHistory] = useState<LeadCaptureItem[]>(CAPTURE_HISTORY);
@@ -372,12 +372,12 @@ const getStyles = (colors: any) => StyleSheet.create({
     fab: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#0BA0B2',
+        backgroundColor: '#0a2341',
         paddingHorizontal: 24,
         paddingVertical: 14,
         borderRadius: 30,
         gap: 8,
-        shadowColor: '#0BA0B2',
+        shadowColor: '#0a2341',
         shadowOpacity: 0.3,
         shadowRadius: 15,
         shadowOffset: { width: 0, height: 8 },
@@ -561,7 +561,7 @@ const getStyles = (colors: any) => StyleSheet.create({
         marginBottom: 24,
     },
     modalButton: {
-        backgroundColor: '#0BA0B2',
+        backgroundColor: '#0a2341',
         paddingHorizontal: 32,
         paddingVertical: 14,
         borderRadius: 16,

@@ -1,8 +1,8 @@
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { useAppTheme } from '@/context/ThemeContext';
 import {
   LayoutAnimation,
   Modal,
@@ -444,7 +444,7 @@ export default function GuardianAiOverviewScreen() {
                     key={tool.id}
                     style={[styles.premiumToolRow, index === 0 && styles.premiumToolRowFirst]}>
                     <View style={styles.premiumToolIconWrap}>
-                      <MaterialCommunityIcons name={tool.icon} size={22} color="#0BA0B2" />
+                      <MaterialCommunityIcons name={tool.icon} size={22} color="#0a2341" />
                     </View>
                     <View style={styles.toolTextWrap}>
                       <Text style={styles.premiumToolTitle}>{tool.title}</Text>
@@ -646,7 +646,7 @@ export default function GuardianAiOverviewScreen() {
                     ]}
                     onPress={() => setShowCrmModal(true)}>
                     <View style={styles.hubActionIconWrap}>
-                      <MaterialCommunityIcons name="database-import" size={20} color="#0BA0B2" />
+                      <MaterialCommunityIcons name="database-import" size={20} color="#0a2341" />
                     </View>
                     <Text style={styles.hubActionLabel}>Import CRM</Text>
                   </Pressable>
@@ -660,7 +660,7 @@ export default function GuardianAiOverviewScreen() {
                     ]}
                     onPress={() => setShowManualForm(!showManualForm)}>
                     <View style={styles.hubActionIconWrap}>
-                      <MaterialCommunityIcons name="account-plus-outline" size={20} color="#0BA0B2" />
+                      <MaterialCommunityIcons name="account-plus-outline" size={20} color="#0a2341" />
                     </View>
                     <Text style={styles.hubActionLabel}>Manual Entry</Text>
                   </Pressable>
@@ -736,7 +736,7 @@ export default function GuardianAiOverviewScreen() {
                     <View style={styles.hubLeadHeader}>
                       <View style={styles.hubAvatarWrap}>
                         <LinearGradient
-                          colors={['#0BA0B2', '#20B2AA']}
+                          colors={['#0a2341', '#20B2AA']}
                           style={styles.hubAvatarGradient}>
                           <Text style={styles.hubAvatarText}>{lead.name[0]}</Text>
                         </LinearGradient>
@@ -782,7 +782,7 @@ export default function GuardianAiOverviewScreen() {
                               <MaterialCommunityIcons
                                 name="check-circle-outline"
                                 size={14}
-                                color="#0BA0B2"
+                                color="#0a2341"
                               />
                               <Text style={styles.hubPathChipText}>{step}</Text>
                             </View>
@@ -978,7 +978,7 @@ export default function GuardianAiOverviewScreen() {
                   colors={['#F7FBFF', '#FFFFFF']}
                   style={styles.uploadZoneGradient}>
                   <View style={styles.uploadIconCircle}>
-                    <MaterialCommunityIcons name="tray-arrow-down" size={32} color="#0BA0B2" />
+                    <MaterialCommunityIcons name="tray-arrow-down" size={32} color="#0a2341" />
                   </View>
                   <Text style={styles.uploadZoneTitleFull}>Upload ID Document</Text>
                   <Text style={styles.uploadZoneHintFull}>Support PDF, JPG, PNG (Max 10MB)</Text>
@@ -996,7 +996,7 @@ export default function GuardianAiOverviewScreen() {
 
               <View style={styles.securityNoteBox}>
                 <View style={styles.securityNoteHeader}>
-                  <MaterialCommunityIcons name="shield-lock" size={18} color="#0BA0B2" />
+                  <MaterialCommunityIcons name="shield-lock" size={18} color="#0a2341" />
                   <Text style={styles.securityNoteTitle}>Encrypted Processing</Text>
                 </View>
                 <Text style={styles.securityNoteText}>
@@ -1262,7 +1262,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   premiumNewAuditText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   premiumClientRow: {
     flexDirection: 'row',
@@ -1311,7 +1311,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
-    backgroundColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -1370,16 +1370,16 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 14,
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#0BA0B2',
+    borderColor: '#0a2341',
   },
   premiumToolBtnActive: {
-    backgroundColor: '#0BA0B2',
-    borderColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
+    borderColor: '#0a2341',
   },
   premiumToolBtnText: {
     fontSize: 12,
     fontWeight: '900',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   premiumToolBtnTextActive: {
     color: '#FFFFFF',
@@ -1466,7 +1466,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.cardBorder,
     backgroundColor: colors.cardBackground,
   },
-  durationBtnActive: { backgroundColor: '#0BA0B2', borderColor: '#0BA0B2' },
+  durationBtnActive: { backgroundColor: '#0a2341', borderColor: '#0a2341' },
   durationBtnDisabled: { opacity: 0.6 },
   durationBtnText: { fontSize: 13, fontWeight: '800', color: colors.textSecondary },
   durationBtnTextActive: { color: '#FFFFFF' },
@@ -1491,7 +1491,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     gap: 8,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
-    borderColor: '#0BA0B2',
+    borderColor: '#0a2341',
     paddingVertical: 14,
     borderRadius: 14,
   },
@@ -1548,7 +1548,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   pillActiveText: { fontSize: 11, fontWeight: '900', color: '#16A34A', letterSpacing: 0.4 },
   pillSecure: { backgroundColor: colors.cardBackground, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
-  pillSecureActive: { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: '#0BA0B2' },
+  pillSecureActive: { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: '#0a2341' },
   pillSecureText: { fontSize: 11, fontWeight: '800', color: colors.textSecondary },
   pillSecureTextActive: { color: colors.textPrimary },
   secureMessageBlock: {
@@ -1649,7 +1649,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 10,
     backgroundColor: colors.cardBackground,
   },
-  metricsToggleBtnActive: { backgroundColor: '#0BA0B2' },
+  metricsToggleBtnActive: { backgroundColor: '#0a2341' },
   metricsToggleText: { fontSize: 12, fontWeight: '800', color: colors.textSecondary },
   metricsToggleTextActive: { color: '#FFFFFF' },
   barChartRow: {
@@ -1681,7 +1681,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderTopRightRadius: 4,
     minHeight: 4,
   },
-  barChartBarDark: { backgroundColor: '#0BA0B2' },
+  barChartBarDark: { backgroundColor: '#0a2341' },
   barChartBarLight: { backgroundColor: '#5B6B7A' },
   barChartLabel: {
     fontSize: 9,
@@ -2025,7 +2025,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   securityNoteTitle: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   securityNoteText: {
     fontSize: 12.5,
@@ -2146,7 +2146,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0BA0B2',
+    shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -2225,7 +2225,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     letterSpacing: 0.3,
   },
   hubStatusTextSuccess: {
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   hubStatusTextWarning: {
     color: '#FF8C00',
@@ -2366,7 +2366,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   crmSelectAllText: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   crmLeadsList: {
     paddingHorizontal: 20,
@@ -2383,9 +2383,9 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderColor: 'transparent',
   },
   crmLeadItemSelected: {
-    borderColor: '#0BA0B2',
+    borderColor: '#0a2341',
     backgroundColor: colors.cardBackground,
-    shadowColor: '#0BA0B2',
+    shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
@@ -2403,8 +2403,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
   },
   crmCheckboxChecked: {
-    borderColor: '#0BA0B2',
-    backgroundColor: '#0BA0B2',
+    borderColor: '#0a2341',
+    backgroundColor: '#0a2341',
   },
   crmLeadInfo: {
     flex: 1,

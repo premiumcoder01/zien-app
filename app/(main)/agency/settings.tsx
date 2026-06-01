@@ -1,41 +1,41 @@
 import { DashboardLayout } from '@/components/main';
-import { useAppTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { useAppTheme } from '@/context/ThemeContext';
+import {
+    getTeamBrandingSettings,
+    getTeamPaymentMethods,
+    getTeamSubscription,
+    TeamBrandingSettings,
+    updateTeamBrandingSettings
+} from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { 
-    ScrollView, 
-    StyleSheet, 
-    Text, 
-    TouchableOpacity, 
-    View, 
-    TextInput,
-    Switch,
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Image,
     KeyboardAvoidingView,
     Platform,
-    Image,
-    ActivityIndicator
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
-import { 
-    getTeamBrandingSettings, 
-    updateTeamBrandingSettings, 
-    getTeamSubscription, 
-    getTeamPaymentMethods, 
-    TeamBrandingSettings 
-} from '@/services/dashboardService';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
 const TABS = ['Branding', 'Security & Access', 'Notifications', 'Billing Methods'];
 
-const InputField = ({ 
-    label, 
-    value, 
-    onChangeText, 
-    placeholder, 
-    multiline = false, 
-      secureTextEntry = false,
+const InputField = ({
+    label,
+    value,
+    onChangeText,
+    placeholder,
+    multiline = false,
+    secureTextEntry = false,
     icon,
     required = false
 }: any) => {
@@ -53,17 +53,17 @@ const InputField = ({
             </Text>
             <View style={[
                 multiline ? styles.textAreaContainerRow : styles.inputContainerRow,
-                { backgroundColor: '#F8FAFC', borderColor: isFocused ? '#0BA0B2' : '#E2E8F0' }
+                { backgroundColor: '#F8FAFC', borderColor: isFocused ? '#0a2341' : '#E2E8F0' }
             ]}>
                 {icon && (
-                    <MaterialCommunityIcons 
-                        name={icon} 
-                        size={18} 
-                        color={isFocused ? '#0BA0B2' : '#64748B'} 
+                    <MaterialCommunityIcons
+                        name={icon}
+                        size={18}
+                        color={isFocused ? '#0a2341' : '#64748B'}
                         style={multiline && { marginTop: 2 }}
                     />
                 )}
-                <TextInput 
+                <TextInput
                     style={[multiline ? styles.textAreaStyle : styles.textInputStyle, { color: colors.textPrimary }]}
                     value={value}
                     onChangeText={onChangeText}
@@ -76,15 +76,15 @@ const InputField = ({
                     onBlur={() => setIsFocused(false)}
                 />
                 {secureTextEntry && (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         onPress={() => setShowPassword(!showPassword)}
                         style={styles.eyeIconBtn}
                         activeOpacity={0.7}
                     >
-                        <MaterialCommunityIcons 
-                            name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
-                            size={18} 
-                            color="#64748B" 
+                        <MaterialCommunityIcons
+                            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                            size={18}
+                            color="#64748B"
                         />
                     </TouchableOpacity>
                 )}
@@ -121,19 +121,19 @@ const BrandingTab = ({ branding, onSave, isSaving }: any) => {
         <View style={styles.tabContent}>
             <View style={[styles.formCard, { backgroundColor: colors.cardBackground, borderColor: '#F1F5F9' }]}>
                 <Text style={[styles.formHeader, { color: colors.textPrimary }]}>Agency Identity</Text>
-                
+
                 <View style={styles.logoSection}>
                     <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>AGENCY LOGO</Text>
                     {branding?.logo_url ? (
                         <View style={[styles.logoContainer, { borderColor: '#E2E8F0' }]}>
-                            <Image 
-                                source={{ uri: branding.logo_url }} 
-                                style={styles.logoImage} 
+                            <Image
+                                source={{ uri: branding.logo_url }}
+                                style={styles.logoImage}
                                 resizeMode="cover"
                             />
                         </View>
                     ) : (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.uploadBox, { backgroundColor: colors.surfaceSoft, borderColor: colors.cardBorder, borderStyle: 'dashed' }]}
                             activeOpacity={0.7}
                         >
@@ -144,62 +144,62 @@ const BrandingTab = ({ branding, onSave, isSaving }: any) => {
                     <Text style={[styles.uploadHint, { color: colors.textMuted }]}>PNG or SVG recommended. Transparent background looks best.</Text>
                 </View>
 
-                <InputField 
-                    label="Agency Name" 
+                <InputField
+                    label="Agency Name"
                     value={form.legal_name}
                     onChangeText={(text: string) => setForm({ ...form, legal_name: text })}
-                    placeholder="Becker & Co Properties" 
+                    placeholder="Becker & Co Properties"
                     icon="domain"
                     required
                 />
-                
-                <InputField 
-                    label="Website" 
+
+                <InputField
+                    label="Website"
                     value={form.website}
                     onChangeText={(text: string) => setForm({ ...form, website: text })}
-                    placeholder="www.zien.ai" 
+                    placeholder="www.zien.ai"
                     icon="web"
                     required
                 />
-                
-                <InputField 
-                    label="Description" 
+
+                <InputField
+                    label="Description"
                     value={form.description}
                     onChangeText={(text: string) => setForm({ ...form, description: text })}
-                    placeholder="Briefly describe your agency's mission and expertise..." 
-                    multiline={true} 
+                    placeholder="Briefly describe your agency's mission and expertise..."
+                    multiline={true}
                     icon="text-box-outline"
                     required
                 />
-                
-                <InputField 
-                    label="Email" 
+
+                <InputField
+                    label="Email"
                     value={form.support_email}
                     onChangeText={(text: string) => setForm({ ...form, support_email: text })}
-                    placeholder="hello@beckerpro.com" 
+                    placeholder="hello@beckerpro.com"
                     icon="email-outline"
                     required
                 />
-                
-                <InputField 
-                    label="Phone" 
+
+                <InputField
+                    label="Phone"
                     value={form.public_phone}
                     onChangeText={(text: string) => setForm({ ...form, public_phone: text })}
-                    placeholder="+1 310 902 4432" 
+                    placeholder="+1 310 902 4432"
                     icon="phone"
                     required
                 />
-                
-                <InputField 
-                    label="Address" 
+
+                <InputField
+                    label="Address"
                     value={form.address}
                     onChangeText={(text: string) => setForm({ ...form, address: text })}
-                    placeholder="23400 Pacific Coast Hwy, Malibu, CA 90265" 
+                    placeholder="23400 Pacific Coast Hwy, Malibu, CA 90265"
                     icon="map-marker-outline"
                     required
                 />
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                     style={[styles.saveBtn, { backgroundColor: '#0F172A' }]}
                     onPress={() => onSave(form)}
                     disabled={isSaving}
@@ -249,8 +249,8 @@ const SecurityTab = ({ onShowToast }: any) => {
                         <Text style={[styles.settingTitle, { color: colors.textPrimary }]}>Two-Factor Authentication</Text>
                         <Text style={[styles.settingDesc, { color: colors.textSecondary }]}>Secure your account with an additional verification layer.</Text>
                     </View>
-                    <Switch 
-                        value={tfa} 
+                    <Switch
+                        value={tfa}
                         onValueChange={setTfa}
                         trackColor={{ false: 'rgba(0,0,0,0.1)', true: '#10B981' }}
                     />
@@ -259,38 +259,38 @@ const SecurityTab = ({ onShowToast }: any) => {
 
             <View style={[styles.formCard, { backgroundColor: colors.cardBackground, borderColor: '#F1F5F9' }]}>
                 <Text style={[styles.formHeader, { color: colors.textPrimary }]}>Change Password</Text>
-                
-                <InputField 
-                    label="Current Password" 
+
+                <InputField
+                    label="Current Password"
                     value={form.current}
                     onChangeText={(text: string) => setForm({ ...form, current: text })}
-                    placeholder="••••••••••••" 
-                    secureTextEntry={true} 
+                    placeholder="••••••••••••"
+                    secureTextEntry={true}
                     icon="shield-lock-outline"
                     required
                 />
-                
-                <InputField 
-                    label="New Password" 
+
+                <InputField
+                    label="New Password"
                     value={form.new}
                     onChangeText={(text: string) => setForm({ ...form, new: text })}
-                    placeholder="New password" 
-                    secureTextEntry={true} 
+                    placeholder="New password"
+                    secureTextEntry={true}
                     icon="lock-outline"
                     required
                 />
-                
-                <InputField 
-                    label="Confirm New Password" 
+
+                <InputField
+                    label="Confirm New Password"
                     value={form.confirm}
                     onChangeText={(text: string) => setForm({ ...form, confirm: text })}
-                    placeholder="Confirm new password" 
-                    secureTextEntry={true} 
+                    placeholder="Confirm new password"
+                    secureTextEntry={true}
                     icon="lock-check-outline"
                     required
                 />
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                     style={[styles.saveBtn, { backgroundColor: '#0F172A' }]}
                     onPress={handleUpdate}
                     activeOpacity={0.85}
@@ -336,20 +336,20 @@ const NotificationsTab = () => {
                         <View style={styles.notifToggles}>
                             <View style={styles.toggleGroup}>
                                 <Text style={[styles.toggleTag, { color: colors.textMuted }]}>EMAIL</Text>
-                                <Switch 
+                                <Switch
                                     value={states[`${item.id}_email`]}
                                     onValueChange={() => toggle(item.id, 'email')}
-                                    trackColor={{ false: 'rgba(0,0,0,0.1)', true: '#10B981' }} 
-                                    style={{ transform: [{ scale: 0.8 }] }} 
+                                    trackColor={{ false: 'rgba(0,0,0,0.1)', true: '#10B981' }}
+                                    style={{ transform: [{ scale: 0.8 }] }}
                                 />
                             </View>
                             <View style={styles.toggleGroup}>
                                 <Text style={[styles.toggleTag, { color: colors.textMuted }]}>PUSH</Text>
-                                <Switch 
+                                <Switch
                                     value={states[`${item.id}_push`]}
                                     onValueChange={() => toggle(item.id, 'push')}
-                                    trackColor={{ false: 'rgba(0,0,0,0.1)', true: '#10B981' }} 
-                                    style={{ transform: [{ scale: 0.8 }] }} 
+                                    trackColor={{ false: 'rgba(0,0,0,0.1)', true: '#10B981' }}
+                                    style={{ transform: [{ scale: 0.8 }] }}
                                 />
                             </View>
                         </View>
@@ -377,7 +377,7 @@ const BillingTab = ({ subscription, paymentMethods, onUpgrade }: any) => {
                         Next billing cycle: {subscription?.subscription?.trial_end ? new Date(subscription.subscription.trial_end).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A'}
                     </Text>
                 </View>
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.upgradeBtn}
                     onPress={onUpgrade}
                     activeOpacity={0.8}
@@ -389,12 +389,12 @@ const BillingTab = ({ subscription, paymentMethods, onUpgrade }: any) => {
             {/* Payment Methods */}
             <View style={styles.paymentSection}>
                 <Text style={[styles.formHeader, { color: colors.textPrimary }]}>Payment Methods</Text>
-                
+
                 {paymentMethods && paymentMethods.map((pm: any) => (
-                    <View 
-                        key={pm.id} 
+                    <View
+                        key={pm.id}
                         style={[
-                            styles.cardItem, 
+                            styles.cardItem,
                             { backgroundColor: colors.cardBackground, borderColor: '#F1F5F9' }
                         ]}
                     >
@@ -410,12 +410,12 @@ const BillingTab = ({ subscription, paymentMethods, onUpgrade }: any) => {
                             </Text>
                         </View>
                         <TouchableOpacity activeOpacity={0.7}>
-                            <Text style={[styles.editText, { color: '#0BA0B2' }]}>Edit</Text>
+                            <Text style={[styles.editText, { color: '#0a2341' }]}>Edit</Text>
                         </TouchableOpacity>
                     </View>
                 ))}
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                     style={[styles.addCardBtn, { borderColor: '#E2E8F0' }]}
                     activeOpacity={0.7}
                 >
@@ -475,21 +475,21 @@ export default function AgencySettings() {
     });
 
     return (
-        <DashboardLayout 
-            menuItems={AGENCY_MENU_ITEMS} 
+        <DashboardLayout
+            menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
             customHeaderBackground="#FFFFFF"
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
-            <KeyboardAvoidingView 
+            <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={{ flex: 1 }}
             >
-                <ScrollView 
-                    style={{ flex: 1 }} 
-                    contentContainerStyle={styles.scrollContent} 
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
                     {/* Header */}
@@ -505,18 +505,18 @@ export default function AgencySettings() {
                     <View style={styles.tabsContainer}>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
                             {TABS.map((tab) => (
-                                <TouchableOpacity 
-                                    key={tab} 
+                                <TouchableOpacity
+                                    key={tab}
                                     onPress={() => setActiveTab(tab)}
                                     style={[
-                                        styles.tab, 
+                                        styles.tab,
                                         { backgroundColor: colors.surfaceSoft },
                                         activeTab === tab && { backgroundColor: '#0F172A' }
                                     ]}
                                     activeOpacity={0.85}
                                 >
                                     <Text style={[
-                                        styles.tabText, 
+                                        styles.tabText,
                                         { color: colors.textSecondary },
                                         activeTab === tab && { color: '#FFFFFF', fontWeight: '900' }
                                     ]}>
@@ -530,8 +530,8 @@ export default function AgencySettings() {
                     {/* Content */}
                     <View style={styles.content}>
                         {activeTab === 'Branding' && (
-                            <BrandingTab 
-                                branding={brandingData} 
+                            <BrandingTab
+                                branding={brandingData}
                                 onSave={(data: any) => updateBrandingMutation.mutate(data)}
                                 isSaving={updateBrandingMutation.isPending}
                             />
@@ -539,9 +539,9 @@ export default function AgencySettings() {
                         {activeTab === 'Security & Access' && <SecurityTab onShowToast={showToast} />}
                         {activeTab === 'Notifications' && <NotificationsTab />}
                         {activeTab === 'Billing Methods' && (
-                            <BillingTab 
-                                subscription={subData} 
-                                paymentMethods={paymentMethods} 
+                            <BillingTab
+                                subscription={subData}
+                                paymentMethods={paymentMethods}
                                 onUpgrade={() => router.push('/(main)/agency/billing-plan')}
                             />
                         )}
@@ -553,17 +553,17 @@ export default function AgencySettings() {
 
             {/* Custom Notch-Safe Animated Toaster */}
             {toast?.visible && (
-                <View 
+                <View
                     style={[
-                        styles.toastContainer, 
+                        styles.toastContainer,
                         toast.type === 'success' ? styles.toastSuccess : styles.toastError
                     ]}
                 >
                     <View style={styles.toastInner}>
-                        <MaterialCommunityIcons 
-                            name={toast.type === 'success' ? 'check-circle' : 'alert-circle'} 
-                            size={20} 
-                            color={toast.type === 'success' ? '#065F46' : '#991B1B'} 
+                        <MaterialCommunityIcons
+                            name={toast.type === 'success' ? 'check-circle' : 'alert-circle'}
+                            size={20}
+                            color={toast.type === 'success' ? '#065F46' : '#991B1B'}
                         />
                         <Text style={[styles.toastText, { color: toast.type === 'success' ? '#065F46' : '#991B1B' }]}>
                             {toast.message}

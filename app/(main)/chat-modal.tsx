@@ -1,5 +1,6 @@
 import { useAppTheme } from '@/context/ThemeContext';
-import { useConversations, useCreateConversation, useSendMessage, useDeleteConversation, useLoadConversation } from '@/hooks/useChat';
+import { useConversations, useCreateConversation, useDeleteConversation, useLoadConversation, useSendMessage } from '@/hooks/useChat';
+import type { Conversation } from '@/services/chatService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -7,7 +8,7 @@ import {
     ExpoSpeechRecognitionModule,
     useSpeechRecognitionEvent,
 } from 'expo-speech-recognition';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Animated,
@@ -24,7 +25,6 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Conversation } from '@/services/chatService';
 
 const { height } = Dimensions.get('window');
 
@@ -331,7 +331,7 @@ export default function ChatModalScreen() {
             <View style={styles.aiRow}>
                 {/* AI avatar */}
                 <LinearGradient
-                    colors={['#0BA0B2', '#1B5E9A']}
+                    colors={['#0a2341', '#1B5E9A']}
                     style={styles.aiAvatar}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
@@ -373,7 +373,7 @@ export default function ChatModalScreen() {
                 {/* LEFT: AI badge + title/subtitle only */}
                 <View style={styles.headerLeft}>
                     <LinearGradient
-                        colors={['#0BA0B2', '#1B5E9A']}
+                        colors={['#0a2341', '#1B5E9A']}
                         style={styles.headerAiDot}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
@@ -489,7 +489,7 @@ export default function ChatModalScreen() {
                                 disabled={!voiceText.trim()}
                             >
                                 <LinearGradient
-                                    colors={['#0BA0B2', '#1B5E9A']}
+                                    colors={['#0a2341', '#1B5E9A']}
                                     style={styles.sendBtnGradient}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 1 }}
@@ -525,7 +525,7 @@ export default function ChatModalScreen() {
                                     hitSlop={8}
                                 >
                                     <LinearGradient
-                                        colors={['#0BA0B2', '#1B5E9A']}
+                                        colors={['#0a2341', '#1B5E9A']}
                                         style={styles.sendBtnGradient}
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 1 }}
@@ -584,7 +584,7 @@ export default function ChatModalScreen() {
                                     </View>
                                     <Pressable
                                         style={({ pressed }) => [styles.historyNewBtn, pressed && { opacity: 0.8 }]}
-                                    onPress={() => {
+                                        onPress={() => {
                                             setShowHistoryModal(false);
                                             handleClear();
                                         }}
@@ -702,7 +702,7 @@ function getStyles(colors: any) {
             borderRadius: 13,
             alignItems: 'center',
             justifyContent: 'center',
-            shadowColor: '#0BA0B2',
+            shadowColor: '#0a2341',
             shadowOpacity: 0.3,
             shadowRadius: 10,
             shadowOffset: { width: 0, height: 4 },
@@ -824,7 +824,7 @@ function getStyles(colors: any) {
             borderRadius: 20,
             alignItems: 'center',
             justifyContent: 'center',
-            shadowColor: '#0BA0B2',
+            shadowColor: '#0a2341',
             shadowOpacity: 0.45,
             shadowRadius: 18,
             shadowOffset: { width: 0, height: 8 },
@@ -919,7 +919,7 @@ function getStyles(colors: any) {
             alignItems: 'center',
             justifyContent: 'center',
             marginTop: 4,
-            shadowColor: '#0BA0B2',
+            shadowColor: '#0a2341',
             shadowOpacity: 0.3,
             shadowRadius: 8,
             shadowOffset: { width: 0, height: 4 },
@@ -1011,7 +1011,7 @@ function getStyles(colors: any) {
             borderRadius: 12,
             alignItems: 'center',
             justifyContent: 'center',
-            shadowColor: '#0BA0B2',
+            shadowColor: '#0a2341',
             shadowOpacity: 0.4,
             shadowRadius: 8,
             shadowOffset: { width: 0, height: 4 },

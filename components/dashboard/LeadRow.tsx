@@ -29,7 +29,7 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; icon: any }> = {
 
 const AVATAR_GRADIENTS = [
   ['#6B4EFF', '#9A7BFF'],
-  ['#0BA0B2', '#26C6DA'],
+  ['#0a2341', '#26C6DA'],
   ['#10B981', '#34D399'],
   ['#F59E0B', '#FBBF24'],
   ['#EC4899', '#F472B6'],

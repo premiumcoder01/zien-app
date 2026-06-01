@@ -270,7 +270,7 @@ export default function ProfileScreen() {
                         </View>
                         <View style={styles.gaugeTrack}>
                             <LinearGradient
-                                colors={['#3B82F6', '#0BA0B2', '#10B981', '#F59E0B', '#EF4444']}
+                                colors={['#3B82F6', '#0a2341', '#10B981', '#F59E0B', '#EF4444']}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={[styles.gaugeFill, { width: `${Math.min(heatIndex!, 100)}%` as any }]}

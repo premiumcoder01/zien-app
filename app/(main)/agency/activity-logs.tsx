@@ -1,20 +1,20 @@
 import { DashboardLayout } from '@/components/main';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getTeamProfile, getTeamLogs, TeamLogEntry, TeamLogsResponse } from '@/services/dashboardService';
+import { getTeamLogs, getTeamProfile, TeamLogEntry, TeamLogsResponse } from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import React, { useState, useRef } from 'react';
-import { 
-    ScrollView, 
-    StyleSheet, 
-    Text, 
-    TextInput, 
-    TouchableOpacity, 
-    View, 
-    Platform,
+import React, { useRef, useState } from 'react';
+import {
+    ActivityIndicator,
     Animated,
-    ActivityIndicator
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
@@ -23,23 +23,23 @@ const formatLogTimestamp = (isoString: string) => {
     try {
         const date = new Date(isoString);
         if (isNaN(date.getTime())) return isoString;
-        
+
         const pad = (num: number) => num.toString().padStart(2, '0');
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        
+
         const day = pad(date.getDate());
         const monthName = months[date.getMonth()];
         const year = date.getFullYear();
-        
+
         let hours = date.getHours();
         const minutes = pad(date.getMinutes());
         const seconds = pad(date.getSeconds());
         const ampm = hours >= 12 ? 'PM' : 'AM';
-        
+
         hours = hours % 12;
         hours = hours ? hours : 12; // hour '0' should be '12'
         const hoursStr = pad(hours);
-        
+
         return `${day} ${monthName} ${year}, ${hoursStr}:${minutes}:${seconds} ${ampm}`;
     } catch {
         return isoString;
@@ -103,7 +103,7 @@ const LogItem = ({ log }: { log: TeamLogEntry }) => {
                 <View style={styles.detailCol}>
                     <Text style={styles.detailLabel}>PERFORMED BY</Text>
                     <View style={styles.detailUserCell}>
-                        <MaterialCommunityIcons name="account-outline" size={14} color="#0BA0B2" />
+                        <MaterialCommunityIcons name="account-outline" size={14} color="#0a2341" />
                         <Text style={[styles.detailValue, { color: '#334155' }]} numberOfLines={1} ellipsizeMode="tail">
                             {log.user_name || `User #${log.user_id}`}
                         </Text>
@@ -136,7 +136,7 @@ const LogItem = ({ log }: { log: TeamLogEntry }) => {
 export default function ActivityLogs() {
     const { colors } = useAppTheme();
     const { accessToken } = useAuth();
-    
+
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSeverity, setSelectedSeverity] = useState<'All' | 'Critical' | 'Warning' | 'Info'>('All');
     const [isSeverityDropdownOpen, setIsSeverityDropdownOpen] = useState(false);
@@ -191,7 +191,7 @@ export default function ActivityLogs() {
 
     // Filter Logs locally on the client-side
     const filteredLogs = (logsData?.logs || []).filter(log => {
-        const matchesSearch = 
+        const matchesSearch =
             (log.action || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (log.user_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (log.target || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -230,8 +230,8 @@ export default function ActivityLogs() {
     };
 
     return (
-        <DashboardLayout 
-            menuItems={AGENCY_MENU_ITEMS} 
+        <DashboardLayout
+            menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
             customHeaderBackground="#FFFFFF"
@@ -241,24 +241,24 @@ export default function ActivityLogs() {
             <View style={styles.container}>
                 {/* --- CUSTOM TOASTER NOTIFICATION --- */}
                 {toast && (
-                    <Animated.View 
+                    <Animated.View
                         style={[
-                            styles.toastContainer, 
-                            { 
+                            styles.toastContainer,
+                            {
                                 transform: [{ translateY: toastY }],
                                 backgroundColor: toast.type === 'success' ? '#ECFDF5' : '#FEF2F2',
                                 borderBottomColor: toast.type === 'success' ? '#10B981' : '#EF4444',
                             }
                         ]}
                     >
-                        <MaterialCommunityIcons 
-                            name={toast.type === 'success' ? "check-circle" : "alert-circle"} 
-                            size={20} 
-                            color={toast.type === 'success' ? "#059669" : "#DC2626"} 
+                        <MaterialCommunityIcons
+                            name={toast.type === 'success' ? "check-circle" : "alert-circle"}
+                            size={20}
+                            color={toast.type === 'success' ? "#059669" : "#DC2626"}
                         />
-                        <Text 
+                        <Text
                             style={[
-                                styles.toastText, 
+                                styles.toastText,
                                 { color: toast.type === 'success' ? "#065F46" : "#991B1B" }
                             ]}
                         >
@@ -279,7 +279,7 @@ export default function ActivityLogs() {
 
                 {isPageLoading ? (
                     <View style={styles.loadingWrapper}>
-                        <ActivityIndicator size="large" color="#0BA0B2" />
+                        <ActivityIndicator size="large" color="#0a2341" />
                         <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading secure trails...</Text>
                     </View>
                 ) : (
@@ -311,7 +311,7 @@ export default function ActivityLogs() {
                             {/* Card 3: Secure Auth */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
                                 <View style={[styles.statIconBox, { backgroundColor: '#F0F9FF' }]}>
-                                    <MaterialCommunityIcons name="fingerprint" size={20} color="#0BA0B2" />
+                                    <MaterialCommunityIcons name="fingerprint" size={20} color="#0a2341" />
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.auth_events}</Text>
@@ -337,7 +337,7 @@ export default function ActivityLogs() {
                                 {/* Search Bar */}
                                 <View style={[styles.searchBox, { backgroundColor: colors.surfaceSoft, borderColor: colors.cardBorder, flex: 1.2 }]}>
                                     <MaterialCommunityIcons name="magnify" size={20} color="#64748B" />
-                                    <TextInput 
+                                    <TextInput
                                         placeholder="Search action, target, ip..."
                                         placeholderTextColor="#94A3B8"
                                         style={[styles.searchInput, { color: colors.textPrimary }]}
@@ -345,33 +345,33 @@ export default function ActivityLogs() {
                                         onChangeText={setSearchQuery}
                                     />
                                 </View>
-                                
+
                                 {/* Severity Selector dropdown */}
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     onPress={() => setIsSeverityDropdownOpen(!isSeverityDropdownOpen)}
                                     style={[
-                                        styles.filterBtn, 
-                                        { 
-                                            backgroundColor: colors.surfaceSoft, 
-                                            borderColor: isSeverityDropdownOpen ? '#0BA0B2' : colors.cardBorder,
-                                            flex: 1 
+                                        styles.filterBtn,
+                                        {
+                                            backgroundColor: colors.surfaceSoft,
+                                            borderColor: isSeverityDropdownOpen ? '#0a2341' : colors.cardBorder,
+                                            flex: 1
                                         }
                                     ]}
                                 >
                                     <Text style={[styles.filterBtnText, { color: colors.textPrimary }]} numberOfLines={1}>
                                         {selectedSeverity === 'All' ? 'All Severities' : selectedSeverity}
                                     </Text>
-                                    <MaterialCommunityIcons 
-                                        name={isSeverityDropdownOpen ? "chevron-up" : "chevron-down"} 
-                                        size={18} 
-                                        color="#64748B" 
+                                    <MaterialCommunityIcons
+                                        name={isSeverityDropdownOpen ? "chevron-up" : "chevron-down"}
+                                        size={18}
+                                        color="#64748B"
                                     />
                                 </TouchableOpacity>
 
                                 {/* --- CHARCOAL DROPDOWN OVERLAY (perfect mockup replica) --- */}
                                 {isSeverityDropdownOpen && (
                                     <View style={styles.dropdownOverlay}>
-                                        <TouchableOpacity 
+                                        <TouchableOpacity
                                             onPress={() => {
                                                 setSelectedSeverity('All');
                                                 setIsSeverityDropdownOpen(false);
@@ -388,7 +388,7 @@ export default function ActivityLogs() {
                                             </View>
                                         </TouchableOpacity>
 
-                                        <TouchableOpacity 
+                                        <TouchableOpacity
                                             onPress={() => {
                                                 setSelectedSeverity('Critical');
                                                 setIsSeverityDropdownOpen(false);
@@ -405,7 +405,7 @@ export default function ActivityLogs() {
                                             </View>
                                         </TouchableOpacity>
 
-                                        <TouchableOpacity 
+                                        <TouchableOpacity
                                             onPress={() => {
                                                 setSelectedSeverity('Warning');
                                                 setIsSeverityDropdownOpen(false);
@@ -422,7 +422,7 @@ export default function ActivityLogs() {
                                             </View>
                                         </TouchableOpacity>
 
-                                        <TouchableOpacity 
+                                        <TouchableOpacity
                                             onPress={() => {
                                                 setSelectedSeverity('Info');
                                                 setIsSeverityDropdownOpen(false);
@@ -443,7 +443,7 @@ export default function ActivityLogs() {
                             </View>
 
                             {/* Export CSV Button (full width bottom) */}
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 onPress={handleCSVExport}
                                 style={[styles.exportBtn, { backgroundColor: '#0F172A' }]}
                             >

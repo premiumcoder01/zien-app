@@ -302,7 +302,7 @@ export default function VirtualStagingScreen() {
                                         <Image source={{ uri: slide.imageRight }} style={styles.bannerHalfImage} />
                                     </View>
                                     <View style={styles.bannerContent}>
-                                        <Text style={styles.bannerTitle}>{slide.title} <Text style={{ color: '#0BA0B2' }}>{slide.titleAccent}</Text></Text>
+                                        <Text style={styles.bannerTitle}>{slide.title} <Text style={{ color: '#0a2341' }}>{slide.titleAccent}</Text></Text>
                                         <Text style={styles.bannerDesc}>{slide.desc}</Text>
                                         <Pressable style={styles.tryThisBtn} onPress={() => setViewMode('config')}><Text style={styles.tryThisBtnText}>Try This</Text></Pressable>
                                     </View>
@@ -349,7 +349,7 @@ function getStyles(colors: any) {
         bannerContent: { flex: 1 },
         bannerTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '900', marginBottom: 8 },
         bannerDesc: { color: '#94A3B8', fontSize: 12, lineHeight: 18, marginBottom: 16 },
-        tryThisBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0BA0B2', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, alignSelf: 'flex-start' },
+        tryThisBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0a2341', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, alignSelf: 'flex-start' },
         tryThisBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
 
         // Section Kit
@@ -359,10 +359,10 @@ function getStyles(colors: any) {
 
         // Kit Grid
         kitGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16 },
-        kitCard: { 
-            width: (SCREEN_WIDTH - 52) / 2, 
-            backgroundColor: colors.cardBackground, 
-            borderRadius: 16, 
+        kitCard: {
+            width: (SCREEN_WIDTH - 52) / 2,
+            backgroundColor: colors.cardBackground,
+            borderRadius: 16,
             overflow: 'hidden',
             borderWidth: 1,
             borderColor: colors.cardBorder,
@@ -374,10 +374,10 @@ function getStyles(colors: any) {
         },
         kitImageWrapper: { width: '100%', aspectRatio: 1.3 },
         kitBadgeText: { color: colors.textPrimary, fontSize: 12, fontWeight: '800', marginBottom: 8 },
-        kitBtn: { 
-            backgroundColor: colors.surfaceSoft, 
-            paddingVertical: 8, 
-            borderRadius: 8, 
+        kitBtn: {
+            backgroundColor: colors.surfaceSoft,
+            paddingVertical: 8,
+            borderRadius: 8,
             alignItems: 'center',
             borderWidth: 1,
             borderColor: colors.cardBorder,
@@ -385,9 +385,9 @@ function getStyles(colors: any) {
         kitBtnText: { fontSize: 11, fontWeight: '800', color: colors.accentTeal },
 
         // Config form component styling
-        configCard: { 
-            backgroundColor: colors.cardBackground, 
-            borderRadius: 24, 
+        configCard: {
+            backgroundColor: colors.cardBackground,
+            borderRadius: 24,
             padding: 20,
             borderWidth: 1,
             borderColor: colors.cardBorder,
@@ -398,38 +398,38 @@ function getStyles(colors: any) {
             elevation: 3,
         },
         configLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: '900', letterSpacing: 1, marginTop: 16, marginBottom: 8 },
-        uploadBox: { width: '100%', aspectRatio: 1.5, borderRadius: 16, borderWidth: 1, borderColor: '#0BA0B2', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+        uploadBox: { width: '100%', aspectRatio: 1.5, borderRadius: 16, borderWidth: 1, borderColor: '#0a2341', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
         uploadPreview: { width: '100%', height: '100%', resizeMode: 'cover' },
         uploadPlaceholder: { alignItems: 'center' },
         uploadTextBold: { color: colors.textPrimary, fontSize: 14, fontWeight: '900', marginTop: 8 },
         uploadTextSmall: { color: colors.textMuted, fontSize: 10, marginTop: 4 },
-        dropdownBtn: { 
-            flexDirection: 'row', 
-            justifyContent: 'space-between', 
-            backgroundColor: colors.inputBackground, 
-            padding: 14, 
+        dropdownBtn: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            backgroundColor: colors.inputBackground,
+            padding: 14,
             borderRadius: 12,
             borderWidth: 1,
             borderColor: colors.cardBorder,
         },
         dropdownText: { color: colors.textPrimary, fontSize: 14, fontWeight: '800' },
-        textArea: { 
-            backgroundColor: colors.inputBackground, 
-            padding: 14, 
-            borderRadius: 12, 
-            color: colors.textPrimary, 
+        textArea: {
+            backgroundColor: colors.inputBackground,
+            padding: 14,
+            borderRadius: 12,
+            color: colors.textPrimary,
             textAlignVertical: 'top',
             borderWidth: 1,
             borderColor: colors.cardBorder,
         },
         pillRow: { flexDirection: 'row', gap: 10 },
-        pill: { 
-            flex: 1, 
-            paddingVertical: 12, 
-            borderRadius: 10, 
-            backgroundColor: colors.cardBackground, 
-            borderWidth: 1, 
-            borderColor: colors.cardBorder, 
+        pill: {
+            flex: 1,
+            paddingVertical: 12,
+            borderRadius: 10,
+            backgroundColor: colors.cardBackground,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
             alignItems: 'center',
         },
         pillActive: { backgroundColor: colors.accentTeal + '15', borderColor: colors.accentTeal },
@@ -440,16 +440,16 @@ function getStyles(colors: any) {
         styleCardActive: { borderColor: colors.accentTeal, borderWidth: 1, borderRadius: 12, padding: 4 },
         styleImage: { width: '100%', height: 70, borderRadius: 10, marginBottom: 6 },
         styleText: { color: colors.textPrimary, fontSize: 10, fontWeight: '800' },
-        generateBtn: { backgroundColor: '#0BA0B2', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 24 },
+        generateBtn: { backgroundColor: '#0a2341', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 24 },
         generateBtnText: { color: '#FFF', fontSize: 14, fontWeight: '900' },
 
         // Dropdown Modal
         modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-        modalContent: { 
-            width: '80%', 
+        modalContent: {
+            width: '80%',
             maxHeight: '60%',
-            backgroundColor: colors.cardBackground, 
-            borderRadius: 16, 
+            backgroundColor: colors.cardBackground,
+            borderRadius: 16,
             padding: 10,
             borderWidth: 1,
             borderColor: colors.cardBorder,
@@ -466,10 +466,10 @@ function getStyles(colors: any) {
         compareContainer: { width: '100%', position: 'relative', overflow: 'hidden', borderRadius: 16 },
         compareFullImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', resizeMode: 'cover' },
         compareClip: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden' },
-        compareThumb: { position: 'absolute', top: '50%', marginTop: -18, width: 28, height: 36, borderRadius: 14, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#0BA0B2' },
+        compareThumb: { position: 'absolute', top: '50%', marginTop: -18, width: 28, height: 36, borderRadius: 14, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#0a2341' },
         rawLabel: { position: 'absolute', top: 12, left: 12, backgroundColor: '#0B2046', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
         rawLabelText: { color: '#FFF', fontSize: 9, fontWeight: '900' },
-        stagedLabel: { position: 'absolute', top: 12, right: 12, backgroundColor: '#0BA0B2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+        stagedLabel: { position: 'absolute', top: 12, right: 12, backgroundColor: '#0a2341', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
         stagedLabelText: { color: '#FFF', fontSize: 9, fontWeight: '900' }
     });
 }

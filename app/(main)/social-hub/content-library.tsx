@@ -38,7 +38,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id'];
 
 function getPostTag(item: SocialPost): { label: string; color: string; bgColor: string } {
-  if (item.property_id) return { label: 'PROPERTY', color: '#0BA0B2', bgColor: 'rgba(11, 160, 178, 0.12)' };
+  if (item.property_id) return { label: 'PROPERTY', color: '#0a2341', bgColor: 'rgba(11, 160, 178, 0.12)' };
   if (item.campaign_id) return { label: 'CAMPAIGN', color: '#8B5CF6', bgColor: 'rgba(139, 92, 246, 0.12)' };
   if (item.caption?.toLowerCase().includes('open house')) return { label: 'OPEN HOUSE', color: '#F59E0B', bgColor: 'rgba(245, 158, 11, 0.12)' };
   return { label: 'CUSTOM', color: '#64748B', bgColor: 'rgba(100, 116, 139, 0.12)' };
@@ -46,7 +46,7 @@ function getPostTag(item: SocialPost): { label: string; color: string; bgColor: 
 
 function getStatusInfo(item: SocialPost): { label: string; color: string; icon: string } {
   if (item.published_at) return { label: 'Published', color: '#10B981', icon: 'check-circle-outline' };
-  if (item.status === 1) return { label: 'Scheduled', color: '#0BA0B2', icon: 'clock-outline' };
+  if (item.status === 1) return { label: 'Scheduled', color: '#0a2341', icon: 'clock-outline' };
   return { label: 'Draft', color: '#F59E0B', icon: 'file-document-edit-outline' };
 }
 
@@ -412,7 +412,7 @@ function EditPostModal({
             disabled={isSaving}
             style={{ flex: 1.5, height: 56, borderRadius: 18, overflow: 'hidden' }}
           >
-            <LinearGradient colors={['#0BA0B2', '#0D9488']} style={{
+            <LinearGradient colors={['#0a2341', '#0D9488']} style={{
               flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
               {isSaving ? (
@@ -795,7 +795,7 @@ export default function ContentLibraryScreen() {
                 onPress={() => router.push('/(main)/social-hub/create-post')}
                 style={{ marginTop: 28, overflow: 'hidden', borderRadius: 16 }}
               >
-                <LinearGradient colors={['#0BA0B2', '#0D9488']} style={{
+                <LinearGradient colors={['#0a2341', '#0D9488']} style={{
                   flexDirection: 'row', alignItems: 'center', gap: 8,
                   paddingVertical: 14, paddingHorizontal: 24,
                 }}>
@@ -825,13 +825,13 @@ export default function ContentLibraryScreen() {
             position: 'absolute', right: 24, bottom: insets.bottom + 24,
             borderRadius: 28,
             ...Platform.select({
-              ios: { shadowColor: '#0BA0B2', shadowOpacity: 0.35, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
+              ios: { shadowColor: '#0a2341', shadowOpacity: 0.35, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
               android: { elevation: 10 },
             }),
           }}
           onPress={() => router.push('/(main)/social-hub/create-post')}
         >
-          <LinearGradient colors={['#0BA0B2', '#0D9488']} style={{
+          <LinearGradient colors={['#0a2341', '#0D9488']} style={{
             width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center',
           }}>
             <MaterialCommunityIcons name="plus" size={28} color="#FFF" />

@@ -1,11 +1,14 @@
+import ColorPickerModal from '@/components/ui/ColorPickerModal';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '@/context/ThemeContext';
 import { useState } from 'react';
 import {
+  Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,10 +20,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const CONNECTED_ACCOUNTS = [
-  { id: 'instagram', name: 'Instagram', handle: '@jordan_smith_re', status: 'CONNECTED' as const, action: 'Manage', icon: 'instagram', color: '#E1306C' },
-  { id: 'facebook', name: 'Facebook', handle: 'Jordan Smith Real Estate', status: 'DISCONNECTED' as const, action: 'Connect', icon: 'facebook', color: '#1877F2' },
-  { id: 'linkedin', name: 'LinkedIn', handle: 'jordan-smith-re', status: 'PENDING VERIFY' as const, action: 'Connect', icon: 'linkedin', color: '#0A66C2' },
-  { id: 'tiktok', name: 'TikTok', handle: '@jordan_smith_realestate', status: 'CONNECTED' as const, action: 'Manage', icon: 'music-note', color: '#000000' },
+  { id: 'instagram', name: 'Instagram', handle: 'Not connected', status: 'DISCONNECTED' as const, action: 'Connect', icon: 'instagram', color: '#E1306C' },
+  { id: 'facebook', name: 'Facebook', handle: 'Not connected', status: 'DISCONNECTED' as const, action: 'Connect', icon: 'facebook', color: '#1877F2' },
+  { id: 'linkedin', name: 'LinkedIn', handle: 'Not connected', status: 'DISCONNECTED' as const, action: 'Connect', icon: 'linkedin', color: '#0A66C2' },
+  { id: 'tiktok', name: 'TikTok', handle: 'Not connected', status: 'DISCONNECTED' as const, action: 'Connect', icon: 'music-note', color: '#000000' },
 ];
 
 const AUTO_RULES = [
@@ -48,6 +51,7 @@ export default function AccountsScreen() {
   const [activeAccount, setActiveAccount] = useState<typeof CONNECTED_ACCOUNTS[0] | null>(null);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState('Connected');
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const setRule = (key: string, value: boolean) => setRules((prev) => ({ ...prev, [key]: value }));
 
@@ -75,6 +79,26 @@ export default function AccountsScreen() {
     setShowStatusPicker(false);
   };
 
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnect = async () => {
+    if (!activeAccount) return;
+    setIsConnecting(true);
+    try {
+      const response = await fetch(`https://staging.zien.ai/api/solo/social/oauth/facebook/url`);
+      const data = await response.json();
+      console.log(data, "vishal")
+      if (data && data.url) {
+        await Linking.openURL(data.url);
+      }
+    } catch (error) {
+      console.error('Failed to get OAuth URL:', error);
+    } finally {
+      setIsConnecting(false);
+      closeAccountModal();
+    }
+  };
+
   return (
     <LinearGradient
       colors={colors.backgroundGradient as any}
@@ -84,7 +108,7 @@ export default function AccountsScreen() {
 
       <View style={styles.headerRow}>
         <PageHeader
-          title="Account Setting"
+          title="Account Settings"
           subtitle="Manage your connected accounts and automation preferences."
           onBack={() => router.back()}
           rightIcon="content-save"
@@ -99,141 +123,120 @@ export default function AccountsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
 
-        {/* Connected Accounts Card */}
-        <View style={styles.proCard}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.headerIconCircle}>
-              <MaterialCommunityIcons name="cellphone-link" size={18} color="#FFF" />
-            </View>
-            <View>
-              <Text style={styles.sectionTitle}>Connected Accounts</Text>
-            </View>
-          </View>
-
-          <View style={styles.accountsList}>
-            {CONNECTED_ACCOUNTS.map((acc, index) => (
-              <Pressable
-                key={acc.id}
-                onPress={() => handleAccountPress(acc)}
-                style={({ pressed }) => [
-                  styles.accountRow,
-                  pressed && { opacity: 0.8 },
-                  index === CONNECTED_ACCOUNTS.length - 1 && { borderBottomWidth: 0 }
-                ]}>
-                <View style={styles.accountIconBox}>
-                  <MaterialCommunityIcons name={acc.icon as any} size={22} color={acc.color} />
-                </View>
-
-                <View style={styles.accountTextContent}>
-                  <Text style={styles.accountRowName} numberOfLines={1}>{acc.name}</Text>
-                  <Text style={styles.accountRowHandle} numberOfLines={1}>{acc.handle}</Text>
-                </View>
-
-                <View style={styles.accountRowRight}>
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusBadgeText}>{acc.status}</Text>
-                  </View>
-                  <View style={styles.manageBtn}>
-                    <Text style={styles.manageBtnText}>{acc.action}</Text>
-                  </View>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        {/* Brand Assets Card */}
-        <View style={styles.proCard}>
-          <View style={styles.cardHeaderRow}>
-            <View style={[styles.headerIconCircle, { backgroundColor: '#FF6B6B' }]}>
-              <MaterialCommunityIcons name="palette-outline" size={18} color="#FFF" />
-            </View>
-            <View>
-              <Text style={styles.sectionTitle}>Brand Identity</Text>
-              <Text style={styles.sectionSubtitle}>Customize how your posts appear to others.</Text>
-            </View>
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Global Hashtags</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={hashtags}
-                onChangeText={setHashtags}
-                placeholder="#RealEstate #LuxuryLiving"
-                placeholderTextColor="#94A3B8"
-                multiline
-              />
-              <MaterialCommunityIcons name="pound" size={18} color={colors.textMuted} style={styles.inputIcon} />
-            </View>
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Brand Primary Color</Text>
-            <View style={styles.colorPickerContainer}>
-              <View style={[styles.colorBox, { backgroundColor: brandColor }]}>
-                <View style={styles.colorBoxInner} />
+        <View style={styles.gridContainer}>
+          <View style={styles.leftColumn}>
+            {/* Social Channels Card */}
+            <View style={[styles.proCard, { borderTopWidth: 4, borderTopColor: '#0F172A', borderRadius: 0 }]}>
+              <View style={styles.cardHeaderRow}>
+                <MaterialCommunityIcons name="cellphone" size={20} color={colors.textPrimary} />
+                <Text style={styles.sectionTitle}>Social Channels</Text>
               </View>
-              <View style={[styles.inputWrapper, { flex: 1 }]}>
-                <TextInput
-                  style={[styles.input, styles.colorInput]}
-                  value={brandColor}
-                  onChangeText={setBrandColor}
-                  placeholder="#0B2341"
-                  placeholderTextColor="#94A3B8"
-                />
+              <View style={styles.accountsList}>
+                {CONNECTED_ACCOUNTS.map((acc, index) => (
+                  <Pressable
+                    key={acc.id}
+                    onPress={() => handleAccountPress(acc)}
+                    style={({ pressed }) => [
+                      styles.accountRow,
+                      pressed && { opacity: 0.8 },
+                    ]}>
+                    <View style={styles.accountIconBox}>
+                      <MaterialCommunityIcons name={acc.icon as any} size={22} color={acc.color} />
+                    </View>
+
+                    <View style={styles.accountTextContent}>
+                      <Text style={styles.accountRowName} numberOfLines={1}>{acc.name}</Text>
+                      <Text style={styles.accountRowHandle} numberOfLines={1}>{acc.handle}</Text>
+                    </View>
+
+                    <View style={styles.accountRowRight}>
+                      <View style={styles.manageBtn}>
+                        <Text style={styles.manageBtnText}>{acc.action}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Auto-Publishing Rules Card */}
+            <View style={styles.proCard}>
+              <View style={styles.cardHeaderRow}>
+                <MaterialCommunityIcons name="shield-check-outline" size={20} color={colors.textPrimary} />
+                <Text style={styles.sectionTitle}>Auto-Publishing Rules</Text>
+              </View>
+              <View style={styles.rulesList}>
+                {AUTO_RULES.map((r) => (
+                  <View key={r.key} style={styles.premiumRuleItem}>
+                    <Text style={styles.premiumRuleLabel}>{r.label}</Text>
+                    <Switch
+                      value={rules[r.key] ?? r.value}
+                      onValueChange={(v) => setRule(r.key, v)}
+                      trackColor={{ false: '#E2E8F0', true: '#0F172A' }}
+                      thumbColor="#FFFFFF"
+                      ios_backgroundColor="#E2E8F0"
+                    />
+                  </View>
+                ))}
               </View>
             </View>
           </View>
 
-          <View style={styles.toggleRowPremium}>
-            <View style={styles.toggleTextContent}>
-              <Text style={styles.toggleTitle}>Media Watermarking</Text>
-              <Text style={styles.toggleDesc}>Automatically add your logo to all assets.</Text>
-            </View>
-            <Switch
-              value={watermark}
-              onValueChange={setWatermark}
-              trackColor={{ false: '#E2E8F0', true: '#0BA0B2' }}
-              thumbColor="#FFFFFF"
-              ios_backgroundColor="#E2E8F0"
-            />
-          </View>
-        </View>
+          <View style={styles.rightColumn}>
+            {/* Brand Assets Card */}
+            <View style={styles.proCard}>
+              <View style={styles.cardHeaderRow}>
+                <MaterialCommunityIcons name="palette-outline" size={20} color={colors.textPrimary} />
+                <Text style={styles.sectionTitle}>Brand Assets</Text>
+              </View>
 
-        {/* Auto-Publishing Rules Card */}
-        <View style={styles.proCard}>
-          <View style={styles.cardHeaderRow}>
-            <View style={[styles.headerIconCircle, { backgroundColor: '#4DABF7' }]}>
-              <MaterialCommunityIcons name="robot-outline" size={18} color="#FFF" />
-            </View>
-            <View>
-              <Text style={styles.sectionTitle}>Automation Rules</Text>
-              <Text style={styles.sectionSubtitle}>Configure AI-driven posting behavior.</Text>
-            </View>
-          </View>
-
-          <View style={styles.rulesList}>
-            {AUTO_RULES.map((r) => (
-              <View
-                key={r.key}
-                style={styles.premiumRuleItem}>
-                <View style={styles.ruleInfo}>
-                  <Text style={styles.premiumRuleLabel}>{r.label}</Text>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Default Hashtags</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={hashtags}
+                    onChangeText={setHashtags}
+                    placeholder="#RealEstate #LuxuryLiving"
+                    placeholderTextColor="#94A3B8"
+                    multiline
+                  />
                 </View>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Brand Primary Color</Text>
+                <View style={styles.colorPickerContainer}>
+                  <Pressable onPress={() => setShowColorPicker(true)}>
+                    <View style={[styles.colorBox, { backgroundColor: brandColor }]} />
+                  </Pressable>
+                  <View style={[styles.inputWrapper, { flex: 1 }]}>
+                    <TextInput
+                      style={[styles.input, styles.colorInput]}
+                      value={brandColor}
+                      onChangeText={setBrandColor}
+                      placeholder="#0B2341"
+                      placeholderTextColor="#94A3B8"
+                      onPressIn={() => setShowColorPicker(true)}
+                      showSoftInputOnFocus={false}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.toggleRowPremium}>
+                <Text style={styles.toggleTitle}>Auto-Watermark Media</Text>
                 <Switch
-                  value={rules[r.key] ?? r.value}
-                  onValueChange={(v) => setRule(r.key, v)}
-                  trackColor={{ false: '#E2E8F0', true: '#0BA0B2' }}
+                  value={watermark}
+                  onValueChange={setWatermark}
+                  trackColor={{ false: '#E2E8F0', true: '#0F172A' }}
                   thumbColor="#FFFFFF"
                   ios_backgroundColor="#E2E8F0"
                 />
               </View>
-            ))}
+            </View>
           </View>
         </View>
-
       </ScrollView>
 
       {/* Success Modal */}
@@ -252,535 +255,414 @@ export default function AccountsScreen() {
         </View>
       </Modal>
 
-      {/* Unified Account Action Modal (Bottom Sheet Style) */}
-      <Modal
-        visible={!!activeAccount}
-        transparent
-        animationType="slide">
-        <View style={styles.bottomSheetOverlay}>
+      {/* Connect Account Modal */}
+      <Modal visible={!!activeAccount} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
           <Pressable style={styles.flex1} onPress={closeAccountModal} />
-          <View style={[styles.bottomSheetContent, { paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <View style={[styles.platformIconContainer, { backgroundColor: colors.surfaceSoft, shadowOpacity: 0 }]}>
-                <MaterialCommunityIcons name={activeAccount?.icon as any} size={28} color={colors.textPrimary} />
+          <View style={styles.connectModalContent}>
+
+            <View style={[styles.platformIconContainerLarge, { backgroundColor: '#F1F5F9' }]}>
+              <MaterialCommunityIcons name={activeAccount?.icon as any} size={32} color={activeAccount?.color || colors.textPrimary} />
+            </View>
+
+            <Text style={styles.connectModalTitle}>Connect {activeAccount?.name}</Text>
+            <Text style={styles.connectModalSubtitle}>Authorize Zien to manage your posts and analytics.</Text>
+
+            <View style={styles.permissionsBox}>
+              <View style={styles.permissionsHeader}>
+                <MaterialCommunityIcons name="shield-outline" size={18} color="#0F172A" />
+                <Text style={styles.permissionsTitle}>Permissions Requested</Text>
               </View>
-              <Text style={styles.modalTitleSm}>Edit {activeAccount?.name}</Text>
-              <Pressable onPress={closeAccountModal} style={styles.modalCloseBtn}>
-                <MaterialCommunityIcons name="close" size={20} color={colors.textMuted} />
-              </Pressable>
+              <View style={styles.permissionItem}>
+                <Text style={styles.permissionDot}>•</Text>
+                <Text style={styles.permissionText}>Read profile information and media</Text>
+              </View>
+              <View style={styles.permissionItem}>
+                <Text style={styles.permissionDot}>•</Text>
+                <Text style={styles.permissionText}>Create and publish posts on your behalf</Text>
+              </View>
+              <View style={styles.permissionItem}>
+                <Text style={styles.permissionDot}>•</Text>
+                <Text style={styles.permissionText}>Access audience insights and engagement metrics</Text>
+              </View>
             </View>
 
-            <View style={styles.modalBody}>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-                <Text style={styles.fieldLabel}>Username / Handle</Text>
-                <View style={styles.premiumInputContainer}>
-                  <TextInput
-                    style={styles.modalInput}
-                    defaultValue={activeAccount?.handle}
-                  />
-                </View>
+            <Pressable
+              style={[styles.continueBtn, isConnecting && { opacity: 0.7 }]}
+              onPress={handleConnect}
+              disabled={isConnecting}
+            >
+              <Text style={styles.continueBtnText}>
+                {isConnecting ? 'Connecting...' : `Continue to ${activeAccount?.name} Login`}
+              </Text>
+            </Pressable>
 
-                <Text style={[styles.fieldLabel, { marginTop: 24 }]}>Connection Status</Text>
-                <Pressable
-                  style={styles.dropdownTrigger}
-                  onPress={() => setShowStatusPicker(!showStatusPicker)}>
-                  <Text style={styles.dropdownText}>{selectedStatus}</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+            <Pressable style={styles.cancelLinkBtn} onPress={closeAccountModal}>
+              <Text style={styles.cancelLinkText}>Cancel</Text>
+            </Pressable>
 
-                  {showStatusPicker && (
-                    <View style={styles.dropdownMenu}>
-                      {['Connected', 'Disconnected', 'Pending Verify'].map((status) => (
-                        <Pressable
-                          key={status}
-                          onPress={() => {
-                            setSelectedStatus(status);
-                            setShowStatusPicker(false);
-                          }}
-                          style={styles.dropdownItem}>
-                          {selectedStatus === status && (
-                            <MaterialCommunityIcons name="check" size={16} color="#FFF" style={{ marginRight: 8 }} />
-                          )}
-                          <Text style={styles.dropdownItemText}>{status}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
-                </Pressable>
-              </ScrollView>
-            </View>
-
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalCancelBtn} onPress={closeAccountModal}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.modalSaveBtn} onPress={closeAccountModal}>
-                <MaterialCommunityIcons name="check" size={18} color="#FFF" />
-                <Text style={styles.modalSaveText}>Update Account</Text>
-              </Pressable>
-            </View>
           </View>
+          <Pressable style={styles.flex1} onPress={closeAccountModal} />
         </View>
       </Modal>
 
+      <ColorPickerModal
+        visible={showColorPicker}
+        onClose={() => setShowColorPicker(false)}
+        initialColor={brandColor}
+        onSelectColor={setBrandColor}
+      />
     </LinearGradient>
   );
 }
 
 function getStyles(colors: any) {
   return StyleSheet.create({
-  background: { flex: 1 },
-  headerRow: {
-    position: 'relative',
-    zIndex: 10,
-  },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 18, paddingTop: 12 },
+    background: { flex: 1 },
+    headerRow: {
+      position: 'relative',
+      zIndex: 10,
+    },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 18, paddingTop: 12 },
 
-  // Pro Card Styles
-  proCard: {
-    backgroundColor: colors.cardBackgroundSemi,
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    shadowColor: colors.cardShadowColor,
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 20
-  },
-  headerIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceIcon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: -0.4,
-  },
-  sectionSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    marginTop: 1,
-  },
+    gridContainer: {
+      flexDirection: Platform.OS === 'web' ? 'row' : 'column',
+      gap: 24,
+    },
+    leftColumn: {
+      flex: Platform.OS === 'web' ? 1.5 : 1,
+      gap: 24,
+    },
+    rightColumn: {
+      flex: 1,
+      gap: 24,
+    },
+    saveChangesBtn: {
+      backgroundColor: '#0F172A',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 8,
+    },
+    saveChangesBtnText: {
+      color: '#FFF',
+      fontSize: 14,
+      fontWeight: '700',
+    },
 
-  // Accounts List (Optimized to fix wrap/clutter)
-  accountsList: {
-    gap: 0,
-  },
-  accountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
-  },
-  accountIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: colors.cardBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  accountTextContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  accountRowName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  accountRowHandle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    marginTop: 1,
-  },
-  accountRowRight: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    gap: 6,
-    marginLeft: 8,
-  },
-  statusBadge: {
-    backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  statusBadgeText: {
-    fontSize: 8,
-    fontWeight: '900',
-    color: colors.textSecondary,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  manageBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.cardBackground,
-    minWidth: 70,
-    alignItems: 'center',
-  },
-  manageBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
+    // Pro Card Styles
+    proCard: {
+      backgroundColor: '#FFFFFF',
+      padding: 24,
+      shadowColor: colors.cardShadowColor,
+      shadowOpacity: 0.05,
+      shadowOffset: { width: 0, height: 4 },
+      shadowRadius: 12,
+      elevation: 2,
+    },
+    cardHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 24,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: '#0F172A',
+      letterSpacing: -0.4,
+    },
 
-  // Field Groups
-  fieldGroup: {
-    marginBottom: 20,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  inputWrapper: {
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  input: {
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: colors.textPrimary,
-    fontWeight: '500',
-  },
-  inputIcon: {
-    position: 'absolute',
-    right: 14,
-    top: 13,
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-    paddingRight: 40,
-  },
-  colorPickerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  colorBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  colorBoxInner: {
-    flex: 1,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceIcon,
-  },
-  colorInput: {
-    flex: 1,
-  },
-  toggleRowPremium: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceSoft,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  toggleTextContent: {
-    flex: 1,
-    marginRight: 10,
-  },
-  toggleTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  toggleDesc: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    marginTop: 1,
-  },
+    accountsList: {
+      gap: 16,
+    },
+    accountRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      borderRadius: 12,
+    },
+    accountIconBox: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: '#FFF0F0',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    accountTextContent: {
+      flex: 1,
+      marginLeft: 12,
+    },
+    accountRowName: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    accountRowHandle: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      marginTop: 1,
+    },
+    accountRowRight: {
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      gap: 6,
+      marginLeft: 8,
+    },
+    manageBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: '#0F172A',
+      minWidth: 90,
+      alignItems: 'center',
+    },
+    manageBtnText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#FFF',
+    },
 
-  // Rules List
-  rulesList: {
-    gap: 10,
-  },
-  premiumRuleItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceSoft,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  ruleInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  premiumRuleLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    lineHeight: 18,
-  },
+    // Field Groups
+    fieldGroup: {
+      marginBottom: 20,
+    },
+    fieldLabel: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#0F172A',
+      marginBottom: 8,
+      marginLeft: 4,
+    },
+    inputWrapper: {
+      position: 'relative',
+      justifyContent: 'center',
+    },
+    input: {
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      borderRadius: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 14,
+      color: colors.textPrimary,
+      fontWeight: '500',
+    },
+    textArea: {
+      minHeight: 80,
+      textAlignVertical: 'top',
+    },
+    colorPickerContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    colorBox: {
+      width: 48,
+      height: 48,
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+    },
+    colorInput: {
+      flex: 1,
+    },
+    toggleRowPremium: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 14,
+    },
+    toggleTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: '#0F172A',
+    },
 
-  // Modals
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24
-  },
-  modalContent: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 32,
-    padding: 32,
-    width: '100%',
-    maxWidth: 420,
-    alignItems: 'center',
-    shadowColor: colors.cardShadowColor,
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 20 },
-    shadowRadius: 40,
-    elevation: 15,
-  },
-  successIconCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: '#0BA0B2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    shadowColor: '#0BA0B2',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 16,
-  },
-  modalTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 14,
-    letterSpacing: -0.5,
-  },
-  modalsubtitle: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
-    fontWeight: '500',
-  },
-  modalBtn: {
-    backgroundColor: colors.accentTeal,
-    width: '100%',
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: colors.cardShadowColor,
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-  },
-  modalBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800'
-  },
+    // Rules List
+    rulesList: {
+      gap: 16,
+    },
+    premiumRuleItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+    },
+    premiumRuleLabel: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: '#0F172A',
+      flex: 1,
+      marginRight: 16,
+    },
 
-  // Bottom Sheet Style Modal
-  bottomSheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
-    justifyContent: 'flex-end',
-  },
-  flex1: { flex: 1 },
-  bottomSheetContent: {
-    backgroundColor: colors.cardBackground,
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
-    padding: 32,
-    paddingTop: 8,
-    minHeight: '75%', // Increased height to prevent clipping
-    shadowColor: colors.cardShadowColor,
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: -10 },
-    shadowRadius: 24,
-    elevation: 25,
-  },
-  sheetHandle: {
-    width: 44,
-    height: 5,
-    backgroundColor: colors.cardBorder,
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginVertical: 12,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  platformIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalTitleSm: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: -0.5,
-    marginLeft: 16,
-  },
-  modalCloseBtn: {
-    marginLeft: 'auto',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBody: {
-    flex: 1, // Take up remaining space
-    width: '100%',
-    zIndex: 10,
-  },
-  premiumInputContainer: {
-    width: '100%',
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-  },
-  modalInput: {
-    fontSize: 16,
-    color: colors.textPrimary,
-    fontWeight: '600',
-  },
-  dropdownTrigger: {
-    width: '100%',
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 50,
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: colors.textPrimary,
-    fontWeight: '600',
-  },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 64,
-    left: 0,
-    right: 0,
-    backgroundColor: '#57534E',
-    borderRadius: 16,
-    padding: 10,
-    shadowColor: colors.cardShadowColor,
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 12 },
-    shadowRadius: 24,
-    elevation: 30,
-    zIndex: 1000,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-  },
-  dropdownItemText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: 12,
-    marginTop: 'auto', // Push to bottom
-    paddingTop: 20,
-    zIndex: 1,
-  },
-  modalCancelBtn: {
-    flex: 1,
-    paddingVertical: 18,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.cardBackground
-  },
-  modalCancelText: {
-    color: colors.textSecondary,
-    fontWeight: '800',
-    fontSize: 15
-  },
-  modalSaveBtn: {
-    flex: 1.5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 18,
-    borderRadius: 18,
-    backgroundColor: colors.accentTeal,
-  },
-  modalSaveText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 15
-  }
+    // Modals
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(15, 23, 42, 0.4)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24
+    },
+    modalContent: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 32,
+      padding: 32,
+      width: '100%',
+      maxWidth: 420,
+      alignItems: 'center',
+      shadowColor: colors.cardShadowColor,
+      shadowOpacity: 0.2,
+      shadowOffset: { width: 0, height: 20 },
+      shadowRadius: 40,
+      elevation: 15,
+    },
+    successIconCircle: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      backgroundColor: '#0a2341',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 24,
+      shadowColor: '#0a2341',
+      shadowOpacity: 0.3,
+      shadowOffset: { width: 0, height: 8 },
+      shadowRadius: 16,
+    },
+    modalTitle: {
+      fontSize: 26,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginBottom: 14,
+      letterSpacing: -0.5,
+    },
+    modalsubtitle: {
+      fontSize: 15,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 24,
+      marginBottom: 32,
+      fontWeight: '500',
+    },
+    modalBtn: {
+      backgroundColor: colors.accentTeal,
+      width: '100%',
+      paddingVertical: 18,
+      borderRadius: 16,
+      alignItems: 'center',
+      shadowColor: colors.cardShadowColor,
+      shadowOpacity: 0.2,
+      shadowOffset: { width: 0, height: 4 },
+      shadowRadius: 12,
+    },
+    modalBtnText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '800'
+    },
+
+    flex1: { flex: 1 },
+    connectModalContent: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 24,
+      padding: 32,
+      width: '100%',
+      maxWidth: 400,
+      alignItems: 'center',
+      shadowColor: colors.cardShadowColor,
+      shadowOpacity: 0.2,
+      shadowOffset: { width: 0, height: 12 },
+      shadowRadius: 32,
+      elevation: 20,
+    },
+    platformIconContainerLarge: {
+      width: 64,
+      height: 64,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 20,
+    },
+    connectModalTitle: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: '#0F172A',
+      letterSpacing: -0.4,
+      marginBottom: 8,
+    },
+    connectModalSubtitle: {
+      fontSize: 14,
+      color: '#64748B',
+      textAlign: 'center',
+      marginBottom: 24,
+      fontWeight: '500',
+    },
+    permissionsBox: {
+      width: '100%',
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 28,
+    },
+    permissionsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 16,
+    },
+    permissionsTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: '#0F172A',
+    },
+    permissionItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: 8,
+      paddingRight: 8,
+    },
+    permissionDot: {
+      fontSize: 14,
+      color: '#64748B',
+      marginRight: 8,
+      marginTop: -2,
+    },
+    permissionText: {
+      fontSize: 13,
+      color: '#64748B',
+      fontWeight: '500',
+      lineHeight: 18,
+    },
+    continueBtn: {
+      width: '100%',
+      backgroundColor: '#0F172A',
+      paddingVertical: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    continueBtnText: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    cancelLinkBtn: {
+      paddingVertical: 8,
+    },
+    cancelLinkText: {
+      color: '#64748B',
+      fontSize: 15,
+      fontWeight: '700',
+    }
   });
 }

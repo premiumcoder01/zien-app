@@ -252,3 +252,31 @@ export const deleteTemplate = async (token: string, templateId: number): Promise
 
   return json;
 };
+
+export interface SocialOverviewData {
+  scheduled_posts: SocialPost[];
+  published_posts_count: number;
+  recent_published_posts: SocialPost[];
+  templates: any[];
+}
+
+/**
+ * Fetch social hub overview.
+ */
+export const getSocialOverview = async (token: string): Promise<SocialOverviewData> => {
+  const response = await fetch(`${API_BASE_URL}/solo/social/overview`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to fetch social overview');
+  }
+
+  return json.data;
+};

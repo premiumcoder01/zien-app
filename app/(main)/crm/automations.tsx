@@ -409,7 +409,7 @@ export default function CRM_AutomationsScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={manualRefreshing} onRefresh={handleRefresh} tintColor="#0BA0B2" />
+          <RefreshControl refreshing={manualRefreshing} onRefresh={handleRefresh} tintColor="#0a2341" />
         }
       >
         {/* Floating Action Area */}
@@ -419,7 +419,7 @@ export default function CRM_AutomationsScreen() {
             onPress={() => setAiAssistantVisible(true)}
           >
             <LinearGradient
-              colors={['#0BA0B2', '#0891B2']}
+              colors={['#0a2341', '#0891B2']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.floatingAiGradient}
@@ -468,7 +468,7 @@ export default function CRM_AutomationsScreen() {
         <View style={styles.rulesList}>
           {isLoading && !isRefetching ? (
             <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color="#0BA0B2" />
+              <ActivityIndicator size="large" color="#0a2341" />
               <Text style={styles.loadingText}>Fetching intelligence flows...</Text>
             </View>
           ) : filteredRules.length === 0 ? (
@@ -515,7 +515,7 @@ export default function CRM_AutomationsScreen() {
               onPress={() => handleFlowPress(flow)}
             >
               <View style={styles.flowIconBox}>
-                <MaterialCommunityIcons name="dots-hexagon" size={20} color="#0BA0B2" />
+                <MaterialCommunityIcons name="dots-hexagon" size={20} color="#0a2341" />
               </View>
               <View style={styles.flowInfo}>
                 <Text style={styles.flowTitle}>{flow.title}</Text>
@@ -937,7 +937,7 @@ export default function CRM_AutomationsScreen() {
 
             <View style={styles.intelligenceBox}>
               <View style={styles.proposedBadge}>
-                <MaterialCommunityIcons name="check" size={14} color="#0BA0B2" />
+                <MaterialCommunityIcons name="check" size={14} color="#0a2341" />
                 <Text style={styles.proposedBadgeText}>INTELLIGENCE PROPOSED</Text>
               </View>
 
@@ -1039,7 +1039,7 @@ function getStyles(colors: any) {
       height: 54,
       borderRadius: 18,
       overflow: 'hidden',
-      shadowColor: '#0BA0B2',
+      shadowColor: '#0a2341',
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.4,
       shadowRadius: 12,
@@ -1238,11 +1238,11 @@ function getStyles(colors: any) {
       borderColor: 'rgba(239, 68, 68, 0.1)',
     },
     impactCard: {
-      backgroundColor: '#0BA0B2',
+      backgroundColor: '#0a2341',
       borderRadius: 24,
       padding: 24,
       marginBottom: 24,
-      shadowColor: '#0BA0B2',
+      shadowColor: '#0a2341',
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.2,
       shadowRadius: 20,
@@ -1453,7 +1453,7 @@ function getStyles(colors: any) {
       color: colors.textSecondary,
     },
     optionTextSelected: {
-      color: '#0BA0B2',
+      color: '#0a2341',
       fontWeight: '800',
     },
     modalFooter: {
@@ -1463,7 +1463,7 @@ function getStyles(colors: any) {
       height: 58,
       borderRadius: 20,
       overflow: 'hidden',
-      shadowColor: '#0BA0B2',
+      shadowColor: '#0a2341',
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.3,
       shadowRadius: 15,
@@ -1549,10 +1549,10 @@ function getStyles(colors: any) {
       flex: 1,
       height: 56,
       borderRadius: 18,
-      backgroundColor: colors.accentTeal || '#0BA0B2',
+      backgroundColor: colors.accentTeal || '#0a2341',
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: colors.accentTeal || '#0BA0B2',
+      shadowColor: colors.accentTeal || '#0a2341',
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.3,
       shadowRadius: 12,
@@ -1610,7 +1610,7 @@ function getStyles(colors: any) {
     proposedBadgeText: {
       fontSize: 10,
       fontWeight: '900',
-      color: '#0BA0B2',
+      color: '#0a2341',
       letterSpacing: 1,
     },
     proposalDetailRow: {
@@ -1664,11 +1664,11 @@ function getStyles(colors: any) {
       flex: 1,
       height: 58,
       borderRadius: 20,
-      backgroundColor: '#0BA0B2',
+      backgroundColor: '#0a2341',
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#0BA0B2',
+      shadowColor: '#0a2341',
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.3,
       shadowRadius: 15,

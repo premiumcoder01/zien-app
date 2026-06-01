@@ -1,8 +1,8 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useAppTheme } from '@/context/ThemeContext';
 import { useMemo, useState } from 'react';
 import {
   Dimensions,
@@ -23,7 +23,7 @@ const PLATFORMS = [
 ];
 
 const KPI_CARDS = [
-  { title: 'CLICK RATE', value: '3.2%', change: '+0.8%', icon: 'cursor-default-click-outline', color: '#0BA0B2' },
+  { title: 'CLICK RATE', value: '3.2%', change: '+0.8%', icon: 'cursor-default-click-outline', color: '#0a2341' },
   { title: 'WEB VISITS', value: '1,420', change: '+12%', icon: 'web', color: '#6366F1' },
   { title: 'LEADS', value: '28', change: '+5%', icon: 'account-plus-outline', color: '#F59E0B' },
 ];
@@ -174,203 +174,203 @@ export default function AnalyticsScreen() {
 
 function getStyles(colors: any) {
   return StyleSheet.create({
-  background: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20 },
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 10,
-    marginBottom: 24,
-  },
-  kpiCard: {
-    width: '48%',
-    backgroundColor: colors.cardBackground,
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    ...Platform.select({
-      ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
-      android: { elevation: 2 },
-    }),
-  },
-  kpiIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  kpiContent: {},
-  kpiLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.textMuted,
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  kpiVal: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: colors.textPrimary,
-  },
-  kpiDiff: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#10B981',
-    marginTop: 2,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: colors.textPrimary,
-  },
-  topActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  topActionBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.cardBackground,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    ...Platform.select({
-      ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8 },
-      android: { elevation: 1 },
-    }),
-  },
-  topActionText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  chartCard: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    marginBottom: 24,
-    alignItems: 'center',
-  },
-  chart: {
-    borderRadius: 16,
-    marginRight: 0, // Kit fix
-  },
-  platformCard: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    marginBottom: 24,
-  },
-  platformRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 12,
-  },
-  platformIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  platformInfo: {
-    flex: 1,
-  },
-  platformTagRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  platformLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  percentText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: colors.textSecondary,
-  },
-  progressContainer: {
-    height: 6,
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  aiInsightBox: {
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  aiHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  pulseContainer: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: 'rgba(11, 160, 178, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pulseInner: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#0BA0B2',
-  },
-  aiTitle: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#0BA0B2',
-    letterSpacing: 1.5,
-  },
-  aiMessage: {
-    fontSize: 14,
-    color: colors.textMuted,
-    fontWeight: '600',
-    lineHeight: 22,
-    fontStyle: 'italic',
-  },
-  aiFooter: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.05)',
-  },
-  aiConfidence: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.textSecondary,
-  },
+    background: { flex: 1 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 20 },
+    kpiGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginTop: 10,
+      marginBottom: 24,
+    },
+    kpiCard: {
+      width: '48%',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      ...Platform.select({
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
+        android: { elevation: 2 },
+      }),
+    },
+    kpiIconBox: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
+    },
+    kpiContent: {},
+    kpiLabel: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: colors.textMuted,
+      letterSpacing: 0.5,
+      marginBottom: 4,
+    },
+    kpiVal: {
+      fontSize: 20,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    kpiDiff: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#10B981',
+      marginTop: 2,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    sectionTitle: {
+      fontSize: 15,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    topActions: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 24,
+    },
+    topActionBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      ...Platform.select({
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8 },
+        android: { elevation: 1 },
+      }),
+    },
+    topActionText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    chartCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      marginBottom: 24,
+      alignItems: 'center',
+    },
+    chart: {
+      borderRadius: 16,
+      marginRight: 0, // Kit fix
+    },
+    platformCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      marginBottom: 24,
+    },
+    platformRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+      gap: 12,
+    },
+    platformIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 11,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    platformInfo: {
+      flex: 1,
+    },
+    platformTagRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    platformLabel: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    percentText: {
+      fontSize: 12,
+      fontWeight: '900',
+      color: colors.textSecondary,
+    },
+    progressContainer: {
+      height: 6,
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: 3,
+    },
+    aiInsightBox: {
+      borderRadius: 24,
+      padding: 24,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.1)',
+    },
+    aiHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 12,
+    },
+    pulseContainer: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: 'rgba(11, 160, 178, 0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pulseInner: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#0a2341',
+    },
+    aiTitle: {
+      fontSize: 10,
+      fontWeight: '900',
+      color: '#0a2341',
+      letterSpacing: 1.5,
+    },
+    aiMessage: {
+      fontSize: 14,
+      color: colors.textMuted,
+      fontWeight: '600',
+      lineHeight: 22,
+      fontStyle: 'italic',
+    },
+    aiFooter: {
+      marginTop: 16,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(255,255,255,0.05)',
+    },
+    aiConfidence: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: colors.textSecondary,
+    },
   });
 }

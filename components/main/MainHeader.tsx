@@ -5,7 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Href, useRouter } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Image,
   Modal,
@@ -13,7 +12,7 @@ import {
   StyleSheet,
   Switch,
   Text,
-  View,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -101,7 +100,7 @@ export default function UserMenuSheet({
         {/* User info header */}
         <View style={sheetStyles.userRow}>
           <LinearGradient
-            colors={['#0BA0B2', '#1B5E9A']}
+            colors={['#0a2341', '#1B5E9A']}
             style={sheetStyles.userAvatar}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -232,7 +231,7 @@ function getSheetStyles(colors: any) {
       borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#0BA0B2',
+      shadowColor: '#0a2341',
       shadowOpacity: 0.35,
       shadowRadius: 12,
       shadowOffset: { width: 0, height: 6 },
@@ -439,7 +438,7 @@ function MainHeaderComponent({
             onPress={() => setMenuOpen(true)}
           >
             <LinearGradient
-              colors={['#0BA0B2', '#1B5E9A']}
+              colors={['#0a2341', '#1B5E9A']}
               style={styles.avatar}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -553,7 +552,7 @@ function getStyles(colors: any) {
       borderRadius: 13,
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#0BA0B2',
+      shadowColor: '#0a2341',
       shadowOpacity: 0.35,
       shadowRadius: 10,
       shadowOffset: { width: 0, height: 5 },

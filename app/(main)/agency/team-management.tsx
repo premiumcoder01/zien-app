@@ -1,7 +1,6 @@
 import { DashboardLayout } from '@/components/main';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { useRouter } from 'expo-router';
 import {
     createEmployee,
     deleteEmployee,
@@ -15,6 +14,7 @@ import {
 } from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -273,7 +273,7 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                                 <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>Assign Role <Text style={{ color: '#EF4444' }}>*</Text></Text>
                                 <TouchableOpacity
                                     activeOpacity={0.8}
-                                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 48, borderWidth: 1, borderColor: errors.role_id ? '#EF4444' : (showRolePicker ? '#0BA0B2' : '#E2E8F0'), borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}
+                                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 48, borderWidth: 1, borderColor: errors.role_id ? '#EF4444' : (showRolePicker ? '#0a2341' : '#E2E8F0'), borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}
                                     onPress={() => setShowRolePicker(!showRolePicker)}
                                 >
                                     <Text style={{ fontSize: 14, color: form.role_id ? '#0D1B2A' : '#94A3B8' }}>
@@ -359,8 +359,8 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
                 {/* Header Area */}
                 <View style={{ backgroundColor: '#fff', padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 24, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
                     <TouchableOpacity onPress={onClose} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 }}>
-                        <MaterialCommunityIcons name="arrow-left" size={16} color="#0BA0B2" />
-                        <Text style={{ color: '#0BA0B2', fontSize: 13, fontWeight: '700' }}>Back to team members</Text>
+                        <MaterialCommunityIcons name="arrow-left" size={16} color="#0a2341" />
+                        <Text style={{ color: '#0a2341', fontSize: 13, fontWeight: '700' }}>Back to team members</Text>
                     </TouchableOpacity>
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -371,7 +371,7 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
                     </View>
 
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, marginTop: 24 }}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={() => { onClose(); router.push('/(main)/agency/access-control'); }}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0' }}
                         >
@@ -379,7 +379,7 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
                             <Text style={{ fontSize: 13, fontWeight: '700', color: '#0D1B2A' }}>Manage Role Permissions</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={() => onEdit(agent)}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0' }}
                         >
@@ -387,7 +387,7 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
                             <Text style={{ fontSize: 13, fontWeight: '700', color: '#0D1B2A' }}>Edit Info</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={() => onChangePassword(agent)}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0' }}
                         >
@@ -395,7 +395,7 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
                             <Text style={{ fontSize: 13, fontWeight: '700', color: '#0D1B2A' }}>Change Password</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={() => onDelete(agent)}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#FEE2E2', backgroundColor: '#FEF2F2' }}
                         >
@@ -420,12 +420,12 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
                     <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#E2E8F0' }}>
                         <Text style={{ fontSize: 15, fontWeight: '900', color: '#0D1B2A', marginBottom: 8 }}>Role and Access</Text>
                         <InfoRow label="Role" value={agent.role?.name} />
-                        
+
                         <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '500' }}>Status</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                                 {isUpdating ? (
-                                    <ActivityIndicator size="small" color="#0BA0B2" />
+                                    <ActivityIndicator size="small" color="#0a2341" />
                                 ) : (
                                     <Switch
                                         value={agent.status === 1}
@@ -485,14 +485,14 @@ const ChangePasswordModal = ({ visible, onClose, agent, onUpdate, isUpdating }: 
                         <View style={{ gap: 6 }}>
                             <Text style={{ fontSize: 12, fontWeight: '700', color: '#0D1B2A' }}>New Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}>
-                                <TextInput 
-                                    style={{ flex: 1, fontSize: 14, color: '#0D1B2A' }} 
+                                <TextInput
+                                    style={{ flex: 1, fontSize: 14, color: '#0D1B2A' }}
                                     secureTextEntry={!showPass.new}
                                     value={passwords.new}
-                                    onChangeText={t => setPasswords({...passwords, new: t})}
+                                    onChangeText={t => setPasswords({ ...passwords, new: t })}
                                     placeholder="Enter new password"
                                 />
-                                <TouchableOpacity onPress={() => setShowPass({...showPass, new: !showPass.new})}>
+                                <TouchableOpacity onPress={() => setShowPass({ ...showPass, new: !showPass.new })}>
                                     <MaterialCommunityIcons name={showPass.new ? "eye-off-outline" : "eye-outline"} size={20} color="#64748B" />
                                 </TouchableOpacity>
                             </View>
@@ -501,14 +501,14 @@ const ChangePasswordModal = ({ visible, onClose, agent, onUpdate, isUpdating }: 
                         <View style={{ gap: 6 }}>
                             <Text style={{ fontSize: 12, fontWeight: '700', color: '#0D1B2A' }}>Confirm New Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}>
-                                <TextInput 
-                                    style={{ flex: 1, fontSize: 14, color: '#0D1B2A' }} 
+                                <TextInput
+                                    style={{ flex: 1, fontSize: 14, color: '#0D1B2A' }}
                                     secureTextEntry={!showPass.confirm}
                                     value={passwords.confirm}
-                                    onChangeText={t => setPasswords({...passwords, confirm: t})}
+                                    onChangeText={t => setPasswords({ ...passwords, confirm: t })}
                                     placeholder="Confirm your password"
                                 />
-                                <TouchableOpacity onPress={() => setShowPass({...showPass, confirm: !showPass.confirm})}>
+                                <TouchableOpacity onPress={() => setShowPass({ ...showPass, confirm: !showPass.confirm })}>
                                     <MaterialCommunityIcons name={showPass.confirm ? "eye-off-outline" : "eye-outline"} size={20} color="#64748B" />
                                 </TouchableOpacity>
                             </View>
@@ -516,13 +516,13 @@ const ChangePasswordModal = ({ visible, onClose, agent, onUpdate, isUpdating }: 
                     </View>
 
                     <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, padding: 20, backgroundColor: '#F8FAFC', borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={{ height: 44, paddingHorizontal: 24, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
                             onPress={onClose}
                         >
                             <Text style={{ fontSize: 14, fontWeight: '700', color: '#64748B' }}>Cancel</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={{ height: 44, paddingHorizontal: 24, borderRadius: 10, backgroundColor: '#0D1B2A', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}
                             onPress={handleUpdate}
                             disabled={isUpdating}
@@ -537,7 +537,7 @@ const ChangePasswordModal = ({ visible, onClose, agent, onUpdate, isUpdating }: 
     );
 };
 
-const AVATAR_PALETTE = ['#6366F1', '#8B5CF6', '#EC4899', '#0BA0B2', '#10B981', '#F59E0B', '#3B82F6', '#EF4444'];
+const AVATAR_PALETTE = ['#6366F1', '#8B5CF6', '#EC4899', '#0a2341', '#10B981', '#F59E0B', '#3B82F6', '#EF4444'];
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; accentBorder: string }> = {
     active: { label: 'Active', color: '#10B981', bg: 'rgba(16,185,129,0.1)', accentBorder: '#10B981' },
@@ -574,7 +574,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
                         <Text style={[styles.agentEmail, { color: '#64748B' }]} numberOfLines={1}>{agent.user.email || '—'}</Text>
                         {/* Role badge */}
                         <View style={styles.roleBadge}>
-                            <MaterialCommunityIcons name="shield-half-full" size={10} color="#0BA0B2" />
+                            <MaterialCommunityIcons name="shield-half-full" size={10} color="#0a2341" />
                             <Text style={styles.roleBadgeText}>{agent.role?.name || 'No Role Assigned'}</Text>
                         </View>
                     </View>
@@ -586,7 +586,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
                             <Text style={[styles.statusChipText, { color: sc.color }]}>{sc.label.toUpperCase()}</Text>
                         </View>
                         {isUpdating ? (
-                            <ActivityIndicator size="small" color="#0BA0B2" style={{ marginRight: 2 }} />
+                            <ActivityIndicator size="small" color="#0a2341" style={{ marginRight: 2 }} />
                         ) : (
                             <Switch
                                 value={agent.status === 1}
@@ -606,7 +606,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
                 <View style={styles.metaGrid}>
                     <View style={styles.metaCell}>
                         <View style={styles.metaIconWrap}>
-                            <MaterialCommunityIcons name="card-account-details-outline" size={13} color="#0BA0B2" />
+                            <MaterialCommunityIcons name="card-account-details-outline" size={13} color="#0a2341" />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.metaLabel}>LICENSE</Text>
@@ -649,7 +649,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
 
                     <View style={styles.iconActions}>
                         <TouchableOpacity style={styles.iconActionBtn} onPress={onView}>
-                            <MaterialCommunityIcons name="eye-outline" size={16} color="#0BA0B2" />
+                            <MaterialCommunityIcons name="eye-outline" size={16} color="#0a2341" />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.iconActionBtn} onPress={() => onChangePassword(agent)}>
                             <MaterialCommunityIcons name="key-variant" size={16} color="#8B5CF6" />
@@ -711,7 +711,7 @@ export default function TeamManagement() {
     const inactiveCount = employees.length - activeCount;
 
     const stats = [
-        { icon: 'account-group', value: `${employees.length} / ${maxMembers}`, label: 'TEAM CAPACITY', color: '#0BA0B2' },
+        { icon: 'account-group', value: `${employees.length} / ${maxMembers}`, label: 'TEAM CAPACITY', color: '#0a2341' },
         { icon: 'account-check', value: activeCount.toString(), label: 'ACTIVE AGENTS', color: '#10B981' },
         { icon: 'account-off', value: inactiveCount.toString(), label: 'INACTIVE AGENTS', color: '#F97316' },
         { icon: 'shield-check', value: (roles?.length || 0).toString(), label: 'ROLES DEFINED', color: '#8B5CF6' },
@@ -918,7 +918,7 @@ export default function TeamManagement() {
                     if (loadingEmployees) {
                         return (
                             <View style={styles.emptyState}>
-                                <ActivityIndicator size="large" color="#0BA0B2" />
+                                <ActivityIndicator size="large" color="#0a2341" />
                                 <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>Loading team members...</Text>
                             </View>
                         );
@@ -948,7 +948,7 @@ export default function TeamManagement() {
                                 </Text>
                                 {isSearching && (
                                     <TouchableOpacity style={styles.emptyStateCta} onPress={() => setSearchQuery('')}>
-                                        <Text style={{ color: '#0BA0B2', fontWeight: '700', fontSize: 13 }}>Clear Search</Text>
+                                        <Text style={{ color: '#0a2341', fontWeight: '700', fontSize: 13 }}>Clear Search</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -982,36 +982,36 @@ export default function TeamManagement() {
                     isSaving={updateEmployeeMutation.isPending || createEmployeeMutation.isPending}
                 />
 
-            <AgentDetailsModal
-                visible={!!viewingAgent}
-                onClose={() => setViewingAgent(null)}
-                agent={viewingAgent}
-                onEdit={(agent) => {
-                    setViewingAgent(null);
-                    handleOpenEdit(agent);
-                }}
-                onChangePassword={(agent) => {
-                    setChangePasswordAgent(agent);
-                }}
-                onDelete={(agent) => {
-                    setViewingAgent(null);
-                    handleDeleteAgent(agent);
-                }}
-                onToggleStatus={handleToggleStatus}
-                isUpdating={updateStatusMutation.isPending}
-            />
+                <AgentDetailsModal
+                    visible={!!viewingAgent}
+                    onClose={() => setViewingAgent(null)}
+                    agent={viewingAgent}
+                    onEdit={(agent) => {
+                        setViewingAgent(null);
+                        handleOpenEdit(agent);
+                    }}
+                    onChangePassword={(agent) => {
+                        setChangePasswordAgent(agent);
+                    }}
+                    onDelete={(agent) => {
+                        setViewingAgent(null);
+                        handleDeleteAgent(agent);
+                    }}
+                    onToggleStatus={handleToggleStatus}
+                    isUpdating={updateStatusMutation.isPending}
+                />
 
-            <ChangePasswordModal
-                visible={!!changePasswordAgent}
-                onClose={() => setChangePasswordAgent(null)}
-                agent={changePasswordAgent}
-                onUpdate={(password) => {
-                    if (changePasswordAgent) {
-                        updatePasswordMutation.mutate({ employeeId: changePasswordAgent.id, password });
-                    }
-                }}
-                isUpdating={updatePasswordMutation.isPending}
-            />
+                <ChangePasswordModal
+                    visible={!!changePasswordAgent}
+                    onClose={() => setChangePasswordAgent(null)}
+                    agent={changePasswordAgent}
+                    onUpdate={(password) => {
+                        if (changePasswordAgent) {
+                            updatePasswordMutation.mutate({ employeeId: changePasswordAgent.id, password });
+                        }
+                    }}
+                    isUpdating={updatePasswordMutation.isPending}
+                />
 
                 {/* Delete Confirmation Modal */}
                 <Modal visible={!!agentToDelete} transparent={true} animationType="fade">
@@ -1135,7 +1135,7 @@ const styles = StyleSheet.create({
     roleBadgeText: {
         fontSize: 10,
         fontWeight: '800',
-        color: '#0BA0B2',
+        color: '#0a2341',
         letterSpacing: 0.2,
     },
     statusChip: {

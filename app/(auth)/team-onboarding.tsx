@@ -215,7 +215,7 @@ export default function TeamOnboardingScreen() {
   };
 
   const registerMutation = useMutation({
-    mutationFn: (payload: TeamCheckoutPayload) => registerTeamCheckout(payload, accessToken),
+    mutationFn: (payload: TeamCheckoutPayload) => registerTeamCheckout(payload),
     onSuccess: (data) => {
 
       if (data.checkout_url && data.session_id) {
@@ -383,11 +383,9 @@ export default function TeamOnboardingScreen() {
                     const cleaned = text.replace(/[^0-9]/g, '').slice(0, 15);
                     updateField('phone', cleaned);
                   }}
-                  onChangeFormattedText={(text) => {
-                    if (text.startsWith('+')) {
-                      const code = text.split(' ')[0];
-                      if (code) setCountryCode(code);
-                    }
+                  onChangeFormattedText={(_text) => {
+                    const callingCode = phoneInputRef.current?.getCallingCode();
+                    if (callingCode) setCountryCode(`+${callingCode}`);
                   }}
                   containerStyle={[
                     styles.phoneInputWrapper,

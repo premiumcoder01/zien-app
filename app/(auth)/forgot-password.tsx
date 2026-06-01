@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AuthCard, AuthLogoBrand, AuthScreenBackground, AuthSubtitle, AuthTitle } from '@/components/auth';
 import GradientButton from '@/components/ui/GradientButton';
@@ -22,12 +22,12 @@ export default function ForgotPasswordScreen() {
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   const [emailError, setEmailError] = useState('');
   const [otpError, setOtpError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
@@ -144,15 +144,15 @@ export default function ForgotPasswordScreen() {
 
   return (
     <AuthScreenBackground>
-      <KeyboardAvoidingView 
-        style={styles.flex} 
+      <KeyboardAvoidingView
+        style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <AuthCard>
             <AuthLogoBrand brandLabel="ZIEN" />
-            
+
             {step === 1 ? (
               <>
                 <AuthTitle>Forgot Password</AuthTitle>
@@ -250,8 +250,8 @@ export default function ForgotPasswordScreen() {
 
                 <View style={styles.footer}>
                   <Text style={styles.footerText}>Didn't receive OTP? </Text>
-                  <Pressable 
-                    onPress={handleResendOtp} 
+                  <Pressable
+                    onPress={handleResendOtp}
                     disabled={isResending || resendTimer > 0}
                     style={({ pressed }) => [
                       styles.resendButton,
@@ -260,7 +260,7 @@ export default function ForgotPasswordScreen() {
                     ]}
                   >
                     {isResending ? (
-                      <ActivityIndicator size="small" color={colors.accent || '#0BA0B2'} />
+                      <ActivityIndicator size="small" color={colors.accent || '#0a2341'} />
                     ) : (
                       <Text style={[styles.resendLink, resendTimer > 0 && styles.disabledLink]}>
                         Resend {resendTimer > 0 ? `(${resendTimer}s)` : ''}
@@ -270,7 +270,7 @@ export default function ForgotPasswordScreen() {
                 </View>
 
                 <Pressable onPress={() => setStep(1)} style={styles.backLink}>
-                   <Text style={styles.backLinkText}>← Back</Text>
+                  <Text style={styles.backLinkText}>← Back</Text>
                 </Pressable>
               </>
             )}
@@ -351,7 +351,7 @@ function getStyles(colors: any, theme: string) {
     },
     resendLink: {
       fontSize: 13,
-      color: colors.accent || '#0BA0B2',
+      color: colors.accent || '#0a2341',
       fontWeight: '800',
     },
     disabledLink: {

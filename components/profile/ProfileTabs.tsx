@@ -39,7 +39,7 @@ function ProfileTabsComponent({ activeTab, onTabChange }: ProfileTabsProps) {
           >
             {isActive ? (
               <LinearGradient
-                colors={['#0BA0B2', '#1B5E9A']}
+                colors={['#0a2341', '#1B5E9A']}
                 style={styles.activeIconWrap}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -63,50 +63,50 @@ export const ProfileTabs = memo(ProfileTabsComponent);
 
 function getStyles(colors: any) {
   return StyleSheet.create({
-  scroll: {
-    marginBottom: 16,
-  },
-  container: {
-    gap: 8,
-    paddingRight: 18,
-  },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(225,232,242,0.9)',
-    shadowColor: '#0A2F48',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-  },
-  tabActive: {
-    borderColor: `${colors.accentTeal}50`,
-    backgroundColor: '#FFFFFF',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-  },
-  activeIconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabText: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  tabTextActive: {
-    color: colors.textPrimary,
-    fontWeight: '800',
-  },
-});
+    scroll: {
+      marginBottom: 16,
+    },
+    container: {
+      gap: 8,
+      paddingRight: 18,
+    },
+    tab: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 999,
+      backgroundColor: 'rgba(255,255,255,0.85)',
+      borderWidth: 1,
+      borderColor: 'rgba(225,232,242,0.9)',
+      shadowColor: '#0A2F48',
+      shadowOpacity: 0.04,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 1,
+    },
+    tabActive: {
+      borderColor: `${colors.accentTeal}50`,
+      backgroundColor: '#FFFFFF',
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+    },
+    activeIconWrap: {
+      width: 24,
+      height: 24,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tabText: {
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    tabTextActive: {
+      color: colors.textPrimary,
+      fontWeight: '800',
+    },
+  });
 }

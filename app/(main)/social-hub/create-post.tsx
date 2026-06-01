@@ -1,5 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { generateAiText } from '@/services/aiContentService';
 import { getProperties, getPropertyDetails, uploadPropertyImage } from '@/services/propertyService';
 import { createSocialPost, updateSocialPost } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -160,7 +161,7 @@ function PostPreviewCard({
       <View style={styles.previewBody}>
         <View style={styles.previewHeader}>
           <View style={styles.previewProfile}>
-            <LinearGradient colors={['#0BA0B2', '#0D9488']} style={styles.previewAvatar}>
+            <LinearGradient colors={['#0a2341', '#0D9488']} style={styles.previewAvatar}>
               <MaterialCommunityIcons name="account" size={16} color="#FFF" />
             </LinearGradient>
             <View>
@@ -240,6 +241,8 @@ export default function CreatePostScreen() {
   const [strategy, setStrategy] = useState<StrategyId>('optimal');
   const [acquisitionType, setAcquisitionType] = useState<'manual' | 'ai'>('manual');
   const [aiPrompt, setAiPrompt] = useState('');
+  const [captionContext, setCaptionContext] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isPickerVisible, setIsPickerVisible] = useState(false);
   const [isTargetDropdownVisible, setIsTargetDropdownVisible] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -342,6 +345,44 @@ export default function CreatePostScreen() {
   const selectedProperty = useMemo(() => {
     return properties.find((p: any) => `${p.address} (Property)` === targetContent);
   }, [properties, targetContent]);
+
+  const hashtagChips = useMemo(() => {
+    if (selectedProperty) {
+      const address = selectedProperty.address || '';
+      const cityMatch = address.match(/,\s*([^,]+)\s+[A-Z]{2}\s+\d+/);
+      const city = cityMatch ? cityMatch[1].trim().replace(/\s+/g, '') : 'Houston';
+      const streetMatch = address.split(',')[0];
+      const street = streetMatch ? streetMatch.trim().replace(/\s+/g, '') : 'WelchStreet';
+      return [
+        `#${city}RealEstate`,
+        `#HomeForSale`,
+        `#${street}`,
+        `#${city}Homes`,
+        `#RealEstateGoals`
+      ];
+    }
+    return ['#RealEstate', '#JustListed', '#DreamHome', '#ZienAI', '#HomeDesign'];
+  }, [selectedProperty]);
+
+  const handleGenerateAICaption = async () => {
+    if (!accessToken) return;
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    setIsGenerating(true);
+    try {
+      const propertyText = selectedProperty?.address ? ` Use this as property context if available: ${selectedProperty.address}` : '';
+      const fullPrompt = `Write a professional, engaging social media caption for a real estate property. Include relevant hashtags. Additional Context from user: ${captionContext}.${propertyText}`;
+
+      const res = await generateAiText(fullPrompt, accessToken, 'complex');
+      if (res && res.result) {
+        setCaption(res.result);
+        triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
+      }
+    } catch (error: any) {
+      Alert.alert('AI Generation Failed', error.message || 'Something went wrong.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const progress = useSharedValue(1);
 
@@ -492,7 +533,7 @@ export default function CreatePostScreen() {
         <LinearGradient colors={colors.backgroundGradient as any} style={StyleSheet.absoluteFill} />
         <Animated.View entering={FadeInRight} style={[styles.successWrapper, { paddingTop: insets.top + 40 }]}>
           <View style={styles.successIconOuter}>
-            <LinearGradient colors={['#0BA0B2', '#0D9488']} style={styles.successIconCircle}>
+            <LinearGradient colors={['#0a2341', '#0D9488']} style={styles.successIconCircle}>
               <MaterialCommunityIcons name="check-bold" size={60} color="#FFF" />
             </LinearGradient>
             <Animated.View entering={FadeInRight} style={styles.successIconRing} />
@@ -610,13 +651,32 @@ export default function CreatePostScreen() {
             </View>
 
             <View style={styles.card}>
-              <View style={styles.rowBetween}>
-                <Text style={[styles.cardLabel, { marginBottom: 0 }]}>Caption & Strategy</Text>
-                <Pressable style={styles.aiActionBtn}>
-                  <MaterialCommunityIcons name="star-four-points" size={14} color={colors.accentTeal} />
-                  <Text style={styles.aiActionText}>Refine with AI</Text>
+              <Text style={[styles.cardLabel, { marginBottom: 12 }]}>Caption & Strategy</Text>
+
+              <View style={styles.aiInputContainer}>
+                <TextInput
+                  style={styles.aiContextInputFull}
+                  value={captionContext}
+                  onChangeText={setCaptionContext}
+                  placeholder="Additional Context from user..."
+                  placeholderTextColor={colors.textMuted}
+                />
+                <Pressable
+                  style={[styles.generateAiBtnFull, isGenerating && styles.generateAiBtnDisabled]}
+                  onPress={handleGenerateAICaption}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <MaterialCommunityIcons name="star-four-points" size={14} color="#FFF" />
+                      <Text style={styles.generateAiBtnText}>Generate AI</Text>
+                    </>
+                  )}
                 </Pressable>
               </View>
+
               <TextInput
                 style={styles.premiumInput}
                 value={caption}
@@ -625,9 +685,17 @@ export default function CreatePostScreen() {
                 placeholder="What's on your mind?"
                 placeholderTextColor={colors.textMuted}
               />
+
               <View style={styles.hashtagBox}>
-                {HASHTAG_CHIPS.map(tag => (
-                  <Pressable key={tag} style={styles.hashtag}>
+                {hashtagChips.map(tag => (
+                  <Pressable
+                    key={tag}
+                    style={styles.hashtag}
+                    onPress={() => {
+                      triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+                      setCaption(prev => prev ? `${prev} ${tag}` : tag);
+                    }}
+                  >
                     <Text style={styles.hashtagText}>{tag}</Text>
                   </Pressable>
                 ))}
@@ -649,7 +717,7 @@ export default function CreatePostScreen() {
                       }}
                     >
                       <LinearGradient
-                        colors={isSelected ? ['#0BA0B2', '#0D9488'] : [colors.surfaceSoft, colors.surfaceSoft]}
+                        colors={isSelected ? ['#0a2341', '#0D9488'] : [colors.surfaceSoft, colors.surfaceSoft]}
                         style={styles.platformIconCircle}
                       >
                         <MaterialCommunityIcons
@@ -726,7 +794,7 @@ export default function CreatePostScreen() {
                       style={styles.aiGenerateBtn}
                       onPress={() => triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy)}
                     >
-                      <LinearGradient colors={['#0BA0B2', '#0D9488']} style={styles.aiGenerateBtnGradient}>
+                      <LinearGradient colors={['#0a2341', '#0D9488']} style={styles.aiGenerateBtnGradient}>
                         <MaterialCommunityIcons name="star-four-points" size={16} color="#FFF" />
                         <Text style={styles.aiGenerateBtnText}>Generate Magic</Text>
                       </LinearGradient>
@@ -903,7 +971,7 @@ export default function CreatePostScreen() {
           )}
           <Pressable style={styles.footerContinueBtn} onPress={goNext}>
             <LinearGradient
-              colors={['#0BA0B2', '#0D9488']}
+              colors={['#0a2341', '#0D9488']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.gradientBtn}
@@ -1080,6 +1148,11 @@ function getStyles(colors: any) {
     aiActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.textPrimary, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 20, shadowColor: colors.textPrimary, shadowOpacity: 0.2, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
     aiActionText: { fontSize: 10, fontWeight: '800', color: colors.cardBackground },
     premiumInput: { backgroundColor: colors.surfaceSoft, borderRadius: 22, borderWidth: 1, borderColor: colors.cardBorder, padding: 18, fontSize: 12, color: colors.textPrimary, minHeight: 140, lineHeight: 24, textAlignVertical: 'top' },
+    aiInputContainer: { gap: 12, marginBottom: 16 },
+    aiContextInputFull: { backgroundColor: colors.surfaceSoft, borderRadius: 20, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 16, height: 52, fontSize: 13, color: colors.textPrimary, width: '100%' },
+    generateAiBtnFull: { height: 52, borderRadius: 20, backgroundColor: '#0C2340', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: '#0C2340', shadowOpacity: 0.15, shadowOffset: { width: 0, height: 6 }, shadowRadius: 12, elevation: 3, width: '100%' },
+    generateAiBtnDisabled: { opacity: 0.6 },
+    generateAiBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
     hashtagBox: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
     hashtag: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.surfaceSoft, borderWidth: 1, borderColor: colors.cardBorder },
     hashtagText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },

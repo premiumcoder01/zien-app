@@ -109,15 +109,15 @@ const fetchAllPlans = async (): Promise<PlansResponse> => {
   }
 };
 
-export const registerSoloCheckout = async (payload: CheckoutPayload, accessToken?: string | null): Promise<any> => {
-  return registerCheckout(payload, 'solo', accessToken);
+export const registerSoloCheckout = async (payload: CheckoutPayload): Promise<any> => {
+  return registerCheckout(payload, 'solo');
 };
 
-export const registerTeamCheckout = async (payload: TeamCheckoutPayload, accessToken?: string | null): Promise<any> => {
-  return registerCheckout(payload, 'team', accessToken);
+export const registerTeamCheckout = async (payload: TeamCheckoutPayload): Promise<any> => {
+  return registerCheckout(payload, 'team');
 };
 
-const registerCheckout = async (payload: any, flow: 'solo' | 'team', accessToken?: string | null): Promise<any> => {
+const registerCheckout = async (payload: any, flow: 'solo' | 'team'): Promise<any> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -126,12 +126,15 @@ const registerCheckout = async (payload: any, flow: 'solo' | 'team', accessToken
     'Content-Type': 'application/json',
   };
 
-  if (accessToken) {
-    headers['Authorization'] = `Bearer ${accessToken}`;
-  }
+  const url = `${CHECKOUT_API_URL}/website/register/${flow}/checkout`;
+
+  console.log('=== REGISTER CHECKOUT REQUEST ===');
+  console.log('URL:', url);
+  console.log('Headers:', JSON.stringify(headers, null, 2));
+  console.log('Body:', JSON.stringify(payload, null, 2));
 
   try {
-    const response = await fetch(`${CHECKOUT_API_URL}/website/register/${flow}/checkout`, {
+    const response = await fetch(url, {
       method: 'POST',
       signal: controller.signal,
       headers: headers,
@@ -140,14 +143,23 @@ const registerCheckout = async (payload: any, flow: 'solo' | 'team', accessToken
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.log('=== REGISTER CHECKOUT ERROR RESPONSE ===');
+      console.log('Status:', response.status, response.statusText);
+      console.log('Error Data:', JSON.stringify(errorData, null, 2));
       throw new Error(errorData.message || `Server error: ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    const responseData = await response.json();
+    console.log('=== REGISTER CHECKOUT SUCCESS RESPONSE ===');
+    console.log('Response Data:', JSON.stringify(responseData, null, 2));
+    
+    return responseData;
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
+      console.log('=== REGISTER CHECKOUT TIMEOUT ===');
       throw new Error('Registration timed out. Please check your connection and try again.');
     }
+    console.log('=== REGISTER CHECKOUT EXCEPTION ===', error);
     throw error;
   } finally {
     clearTimeout(timeoutId);

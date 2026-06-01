@@ -5,6 +5,7 @@ import OutlineButton from '@/components/ui/OutlineButton';
 import PasswordInput from '@/components/ui/PasswordInput';
 import StepIndicator from '@/components/ui/StepIndicator';
 import { Addon, CheckoutPayload, completeCheckout, fetchSoloPlans, Plan, registerSoloCheckout } from '@/services/plans';
+import { checkUserExists } from '@/services/authService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -146,8 +147,44 @@ export default function SoloOnboardingScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const goNext = () => {
+  const [isCheckingExists, setIsCheckingExists] = useState(false);
+
+  const goNext = async () => {
     if (!validateStep()) return;
+
+    if (currentStep === 1) {
+      setIsCheckingExists(true);
+      try {
+        const checkResult = await checkUserExists({
+          email: formData.email,
+          country_code: countryCode,
+          phone: formData.phone,
+        });
+        
+        let hasError = false;
+        const newErrors = { ...errors };
+
+        if (checkResult.email?.exists) {
+          newErrors.email = checkResult.email.message || 'This email is already registered.';
+          hasError = true;
+        }
+        if (checkResult.phone?.exists) {
+          newErrors.phone = checkResult.phone.message || 'This phone number is already registered.';
+          hasError = true;
+        }
+
+        if (hasError) {
+          setErrors(newErrors);
+          setIsCheckingExists(false);
+          return; // Stop and do not proceed to step 2
+        }
+      } catch (error: any) {
+        setErrors(prev => ({ ...prev, _form: error.message || 'Failed to verify email/phone. Please try again.' }));
+        setIsCheckingExists(false);
+        return;
+      }
+      setIsCheckingExists(false);
+    }
 
     if (currentStep === 3) {
       const addon_ids = (activePlan?.addons || [])
@@ -208,7 +245,7 @@ export default function SoloOnboardingScreen() {
   };
 
   const registerMutation = useMutation({
-    mutationFn: (payload: CheckoutPayload) => registerSoloCheckout(payload, accessToken),
+    mutationFn: (payload: CheckoutPayload) => registerSoloCheckout(payload),
     onSuccess: (data) => {
 
       if (data.checkout_url && data.session_id) {
@@ -319,11 +356,9 @@ export default function SoloOnboardingScreen() {
                     const cleaned = text.replace(/[^0-9]/g, '').slice(0, 15);
                     updateField('phone', cleaned);
                   }}
-                  onChangeFormattedText={(text) => {
-                    if (text.startsWith('+')) {
-                      const code = text.split(' ')[0];
-                      if (code) setCountryCode(code);
-                    }
+                  onChangeFormattedText={(_text) => {
+                    const callingCode = phoneInputRef.current?.getCallingCode();
+                    if (callingCode) setCountryCode(`+${callingCode}`);
                   }}
                   containerStyle={[
                     styles.phoneInputWrapper,
@@ -398,7 +433,13 @@ export default function SoloOnboardingScreen() {
               />
             </View>
 
-            <GradientButton title="Continue" style={styles.primaryButton} onPress={goNext} />
+            <GradientButton 
+              title="Continue" 
+              style={styles.primaryButton} 
+              onPress={goNext} 
+              isLoading={isCheckingExists}
+              disabled={isCheckingExists}
+            />
             {errors._form && (
               <Text style={[styles.errorTextSmall, { textAlign: 'center', marginTop: 12 }]}>
                 {errors._form}

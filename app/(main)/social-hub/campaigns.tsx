@@ -3,8 +3,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { createCampaign, deleteCampaign, getCampaigns, updateCampaign } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -239,7 +239,7 @@ export default function CampaignsScreen() {
 
   const handleToggleStatus = async (id: string) => {
     if (!accessToken) return;
-    
+
     // Find the current campaign to get its status
     const campaign = allCampaigns.find(c => c.id === id);
     if (!campaign) return;
@@ -552,12 +552,12 @@ export default function CampaignsScreen() {
             position: 'absolute', right: 24, bottom: insets.bottom + 24,
             borderRadius: 28,
             ...Platform.select({
-              ios: { shadowColor: '#0BA0B2', shadowOpacity: 0.35, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
+              ios: { shadowColor: '#0a2341', shadowOpacity: 0.35, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
               android: { elevation: 10 },
             }),
           }}
         >
-          <LinearGradient colors={['#0BA0B2', '#0D9488']} style={{
+          <LinearGradient colors={['#0a2341', '#0D9488']} style={{
             width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center',
           }}>
             <MaterialCommunityIcons name="plus" size={28} color="#FFF" />
@@ -602,7 +602,7 @@ export default function CampaignsScreen() {
               >
                 <View style={styles.formSection}>
                   <View style={styles.sectionTitleRow}>
-                    <MaterialCommunityIcons name="flash-outline" size={20} color="#0BA0B2" />
+                    <MaterialCommunityIcons name="flash-outline" size={20} color="#0a2341" />
                     <Text style={styles.sectionTitle}>Campaign</Text>
                   </View>
 
@@ -735,13 +735,13 @@ export default function CampaignsScreen() {
                   <View style={styles.aiOptimizationBox}>
                     <View style={styles.aiHeader}>
                       <View style={styles.aiTitleRow}>
-                        <MaterialCommunityIcons name="auto-fix" size={20} color="#0BA0B2" />
+                        <MaterialCommunityIcons name="auto-fix" size={20} color="#0a2341" />
                         <Text style={styles.aiTitle}>AI Optimization (A/B)</Text>
                       </View>
                       <Switch
                         value={formAiEnabled}
                         onValueChange={setFormAiEnabled}
-                        trackColor={{ false: '#E2E8F0', true: '#0BA0B2' }}
+                        trackColor={{ false: '#E2E8F0', true: '#0a2341' }}
                         thumbColor="#FFFFFF"
                       />
                     </View>
@@ -806,15 +806,15 @@ export default function CampaignsScreen() {
                   <View style={styles.complianceCard}>
                     <Text style={styles.complianceTitle}>Platform Compliance</Text>
                     <View style={styles.complianceItem}>
-                      <MaterialCommunityIcons name="flash" size={16} color="#0BA0B2" />
+                      <MaterialCommunityIcons name="flash" size={16} color="#0a2341" />
                       <Text style={styles.complianceText}>Image Policy Check: PASS</Text>
                     </View>
                     <View style={styles.complianceItem}>
-                      <MaterialCommunityIcons name="flash" size={16} color="#0BA0B2" />
+                      <MaterialCommunityIcons name="flash" size={16} color="#0a2341" />
                       <Text style={styles.complianceText}>Hashtag Optimization: OPTIMAL</Text>
                     </View>
                     <View style={styles.complianceItem}>
-                      <MaterialCommunityIcons name="flash" size={16} color="#0BA0B2" />
+                      <MaterialCommunityIcons name="flash" size={16} color="#0a2341" />
                       <Text style={styles.complianceText}>Link Validation: SECURE</Text>
                     </View>
                   </View>
@@ -1052,7 +1052,7 @@ export default function CampaignsScreen() {
                           <Text style={styles.metricVal}>High</Text>
                         </View>
                         <View style={styles.metricBarBg}>
-                          <View style={[styles.metricBarFill, { width: '92%', backgroundColor: '#0BA0B2' }]} />
+                          <View style={[styles.metricBarFill, { width: '92%', backgroundColor: '#0a2341' }]} />
                         </View>
                       </View>
                       <View style={styles.republishBox}>
@@ -1425,7 +1425,7 @@ function getStyles(colors: any) {
     inlineActionText: {
       fontSize: 12,
       fontWeight: '700',
-      color: '#0BA0B2',
+      color: '#0a2341',
     },
     schedulerRow: {
       flexDirection: 'row',
@@ -1454,7 +1454,7 @@ function getStyles(colors: any) {
     aiOptimizationBox: {
       marginTop: 24,
       borderWidth: 1,
-      borderColor: '#0BA0B2',
+      borderColor: '#0a2341',
       borderStyle: 'dashed',
       borderRadius: 16,
       padding: 20,
@@ -1474,12 +1474,12 @@ function getStyles(colors: any) {
     aiTitle: {
       fontSize: 15,
       fontWeight: '800',
-      color: '#0BA0B2',
+      color: '#0a2341',
     },
     aiSubLabel: {
       fontSize: 9,
       fontWeight: '800',
-      color: '#0BA0B2',
+      color: '#0a2341',
       marginTop: 12,
       marginBottom: 4,
     },
@@ -1561,7 +1561,7 @@ function getStyles(colors: any) {
     aiBadge: {
       fontSize: 9,
       fontWeight: '800',
-      color: '#0BA0B2',
+      color: '#0a2341',
       backgroundColor: '#F0FDFA',
       paddingHorizontal: 6,
       paddingVertical: 2,
@@ -1746,7 +1746,7 @@ function getStyles(colors: any) {
     pickerDoneText: {
       fontSize: 14,
       fontWeight: '900',
-      color: '#0BA0B2',
+      color: '#0a2341',
       letterSpacing: 0.5,
     },
 
@@ -1999,7 +1999,7 @@ function getStyles(colors: any) {
     winnerReach: {
       fontSize: 20,
       fontWeight: '900',
-      color: '#0BA0B2',
+      color: '#0a2341',
     },
   });
 }

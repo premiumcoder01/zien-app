@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   phoneDarkBtn: {
     height: 8,
     width: '100%',
-    backgroundColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
     borderRadius: 4,
   },
   cardLight: {
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
   detailLink: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   portfolioList: {
     gap: 12,

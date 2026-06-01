@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppTheme } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -138,7 +138,7 @@ export default function CRMSettingsScreen() {
         {activeTab === 'General' && (
           <View style={styles.tabPanel}>
             <Text style={styles.premiumCardTitle}>Lead Routing & Duplicate Detection</Text>
-            
+
             <View style={styles.premiumCard}>
               <View style={[styles.premiumField, { zIndex: 100 }]}>
                 <Text style={styles.premiumLabelText}>DEFAULT LEAD DISTRIBUTION</Text>
@@ -146,13 +146,13 @@ export default function CRMSettingsScreen() {
                   style={styles.premiumTrigger}
                   onPress={() => setLeadDistOpen(!leadDistOpen)}>
                   <Text style={styles.premiumTriggerText}>{leadDistribution}</Text>
-                  <MaterialCommunityIcons 
-                    name={leadDistOpen ? "chevron-up" : "chevron-down"} 
-                    size={22} 
-                    color={colors.textPrimary} 
+                  <MaterialCommunityIcons
+                    name={leadDistOpen ? "chevron-up" : "chevron-down"}
+                    size={22}
+                    color={colors.textPrimary}
                   />
                 </Pressable>
-                
+
                 {leadDistOpen && (
                   <View style={styles.premiumDropdownFloating}>
                     <ScrollView bounces={false} style={{ maxHeight: 200 }}>
@@ -368,10 +368,10 @@ export default function CRMSettingsScreen() {
                       style={[styles.premiumSegmentBtn, reEngagementChannel === 'EMAIL' && styles.premiumSegmentBtnActive]}
                       onPress={() => setReEngagementChannel('EMAIL')}
                     >
-                      <MaterialCommunityIcons 
-                        name="email" 
-                        size={20} 
-                        color={reEngagementChannel === 'EMAIL' ? '#FFFFFF' : '#94A3B8'} 
+                      <MaterialCommunityIcons
+                        name="email"
+                        size={20}
+                        color={reEngagementChannel === 'EMAIL' ? '#FFFFFF' : '#94A3B8'}
                       />
                       <Text style={[styles.premiumSegmentBtnText, reEngagementChannel === 'EMAIL' && styles.premiumSegmentBtnTextActive]}>EMAIL</Text>
                     </Pressable>
@@ -379,10 +379,10 @@ export default function CRMSettingsScreen() {
                       style={[styles.premiumSegmentBtn, reEngagementChannel === 'SMS' && styles.premiumSegmentBtnActive]}
                       onPress={() => setReEngagementChannel('SMS')}
                     >
-                      <MaterialCommunityIcons 
-                        name="cellphone" 
-                        size={20} 
-                        color={reEngagementChannel === 'SMS' ? '#FFFFFF' : '#94A3B8'} 
+                      <MaterialCommunityIcons
+                        name="cellphone"
+                        size={20}
+                        color={reEngagementChannel === 'SMS' ? '#FFFFFF' : '#94A3B8'}
                       />
                       <Text style={[styles.premiumSegmentBtnText, reEngagementChannel === 'SMS' && styles.premiumSegmentBtnTextActive]}>SMS</Text>
                     </Pressable>
@@ -390,10 +390,10 @@ export default function CRMSettingsScreen() {
                       style={[styles.premiumSegmentBtn, reEngagementChannel === 'WHATSAPP' && styles.premiumSegmentBtnActive]}
                       onPress={() => setReEngagementChannel('WHATSAPP')}
                     >
-                      <MaterialCommunityIcons 
-                        name="whatsapp" 
-                        size={20} 
-                        color={reEngagementChannel === 'WHATSAPP' ? '#FFFFFF' : '#94A3B8'} 
+                      <MaterialCommunityIcons
+                        name="whatsapp"
+                        size={20}
+                        color={reEngagementChannel === 'WHATSAPP' ? '#FFFFFF' : '#94A3B8'}
                       />
                       <Text style={[styles.premiumSegmentBtnText, reEngagementChannel === 'WHATSAPP' && styles.premiumSegmentBtnTextActive]}>WHATSAPP</Text>
                     </Pressable>
@@ -494,7 +494,7 @@ export default function CRMSettingsScreen() {
                   colors={['rgba(11, 160, 178, 0.2)', 'rgba(11, 160, 178, 0.05)']}
                   style={styles.extensionIconLarge}
                 >
-                  <MaterialCommunityIcons name="google-chrome" size={40} color="#0BA0B2" />
+                  <MaterialCommunityIcons name="google-chrome" size={40} color="#0a2341" />
                 </LinearGradient>
                 <View style={styles.extensionHeaderInfo}>
                   <Text style={styles.extensionTitlePremium}>ZIEN AI Chrome Extension</Text>
@@ -510,7 +510,7 @@ export default function CRMSettingsScreen() {
 
               <Pressable style={({ pressed }) => [styles.downloadBtnPremium, pressed && { opacity: 0.9 }]}>
                 <LinearGradient
-                  colors={['#0BA0B2', '#0891B2']}
+                  colors={['#0a2341', '#0891B2']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.downloadGradiant}
@@ -522,21 +522,21 @@ export default function CRMSettingsScreen() {
 
               <View style={styles.howItWorksPremium}>
                 <Text style={styles.howTitlePremium}>How it Works</Text>
-                
+
                 <View style={styles.stepRowPremium}>
                   <View style={styles.stepNumber}>
                     <Text style={styles.stepNumberText}>1</Text>
                   </View>
                   <Text style={styles.stepTextPremium}>Search any listing on Zillow or Redfin.</Text>
                 </View>
-                
+
                 <View style={styles.stepRowPremium}>
                   <View style={styles.stepNumber}>
                     <Text style={styles.stepNumberText}>2</Text>
                   </View>
                   <Text style={styles.stepTextPremium}>Click "Add to Zien" in the Extension panel.</Text>
                 </View>
-                
+
                 <View style={styles.stepRowPremium}>
                   <View style={styles.stepNumber}>
                     <Text style={styles.stepNumberText}>3</Text>
@@ -599,788 +599,788 @@ export default function CRMSettingsScreen() {
 
 function getStyles(colors: any) {
   return StyleSheet.create({
-  background: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    gap: 12,
-  },
-  backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(227, 236, 244, 0.8)',
-  },
-  headerCenter: { flex: 1, minWidth: 0 },
-  title: { fontSize: 22, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.3 },
-  subtitle: { fontSize: 14, color: colors.textSecondary, fontWeight: '500', marginTop: 6, lineHeight: 20 },
-  tabsScroll: { maxHeight: 55, marginBottom: 4 },
-  tabsContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 4,
-  },
-  tab: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginRight: 8,
-  },
-  tabActive: { backgroundColor: 'rgba(11, 45, 62, 0.08)' },
-  tabText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
-  tabTextActive: { color: colors.textPrimary, fontWeight: '800' },
-  tabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: 12,
-    right: 12,
-    height: 3,
-    backgroundColor: colors.accentTeal,
-    borderRadius: 2,
-  },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
-  tabPanel: { marginBottom: 24 },
-  cardTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary, marginBottom: 8 },
-  cardDesc: { fontSize: 14, color: colors.textSecondary, marginBottom: 12, lineHeight: 21 },
-  card: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    shadowColor: colors.accentTeal,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  field: { marginBottom: 16 },
-  label: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 8 },
-  input: {
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: colors.textPrimary,
-  },
-  textArea: { minHeight: 100, textAlignVertical: 'top' },
-  select: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  selectText: { fontSize: 15, fontWeight: '600', color: colors.textPrimary, flex: 1 },
-  dropdown: {
-    marginTop: 8,
-    backgroundColor: colors.cardBackground,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    overflow: 'hidden',
-    elevation: 4,
-    shadowColor: colors.accentTeal,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-  },
-  dropdownItem: { paddingVertical: 14, paddingHorizontal: 14 },
-  dropdownItemText: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 8,
-  },
-  toggleLabelWrap: { flex: 1, marginRight: 12 },
-  toggleDesc: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
-  providerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.cardBorder,
-  },
-  providerRowLast: { borderBottomWidth: 0 },
-  providerName: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  connectApiBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  connectApiBtnText: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-  sectionCard: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    shadowColor: colors.accentTeal,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  sectionCardTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary, marginBottom: 6 },
-  sectionCardDesc: { fontSize: 14, color: colors.textSecondary, marginBottom: 16, lineHeight: 21 },
-  anniversaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#F0F4F8',
-    gap: 12,
-  },
-  anniversaryRowFirst: { borderTopWidth: 0 },
-  anniversaryLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.textPrimary },
-  extensionBlock: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 16,
-    marginBottom: 20,
-  },
-  extensionIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    backgroundColor: 'rgba(11, 45, 62, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  extensionTextWrap: { flex: 1, minWidth: 0 },
-  extensionPhase: { fontSize: 16, fontWeight: '800', color: colors.textPrimary, marginBottom: 6 },
-  extensionDesc: { fontSize: 14, color: colors.textSecondary, lineHeight: 21, marginBottom: 14 },
-  downloadBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    backgroundColor: colors.accentTeal,
-  },
-  downloadBtnText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
-  howItWorksTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.accentTeal,
-    letterSpacing: 0.8,
-    marginBottom: 12,
-  },
-  bulletList: { gap: 8 },
-  bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  bullet: { fontSize: 16, color: colors.accentTeal, fontWeight: '700' },
-  bulletText: { flex: 1, fontSize: 14, color: colors.textSecondary, lineHeight: 21 },
-  saveBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    backgroundColor: colors.cardBackground,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.cardBorder,
-  },
-  saveBtn: {
-    backgroundColor: colors.accentTeal,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.accentTeal,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  saveBtnText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
-  // Premium Layout Styles
-  columnView: {
-    gap: 20,
-  },
-  sectionCardPremium: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 3,
-  },
-  sectionCardPremiumSmall: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 3,
-  },
-  premiumSectionTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: -0.4,
-  },
-  premiumSectionSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    marginTop: 8,
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  premiumField: {
-    marginBottom: 20,
-  },
-  premiumFieldRow: {
-    flexDirection: 'column',
-    gap: 12,
-    marginBottom: 20,
-  },
-  premiumLabel: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: 0.8,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    opacity: 0.8,
-  },
-  premiumLabelLarge: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: colors.textPrimary,
-  },
-  premiumSelect: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 52,
-  },
-  premiumSelectText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    flex: 1,
-    lineHeight: 18,
-  },
-  segmentedControl: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: 14,
-    padding: 4,
-    gap: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-    gap: 6,
-  },
-  segmentBtnActive: {
-    backgroundColor: colors.accentTeal,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  segmentBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  segmentBtnTextActive: {
-    color: '#FFFFFF',
-  },
-  draftingWrap: {
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    overflow: 'hidden',
-  },
-  draftingHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cardBorder,
-  },
-  draftingBadge: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: 0.5,
-    backgroundColor: 'rgba(11, 45, 62, 0.05)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  premiumTextArea: {
-    padding: 16,
-    fontSize: 14,
-    color: colors.textPrimary,
-    fontWeight: '500',
-    fontStyle: 'italic',
-    lineHeight: 22,
-    minHeight: 120,
-  },
-  draftingFooter: {
-    flexDirection: 'row',
-    gap: 8,
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-  },
-  tokenBadge: {
-    backgroundColor: '#E0F2F1',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  tokenText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#00897B',
-  },
-  fieldHint: {
-    fontSize: 11,
-    color: colors.inputPlaceholder,
-    marginTop: 8,
-    lineHeight: 16,
-  },
-  toggleRowPremium: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-  },
-  anniversaryList: {
-    gap: 12,
-    marginBottom: 20,
-  },
-  anniversaryItemPremium: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceSoft,
-    padding: 16,
-    borderRadius: 16,
-    gap: 12,
-  },
-  anniversaryIconBoxPremium: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  anniversaryLabelPremiumText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  addCustomBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    height: 52,
-    gap: 8,
-  },
-  addCustomBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    letterSpacing: 0.5,
-  },
-  // Modal Styles
-  modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 9999,
-    justifyContent: 'flex-end',
-  },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(11, 45, 62, 0.4)',
-  },
-  bottomSheet: {
-    backgroundColor: colors.cardBackground,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    width: '100%',
-  },
-  bottomSheetHeader: {
-    marginBottom: 24,
-  },
-  modalTitleText: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    marginBottom: 12,
-  },
-  modalSubTitleText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-    fontWeight: '500',
-  },
-  modalField: {
-    marginBottom: 32,
-  },
-  modalLabel: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: 0.8,
-    marginBottom: 10,
-  },
-  modalInput: {
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1.5,
-    borderColor: colors.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 56,
-    fontSize: 16,
-    color: colors.textPrimary,
-    fontWeight: '600',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalCancelBtn: {
-    flex: 1,
-    backgroundColor: colors.surfaceSoft,
-    height: 56,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCancelBtnText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.textSecondary,
-  },
-  modalCreateBtn: {
-    flex: 1,
-    backgroundColor: colors.accentTeal,
-    height: 56,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCreateBtnText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  premiumDropdown: {
-    position: 'absolute',
-    top: 76,
-    left: 0,
-    right: 0,
-    backgroundColor: '#525252',
-    borderRadius: 12,
-    paddingVertical: 8,
-    zIndex: 1000,
-    borderWidth: 1,
-    borderColor: '#666',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  premiumDropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  premiumDropdownCheck: {
-    width: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  premiumDropdownText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  premiumCardTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    marginBottom: 16,
-    letterSpacing: -0.5,
-  },
-  premiumCard: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 2,
-  },
-  premiumLabelText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  premiumTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 56,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  premiumTriggerText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  premiumDropdownFloating: {
-    position: 'absolute',
-    top: 90,
-    left: 0,
-    right: 0,
-    backgroundColor: '#4B5563', // Dark grey from screenshot
-    borderRadius: 18,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    elevation: 10,
-    zIndex: 1000,
-  },
-  premiumDropdownOption: {
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  optionInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  optionLabelText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
-  },
-  optionLabelTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  premiumToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 24,
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-  },
-  premiumToggleTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  premiumToggleSubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  premiumSegmentedControl: {
-    flexDirection: 'row',
-    backgroundColor: '#0F172A', // Dark navy/black pill background
-    borderRadius: 18,
-    padding: 6,
-    gap: 4,
-  },
-  premiumSegmentBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 48,
-    borderRadius: 14,
-    gap: 10,
-  },
-  premiumSegmentBtnActive: {
-    backgroundColor: '#0BA0B2', // Teal active state
-  },
-  premiumSegmentBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#94A3B8',
-    letterSpacing: 0.5,
-  },
-  premiumSegmentBtnTextActive: {
-    color: '#FFFFFF',
-  },
-  extensionHero: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 20,
-  },
-  extensionIconLarge: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(11, 160, 178, 0.2)',
-  },
-  extensionHeaderInfo: {
-    flex: 1,
-  },
-  extensionTitlePremium: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: -0.4,
-  },
-  phaseBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(11, 160, 178, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginTop: 6,
-  },
-  phaseBadgeText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#0BA0B2',
-    letterSpacing: 0.5,
-  },
-  extensionDescriptionPremium: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: 24,
-    fontWeight: '500',
-  },
-  downloadBtnPremium: {
-    height: 56,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 32,
-    shadowColor: '#0BA0B2',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  downloadGradiant: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  downloadBtnTextPremium: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  howItWorksPremium: {
-    backgroundColor: 'rgba(148, 163, 184, 0.05)',
-    borderRadius: 20,
-    padding: 20,
-  },
-  howTitlePremium: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 20,
-  },
-  stepRowPremium: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 16,
-  },
-  stepNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#0BA0B2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepNumberText: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  stepTextPremium: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    lineHeight: 20,
-  },
+    background: { flex: 1 },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      paddingHorizontal: 20,
+      paddingBottom: 12,
+      gap: 12,
+    },
+    backBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(227, 236, 244, 0.8)',
+    },
+    headerCenter: { flex: 1, minWidth: 0 },
+    title: { fontSize: 22, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.3 },
+    subtitle: { fontSize: 14, color: colors.textSecondary, fontWeight: '500', marginTop: 6, lineHeight: 20 },
+    tabsScroll: { maxHeight: 55, marginBottom: 4 },
+    tabsContent: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      gap: 4,
+    },
+    tab: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 10,
+      marginRight: 8,
+    },
+    tabActive: { backgroundColor: 'rgba(11, 45, 62, 0.08)' },
+    tabText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+    tabTextActive: { color: colors.textPrimary, fontWeight: '800' },
+    tabIndicator: {
+      position: 'absolute',
+      bottom: 0,
+      left: 12,
+      right: 12,
+      height: 3,
+      backgroundColor: colors.accentTeal,
+      borderRadius: 2,
+    },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
+    tabPanel: { marginBottom: 24 },
+    cardTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary, marginBottom: 8 },
+    cardDesc: { fontSize: 14, color: colors.textSecondary, marginBottom: 12, lineHeight: 21 },
+    card: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: colors.accentTeal,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    field: { marginBottom: 16 },
+    label: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 8 },
+    input: {
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: colors.textPrimary,
+    },
+    textArea: { minHeight: 100, textAlignVertical: 'top' },
+    select: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    selectText: { fontSize: 15, fontWeight: '600', color: colors.textPrimary, flex: 1 },
+    dropdown: {
+      marginTop: 8,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      overflow: 'hidden',
+      elevation: 4,
+      shadowColor: colors.accentTeal,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+    },
+    dropdownItem: { paddingVertical: 14, paddingHorizontal: 14 },
+    dropdownItemText: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+    toggleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: 8,
+    },
+    toggleLabelWrap: { flex: 1, marginRight: 12 },
+    toggleDesc: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+    providerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.cardBorder,
+    },
+    providerRowLast: { borderBottomWidth: 0 },
+    providerName: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
+    connectApiBtn: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    connectApiBtnText: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
+    sectionCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      padding: 18,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: colors.accentTeal,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    sectionCardTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary, marginBottom: 6 },
+    sectionCardDesc: { fontSize: 14, color: colors.textSecondary, marginBottom: 16, lineHeight: 21 },
+    anniversaryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 14,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: '#F0F4F8',
+      gap: 12,
+    },
+    anniversaryRowFirst: { borderTopWidth: 0 },
+    anniversaryLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+    extensionBlock: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 16,
+      marginBottom: 20,
+    },
+    extensionIconWrap: {
+      width: 56,
+      height: 56,
+      borderRadius: 14,
+      backgroundColor: 'rgba(11, 45, 62, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    extensionTextWrap: { flex: 1, minWidth: 0 },
+    extensionPhase: { fontSize: 16, fontWeight: '800', color: colors.textPrimary, marginBottom: 6 },
+    extensionDesc: { fontSize: 14, color: colors.textSecondary, lineHeight: 21, marginBottom: 14 },
+    downloadBtn: {
+      alignSelf: 'flex-start',
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 12,
+      backgroundColor: colors.accentTeal,
+    },
+    downloadBtnText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+    howItWorksTitle: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.accentTeal,
+      letterSpacing: 0.8,
+      marginBottom: 12,
+    },
+    bulletList: { gap: 8 },
+    bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+    bullet: { fontSize: 16, color: colors.accentTeal, fontWeight: '700' },
+    bulletText: { flex: 1, fontSize: 14, color: colors.textSecondary, lineHeight: 21 },
+    saveBar: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      backgroundColor: colors.cardBackground,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.cardBorder,
+    },
+    saveBtn: {
+      backgroundColor: colors.accentTeal,
+      borderRadius: 14,
+      paddingVertical: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.accentTeal,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    saveBtnText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+    // Premium Layout Styles
+    columnView: {
+      gap: 20,
+    },
+    sectionCardPremium: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 24,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.05,
+      shadowRadius: 20,
+      elevation: 3,
+    },
+    sectionCardPremiumSmall: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 24,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.05,
+      shadowRadius: 20,
+      elevation: 3,
+    },
+    premiumSectionTitle: {
+      fontSize: 20,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.4,
+    },
+    premiumSectionSubtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      marginTop: 8,
+      marginBottom: 24,
+      lineHeight: 20,
+    },
+    premiumField: {
+      marginBottom: 20,
+    },
+    premiumFieldRow: {
+      flexDirection: 'column',
+      gap: 12,
+      marginBottom: 20,
+    },
+    premiumLabel: {
+      fontSize: 9,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: 0.8,
+      marginBottom: 10,
+      textTransform: 'uppercase',
+      opacity: 0.8,
+    },
+    premiumLabelLarge: {
+      fontSize: 17,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    premiumSelect: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      height: 52,
+    },
+    premiumSelectText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      flex: 1,
+      lineHeight: 18,
+    },
+    segmentedControl: {
+      flexDirection: 'row',
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 14,
+      padding: 4,
+      gap: 4,
+    },
+    segmentBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+      borderRadius: 10,
+      gap: 6,
+    },
+    segmentBtnActive: {
+      backgroundColor: colors.accentTeal,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    segmentBtnText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    segmentBtnTextActive: {
+      color: '#FFFFFF',
+    },
+    draftingWrap: {
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      overflow: 'hidden',
+    },
+    draftingHeader: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    draftingBadge: {
+      fontSize: 10,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: 0.5,
+      backgroundColor: 'rgba(11, 45, 62, 0.05)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 4,
+      alignSelf: 'flex-start',
+    },
+    premiumTextArea: {
+      padding: 16,
+      fontSize: 14,
+      color: colors.textPrimary,
+      fontWeight: '500',
+      fontStyle: 'italic',
+      lineHeight: 22,
+      minHeight: 120,
+    },
+    draftingFooter: {
+      flexDirection: 'row',
+      gap: 8,
+      padding: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+    },
+    tokenBadge: {
+      backgroundColor: '#E0F2F1',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    tokenText: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#00897B',
+    },
+    fieldHint: {
+      fontSize: 11,
+      color: colors.inputPlaceholder,
+      marginTop: 8,
+      lineHeight: 16,
+    },
+    toggleRowPremium: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 12,
+      paddingTop: 20,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+    },
+    anniversaryList: {
+      gap: 12,
+      marginBottom: 20,
+    },
+    anniversaryItemPremium: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceSoft,
+      padding: 16,
+      borderRadius: 16,
+      gap: 12,
+    },
+    anniversaryIconBoxPremium: {
+      width: 32,
+      height: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    anniversaryLabelPremiumText: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    addCustomBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderStyle: 'dashed',
+      borderRadius: 16,
+      height: 52,
+      gap: 8,
+    },
+    addCustomBtnText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      letterSpacing: 0.5,
+    },
+    // Modal Styles
+    modalOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 9999,
+      justifyContent: 'flex-end',
+    },
+    modalBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(11, 45, 62, 0.4)',
+    },
+    bottomSheet: {
+      backgroundColor: colors.cardBackground,
+      borderTopLeftRadius: 32,
+      borderTopRightRadius: 32,
+      paddingHorizontal: 24,
+      paddingTop: 32,
+      width: '100%',
+    },
+    bottomSheetHeader: {
+      marginBottom: 24,
+    },
+    modalTitleText: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    modalSubTitleText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      lineHeight: 20,
+      fontWeight: '500',
+    },
+    modalField: {
+      marginBottom: 32,
+    },
+    modalLabel: {
+      fontSize: 10,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: 0.8,
+      marginBottom: 10,
+    },
+    modalInput: {
+      backgroundColor: colors.cardBackground,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      height: 56,
+      fontSize: 16,
+      color: colors.textPrimary,
+      fontWeight: '600',
+    },
+    modalActions: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    modalCancelBtn: {
+      flex: 1,
+      backgroundColor: colors.surfaceSoft,
+      height: 56,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalCancelBtnText: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.textSecondary,
+    },
+    modalCreateBtn: {
+      flex: 1,
+      backgroundColor: colors.accentTeal,
+      height: 56,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modalCreateBtnText: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+    premiumDropdown: {
+      position: 'absolute',
+      top: 76,
+      left: 0,
+      right: 0,
+      backgroundColor: '#525252',
+      borderRadius: 12,
+      paddingVertical: 8,
+      zIndex: 1000,
+      borderWidth: 1,
+      borderColor: '#666',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 5,
+    },
+    premiumDropdownItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      gap: 8,
+    },
+    premiumDropdownCheck: {
+      width: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    premiumDropdownText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+    premiumCardTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginBottom: 16,
+      letterSpacing: -0.5,
+    },
+    premiumCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 24,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.05,
+      shadowRadius: 20,
+      elevation: 2,
+    },
+    premiumLabelText: {
+      fontSize: 10,
+      fontWeight: '900',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginBottom: 10,
+    },
+    premiumTrigger: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      height: 56,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    premiumTriggerText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    premiumDropdownFloating: {
+      position: 'absolute',
+      top: 90,
+      left: 0,
+      right: 0,
+      backgroundColor: '#4B5563', // Dark grey from screenshot
+      borderRadius: 18,
+      padding: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.2,
+      shadowRadius: 24,
+      elevation: 10,
+      zIndex: 1000,
+    },
+    premiumDropdownOption: {
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+    },
+    optionInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    optionLabelText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: 'rgba(255,255,255,0.7)',
+    },
+    optionLabelTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+    },
+    premiumToggleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 24,
+      paddingTop: 24,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+    },
+    premiumToggleTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    premiumToggleSubtitle: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      lineHeight: 18,
+      marginTop: 4,
+    },
+    premiumSegmentedControl: {
+      flexDirection: 'row',
+      backgroundColor: '#0F172A', // Dark navy/black pill background
+      borderRadius: 18,
+      padding: 6,
+      gap: 4,
+    },
+    premiumSegmentBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: 48,
+      borderRadius: 14,
+      gap: 10,
+    },
+    premiumSegmentBtnActive: {
+      backgroundColor: '#0a2341', // Teal active state
+    },
+    premiumSegmentBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#94A3B8',
+      letterSpacing: 0.5,
+    },
+    premiumSegmentBtnTextActive: {
+      color: '#FFFFFF',
+    },
+    extensionHero: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+      marginBottom: 20,
+    },
+    extensionIconLarge: {
+      width: 72,
+      height: 72,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(11, 160, 178, 0.2)',
+    },
+    extensionHeaderInfo: {
+      flex: 1,
+    },
+    extensionTitlePremium: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.4,
+    },
+    phaseBadge: {
+      alignSelf: 'flex-start',
+      backgroundColor: 'rgba(11, 160, 178, 0.1)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      marginTop: 6,
+    },
+    phaseBadgeText: {
+      fontSize: 10,
+      fontWeight: '900',
+      color: '#0a2341',
+      letterSpacing: 0.5,
+    },
+    extensionDescriptionPremium: {
+      fontSize: 15,
+      color: colors.textSecondary,
+      lineHeight: 22,
+      marginBottom: 24,
+      fontWeight: '500',
+    },
+    downloadBtnPremium: {
+      height: 56,
+      borderRadius: 16,
+      overflow: 'hidden',
+      marginBottom: 32,
+      shadowColor: '#0a2341',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    downloadGradiant: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    downloadBtnTextPremium: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+    howItWorksPremium: {
+      backgroundColor: 'rgba(148, 163, 184, 0.05)',
+      borderRadius: 20,
+      padding: 20,
+    },
+    howTitlePremium: {
+      fontSize: 13,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginBottom: 20,
+    },
+    stepRowPremium: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+      marginBottom: 16,
+    },
+    stepNumber: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: '#0a2341',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepNumberText: {
+      fontSize: 14,
+      fontWeight: '900',
+      color: '#FFFFFF',
+    },
+    stepTextPremium: {
+      flex: 1,
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      lineHeight: 20,
+    },
   });
 }

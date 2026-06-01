@@ -651,7 +651,7 @@ export default function AccessControl() {
                         </View>
 
                         {loadingRoles ? (
-                            <ActivityIndicator size="large" color="#0BA0B2" style={{ marginVertical: 40 }} />
+                            <ActivityIndicator size="large" color="#0a2341" style={{ marginVertical: 40 }} />
                         ) : (
                             <View style={styles.listContainer}>
                                 {roles?.map(role => (
@@ -762,7 +762,7 @@ export default function AccessControl() {
                             </TouchableOpacity>
 
                             {loadingPerms || loadingMenus ? (
-                                <ActivityIndicator size="large" color="#0BA0B2" style={{ marginVertical: 40 }} />
+                                <ActivityIndicator size="large" color="#0a2341" style={{ marginVertical: 40 }} />
                             ) : (
                                 <View style={styles.permissionsGrid}>
                                     {allMenus?.map(mod => {
@@ -846,7 +846,7 @@ export default function AccessControl() {
                         </TouchableOpacity>
 
                         {loadingMenus ? (
-                            <ActivityIndicator size="large" color="#0BA0B2" style={{ marginVertical: 40 }} />
+                            <ActivityIndicator size="large" color="#0a2341" style={{ marginVertical: 40 }} />
                         ) : (
                             <View style={styles.listContainer}>
                                 {allMenus?.map(menu => (
@@ -1155,7 +1155,7 @@ export default function AccessControl() {
                                     style={[
                                         styles.dropdownSelector,
                                         isAddParentDropdownOpen ? {
-                                            borderColor: '#0BA0B2',
+                                            borderColor: '#0a2341',
                                             borderBottomLeftRadius: 0,
                                             borderBottomRightRadius: 0,
                                         } : {}
@@ -1163,14 +1163,14 @@ export default function AccessControl() {
                                 >
                                     <Text style={[
                                         styles.dropdownSelectorText,
-                                        { color: isAddParentDropdownOpen ? '#0BA0B2' : colors.textPrimary }
+                                        { color: isAddParentDropdownOpen ? '#0a2341' : colors.textPrimary }
                                     ]}>
                                         {menuParentId ? allMenus?.find(m => m.id === parseInt(menuParentId))?.name || 'No Parent (Root)' : 'No Parent (Root)'}
                                     </Text>
                                     <MaterialCommunityIcons
                                         name={isAddParentDropdownOpen ? "chevron-up" : "chevron-down"}
                                         size={20}
-                                        color={isAddParentDropdownOpen ? "#0BA0B2" : "#64748B"}
+                                        color={isAddParentDropdownOpen ? "#0a2341" : "#64748B"}
                                     />
                                 </TouchableOpacity>
 
@@ -1186,7 +1186,7 @@ export default function AccessControl() {
                                             >
                                                 <Text style={[
                                                     styles.dropdownOptionText,
-                                                    !menuParentId && { fontWeight: '700', color: '#0BA0B2' }
+                                                    !menuParentId && { fontWeight: '700', color: '#0a2341' }
                                                 ]}>
                                                     No Parent (Root)
                                                 </Text>
@@ -1204,7 +1204,7 @@ export default function AccessControl() {
                                                     >
                                                         <Text style={[
                                                             styles.dropdownOptionText,
-                                                            isOptionSelected && { fontWeight: '700', color: '#0BA0B2' }
+                                                            isOptionSelected && { fontWeight: '700', color: '#0a2341' }
                                                         ]}>
                                                             {m.name}
                                                         </Text>
@@ -1347,7 +1347,7 @@ export default function AccessControl() {
                                     style={[
                                         styles.dropdownSelector,
                                         isEditParentDropdownOpen ? {
-                                            borderColor: '#0BA0B2',
+                                            borderColor: '#0a2341',
                                             borderBottomLeftRadius: 0,
                                             borderBottomRightRadius: 0,
                                         } : {}
@@ -1355,14 +1355,14 @@ export default function AccessControl() {
                                 >
                                     <Text style={[
                                         styles.dropdownSelectorText,
-                                        { color: isEditParentDropdownOpen ? '#0BA0B2' : colors.textPrimary }
+                                        { color: isEditParentDropdownOpen ? '#0a2341' : colors.textPrimary }
                                     ]}>
                                         {menuParentId ? allMenus?.find(m => m.id === parseInt(menuParentId))?.name || 'No Parent (Root)' : 'No Parent (Root)'}
                                     </Text>
                                     <MaterialCommunityIcons
                                         name={isEditParentDropdownOpen ? "chevron-up" : "chevron-down"}
                                         size={20}
-                                        color={isEditParentDropdownOpen ? "#0BA0B2" : "#64748B"}
+                                        color={isEditParentDropdownOpen ? "#0a2341" : "#64748B"}
                                     />
                                 </TouchableOpacity>
 
@@ -1378,7 +1378,7 @@ export default function AccessControl() {
                                             >
                                                 <Text style={[
                                                     styles.dropdownOptionText,
-                                                    !menuParentId && { fontWeight: '700', color: '#0BA0B2' }
+                                                    !menuParentId && { fontWeight: '700', color: '#0a2341' }
                                                 ]}>
                                                     No Parent (Root)
                                                 </Text>
@@ -1396,7 +1396,7 @@ export default function AccessControl() {
                                                     >
                                                         <Text style={[
                                                             styles.dropdownOptionText,
-                                                            isOptionSelected && { fontWeight: '700', color: '#0BA0B2' }
+                                                            isOptionSelected && { fontWeight: '700', color: '#0a2341' }
                                                         ]}>
                                                             {m.name}
                                                         </Text>
@@ -1853,7 +1853,7 @@ const styles = StyleSheet.create({
     },
     dropdownOptionsConnected: {
         borderWidth: 1.5,
-        borderColor: '#0BA0B2',
+        borderColor: '#0a2341',
         borderTopWidth: 0,
         borderBottomLeftRadius: 12,
         borderBottomRightRadius: 12,

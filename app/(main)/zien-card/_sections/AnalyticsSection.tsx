@@ -1,6 +1,9 @@
+import { useAppTheme } from '@/context/ThemeContext';
+import { CardAnalytics, DigitalCard, getCardAnalytics } from '@/services/digitalCardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   Pressable,
   ScrollView,
@@ -8,10 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { LineChart, BarChart } from 'react-native-chart-kit';
-import { useAppTheme } from '@/context/ThemeContext';
-import { CardAnalytics, DigitalCard, getCardAnalytics } from '@/services/digitalCardService';
-import { ActivityIndicator } from 'react-native';
+import { BarChart, LineChart } from 'react-native-chart-kit';
 
 interface AnalyticsSectionProps {
   onSectionChange?: (section: string) => void;
@@ -66,7 +66,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
     if (!data || !data.monthly.length) {
       return { labels: [''], datasets: [{ data: [0] }] };
     }
-    
+
     // Dynamic mapping from API
     return {
       labels: data.monthly.slice(-6).map(m => {
@@ -74,9 +74,9 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
         return d.toLocaleString('default', { month: 'short' }) + ' ' + d.getFullYear().toString().slice(-2);
       }),
       datasets: [
-        { 
+        {
           data: data.monthly.slice(-6).map(m => Number(m.count)),
-          color: () => '#3B82F6' 
+          color: () => '#3B82F6'
         }
       ]
     };
@@ -86,15 +86,15 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
     const daysToShow = 14;
     const labels: string[] = [];
     const counts: number[] = [];
-    
+
     for (let i = daysToShow - 1; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
       const label = d.getDate() + '/' + (d.getMonth() + 1);
-      
+
       labels.push(label);
-      
+
       const match = data?.daily.find(item => item.date === dateStr);
       counts.push(match ? Number(match.count) : 0);
     }
@@ -243,31 +243,31 @@ const getStyles = (colors: any) => StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 24 },
   dashboardHeader: { marginBottom: 20 },
-dashboardTitle: { fontSize: 22, fontWeight: '900', color: colors.textPrimary },
-dashboardSubtitle: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginTop: 4, lineHeight: 18 },
-chartCard: {
-  backgroundColor: colors.cardBackground,
+  dashboardTitle: { fontSize: 22, fontWeight: '900', color: colors.textPrimary },
+  dashboardSubtitle: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginTop: 4, lineHeight: 18 },
+  chartCard: {
+    backgroundColor: colors.cardBackground,
     borderRadius: 24,
-      borderWidth: 1,
-        borderColor: colors.cardBorder,
-          padding: 16,
-            marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: 16,
+    marginBottom: 16,
   },
-  chartHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+  chartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
     gap: 12
   },
-  chartLabel: { 
-    fontSize: 14, 
-    fontWeight: '900', 
+  chartLabel: {
+    fontSize: 14,
+    fontWeight: '900',
     color: colors.textPrimary,
     flexShrink: 1
   },
-  legendRow: { 
-    flexDirection: 'row', 
+  legendRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 12
   },
@@ -276,46 +276,46 @@ chartCard: {
     alignItems: 'center',
     gap: 6
   },
-  legendDot: { 
-    width: 6, 
-    height: 6, 
-    borderRadius: 3 
+  legendDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3
   },
-  legendText: { 
-    fontSize: 11, 
-    fontWeight: '700', 
-    color: colors.textSecondary 
+  legendText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary
   },
-chart: { marginVertical: 8, borderRadius: 16, marginLeft: -16 },
-kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
-miniCard: {
-  padding: 16,
-    borderRadius: 20,
-      backgroundColor: colors.cardBackground,
-        borderWidth: 1,
-          borderColor: colors.cardBorder,
-            width: '48%',
-  },
-miniIconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-miniValue: { fontSize: 20, fontWeight: '900', color: colors.textPrimary },
-miniLabel: { fontSize: 11, fontWeight: '700', color: colors.textSecondary, marginTop: 2 },
-summaryCard: {
-  backgroundColor: colors.cardBackground,
-    borderRadius: 24,
-      borderWidth: 1,
-        borderColor: colors.cardBorder,
-          padding: 20,
-            marginBottom: 16,
-  },
-summaryTitle: { fontSize: 15, fontWeight: '900', color: colors.textPrimary, marginBottom: 16 },
-summaryRow: { gap: 12 },
-summaryItem: {
-  backgroundColor: 'rgba(241, 245, 249, 0.5)',
+  chart: { marginVertical: 8, borderRadius: 16, marginLeft: -16 },
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
+  miniCard: {
     padding: 16,
-      borderRadius: 16,
+    borderRadius: 20,
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    width: '48%',
   },
-sumLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary },
-sumValue: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, marginTop: 4 },
+  miniIconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  miniValue: { fontSize: 20, fontWeight: '900', color: colors.textPrimary },
+  miniLabel: { fontSize: 11, fontWeight: '700', color: colors.textSecondary, marginTop: 2 },
+  summaryCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: 20,
+    marginBottom: 16,
+  },
+  summaryTitle: { fontSize: 15, fontWeight: '900', color: colors.textPrimary, marginBottom: 16 },
+  summaryRow: { gap: 12 },
+  summaryItem: {
+    backgroundColor: 'rgba(241, 245, 249, 0.5)',
+    padding: 16,
+    borderRadius: 16,
+  },
+  sumLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary },
+  sumValue: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, marginTop: 4 },
   insightCard: {
     backgroundColor: '#0B2341',
     borderRadius: 24,
@@ -324,16 +324,16 @@ sumValue: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, marginTo
   },
   insightContent: { flex: 1 },
   insightTitle: { fontSize: 18, fontWeight: '900', color: '#FFFFFF' },
-insightSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 20, marginTop: 8 },
-insightBtn: {
-  backgroundColor: '#0BA0B2',
+  insightSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 20, marginTop: 8 },
+  insightBtn: {
+    backgroundColor: '#0a2341',
     paddingVertical: 10,
-      paddingHorizontal: 16,
-        borderRadius: 12,
-          alignSelf: 'flex-start',
-            marginTop: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 16,
   },
-insightBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
-main: { flex: 1 },
-loadingText: { fontSize: 14, fontWeight: '600' }
+  insightBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  main: { flex: 1 },
+  loadingText: { fontSize: 14, fontWeight: '600' }
 });

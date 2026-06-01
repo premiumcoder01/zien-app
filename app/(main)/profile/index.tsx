@@ -60,7 +60,7 @@ const AVAILABLE_SPECIALIZATION_OPTIONS = [
 
 const INTERFACE_COLORS = [
   { label: 'Midnight', hex: '#1A1A1B' },
-  { label: 'Teal', hex: '#0BA0B2' },
+  { label: 'Teal', hex: '#0a2341' },
   { label: 'Navy', hex: '#1B5E9A' },
   { label: 'Ember', hex: '#EA580C' },
   { label: 'Forest', hex: '#16A34A' },
@@ -243,9 +243,9 @@ export default function ProfileScreen() {
     if (profile) {
       setFullName(`${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'John Olakoya');
       setProfessionalEmail(profile.email || 'john@zien.ai');
-      
-      const phoneStr = profile.phone 
-        ? `${profile.country_code ? '+' + profile.country_code + ' ' : ''}${profile.phone}` 
+
+      const phoneStr = profile.phone
+        ? `${profile.country_code ? '+' + profile.country_code + ' ' : ''}${profile.phone}`
         : '+1 (555) 000-0000';
       setMobilePhone(phoneStr);
 
@@ -313,7 +313,7 @@ export default function ProfileScreen() {
             {/* Avatar hero */}
             <View style={styles.avatarHero}>
               <Pressable style={styles.avatarWrap} onPress={showAvatarOptions}>
-                <LinearGradient colors={['#0D2F45', '#0BA0B2']} style={styles.avatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                <LinearGradient colors={['#0D2F45', '#0a2341']} style={styles.avatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                   {avatarUri
                     ? <Image source={{ uri: avatarUri }} style={styles.avatarImage} resizeMode="cover" />
                     : <Text style={styles.avatarText}>{userInitials}</Text>
@@ -483,7 +483,7 @@ export default function ProfileScreen() {
           <ProfileCard style={styles.mainCard}>
             {/* Header */}
             <View style={styles.brandingHeader}>
-              <LinearGradient colors={['#0BA0B2', '#1B5E9A']} style={styles.brandingIconWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+              <LinearGradient colors={['#0a2341', '#1B5E9A']} style={styles.brandingIconWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                 <MaterialCommunityIcons name="palette-outline" size={18} color="#fff" />
               </LinearGradient>
               <View style={{ flex: 1 }}>
@@ -567,7 +567,7 @@ export default function ProfileScreen() {
 
             <ProfileCard style={styles.mainCard}>
               <View style={styles.mfaRow}>
-                <LinearGradient colors={['#0BA0B2', '#1B5E9A']} style={styles.mfaIcon} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                <LinearGradient colors={['#0a2341', '#1B5E9A']} style={styles.mfaIcon} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                   <MaterialCommunityIcons name="shield-check" size={22} color="#fff" />
                 </LinearGradient>
                 <View style={{ flex: 1 }}>
@@ -587,7 +587,7 @@ export default function ProfileScreen() {
       case 'organization':
         return (
           <ProfileCard style={styles.mainCard}>
-            <LinearGradient colors={['#0D2F45', '#0BA0B2']} style={styles.orgBanner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            <LinearGradient colors={['#0D2F45', '#0a2341']} style={styles.orgBanner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
               <View style={styles.orgIconWrap}>
                 <MaterialCommunityIcons name="office-building" size={22} color="#fff" />
               </View>
@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 76, height: 76, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    shadowColor: '#0BA0B2', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 5,
+    shadowColor: '#0a2341', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 5,
   },
   avatarImage: { width: '100%', height: '100%' },
   avatarText: { fontSize: 24, fontWeight: '800', color: '#fff' },
@@ -776,7 +776,7 @@ const styles = StyleSheet.create({
   brandingIconWrap: {
     width: 40, height: 40, borderRadius: 13,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#0BA0B2', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3,
+    shadowColor: '#0a2341', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
   colorRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 12 },
   colorSwatch: {
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
   mfaIcon: {
     width: 48, height: 48, borderRadius: 15,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    shadowColor: '#0BA0B2', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3,
+    shadowColor: '#0a2341', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
   outlineButton: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

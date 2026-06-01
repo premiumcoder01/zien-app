@@ -198,7 +198,7 @@ export default function AgencyProfile() {
                     {/* Form Sections */}
                     <View style={styles.formContainer}>
                         <SectionHeader title="Personal Details" icon="card-account-details-outline" />
-                        
+
                         <PremiumInput
                             label="Full Name"
                             value={fullName}
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
         marginTop: 28,
         borderRadius: 16,
         overflow: 'hidden',
-        shadowColor: '#0BA0B2',
+        shadowColor: '#0a2341',
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.15,
         shadowRadius: 10,

@@ -7,6 +7,14 @@ export interface CRMOverviewResponse {
             value: string;
             change: string;
         };
+        totalLeads: {
+            value: string;
+            change: string;
+        };
+        pendingFollowUps: {
+            value: string;
+            change: string;
+        };
         activeDeals: {
             value: string;
             change: string;
@@ -33,6 +41,22 @@ export interface CRMOverviewResponse {
         roi: string;
         color: string;
     }>;
+    leadVelocity: number[];
+    conversionRoi: {
+        totalPipelineValue: number;
+        closedWonValue: number;
+        totalLeadsCount: number;
+        closedWonCount: number;
+        estimatedAdCost: number;
+        netROI: number;
+        funnel: Array<{ level: string; count: number }>;
+    };
+    heatIndex: {
+        cold: number;
+        warm: number;
+        hot: number;
+        scoringRules: Array<{ event: string; weight: string }>;
+    };
     activityLog: Array<any>;
 }
 
@@ -1742,6 +1766,49 @@ export const addCRMAutomation = async (accessToken: string, payload: any): Promi
     } catch (error: unknown) {
         if (error instanceof Error && error.name === 'AbortError') {
             throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export const analyzeContactsFile = async (
+    accessToken: string,
+    prompt: string,
+    systemInstruction: string,
+    file: { mimeType: string; data: string }
+): Promise<{ result: string }> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    try {
+        const response = await fetch('https://staging-api.zien.ai/api/shared/ai/generate-text', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+                prompt,
+                systemInstruction,
+                complexity: 'complex',
+                file,
+            }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('AI Analysis timed out. Please try again.');
         }
         throw error;
     } finally {

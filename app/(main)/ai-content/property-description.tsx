@@ -98,7 +98,7 @@ export default function PropertyDescriptionLabScreen() {
         try {
             const prompt = `Write a luxury real estate property description. Key features to include: ${inputFeatures.trim()}.  Make it engaging, professional, and high-converting.`;
             const response = await generateAiText(prompt, accessToken, 'complex');
-            
+
             if (response.result) {
                 setHasGenerated(true);
                 // Typing animation for premium feel
@@ -321,7 +321,7 @@ export default function PropertyDescriptionLabScreen() {
                         <View style={styles.outputBody}>
                             {isGenerating ? (
                                 <View style={styles.outputPlaceholder}>
-                                    <ActivityIndicator size="large" color="#0BA0B2" />
+                                    <ActivityIndicator size="large" color="#0a2341" />
                                     <Text style={styles.outputPlaceholderTitle}>AI is Synthesizing...</Text>
                                     <Text style={styles.outputPlaceholderSub}>Crafting your premium narrative</Text>
                                 </View>
@@ -603,7 +603,7 @@ function getStyles(colors: any) {
             width: 8,
             height: 8,
             borderRadius: 4,
-            backgroundColor: '#0BA0B2',
+            backgroundColor: '#0a2341',
             marginRight: 10,
         },
         outputHeaderTitle: {

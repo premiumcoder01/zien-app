@@ -16,11 +16,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ImagePickerModal } from '../_components/ImagePickerModal';
 import {
   ProfileCard,
   type ProfileCardData
 } from '../_components/ProfileCard';
-import { ImagePickerModal } from '../_components/ImagePickerModal';
 
 type FormTab = 'personal' | 'branding' | 'contact' | 'additional';
 
@@ -191,7 +191,7 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
   const handlePickerSelect = async (source: 'gallery' | 'camera') => {
     const field = pickerState.field;
     setPickerState({ isVisible: false, field: null });
-    
+
     if (!field) return;
 
     if (source === 'gallery') {
@@ -240,7 +240,7 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
         <Text style={styles.emptySub}>
           Please create your first digital business card from the Dashboard to configure your basic information.
         </Text>
-        <Pressable 
+        <Pressable
           style={({ pressed }) => [styles.emptyGoBtn, pressed && { opacity: 0.9 }]}
           onPress={() => onSectionChange?.('/(main)/zien-card')}>
           <Text style={styles.emptyGoBtnText}>Go to Dashboard</Text>
@@ -843,10 +843,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   tabActive: {
-    backgroundColor: '#0BA0B2',
-    borderColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
+    borderColor: '#0a2341',
     elevation: 2,
-    shadowColor: '#0BA0B2',
+    shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,

@@ -1,27 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Animated,
-  Easing,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppTheme } from '@/context/ThemeContext';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { addCRMContact, AddCRMContactPayload, analyzeContactsFile } from '@/services/crmService';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useMutation } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Easing,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { addCRMContact, AddCRMContactPayload } from '@/services/crmService';
 
 interface AIImportModalProps {
   visible: boolean;
@@ -57,11 +58,17 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
 
   const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
   const [instructions, setInstructions] = useState('');
-  const [selectedFile, setSelectedFile] = useState<{ name: string; size: string; uri: string } | null>(null);
+  const [selectedFile, setSelectedFile] = useState<{ name: string; size: string; uri: string; mimeType?: string } | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [completedStepIndex, setCompletedStepIndex] = useState(-1);
   const [parsedContacts, setParsedContacts] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  const { mutateAsync: analyzeFile } = useMutation({
+    mutationFn: (payload: { prompt: string; systemInstruction: string; file: { mimeType: string; data: string } }) => {
+      return analyzeContactsFile(accessToken || '', payload.prompt, payload.systemInstruction, payload.file);
+    }
+  });
 
   const spinValue = useRef(new Animated.Value(0)).current;
 
@@ -110,36 +117,28 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
   const handlePickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/comma-separated-values', 'text/csv'],
+        type: ['*/*'],
         copyToCacheDirectory: true,
       });
 
       if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
-        
-        // Enforce strict CSV type check
-        if (!asset.name.toLowerCase().endsWith('.csv')) {
-          Alert.alert('Unsupported File Format', 'Please select a valid CSV (.csv) contact list only.');
-          return;
-        }
 
         setSelectedFile({
           name: asset.name,
           size: formatBytes(asset.size),
           uri: asset.uri,
+          mimeType: asset.mimeType || 'application/octet-stream',
         });
       } else if (result && !(result as any).canceled && (result as any).uri) {
         // Fallback for older expo-document-picker structures
         const oldResult = result as any;
-        if (!oldResult.name.toLowerCase().endsWith('.csv')) {
-          Alert.alert('Unsupported File Format', 'Please select a valid CSV (.csv) contact list only.');
-          return;
-        }
 
         setSelectedFile({
           name: oldResult.name || 'Leads_Export.csv',
           size: formatBytes(oldResult.size),
           uri: oldResult.uri,
+          mimeType: 'application/octet-stream',
         });
       }
     } catch (error: any) {
@@ -152,7 +151,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
       Alert.alert('No File Uploaded', 'Please upload a CSV file to begin.');
       return;
     }
-    
+
     setIsAnalyzing(true);
     setCompletedStepIndex(-1);
 
@@ -162,8 +161,8 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
       await new Promise(resolve => setTimeout(resolve, 800));
 
       // Read actual file contents using expo-file-system
-      const csvContent = await FileSystem.readAsStringAsync(selectedFile.uri);
-      
+      const base64Content = await FileSystem.readAsStringAsync(selectedFile.uri, { encoding: FileSystem.EncodingType.Base64 });
+
       // Step 2: Analyzing field headers & structures
       setCompletedStepIndex(1);
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -171,30 +170,19 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
       // Step 3: Call Zien text generation AI API to semantically parse contacts
       setCompletedStepIndex(2);
 
-      const promptPayload = `\nAnalyze the following contact list data and extract the contacts.\nUser instructions/context: "${instructions || 'Extract all leads'}"\n\nContact data:\n${csvContent}\n`;
+      const promptPayload = `\nAnalyze the following contact list data and extract the contacts.\nUser instructions/context: "${instructions || 'Extract all leads'}"\n`;
       const systemInstructionPayload = `\nYou are an expert CRM data analyst. Analyze the provided contact list data and any user instructions, and output a valid JSON array of contact objects. \nEach contact object MUST exactly match this JSON schema:\n{\n  \"name\": string (full name),\n  \"email\": string,\n  \"phone\": string,\n  \"group\": string (categorize as \"Buyer\", \"Seller\", \"Investor\", or \"Past Client\" based on context and user instructions),\n  \"tag\": string (such as \"High Priority\", \"Review Required\", \"Lead\", \"VIP\", etc.),\n  \"tagColor\": string (hex color code suitable for the tag, e.g., \"#F37021\", \"#00A7B5\", \"#64748B\"),\n  \"confidence\": number (confidence score from 1 to 100),\n  \"source\": string (the source of the contact, e.g., \"LinkedIn\", \"Web\", \"Referral\", \"Manual\"),\n  \"attribution\": string (attribution info or event, e.g., \"Tech Summit Lead\", \"Direct Search\", \"Past Client\"),\n  \"budget\": string (budget info, e.g. \"$2M - $5M\", \"$800k - $1.2M\", \"N/A\"),\n  \"timeline\": string (timeline info, e.g. \"Active\", \"3-6 Months\", \"Immediate\")\n}\n\nReturn ONLY the raw JSON array of objects. Do not include any markdown formatting, backticks (such as \`\`\`json), or other text outside the JSON array.\n`;
 
-      const response = await fetch('https://staging-api.zien.ai/api/shared/ai/generate-text', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({
-          prompt: promptPayload,
-          systemInstruction: systemInstructionPayload,
-          complexity: 'complex'
-        }),
+      const responseData = await analyzeFile({
+        prompt: promptPayload,
+        systemInstruction: systemInstructionPayload,
+        file: {
+          mimeType: selectedFile.mimeType || 'application/octet-stream',
+          data: base64Content
+        }
       });
-
-      if (!response.ok) {
-        throw new Error(`Zien AI Server returned: ${response.status} ${response.statusText}`);
-      }
-
-      const responseData = await response.json();
       let cleanResult = responseData.result || '';
-      
+
       // Clean up markdown markers if present
       cleanResult = cleanResult.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
       const contacts = JSON.parse(cleanResult);
@@ -309,7 +297,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
     >
       <View style={[styles.modalOverlay, { paddingTop: insets.top }]}>
         <View style={styles.modalContent}>
-          
+
           {/* STEP 1: Main upload screen */}
           {currentStep === 'upload' ? (
             <>
@@ -317,7 +305,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
               <View style={styles.header}>
                 <View style={styles.headerTitleRow}>
                   <LinearGradient
-                    colors={['#0BA0B2', '#00a7b5']}
+                    colors={['#0a2341', '#00a7b5']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.sparkleIconBadge}
@@ -364,7 +352,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                       placeholder="Tell the AI how to categorize these contacts... (e.g., 'Group by industry and tag VIPs')"
                       placeholderTextColor={colors.textMuted}
                     />
-                    
+
                     <Pressable style={styles.textareaUploadBtn} onPress={handlePickDocument} hitSlop={8}>
                       <MaterialCommunityIcons name="upload" size={18} color="#64748B" />
                     </Pressable>
@@ -440,7 +428,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                       {/* Launch AI Analysis Button */}
                       <Pressable style={styles.initializeBtn} onPress={startAnalysis}>
                         <LinearGradient
-                          colors={['#0BA0B2', '#00a7b5']}
+                          colors={['#0a2341', '#00a7b5']}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 1 }}
                           style={styles.initializeGradient}
@@ -455,7 +443,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
               </KeyboardAvoidingView>
             </>
           ) : (
-            
+
             /* STEP 2: AI Processing Table Review Screen */
             <>
               {/* Review Page Header */}
@@ -463,7 +451,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                 <View style={[styles.headerTitleRow, { alignItems: 'center', justifyContent: 'space-between' }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
                     <LinearGradient
-                      colors={['#0BA0B2', '#00a7b5']}
+                      colors={['#0a2341', '#00a7b5']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.sparkleIconBadge}
@@ -474,7 +462,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                       <Text style={[styles.title, { fontSize: 18 }]} numberOfLines={1}>AI Processing Table</Text>
                     </View>
                   </View>
-                  
+
                   {/* Reset button inside top right */}
                   <Pressable onPress={resetImport} style={styles.startNewBtn} hitSlop={10}>
                     <MaterialCommunityIcons name="sync" size={13} color={colors.textPrimary} style={{ marginRight: 3 }} />
@@ -521,11 +509,11 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
 
                 {/* scrollable contacts review list */}
                 <Text style={styles.contactsListHeader}>Parsed Contact Records ({parsedContacts.length})</Text>
-                
+
                 <View style={{ gap: 14 }}>
                   {parsedContacts.map((contact, idx) => (
                     <View key={idx} style={styles.reviewCard}>
-                      
+
                       {/* CONTACT DETAILS */}
                       <View style={styles.reviewCardSection}>
                         <Text style={styles.reviewCardLabel}>CONTACT DETAILS</Text>
@@ -561,7 +549,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                         <View style={{ flex: 1 }}>
                           <Text style={styles.reviewCardLabel}>BUDGET / TIMELINE</Text>
                           <Text style={styles.reviewCardValueBold}>{contact.budget || 'N/A'}</Text>
-                          <Text style={[styles.reviewCardValueBold, { color: '#0BA0B2', marginTop: 2 }]}>
+                          <Text style={[styles.reviewCardValueBold, { color: '#0a2341', marginTop: 2 }]}>
                             {contact.timeline || 'Active'}
                           </Text>
                         </View>
@@ -595,7 +583,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                     disabled={isSaving}
                   >
                     <LinearGradient
-                      colors={['#0BA0B2', '#00a7b5']}
+                      colors={['#0a2341', '#00a7b5']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.confirmImportGradient}
@@ -738,7 +726,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0BA0B2',
+    shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
@@ -1006,7 +994,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   initializeBtn: {
     borderRadius: 14,
     overflow: 'hidden',
-    shadowColor: '#0BA0B2',
+    shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -1049,7 +1037,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#0BA0B212',
+    backgroundColor: '#0a234112',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1209,7 +1197,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: '100%',
     borderRadius: 14,
     overflow: 'hidden',
-    shadowColor: '#0BA0B2',
+    shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
     shadowRadius: 8,

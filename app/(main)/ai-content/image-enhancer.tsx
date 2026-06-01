@@ -221,7 +221,7 @@ export default function VisualAssetLabScreen() {
                             {isGenerating ? (
                                 <View style={styles.loaderArea}>
                                     <View style={styles.progressCircle}>
-                                        <ActivityIndicator size="large" color="#0BA0B2" />
+                                        <ActivityIndicator size="large" color="#0a2341" />
                                     </View>
                                     <Text style={styles.loaderTitle}>Upscaling Pixels...</Text>
                                     <Text style={styles.loaderSubtitle}>Synthesizing textures and calculating light bounces.</Text>
@@ -426,7 +426,7 @@ function getStyles(colors: any) {
             width: 6,
             height: 6,
             borderRadius: 3,
-            backgroundColor: '#0BA0B2',
+            backgroundColor: '#0a2341',
             marginRight: 6,
         },
         outputTitle: {
@@ -451,7 +451,7 @@ function getStyles(colors: any) {
         saveBtn: {
             flexDirection: 'row',
             alignItems: 'center',
-            backgroundColor: '#0BA0B2',
+            backgroundColor: '#0a2341',
             paddingHorizontal: 12,
             paddingVertical: 7,
             borderRadius: 8,

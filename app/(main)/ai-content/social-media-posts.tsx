@@ -1,9 +1,9 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useAppTheme } from '@/context/ThemeContext';
-import { useState, useEffect } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Clipboard,
@@ -255,7 +255,7 @@ export default function SocialPostLabScreen() {
 
                             {isGenerating ? (
                                 <View style={styles.loadingState}>
-                                    <ActivityIndicator size="small" color="#0BA0B2" />
+                                    <ActivityIndicator size="small" color="#0a2341" />
                                     <Text style={styles.loadingText}>Building your social media presence...</Text>
                                 </View>
                             ) : hasGenerated ? (
@@ -427,7 +427,7 @@ function getStyles(colors: any) {
             width: 6,
             height: 6,
             borderRadius: 3,
-            backgroundColor: '#0BA0B2',
+            backgroundColor: '#0a2341',
             marginRight: 6,
         },
         outputTitle: {
@@ -452,7 +452,7 @@ function getStyles(colors: any) {
         exportBtn: {
             flexDirection: 'row',
             alignItems: 'center',
-            backgroundColor: '#0BA0B2',
+            backgroundColor: '#0a2341',
             paddingHorizontal: 10,
             paddingVertical: 7,
             borderRadius: 8,

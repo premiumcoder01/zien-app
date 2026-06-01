@@ -255,19 +255,19 @@ export default function BillingUsageScreen() {
 
   const allocationPieData = useMemo(
     () => [
-      { name: 'Visual Staging', population: 75, color: '#0BA0B2', legendFontColor: colors.textSecondary, legendFontSize: 12 },
+      { name: 'Visual Staging', population: 75, color: '#0a2341', legendFontColor: colors.textSecondary, legendFontSize: 12 },
       { name: 'Market Insight', population: 15, color: '#F97316', legendFontColor: colors.textSecondary, legendFontSize: 12 },
-      { name: 'Other Ops', population: 10, color: isDark ? '#0BA0B2' : '#0B2D3E', legendFontColor: colors.textSecondary, legendFontSize: 12 },
+      { name: 'Other Ops', population: 10, color: isDark ? '#0a2341' : '#0B2D3E', legendFontColor: colors.textSecondary, legendFontSize: 12 },
     ],
     []
   );
 
   const analyticsLeaderboardRows = useMemo<AnalyticsLeaderboardRow[]>(
     () => [
-      { id: 'lb-1', name: 'Sarah Thompson', initials: 'ST', monthlyConsumption: '4,280 Units', primaryDomain: 'Visual Staging', peakActivity: 'Tuesdays', resourceHealth: 92, healthColor: '#0BA0B2' },
+      { id: 'lb-1', name: 'Sarah Thompson', initials: 'ST', monthlyConsumption: '4,280 Units', primaryDomain: 'Visual Staging', peakActivity: 'Tuesdays', resourceHealth: 92, healthColor: '#0a2341' },
       { id: 'lb-2', name: 'Michael Chen', initials: 'MC', monthlyConsumption: '2,150 Units', primaryDomain: 'Flyer Design', peakActivity: 'Mondays', resourceHealth: 45, healthColor: '#F97316' },
-      { id: 'lb-3', name: 'Elena Rodriguez', initials: 'ER', monthlyConsumption: '1,890 Units', primaryDomain: 'Direct Outreach', peakActivity: 'Fridays', resourceHealth: 78, healthColor: isDark ? '#0BA0B2' : '#0B2D3E' },
-      { id: 'lb-4', name: 'David Smith', initials: 'DS', monthlyConsumption: '940 Units', primaryDomain: 'CRM Sync', peakActivity: 'Daily', resourceHealth: 98, healthColor: '#0BA0B2' },
+      { id: 'lb-3', name: 'Elena Rodriguez', initials: 'ER', monthlyConsumption: '1,890 Units', primaryDomain: 'Direct Outreach', peakActivity: 'Fridays', resourceHealth: 78, healthColor: isDark ? '#0a2341' : '#0B2D3E' },
+      { id: 'lb-4', name: 'David Smith', initials: 'DS', monthlyConsumption: '940 Units', primaryDomain: 'CRM Sync', peakActivity: 'Daily', resourceHealth: 98, healthColor: '#0a2341' },
     ],
     []
   );
@@ -365,11 +365,11 @@ export default function BillingUsageScreen() {
 
         <View style={styles.planFeaturesGrid}>
           <View style={styles.planFeatureDetail}>
-            <MaterialCommunityIcons name="check-circle" size={18} color="#0BA0B2" />
+            <MaterialCommunityIcons name="check-circle" size={18} color="#0a2341" />
             <Text style={styles.planFeatureDetailText}>10 Authorized Seats</Text>
           </View>
           <View style={styles.planFeatureDetail}>
-            <MaterialCommunityIcons name="check-circle" size={18} color="#0BA0B2" />
+            <MaterialCommunityIcons name="check-circle" size={18} color="#0a2341" />
             <Text style={styles.planFeatureDetailText}>Full Sync Engine</Text>
           </View>
           <View style={[styles.planFeatureDetail, { width: '100%', marginTop: 4 }]}>
@@ -395,7 +395,7 @@ export default function BillingUsageScreen() {
             <Text style={styles.premiumCardTitle}>Resource Consumption</Text>
             <Text style={styles.premiumCardSubtitle}>Real-time Audit</Text>
           </View>
-          <MaterialCommunityIcons name="chart-box-outline" size={24} color="#0BA0B2" />
+          <MaterialCommunityIcons name="chart-box-outline" size={24} color="#0a2341" />
         </View>
 
         <View style={styles.usageListContainer}>
@@ -413,7 +413,7 @@ export default function BillingUsageScreen() {
                     styles.premiumProgressFill,
                     {
                       width: `${(row.used / row.limit) * 100}%`,
-                      backgroundColor: row.tone === 'warning' ? '#F97316' : '#0BA0B2'
+                      backgroundColor: row.tone === 'warning' ? '#F97316' : '#0a2341'
                     }
                   ]}
                 />
@@ -425,7 +425,7 @@ export default function BillingUsageScreen() {
         <View style={styles.autoReplenishCard}>
           <View style={styles.autoReplenishInfo}>
             <View style={styles.replenishIconWrap}>
-              <MaterialCommunityIcons name="cached" size={20} color="#0BA0B2" />
+              <MaterialCommunityIcons name="cached" size={20} color="#0a2341" />
             </View>
             <View>
               <Text style={styles.replenishTitle}>Auto-Replenish Active</Text>
@@ -499,11 +499,11 @@ export default function BillingUsageScreen() {
 
         <View style={styles.paymentActionsRow}>
           <Pressable style={styles.paymentActionButton} onPress={openCredentialsModal}>
-            <MaterialCommunityIcons name="credit-card-settings-outline" size={20} color="#0BA0B2" />
+            <MaterialCommunityIcons name="credit-card-settings-outline" size={20} color="#0a2341" />
             <Text style={styles.paymentActionText}>Update Credentials</Text>
           </Pressable>
           <Pressable style={styles.paymentActionButton}>
-            <MaterialCommunityIcons name="shield-plus-outline" size={20} color="#0BA0B2" />
+            <MaterialCommunityIcons name="shield-plus-outline" size={20} color="#0a2341" />
             <Text style={styles.paymentActionText}>Add Backup</Text>
           </Pressable>
         </View>
@@ -595,7 +595,7 @@ export default function BillingUsageScreen() {
                 filteredLeaderboardRows.map((row) => (
                   <View key={row.id} style={styles.leaderboardAgentCard}>
                     <View style={styles.leaderboardAgentCardHeader}>
-                      <View style={[styles.leaderboardInitials, { backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E' }]}>
+                      <View style={[styles.leaderboardInitials, { backgroundColor: isDark ? '#0a2341' : '#0B2D3E' }]}>
                         <Text style={styles.leaderboardInitialsText}>{row.initials}</Text>
                       </View>
                       <Text style={styles.leaderboardAgentCardName}>{row.name}</Text>
@@ -1043,7 +1043,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   ledgerId: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   ledgerSource: {
     fontSize: 12,
@@ -1075,7 +1075,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   linkText: {
     fontSize: 12.5,
-    color: '#0BA0B2',
+    color: '#0a2341',
     fontWeight: '700',
   },
   planHeader: {
@@ -1103,7 +1103,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   planPrice: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   planPriceUnit: {
     fontSize: 13,
@@ -1247,7 +1247,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 12,
@@ -1293,7 +1293,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   pdfDownloadText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   paymentArchitectureTitle: {
     fontSize: 11,
@@ -1337,7 +1337,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '800',
   },
   primaryButton: {
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     paddingVertical: 12,
     borderRadius: 14,
     alignItems: 'center',
@@ -1541,7 +1541,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     letterSpacing: 0.4,
   },
   statusTextPaid: {
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   statusTextDue: {
     color: '#B45309',
@@ -1622,7 +1622,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1682,7 +1682,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 12,
   },
   premiumManageBtn: {
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: 'center',
@@ -1827,7 +1827,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   viewAllText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   previewList: {
     gap: 12,
@@ -2010,8 +2010,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   analyticsToggleBtnActive: {
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
-    borderColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
+    borderColor: isDark ? '#0a2341' : '#0B2D3E',
   },
   analyticsToggleText: {
     fontSize: 12,
@@ -2247,7 +2247,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   teamCredits: {
     fontSize: 13.5,
     fontWeight: '900',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   marketTitle: {
     fontSize: 15.5,
@@ -2257,7 +2257,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   marketPrice: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   marketUnit: {
     fontSize: 12.5,
@@ -2382,7 +2382,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     paddingVertical: 14,
     borderRadius: 14,
     marginTop: 4,
@@ -2393,7 +2393,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: '#FFFFFF',
   },
   marketplaceBundlesSection: {
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     borderRadius: 22,
     padding: 22,
     gap: 12,
@@ -2529,7 +2529,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   cardTypeIcon: {
     width: 44,
     height: 32,
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2564,7 +2564,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   authorizeBtn: {
     flex: 2,
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: 'center',
@@ -2711,7 +2711,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     paddingVertical: 14,
     borderRadius: 14,
     marginBottom: 12,
@@ -2747,7 +2747,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -2768,7 +2768,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   settlementConfirmedBtn: {
     width: '100%',
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',
@@ -2916,14 +2916,14 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     overflow: 'hidden',
   },
   planCardCurrent: {
-    borderColor: '#0BA0B2',
+    borderColor: '#0a2341',
     backgroundColor: colors.cardBackground,
   },
   currentPill: {
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -2963,7 +2963,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 99,
-    backgroundColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
   },
   planBulletText: {
     flex: 1,
@@ -2980,7 +2980,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 1,
   },
   planCtaDark: {
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     borderColor: '#0B2D3E',
   },
   planCtaAccent: {
@@ -3101,7 +3101,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 24,
@@ -3327,7 +3327,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   credentialsAuthorizeBtn: {
     flex: 1,
-    backgroundColor: isDark ? '#0BA0B2' : '#0B2D3E',
+    backgroundColor: isDark ? '#0a2341' : '#0B2D3E',
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: 'center',

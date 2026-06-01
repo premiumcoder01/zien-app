@@ -22,9 +22,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddContactModal } from './components/modals/AddContactModal';
+import { AIImportModal } from './components/modals/AIImportModal';
 import { ManageMetaModal } from './components/modals/ManageMetaModal';
 import { QuickFilterModal } from './components/modals/QuickFilterModal';
-import { AIImportModal } from './components/modals/AIImportModal';
 
 const STATUS_OPTIONS = ['All status', 'Active', 'Inactive (archived)'];
 const TYPE_OPTIONS = ['Buyer', 'Seller', 'Investor'] as const;
@@ -340,7 +340,7 @@ export default function ContactsScreen() {
                     <View style={[styles.statusDot, { backgroundColor: contact.status === 1 ? '#10B981' : '#64748B' }]} />
                   </View>
                   <View style={styles.contactMain}>
-                    <Text style={styles.contactName}>{fullName}</Text>
+                    <Text style={styles.contactName} numberOfLines={1}>{fullName}</Text>
                     <View style={styles.contactSubInfo}>
                       <MaterialCommunityIcons name="email-outline" size={12} color={colors.textMuted} />
                       <Text style={styles.contactEmail}>{contact.email}</Text>
@@ -375,7 +375,7 @@ export default function ContactsScreen() {
                   </View>
                   {contact.pipeline_stage && (
                     <View style={[styles.dataBadge, { backgroundColor: '#F0F9FA' }]}>
-                      <Text style={[styles.dataBadgeText, { color: '#0BA0B2' }]}>{contact.pipeline_stage}</Text>
+                      <Text style={[styles.dataBadgeText, { color: '#0a2341' }]}>{contact.pipeline_stage}</Text>
                     </View>
                   )}
                 </View>
@@ -410,7 +410,7 @@ export default function ContactsScreen() {
                 {contact.latest_note && (
                   <View style={styles.noteBox}>
                     <View style={styles.noteHeader}>
-                      <MaterialCommunityIcons name="text-box-search-outline" size={14} color="#0BA0B2" />
+                      <MaterialCommunityIcons name="text-box-search-outline" size={14} color="#0a2341" />
                       <Text style={styles.noteHeaderText}>
                         LATEST NOTE • {new Date(contact.latest_note.created_at).toLocaleDateString()}
                       </Text>
@@ -460,7 +460,7 @@ export default function ContactsScreen() {
                     style={styles.profileAction}
                     onPress={() => router.push({ pathname: '/(main)/crm/profile', params: { id: contact.id } })}>
                     <Text style={styles.profileActionText}>Profile</Text>
-                    <MaterialCommunityIcons name="chevron-right" size={18} color="#0BA0B2" />
+                    <MaterialCommunityIcons name="chevron-right" size={18} color="#0a2341" />
                   </Pressable>
                 </View>
               </View>
@@ -665,7 +665,7 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   avatarText: { fontSize: 22, fontWeight: '900', color: colors.textPrimary },
   contactMain: { flex: 1, gap: 2 },
-  contactName: { fontSize: 19, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.4 },
+  contactName: { fontSize: 16, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.3 },
   contactSubInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   contactEmail: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
   heatBadge: {
@@ -790,14 +790,14 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: '#0BA0B208',
+    backgroundColor: '#0a234108',
     borderWidth: 1,
-    borderColor: '#0BA0B220',
+    borderColor: '#0a234120',
   },
   profileActionText: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#0BA0B2',
+    color: '#0a2341',
   },
   loaderContainer: { alignItems: 'center', paddingVertical: 60 },
   loaderText: { marginTop: 12, fontSize: 15, fontWeight: '700', color: colors.textSecondary },
@@ -829,10 +829,10 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 63,
     height: 63,
     borderRadius: 31.5,
-    backgroundColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0BA0B2',
+    shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 16,

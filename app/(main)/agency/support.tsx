@@ -3,16 +3,16 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
-import { 
-    ScrollView, 
-    StyleSheet, 
-    Text, 
-    TouchableOpacity, 
-    View, 
-    TextInput,
+import {
     KeyboardAvoidingView,
+    Modal,
     Platform,
-    Modal
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
@@ -37,15 +37,15 @@ const CustomPicker = ({ label, value, options, onSelect, icon }: any) => {
     return (
         <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{label}</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
                 onPress={() => setVisible(true)}
                 style={[styles.pickerBtn, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}
                 activeOpacity={0.75}
             >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                     {icon && <MaterialCommunityIcons name={icon} size={18} color="#64748B" />}
-                    <Text 
-                        style={{ color: value ? colors.textPrimary : colors.textMuted, fontSize: 13, fontWeight: '600' }} 
+                    <Text
+                        style={{ color: value ? colors.textPrimary : colors.textMuted, fontSize: 13, fontWeight: '600' }}
                         numberOfLines={1}
                     >
                         {value || 'Select option'}
@@ -54,9 +54,9 @@ const CustomPicker = ({ label, value, options, onSelect, icon }: any) => {
                 <MaterialCommunityIcons name="chevron-down" size={18} color="#94A3B8" />
             </TouchableOpacity>
 
-            <Modal 
-                visible={visible} 
-                transparent 
+            <Modal
+                visible={visible}
+                transparent
                 animationType="slide"
                 onRequestClose={() => setVisible(false)}
             >
@@ -64,20 +64,20 @@ const CustomPicker = ({ label, value, options, onSelect, icon }: any) => {
                     <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
                         {/* Grab handle centered at top */}
                         <View style={styles.modalGrabHandle} />
-                        
+
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>{label}</Text>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.modalCloseCircle}
                                 onPress={() => setVisible(false)}
                             >
                                 <MaterialCommunityIcons name="close" size={18} color="#64748B" />
                             </TouchableOpacity>
                         </View>
-                        
+
                         {options.map((opt: string) => (
-                            <TouchableOpacity 
-                                key={opt} 
+                            <TouchableOpacity
+                                key={opt}
                                 onPress={() => { onSelect(opt); setVisible(false); }}
                                 style={styles.modalOption}
                                 activeOpacity={0.7}
@@ -104,7 +104,7 @@ const VirtualAssistant = () => {
             <View style={[styles.chatContainer, { backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' }]}>
                 <View style={styles.emptyChat}>
                     <View style={[styles.chatIconWrap, { backgroundColor: '#F0FDFA' }]}>
-                        <MaterialCommunityIcons name="robot-outline" size={32} color="#0BA0B2" />
+                        <MaterialCommunityIcons name="robot-outline" size={32} color="#0a2341" />
                     </View>
                     <Text style={[styles.chatTitle, { color: colors.textPrimary }]}>How can I help you today?</Text>
                     <Text style={[styles.chatDesc, { color: colors.textSecondary }]}>
@@ -112,12 +112,12 @@ const VirtualAssistant = () => {
                     </Text>
                 </View>
             </View>
-            
+
             <View style={[
                 styles.chatInputRow,
-                { backgroundColor: '#F8FAFC', borderColor: isChatFocused ? '#0BA0B2' : '#E2E8F0' }
+                { backgroundColor: '#F8FAFC', borderColor: isChatFocused ? '#0a2341' : '#E2E8F0' }
             ]}>
-                <TextInput 
+                <TextInput
                     placeholder="Type your message..."
                     placeholderTextColor={colors.textMuted}
                     style={[styles.chatInput, { color: colors.textPrimary }]}
@@ -153,23 +153,23 @@ const SubmittedTicket = () => {
         <View style={styles.tabContent}>
             <View style={[styles.formCard, { backgroundColor: colors.cardBackground, borderColor: '#F1F5F9' }]}>
                 <Text style={[styles.formHeading, { color: colors.textPrimary }]}>Submit a Support Ticket</Text>
-                
+
                 <View style={styles.rowInputs}>
                     <View style={{ flex: 1 }}>
-                        <CustomPicker 
-                            label="Issue Category" 
-                            value={form.category} 
+                        <CustomPicker
+                            label="Issue Category"
+                            value={form.category}
                             options={['Technical Issue', 'Billing Inquiry', 'Account Security', 'Feature Request']}
-                            onSelect={(v: string) => setForm({...form, category: v})}
+                            onSelect={(v: string) => setForm({ ...form, category: v })}
                             icon="tag-outline"
                         />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <CustomPicker 
-                            label="Priority Level" 
-                            value={form.priority} 
+                        <CustomPicker
+                            label="Priority Level"
+                            value={form.priority}
                             options={['Low - General Inquiry', 'Medium - Need Assistance', 'High - Critical Bug', 'Urgent - System Outage']}
-                            onSelect={(v: string) => setForm({...form, priority: v})}
+                            onSelect={(v: string) => setForm({ ...form, priority: v })}
                             icon="alert-circle-outline"
                         />
                     </View>
@@ -180,19 +180,19 @@ const SubmittedTicket = () => {
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Subject</Text>
                     <View style={[
                         styles.inputContainerRow,
-                        { backgroundColor: '#F8FAFC', borderColor: isSubjectFocused ? '#0BA0B2' : '#E2E8F0' }
+                        { backgroundColor: '#F8FAFC', borderColor: isSubjectFocused ? '#0a2341' : '#E2E8F0' }
                     ]}>
-                        <MaterialCommunityIcons 
-                            name="pencil-outline" 
-                            size={18} 
-                            color={isSubjectFocused ? '#0BA0B2' : '#64748B'} 
+                        <MaterialCommunityIcons
+                            name="pencil-outline"
+                            size={18}
+                            color={isSubjectFocused ? '#0a2341' : '#64748B'}
                         />
-                        <TextInput 
+                        <TextInput
                             style={[styles.textInputStyle, { color: colors.textPrimary }]}
                             placeholder="Brief description of the issue"
                             placeholderTextColor={colors.textMuted}
                             value={form.subject}
-                            onChangeText={(v) => setForm({...form, subject: v})}
+                            onChangeText={(v) => setForm({ ...form, subject: v })}
                             onFocus={() => setIsSubjectFocused(true)}
                             onBlur={() => setIsSubjectFocused(false)}
                         />
@@ -204,22 +204,22 @@ const SubmittedTicket = () => {
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Detailed Description</Text>
                     <View style={[
                         styles.textAreaContainerRow,
-                        { backgroundColor: '#F8FAFC', borderColor: isDescFocused ? '#0BA0B2' : '#E2E8F0' }
+                        { backgroundColor: '#F8FAFC', borderColor: isDescFocused ? '#0a2341' : '#E2E8F0' }
                     ]}>
-                        <MaterialCommunityIcons 
-                            name="text-box-outline" 
-                            size={18} 
-                            color={isDescFocused ? '#0BA0B2' : '#64748B'} 
+                        <MaterialCommunityIcons
+                            name="text-box-outline"
+                            size={18}
+                            color={isDescFocused ? '#0a2341' : '#64748B'}
                             style={{ marginTop: 2 }}
                         />
-                        <TextInput 
+                        <TextInput
                             style={[styles.textAreaStyle, { color: colors.textPrimary }]}
                             placeholder="Please provide as much detail as possible..."
                             placeholderTextColor={colors.textMuted}
                             multiline
                             textAlignVertical="top"
                             value={form.description}
-                            onChangeText={(v) => setForm({...form, description: v})}
+                            onChangeText={(v) => setForm({ ...form, description: v })}
                             onFocus={() => setIsDescFocused(true)}
                             onBlur={() => setIsDescFocused(false)}
                         />
@@ -249,13 +249,13 @@ const EmailSupport = () => {
             <Text style={[styles.sectionSubheading, { color: colors.textSecondary }]}>
                 Connect with our specialized enterprise teams for rapid resolution.
             </Text>
-            
+
             <View style={styles.supportLinesList}>
                 {SUPPORT_LINES.map((line, i) => (
-                    <View 
-                        key={i} 
+                    <View
+                        key={i}
                         style={[
-                            styles.supportLineCard, 
+                            styles.supportLineCard,
                             { backgroundColor: colors.cardBackground, borderColor: '#F1F5F9' }
                         ]}
                     >
@@ -269,7 +269,7 @@ const EmailSupport = () => {
                                 <Text style={[styles.lineEmail, { color: '#F97316' }]}>{line.email}</Text>
                             </View>
                         </View>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.actionBtn, { borderColor: '#E2E8F0', backgroundColor: '#F8FAFC' }]}
                             activeOpacity={0.8}
                         >
@@ -290,21 +290,21 @@ export default function Support() {
     const [activeTab, setActiveTab] = useState('Submitted Ticket'); // Matches screenshot default
 
     return (
-        <DashboardLayout 
-            menuItems={AGENCY_MENU_ITEMS} 
+        <DashboardLayout
+            menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
             customHeaderBackground="#FFFFFF"
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
-            <KeyboardAvoidingView 
+            <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={{ flex: 1 }}
             >
-                <ScrollView 
-                    style={{ flex: 1 }} 
-                    contentContainerStyle={styles.scrollContent} 
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
                     {/* Page Header */}
@@ -319,18 +319,18 @@ export default function Support() {
                     <View style={styles.tabsContainer}>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
                             {TABS.map((tab) => (
-                                <TouchableOpacity 
-                                    key={tab} 
+                                <TouchableOpacity
+                                    key={tab}
                                     onPress={() => setActiveTab(tab)}
                                     style={[
-                                        styles.tab, 
+                                        styles.tab,
                                         { backgroundColor: colors.surfaceSoft },
                                         activeTab === tab && { backgroundColor: '#0D1B2A' }
                                     ]}
                                     activeOpacity={0.85}
                                 >
                                     <Text style={[
-                                        styles.tabText, 
+                                        styles.tabText,
                                         { color: colors.textSecondary },
                                         activeTab === tab && { color: '#FFFFFF', fontWeight: '900' }
                                     ]}>
@@ -352,10 +352,10 @@ export default function Support() {
                     <View style={styles.faqSection}>
                         <Text style={[styles.faqHeading, { color: colors.textPrimary }]}>Quick FAQs</Text>
                         {FAQS.map((faq, i) => (
-                            <View 
-                                key={i} 
+                            <View
+                                key={i}
                                 style={[
-                                    styles.faqItem, 
+                                    styles.faqItem,
                                     { backgroundColor: '#FFFFFF', borderColor: '#F1F5F9' }
                                 ]}
                             >

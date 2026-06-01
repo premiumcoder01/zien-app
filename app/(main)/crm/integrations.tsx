@@ -1,19 +1,33 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAuth } from '@/context/AuthContext';
+import { useAppTheme } from '@/context/ThemeContext';
+import { getCRMMeta } from '@/services/crmService';
+import {
+  disconnectHubSpot,
+  getHubSpotAuthUrl,
+  getHubSpotStatus,
+  HubSpotStatusResponse,
+  triggerHubSpotSync,
+  updateHubSpotSettings
+} from '@/services/hubspotService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppTheme } from '@/context/ThemeContext';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { dismissBrowser, openBrowserAsync } from 'expo-web-browser';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Modal,
+  Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
-  ActivityIndicator,
-  Alert
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,44 +45,334 @@ interface Integration {
 }
 
 const INITIAL_INTEGRATIONS: Integration[] = [
-  { id: 'salesforce', name: 'Salesforce', category: 'CRM', desc: 'Deep bi-directional sync with Salesforce CRM for enterprise teams.', status: 'AVAILABLE', icon: 'cloud-outline', buttonLabel: 'Connect Now', gradient: ['#00A1E0', '#0070D2'] },
   { id: 'hubspot', name: 'HubSpot', category: 'CRM', desc: 'Automatically push leads and track marketing activity in HubSpot.', status: 'AVAILABLE', icon: 'database-outline', buttonLabel: 'Connect Now', gradient: ['#FF7A59', '#FF5C35'] },
-  { id: 'mailchimp', name: 'Mailchimp', category: 'Email Marketing', desc: 'Sync your contact segments directly to Mailchimp audiences.', status: 'CONNECTED', icon: 'email-outline', buttonLabel: 'Manage', gradient: ['#FFE01B', '#F0C808'] },
+  { id: 'salesforce', name: 'Salesforce', category: 'CRM', desc: 'Deep bi-directional sync with Salesforce CRM for enterprise teams.', status: 'AVAILABLE', icon: 'cloud-outline', buttonLabel: 'Connect Now', gradient: ['#00A1E0', '#0070D2'] },
+  { id: 'mailchimp', name: 'Mailchimp', category: 'Email Marketing', desc: 'Sync your contact segments directly to Mailchimp audiences.', status: 'AVAILABLE', icon: 'email-outline', buttonLabel: 'Connect Now', gradient: ['#FFE01B', '#F0C808'] },
   { id: 'gmail', name: 'Gmail', category: 'Email', desc: 'Send emails directly from ZIEN using your Gmail account.', status: 'AVAILABLE', icon: 'email-outline', buttonLabel: 'Connect Now', gradient: ['#EA4335', '#D93025'] },
   { id: 'slack', name: 'Slack', category: 'Communication', desc: 'Get real-time notifications for leads and deals in your Slack workspace.', status: 'AVAILABLE', icon: 'message-outline', buttonLabel: 'Connect Now', gradient: ['#4A154B', '#611F69'] },
-  { id: 'gcal', name: 'Google Calendar', category: 'Calendar', desc: 'Sync appointments and schedule meetings directly from ZIEN.', status: 'CONNECTED', icon: 'calendar-blank-outline', buttonLabel: 'Manage', gradient: ['#4285F4', '#1A73E8'] },
+  { id: 'gcal', name: 'Google Calendar', category: 'Calendar', desc: 'Sync appointments and schedule meetings directly from ZIEN.', status: 'AVAILABLE', icon: 'calendar-blank-outline', buttonLabel: 'Connect Now', gradient: ['#4285F4', '#1A73E8'] },
   { id: 'zoom', name: 'Zoom', category: 'Video Conferencing', desc: 'Create and manage Zoom meetings for property tours and consultations.', status: 'AVAILABLE', icon: 'video-outline', buttonLabel: 'Connect Now', gradient: ['#2D8CFF', '#0B5CFF'] },
   { id: 'docusign', name: 'DocuSign', category: 'Documents', desc: 'Send contracts and documents for electronic signature.', status: 'AVAILABLE', icon: 'file-document-outline', buttonLabel: 'Connect Now', gradient: ['#FFCE00', '#F5B800'] },
-  { id: 'stripe', name: 'Stripe', category: 'Payments', desc: 'Process payments and manage billing for your real estate services.', status: 'COMING SOON', icon: 'currency-usd', buttonLabel: 'Request Access', gradient: ['#635BFF', '#5046E5'] },
+  { id: 'stripe', name: 'Stripe', category: 'Payments', desc: 'Process payments and manage billing for your real estate services.', status: 'AVAILABLE', icon: 'currency-usd', buttonLabel: 'Connect Now', gradient: ['#635BFF', '#5046E5'] },
   { id: 'twilio', name: 'Twilio', category: 'SMS', desc: 'Send SMS notifications and automate text message campaigns.', status: 'AVAILABLE', icon: 'cellphone', buttonLabel: 'Connect Now', gradient: ['#F22F46', '#D91A32'] },
   { id: 'zapier', name: 'Zapier', category: 'Automation', desc: 'Connect ZIEN to 5,000+ apps with custom automation workflows.', status: 'AVAILABLE', icon: 'cog-outline', buttonLabel: 'Connect Now', gradient: ['#FF4A00', '#E04400'] },
-  { id: 'teams', name: 'Microsoft Teams', category: 'Communication', desc: 'Collaborate with your team and get notifications in Microsoft Teams.', status: 'COMING SOON', icon: 'account-group-outline', buttonLabel: 'Request Access', gradient: ['#5B5FC7', '#4B4FB5'] },
+  { id: 'teams', name: 'Microsoft Teams', category: 'Communication', desc: 'Collaborate with your team and get notifications in Microsoft Teams.', status: 'AVAILABLE', icon: 'account-group-outline', buttonLabel: 'Connect Now', gradient: ['#5B5FC7', '#4B4FB5'] },
 ];
 
 export default function IntegrationsScreen() {
   const { colors } = useAppTheme();
+  const { accessToken } = useAuth();
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ success?: string; error?: string }>();
+
+  // ── Integrations list state ──
   const [integrations, setIntegrations] = useState<Integration[]>(INITIAL_INTEGRATIONS);
   const [requestModalVisible, setRequestModalVisible] = useState(false);
-  const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [comingSoonModalVisible, setComingSoonModalVisible] = useState(false);
+  const [comingSoonIntegration, setComingSoonIntegration] = useState<Integration | null>(null);
+
+  // ── HubSpot-specific state ──
+  const [hubspotLoading, setHubspotLoading] = useState(false);
+  const [hubspotStatus, setHubspotStatus] = useState<HubSpotStatusResponse | null>(null);
+  const [hubspotModalVisible, setHubspotModalVisible] = useState(false);
+  const [syncPush, setSyncPush] = useState(false);
+  const [syncPull, setSyncPull] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // ── CRM Meta for default group/tag pickers ──
+  const [groups, setGroups] = useState<{ id: number; name: string }[]>([]);
+  const [tags, setTags] = useState<{ id: number; name: string; tag_color: string }[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [selectedTagId, setSelectedTagId] = useState<number | null>(null);
+  const [groupPickerOpen, setGroupPickerOpen] = useState(false);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
 
   const connectedCount = integrations.filter(i => i.status === 'CONNECTED').length;
   const availableCount = integrations.filter(i => i.status === 'AVAILABLE').length;
 
-  const handleConnect = (id: string, name: string) => {
-    setConnectingId(id);
-    setTimeout(() => {
-      setIntegrations(prev => prev.map(int =>
-        int.id === id
-          ? { ...int, status: 'CONNECTED' as const, buttonLabel: 'Manage' }
-          : int
-      ));
-      setConnectingId(null);
-      Alert.alert('Success', `${name} has been connected successfully.`);
-    }, 2000);
+  // ── Fetch HubSpot status on mount ──
+  const fetchHubSpotStatus = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const status = await getHubSpotStatus(accessToken);
+      setHubspotStatus(status);
+      setSyncPush(status.sync_push);
+      setSyncPull(status.sync_pull);
+      setSelectedGroupId(status.settings?.default_group_id ?? null);
+      setSelectedTagId(status.settings?.default_tag_id ?? null);
+
+      // Update HubSpot card status in list
+      if (status.connected) {
+        setIntegrations(prev => prev.map(i =>
+          i.id === 'hubspot'
+            ? { ...i, status: 'CONNECTED' as const, buttonLabel: 'Manage' }
+            : i
+        ));
+      }
+    } catch {
+      // Silently fail — card stays as AVAILABLE
+    }
+  }, [accessToken]);
+
+  const fetchMeta = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const meta = await getCRMMeta(accessToken);
+      setGroups(meta.groups || []);
+      setTags(meta.tags || []);
+    } catch {
+      // Silently fail
+    }
+  }, [accessToken]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchHubSpotStatus(),
+        fetchMeta(),
+      ]);
+    } catch {
+      // Silently fail
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchHubSpotStatus, fetchMeta]);
+
+  useEffect(() => {
+    fetchHubSpotStatus();
+    fetchMeta();
+  }, [fetchHubSpotStatus, fetchMeta]);
+
+  // ── Handle incoming deep link redirect parameters ──
+  useEffect(() => {
+    if (params.success === 'hubspot_connected') {
+      fetchHubSpotStatus();
+      // Clear route query parameters so the alert doesn't re-trigger on subsequent updates
+      router.setParams({ success: undefined });
+      Alert.alert('Integration Successful', 'Your HubSpot account has been successfully connected!');
+    } else if (params.error === 'auth_failed') {
+      router.setParams({ error: undefined });
+      Alert.alert('Integration Failed', 'Failed to connect HubSpot. Please try again.');
+    }
+  }, [params.success, params.error, fetchHubSpotStatus, router]);
+
+  // ── HubSpot OAuth Connect ──
+  const handleHubSpotConnect = async () => {
+    if (!accessToken) return;
+    setHubspotLoading(true);
+
+    let pollingInterval: any = null;
+    let browserClosed = false;
+
+    try {
+      const res = await getHubSpotAuthUrl(accessToken);
+      if (res.url) {
+        // Start polling the HubSpot status in the background
+        pollingInterval = setInterval(async () => {
+          try {
+            const status = await getHubSpotStatus(accessToken);
+            if (status.connected && !browserClosed) {
+              // 1. Clear interval immediately to avoid duplicate triggers
+              if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+              }
+              // 2. Programmatically close the in-app browser
+              await dismissBrowser();
+              // 3. Refresh connection status inside the app
+              await fetchHubSpotStatus();
+              Alert.alert('Integration Successful', 'Your HubSpot account has been successfully connected!');
+            }
+          } catch {
+            // Silently swallow polling fetch errors
+          }
+        }, 2000);
+
+        // Open standard in-app browser
+        await openBrowserAsync(res.url);
+        browserClosed = true;
+
+        // Clean up interval if browser is manually closed by the user
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+        }
+
+        // Instantly refresh the status as a fallback
+        await fetchHubSpotStatus();
+      }
+    } catch (err: any) {
+      Alert.alert('Connection Error', err.message || 'Failed to initiate HubSpot OAuth.');
+    } finally {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+      setHubspotLoading(false);
+    }
   };
+
+  // ── HubSpot Manual Sync ──
+  const handleHubSpotSync = async () => {
+    if (!accessToken) return;
+    setSyncing(true);
+    try {
+      const res = await triggerHubSpotSync(accessToken);
+      Alert.alert('Sync Complete', `Successfully synced ${res.count} contact(s) from HubSpot.`);
+    } catch (err: any) {
+      Alert.alert('Sync Failed', err.message || 'Failed to sync contacts.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // ── HubSpot Toggle Push Sync (Immediate Save) ──
+  const handleTogglePush = async (newValue: boolean) => {
+    if (!accessToken) return;
+    const prevValue = syncPush;
+    setSyncPush(newValue);
+    try {
+      await updateHubSpotSettings(accessToken, {
+        sync_push: newValue,
+        sync_pull: syncPull,
+        settings: {
+          default_group_id: selectedGroupId,
+          default_tag_id: selectedTagId,
+        },
+      });
+      await fetchHubSpotStatus();
+    } catch (err: any) {
+      setSyncPush(prevValue);
+      Alert.alert('Error', err.message || 'Failed to update push settings.');
+    }
+  };
+
+  // ── HubSpot Toggle Pull Sync (Immediate Save) ──
+  const handleTogglePull = async (newValue: boolean) => {
+    if (!accessToken) return;
+    const prevValue = syncPull;
+    setSyncPull(newValue);
+    try {
+      await updateHubSpotSettings(accessToken, {
+        sync_push: syncPush,
+        sync_pull: newValue,
+        settings: {
+          default_group_id: selectedGroupId,
+          default_tag_id: selectedTagId,
+        },
+      });
+      await fetchHubSpotStatus();
+    } catch (err: any) {
+      setSyncPull(prevValue);
+      Alert.alert('Error', err.message || 'Failed to update pull settings.');
+    }
+  };
+
+  // ── HubSpot Select Group (Immediate Save) ──
+  const handleSelectGroup = async (groupId: number | null) => {
+    if (!accessToken) return;
+    const prevGroupId = selectedGroupId;
+    setSelectedGroupId(groupId);
+    setGroupPickerOpen(false);
+    try {
+      await updateHubSpotSettings(accessToken, {
+        sync_push: syncPush,
+        sync_pull: syncPull,
+        settings: {
+          default_group_id: groupId,
+          default_tag_id: selectedTagId,
+        },
+      });
+      await fetchHubSpotStatus();
+    } catch (err: any) {
+      setSelectedGroupId(prevGroupId);
+      Alert.alert('Error', err.message || 'Failed to update default group.');
+    }
+  };
+
+  // ── HubSpot Select Tag (Immediate Save) ──
+  const handleSelectTag = async (tagId: number | null) => {
+    if (!accessToken) return;
+    const prevTagId = selectedTagId;
+    setSelectedTagId(tagId);
+    setTagPickerOpen(false);
+    try {
+      await updateHubSpotSettings(accessToken, {
+        sync_push: syncPush,
+        sync_pull: syncPull,
+        settings: {
+          default_group_id: selectedGroupId,
+          default_tag_id: tagId,
+        },
+      });
+      await fetchHubSpotStatus();
+    } catch (err: any) {
+      setSelectedTagId(prevTagId);
+      Alert.alert('Error', err.message || 'Failed to update default tag.');
+    }
+  };
+
+  // ── HubSpot Disconnect ──
+  const handleHubSpotDisconnect = () => {
+    Alert.alert(
+      'Disconnect HubSpot',
+      'Are you sure you want to disconnect your HubSpot integration? All sync settings will be lost.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            if (!accessToken) return;
+            setDisconnecting(true);
+            try {
+              await disconnectHubSpot(accessToken);
+              setHubspotStatus(null);
+              setSyncPush(false);
+              setSyncPull(false);
+              setSelectedGroupId(null);
+              setSelectedTagId(null);
+              setIntegrations(prev => prev.map(i =>
+                i.id === 'hubspot'
+                  ? { ...i, status: 'AVAILABLE' as const, buttonLabel: 'Connect Now' }
+                  : i
+              ));
+              setHubspotModalVisible(false);
+              Alert.alert('Disconnected', 'HubSpot has been disconnected.');
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to disconnect.');
+            } finally {
+              setDisconnecting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // ── Card press handler ──
+  const handleCardAction = (int: Integration) => {
+    if (int.id === 'hubspot') {
+      if (int.status === 'CONNECTED' || hubspotStatus?.connected) {
+        setHubspotModalVisible(true);
+      } else {
+        handleHubSpotConnect();
+      }
+    } else {
+      // All other integrations → Coming Soon modal
+      setComingSoonIntegration(int);
+      setComingSoonModalVisible(true);
+    }
+  };
+
+  // ── Helper to get group/tag name by id ──
+  const getGroupName = (id: number | null) => groups.find(g => g.id === id)?.name || 'Select a default group...';
+  const getTagName = (id: number | null) => tags.find(t => t.id === id)?.name || 'Select a default tag...';
 
   return (
     <LinearGradient
@@ -85,12 +389,20 @@ export default function IntegrationsScreen() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 32 + insets.bottom }]}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.textPrimary}
+            colors={['#0a2341']}
+          />
+        }>
 
         {/* Stats Banner */}
         <View style={styles.statsBanner}>
           <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: '#0BA0B2' }]} />
+            <View style={[styles.statDot, { backgroundColor: '#0a2341' }]} />
             <Text style={styles.statValue}>{connectedCount}</Text>
             <Text style={styles.statLabel}>Connected</Text>
           </View>
@@ -111,9 +423,8 @@ export default function IntegrationsScreen() {
         {/* Integration Cards */}
         <View style={styles.cardsGrid}>
           {integrations.map((int) => {
-            const isComingSoon = int.status === 'COMING SOON';
             const isConnected = int.status === 'CONNECTED';
-            const isConnecting = connectingId === int.id;
+            const isHubSpotConnecting = int.id === 'hubspot' && hubspotLoading;
 
             return (
               <View
@@ -121,15 +432,14 @@ export default function IntegrationsScreen() {
                 style={[
                   styles.intCard,
                   isConnected && styles.intCardConnected,
-                  isComingSoon && styles.intCardComingSoon,
                 ]}
               >
                 <View style={styles.intCardHeader}>
                   <LinearGradient
-                    colors={isComingSoon ? ['#94A3B8', '#78909C'] : [...int.gradient] as [string, string]}
+                    colors={[...int.gradient] as [string, string]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={[styles.intIconWrap, isComingSoon && { opacity: 0.5 }]}
+                    style={styles.intIconWrap}
                   >
                     <MaterialCommunityIcons name={int.icon} size={22} color="#FFFFFF" />
                   </LinearGradient>
@@ -137,53 +447,64 @@ export default function IntegrationsScreen() {
                   <View style={[
                     styles.statusBadge,
                     isConnected && styles.statusBadgeConnected,
-                    isComingSoon && styles.statusBadgeComingSoon
                   ]}>
                     {isConnected && <View style={styles.connectedPulse} />}
                     <Text style={[
                       styles.statusBadgeText,
                       isConnected && styles.statusBadgeTextConnected,
-                      isComingSoon && styles.statusBadgeTextComingSoon
                     ]}>
-                      {int.status}
+                      {isConnected ? 'CONNECTED' : 'AVAILABLE'}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.intMetaGroup}>
-                  <Text style={[styles.intName, isComingSoon && { opacity: 0.5 }]} numberOfLines={1}>{int.name}</Text>
+                  <Text style={styles.intName} numberOfLines={1}>{int.name}</Text>
                   <Text style={styles.intCategory}>{int.category}</Text>
                 </View>
 
-                <Text style={[styles.intDesc, isComingSoon && { opacity: 0.45 }]} numberOfLines={2}>{int.desc}</Text>
+                <Text style={styles.intDesc} numberOfLines={2}>{int.desc}</Text>
 
-                <Pressable
-                  onPress={() => {
-                    if (int.status === 'AVAILABLE') handleConnect(int.id, int.name);
-                  }}
-                  disabled={isComingSoon || isConnecting}
-                  style={({ pressed }) => [
-                    styles.intActionBtn,
-                    isConnected && styles.intActionBtnConnected,
-                    isComingSoon && styles.intActionBtnDisabled,
-                    pressed && !isComingSoon && { opacity: 0.85, transform: [{ scale: 0.98 }] },
-                  ]}>
-                  {isConnecting ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : isConnected ? (
-                    <View style={styles.connectedBtnInner}>
-                      <MaterialCommunityIcons name="check-circle" size={15} color="#FFFFFF" />
-                      <Text style={styles.intActionBtnText}>{int.buttonLabel}</Text>
-                    </View>
-                  ) : (
-                    <Text style={[
-                      styles.intActionBtnText,
-                      isComingSoon && styles.intActionBtnTextDisabled,
+                {isConnected ? (
+                  <View style={styles.connectedRow}>
+                    <Pressable
+                      onPress={() => handleCardAction(int)}
+                      style={({ pressed }) => [
+                        styles.manageBtn,
+                        pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                      ]}>
+                      <MaterialCommunityIcons name="cog-outline" size={16} color="#FFFFFF" />
+                      <Text style={styles.intActionBtnText}>Manage</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        if (int.id === 'hubspot') {
+                          handleHubSpotDisconnect();
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        styles.disconnectBtn,
+                        pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                      ]}>
+                      <Text style={styles.intActionBtnText}>Disconnect</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => handleCardAction(int)}
+                    disabled={isHubSpotConnecting}
+                    style={({ pressed }) => [
+                      styles.intActionBtn,
+                      pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
                     ]}>
-                      {int.buttonLabel}
-                    </Text>
-                  )}
-                </Pressable>
+                    {isHubSpotConnecting ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.intActionBtnText}>{int.buttonLabel}</Text>
+                    )}
+                  </Pressable>
+                )}
               </View>
             );
           })}
@@ -200,7 +521,7 @@ export default function IntegrationsScreen() {
         onPress={() => setRequestModalVisible(true)}
       >
         <LinearGradient
-          colors={['#0BA0B2', '#1B5E9A']}
+          colors={['#0a2341', '#1B5E9A']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.fabGradient}
@@ -209,7 +530,222 @@ export default function IntegrationsScreen() {
         </LinearGradient>
       </Pressable>
 
-      {/* Request Integration Modal */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* HubSpot Management Modal                                         */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* HubSpot Management Modal 2.0                                     */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={hubspotModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setHubspotModalVisible(false)}
+      >
+        <Pressable
+          style={styles.hs2Overlay}
+          onPress={() => setHubspotModalVisible(false)}
+        >
+          <Pressable style={styles.hs2Card} onPress={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <View style={styles.hs2Header}>
+              <Text style={styles.hs2Title}>Manage HubSpot</Text>
+              <Pressable
+                style={({ pressed }) => [styles.hs2CloseBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setHubspotModalVisible(false)}
+              >
+                <MaterialCommunityIcons name="close" size={22} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={{ flexGrow: 0 }}>
+
+              {/* SECTION 1: Lead Routing Defaults */}
+              <View style={styles.hs2SectionCard}>
+                <View style={styles.hs2SectionHeader}>
+                  <View style={styles.hs2IconWrapper}>
+                    <MaterialCommunityIcons name="folder-open-outline" size={18} color="#0C2340" />
+                  </View>
+                  <View style={styles.hs2SectionTitleGroup}>
+                    <Text style={styles.hs2SectionTitleText}>Lead Routing (Defaults)</Text>
+                    <Text style={styles.hs2SectionSubtitleText}>
+                      When a new contact is pulled from HubSpot, where should Zien save them?
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Group Dropdown */}
+                <View style={styles.hs2FieldGroup}>
+                  <Text style={styles.hs2FieldLabel}>Assign to Group</Text>
+                  <Pressable
+                    style={styles.hs2CustomDropdown}
+                    onPress={() => {
+                      setGroupPickerOpen(!groupPickerOpen);
+                      setTagPickerOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.hs2DropdownText, !selectedGroupId && styles.hs2DropdownPlaceholder]}>
+                      {getGroupName(selectedGroupId)}
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={18} color="#94A3B8" />
+                  </Pressable>
+
+                  {groupPickerOpen && (
+                    <View style={styles.hs2PickerListInline}>
+                      <ScrollView nestedScrollEnabled={true}>
+                        {groups.map(g => (
+                          <Pressable
+                            key={g.id}
+                            style={[styles.hs2PickerItemInline, selectedGroupId === g.id && styles.hs2PickerItemActive]}
+                            onPress={() => handleSelectGroup(g.id)}
+                          >
+                            <Text style={[styles.hs2PickerItemTextInline, selectedGroupId === g.id && styles.hs2PickerItemTextActive]}>
+                              {g.name}
+                            </Text>
+                            {selectedGroupId === g.id && (
+                              <MaterialCommunityIcons name="check" size={16} color="#0a2341" />
+                            )}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                      {groups.length === 0 && (
+                        <Text style={styles.hs2PickerEmptyInline}>No groups found</Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+
+                {/* Tag Dropdown */}
+                <View style={styles.hs2FieldGroup}>
+                  <Text style={styles.hs2FieldLabel}>Assign to Tag</Text>
+                  <Pressable
+                    style={styles.hs2CustomDropdown}
+                    onPress={() => {
+                      setTagPickerOpen(!tagPickerOpen);
+                      setGroupPickerOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.hs2DropdownText, !selectedTagId && styles.hs2DropdownPlaceholder]}>
+                      {getTagName(selectedTagId)}
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={18} color="#94A3B8" />
+                  </Pressable>
+
+                  {tagPickerOpen && (
+                    <View style={styles.hs2PickerListInline}>
+                      <ScrollView nestedScrollEnabled={true}>
+                        {tags.map(t => (
+                          <Pressable
+                            key={t.id}
+                            style={[styles.hs2PickerItemInline, selectedTagId === t.id && styles.hs2PickerItemActive]}
+                            onPress={() => handleSelectTag(t.id)}
+                          >
+                            <View style={styles.hsTagRow}>
+                              <View style={[styles.hsTagDot, { backgroundColor: t.tag_color || '#94A3B8' }]} />
+                              <Text style={[styles.hs2PickerItemTextInline, selectedTagId === t.id && styles.hs2PickerItemTextActive]}>
+                                {t.name}
+                              </Text>
+                            </View>
+                            {selectedTagId === t.id && (
+                              <MaterialCommunityIcons name="check" size={16} color="#0a2341" />
+                            )}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                      {tags.length === 0 && (
+                        <Text style={styles.hs2PickerEmptyInline}>No tags found</Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* SECTION 2: Manual Data Sync */}
+              <View style={styles.hs2SectionCard}>
+                <View style={styles.hs2SectionHeader}>
+                  <View style={styles.hs2IconWrapper}>
+                    <MaterialCommunityIcons name="database-outline" size={18} color="#0C2340" />
+                  </View>
+                  <View style={styles.hs2SectionTitleGroup}>
+                    <Text style={styles.hs2SectionTitleText}>Manual Data Sync</Text>
+                    <Text style={styles.hs2SectionSubtitleText}>
+                      Automatic syncing is enabled, but you can manually trigger a full synchronization of older contacts right now.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.hs2SyncBtnContainer}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.hs2ForceSyncBtn,
+                      pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
+                    ]}
+                    onPress={handleHubSpotSync}
+                    disabled={syncing}
+                  >
+                    {syncing ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <MaterialCommunityIcons name="database-sync-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Text style={styles.hs2ForceSyncBtnText}>Force Sync Now</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* SECTION 3: Sync Direction Settings */}
+              <View style={styles.hs2SectionCard}>
+                <View style={styles.hs2SectionHeader}>
+                  <View style={styles.hs2IconWrapper}>
+                    <MaterialCommunityIcons name="cog-outline" size={18} color="#0C2340" />
+                  </View>
+                  <View style={styles.hs2SectionTitleGroup}>
+                    <Text style={styles.hs2SectionTitleText}>Sync Direction Settings</Text>
+                    <Text style={styles.hs2SectionSubtitleText}>
+                      Control how data flows between Zien and HubSpot automatically.
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Push Switch Item */}
+                <View style={styles.hs2SwitchRowCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.hs2SwitchTitle}>Push to HubSpot</Text>
+                    <Text style={styles.hs2SwitchSub}>Zien changes will update HubSpot</Text>
+                  </View>
+                  <Switch
+                    value={syncPush}
+                    onValueChange={handleTogglePush}
+                    trackColor={{ false: 'rgba(148,163,184,0.2)', true: '#0a2341' }}
+                    thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
+                  />
+                </View>
+
+                {/* Pull Switch Item */}
+                <View style={styles.hs2SwitchRowCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.hs2SwitchTitle}>Pull from HubSpot</Text>
+                    <Text style={styles.hs2SwitchSub}>HubSpot changes will update Zien</Text>
+                  </View>
+                  <Switch
+                    value={syncPull}
+                    onValueChange={handleTogglePull}
+                    trackColor={{ false: 'rgba(148,163,184,0.2)', true: '#0a2341' }}
+                    thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
+                  />
+                </View>
+              </View>
+
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* Request Integration Modal                                        */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
       <Modal
         visible={requestModalVisible}
         transparent={false}
@@ -296,6 +832,58 @@ export default function IntegrationsScreen() {
           </View>
         </LinearGradient>
       </Modal>
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* Coming Soon Modal                                                */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={comingSoonModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setComingSoonModalVisible(false)}
+      >
+        <Pressable
+          style={styles.csOverlay}
+          onPress={() => setComingSoonModalVisible(false)}
+        >
+          <Pressable style={styles.csCard} onPress={() => { }}>
+            {/* Gradient Icon */}
+            {comingSoonIntegration && (
+              <LinearGradient
+                colors={[...comingSoonIntegration.gradient] as [string, string]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.csIconWrap}
+              >
+                <MaterialCommunityIcons name={comingSoonIntegration.icon} size={32} color="#FFFFFF" />
+              </LinearGradient>
+            )}
+
+            {/* Title */}
+            <Text style={styles.csTitle}>{comingSoonIntegration?.name}</Text>
+            <Text style={styles.csCategory}>{comingSoonIntegration?.category}</Text>
+
+            {/* Coming Soon Badge */}
+            <View style={styles.csBadge}>
+              <MaterialCommunityIcons name="clock-outline" size={14} color="#FF7A59" />
+              <Text style={styles.csBadgeText}>Coming Soon</Text>
+            </View>
+
+            {/* Description */}
+            <Text style={styles.csDesc}>
+              We're working hard to bring {comingSoonIntegration?.name} integration to Zien. Stay tuned for updates!
+            </Text>
+
+            {/* Close Button */}
+            <Pressable
+              style={({ pressed }) => [styles.csCloseBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+              onPress={() => setComingSoonModalVisible(false)}
+            >
+              <Text style={styles.csCloseBtnText}>Got it</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -373,13 +961,10 @@ function getStyles(colors: any) {
     },
     intCardConnected: {
       borderColor: 'rgba(11, 160, 178, 0.25)',
-      shadowColor: '#0BA0B2',
+      shadowColor: '#0a2341',
       shadowOpacity: 0.08,
     },
-    intCardComingSoon: {
-      borderColor: colors.cardBorder,
-      opacity: 0.85,
-    },
+
     intCardHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -410,14 +995,12 @@ function getStyles(colors: any) {
     statusBadgeConnected: {
       backgroundColor: 'rgba(11, 160, 178, 0.1)',
     },
-    statusBadgeComingSoon: {
-      backgroundColor: 'rgba(148, 163, 184, 0.06)',
-    },
+
     connectedPulse: {
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: '#0BA0B2',
+      backgroundColor: '#0a2341',
     },
     statusBadgeText: {
       fontSize: 8,
@@ -425,8 +1008,8 @@ function getStyles(colors: any) {
       color: colors.textSecondary,
       letterSpacing: 0.6,
     },
-    statusBadgeTextConnected: { color: '#0BA0B2' },
-    statusBadgeTextComingSoon: { color: colors.inputPlaceholder },
+    statusBadgeTextConnected: { color: '#0a2341' },
+
     intMetaGroup: {
       marginBottom: 8,
     },
@@ -460,15 +1043,36 @@ function getStyles(colors: any) {
       justifyContent: 'center',
     },
     intActionBtnConnected: {
-      backgroundColor: '#0BA0B2',
-    },
-    intActionBtnDisabled: {
-      backgroundColor: 'rgba(148, 163, 184, 0.12)',
+      backgroundColor: '#0a2341',
     },
     connectedBtnInner: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
+    },
+    connectedRow: {
+      flexDirection: 'row',
+      gap: 12,
+      width: '100%',
+    },
+    manageBtn: {
+      flex: 1,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: '#0C2340', // Deep brand navy
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    disconnectBtn: {
+      flex: 1,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: '#EF4444', // Premium alert red
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     intActionBtnText: {
       fontSize: 12,
@@ -476,7 +1080,6 @@ function getStyles(colors: any) {
       color: '#FFFFFF',
       letterSpacing: 0.2,
     },
-    intActionBtnTextDisabled: { color: colors.inputPlaceholder },
 
     // ── FAB ──
     fab: {
@@ -485,7 +1088,7 @@ function getStyles(colors: any) {
       width: 58,
       height: 58,
       borderRadius: 29,
-      shadowColor: '#0BA0B2',
+      shadowColor: '#0a2341',
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.35,
       shadowRadius: 14,
@@ -499,7 +1102,7 @@ function getStyles(colors: any) {
       justifyContent: 'center',
     },
 
-    // ── Modal ──
+    // ── Modal Shared ──
     modalContent: {
       flex: 1,
       padding: 24,
@@ -601,6 +1204,494 @@ function getStyles(colors: any) {
       elevation: 4,
     },
     submitActionBtnText: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+
+    // ── HubSpot Modal Styles ──
+    hubspotTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 4,
+    },
+    hubspotTitleIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    hsStatusCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 18,
+      padding: 18,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      marginBottom: 24,
+    },
+    hsStatusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    hsStatusDotWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 14,
+    },
+    hsStatusDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+    },
+    hsStatusTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    hsStatusSub: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    hsStatusBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    hsStatusBadgeActive: {
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    },
+    hsStatusBadgeInactive: {
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    },
+    hsStatusBadgeText: {
+      fontSize: 9,
+      fontWeight: '900',
+      letterSpacing: 0.8,
+    },
+
+    // ── Settings ──
+    hsSectionTitle: {
+      fontSize: 10,
+      fontWeight: '900',
+      color: colors.textSecondary,
+      letterSpacing: 1.2,
+      marginBottom: 12,
+    },
+    hsSettingsCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      marginBottom: 24,
+      overflow: 'hidden',
+    },
+    hsToggleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 18,
+      paddingVertical: 16,
+    },
+    hsToggleInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    hsToggleLabel: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    hsToggleDesc: {
+      fontSize: 11,
+      fontWeight: '500',
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    hsDivider: {
+      height: 1,
+      backgroundColor: colors.cardBorder,
+      marginHorizontal: 18,
+    },
+
+    // ── Pickers ──
+    hsPickerRow: {
+      paddingHorizontal: 18,
+      paddingVertical: 16,
+    },
+    hsPickerInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    hsPickerLabel: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    hsPickerValue: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.accentTeal || '#0a2341',
+      marginTop: 2,
+    },
+    hsPickerList: {
+      paddingHorizontal: 18,
+      paddingBottom: 12,
+    },
+    hsPickerItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      marginBottom: 4,
+    },
+    hsPickerItemActive: {
+      backgroundColor: 'rgba(11, 160, 178, 0.08)',
+    },
+    hsPickerItemText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    hsPickerItemTextActive: {
+      color: '#0a2341',
+      fontWeight: '700',
+    },
+    hsPickerEmpty: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingVertical: 10,
+    },
+    hsTagRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    hsTagDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+
+    // ── Sync ──
+    hsSyncBtn: {
+      height: 52,
+      borderRadius: 14,
+      backgroundColor: '#FF7A59',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#FF7A59',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      elevation: 4,
+    },
+    hsSyncBtnText: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+    hsSyncHint: {
+      fontSize: 11,
+      fontWeight: '500',
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 10,
+      marginBottom: 24,
+    },
+
+    // ── Disconnect ──
+    hsDisconnectBtn: {
+      flex: 1,
+      height: 56,
+      borderRadius: 16,
+      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.2)',
+    },
+    hsDisconnectBtnText: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: '#EF4444',
+    },
+
+    // ── HubSpot Manage Modal 2.0 Styles ──
+    hs2Overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+    },
+    hs2Card: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 24,
+      width: '100%',
+      maxHeight: '90%',
+      padding: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.15,
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    hs2Header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 20,
+      paddingHorizontal: 4,
+    },
+    hs2Title: {
+      fontSize: 20,
+      fontWeight: '900',
+      color: '#0C2340',
+      letterSpacing: -0.4,
+    },
+    hs2CloseBtn: {
+      padding: 4,
+    },
+    hs2SectionCard: {
+      backgroundColor: '#F8FAFC',
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+    },
+    hs2SectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      marginBottom: 16,
+    },
+    hs2IconWrapper: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      backgroundColor: '#E6F0FA',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    hs2SectionTitleGroup: {
+      flex: 1,
+      gap: 2,
+    },
+    hs2SectionTitleText: {
+      fontSize: 15,
+      fontWeight: '900',
+      color: '#0C2340',
+    },
+    hs2SectionSubtitleText: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: '#64748B',
+      lineHeight: 16,
+    },
+    hs2FieldGroup: {
+      marginBottom: 14,
+    },
+    hs2FieldLabel: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#0C2340',
+      marginBottom: 6,
+    },
+    hs2CustomDropdown: {
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+    },
+    hs2DropdownText: {
+      fontSize: 13.5,
+      fontWeight: '600',
+      color: '#0C2340',
+    },
+    hs2DropdownPlaceholder: {
+      color: '#94A3B8',
+    },
+    hs2PickerListInline: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      marginTop: 4,
+      padding: 6,
+      maxHeight: 180,
+    },
+    hs2PickerItemInline: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+    },
+    hs2PickerItemActive: {
+      backgroundColor: '#F1F5F9',
+    },
+    hs2PickerItemTextInline: {
+      fontSize: 13.5,
+      fontWeight: '600',
+      color: '#334155',
+    },
+    hs2PickerItemTextActive: {
+      color: '#0C2340',
+      fontWeight: '700',
+    },
+    hs2PickerEmptyInline: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: '#94A3B8',
+      textAlign: 'center',
+      paddingVertical: 12,
+    },
+    hs2SyncBtnContainer: {
+      alignItems: 'flex-start',
+      marginTop: 4,
+    },
+    hs2ForceSyncBtn: {
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: '#0a2341',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+    },
+    hs2ForceSyncBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+    hs2SwitchRowCard: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 12,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    hs2SwitchTitle: {
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: '#0C2340',
+      marginBottom: 2,
+    },
+    hs2SwitchSub: {
+      fontSize: 11.5,
+      fontWeight: '500',
+      color: '#64748B',
+    },
+
+    // ── Coming Soon Modal ──
+    csOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 32,
+    },
+    csCard: {
+      width: '100%',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 28,
+      padding: 32,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 20 },
+      shadowOpacity: 0.15,
+      shadowRadius: 30,
+      elevation: 10,
+    },
+    csIconWrap: {
+      width: 72,
+      height: 72,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    csTitle: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.4,
+      marginBottom: 4,
+    },
+    csCategory: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.inputPlaceholder,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginBottom: 18,
+    },
+    csBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(255, 122, 89, 0.1)',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 10,
+      marginBottom: 18,
+    },
+    csBadgeText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#FF7A59',
+      letterSpacing: 0.3,
+    },
+    csDesc: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 21,
+      marginBottom: 24,
+    },
+    csCloseBtn: {
+      width: '100%',
+      height: 52,
+      borderRadius: 14,
+      backgroundColor: '#0B2D3E',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    csCloseBtnText: {
       fontSize: 15,
       fontWeight: '800',
       color: '#FFFFFF',

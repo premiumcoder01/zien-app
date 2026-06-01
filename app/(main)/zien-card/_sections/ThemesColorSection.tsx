@@ -170,7 +170,7 @@ export function ThemesColorSection({
         <Text style={styles.emptySub}>
           Please create your first digital business card from the Dashboard to customize its themes and colors.
         </Text>
-        <Pressable 
+        <Pressable
           style={({ pressed }) => [styles.emptyGoBtn, pressed && { opacity: 0.9 }]}
           onPress={() => onSectionChange?.('/(main)/zien-card')}>
           <Text style={styles.emptyGoBtnText}>Go to Dashboard</Text>
@@ -325,7 +325,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 14,

@@ -1,3 +1,4 @@
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
@@ -10,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme } from '@/context/ThemeContext';
 
 const METRIC_CARDS = [
   { id: 'telemetry', icon: 'console' as const, label: 'Total Telemetry', value: '4.2k' },
@@ -60,7 +60,7 @@ export function LogsReportsView() {
           {METRIC_CARDS.map((m) => (
             <View key={m.id} style={styles.premiumMetricCard}>
               <View style={styles.premiumMetricIconWrap}>
-                <MaterialCommunityIcons name={m.icon} size={24} color="#0BA0B2" />
+                <MaterialCommunityIcons name={m.icon} size={24} color="#0a2341" />
               </View>
               <View style={styles.premiumMetricInfo}>
                 <Text style={styles.premiumMetricLabel} numberOfLines={1}>{m.label}</Text>
@@ -174,7 +174,7 @@ export function LogsReportsView() {
               <Text style={styles.formFieldLabel}>Evidence / Documentation (Optional)</Text>
               <Pressable style={styles.disclosureUploadZone}>
                 <View style={styles.uploadIconCircle}>
-                  <MaterialCommunityIcons name="cloud-upload-outline" size={32} color="#0BA0B2" />
+                  <MaterialCommunityIcons name="cloud-upload-outline" size={32} color="#0a2341" />
                 </View>
                 <Text style={styles.uploadZoneTitle}>Upload Incident Documentation</Text>
                 <Text style={styles.uploadZoneSub}>Max file size 25MB • PDF, JPG, PNG</Text>
@@ -212,7 +212,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#0BA0B2',
+    borderColor: '#0a2341',
     backgroundColor: colors.cardBackground,
   },
   exportBtnText: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },

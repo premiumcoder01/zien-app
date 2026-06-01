@@ -261,7 +261,7 @@ export function DashboardSection({
 
         {mainTab === 'mycard' && (
           <>
-            <View style={[styles.workCardTag, { backgroundColor: activeCard.card_color || '#0BA0B2' }]}>
+            <View style={[styles.workCardTag, { backgroundColor: activeCard.card_color || '#0a2341' }]}>
               <Text style={styles.workCardTagText}>{activeCard?.profile_type} card</Text>
             </View>
 
@@ -314,7 +314,7 @@ export function DashboardSection({
 
               <View style={styles.leadsBlock}>
                 <View style={styles.leadsIconWrap}>
-                  <MaterialCommunityIcons name="account-group-outline" size={22} color="#0BA0B2" />
+                  <MaterialCommunityIcons name="account-group-outline" size={22} color="#0a2341" />
                 </View>
                 <View style={styles.leadsTextWrap}>
                   <Text style={styles.leadsLabel}>TOTAL LEADS Enquiries</Text>
@@ -539,8 +539,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   tabActive: {
-    backgroundColor: '#0BA0B2',
-    shadowColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
+    shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -624,7 +624,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    backgroundColor: '#0BA0B2',
+    backgroundColor: '#0a2341',
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 16,

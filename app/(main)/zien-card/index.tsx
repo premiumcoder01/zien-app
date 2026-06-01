@@ -3,9 +3,9 @@ import { useDigitalCards } from '@/hooks/useDigitalCards';
 import { useLeadEnquiries } from '@/hooks/useLeadEnquiries';
 import { exportLeadsToCSV } from '@/utils/csvExport';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import { useState, useCallback } from 'react';
-import { ActivityIndicator, Pressable, View, StyleSheet, Text, Alert } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ZienCardNav } from './_components/ZienCardNav';
 import { ZienCardScreenShell } from './_components/ZienCardScreenShell';
 
@@ -69,7 +69,7 @@ export default function ZienCardDashboardScreen() {
   const isBasicInfo = activeSectionPath === '/(main)/zien-card/basic-information';
   const isThemes = activeSectionPath === '/(main)/zien-card/themes-color';
   const isLeads = activeSectionPath === '/(main)/zien-card/lead-enquiries';
-  
+
   const showGlobalSave = isBasicInfo || isThemes;
   const showExport = isLeads;
 
@@ -124,10 +124,10 @@ export default function ZienCardDashboardScreen() {
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.2)',
       })}>
-      <MaterialCommunityIcons 
-        name={showGlobalSave ? "content-save-outline" : "download"} 
-        size={20} 
-        color={colors.textPrimary} 
+      <MaterialCommunityIcons
+        name={showGlobalSave ? "content-save-outline" : "download"}
+        size={20}
+        color={colors.textPrimary}
       />
     </Pressable>
   ) : undefined;
@@ -154,7 +154,7 @@ export default function ZienCardDashboardScreen() {
             <Text style={styles.emptySub}>
               Please create your first digital business card from the Dashboard to configure this section.
             </Text>
-            <Pressable 
+            <Pressable
               style={({ pressed }) => [styles.emptyGoBtn, pressed && { opacity: 0.9 }]}
               onPress={() => handleSectionChange('/(main)/zien-card')}>
               <Text style={styles.emptyGoBtnText}>Go to Dashboard</Text>
@@ -216,7 +216,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     marginBottom: 24,
   },
   emptyGoBtn: {
-    backgroundColor: colors.accentTeal || '#0BA0B2',
+    backgroundColor: colors.accentTeal || '#0a2341',
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 24,

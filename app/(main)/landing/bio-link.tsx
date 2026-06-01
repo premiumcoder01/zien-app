@@ -63,9 +63,9 @@ const THEME_PREVIEW: Record<string, ThemePreviewStyle> = {
     linkBtnBg: 'rgba(255,255,255,0.75)',
     linkBtnBorder: 'rgba(255,255,255,0.95)',
     linkBtnText: '#0B2D3E',
-    linkBtnIcon: '#0BA0B2',
+    linkBtnIcon: '#0a2341',
     footerBorder: 'rgba(11,45,62,0.12)',
-    footerIcon: '#0BA0B2',
+    footerIcon: '#0a2341',
   },
   minimal: {
     useGradient: false,

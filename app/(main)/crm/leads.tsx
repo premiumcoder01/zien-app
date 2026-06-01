@@ -10,8 +10,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import PhoneInput from "react-native-phone-number-input";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ManageMetaModal } from './components/modals/ManageMetaModal';
 import { AILeadImportModal } from './components/modals/AILeadImportModal';
+import { ManageMetaModal } from './components/modals/ManageMetaModal';
 
 
 function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEditPress, isArchiving, isConverting }: {
@@ -39,7 +39,7 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
       <View style={styles.leadCardHeader}>
         <View style={styles.leadAvatar}>
           <LinearGradient
-            colors={isHot ? ['#FF6B00', '#FF8E3C'] : ['#0BA0B2', '#26C7DB']}
+            colors={isHot ? ['#FF6B00', '#FF8E3C'] : ['#0a2341', '#26C7DB']}
             style={styles.avatarCircle}
           >
             <Text style={styles.avatarLetter}>{lead.first_name.charAt(0).toUpperCase()}</Text>
@@ -103,10 +103,10 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
       </View>
 
       <View style={styles.cardActions}>
-        <View style={[styles.leftActions, !isActive && { flex: 1 }]}>
+        <View style={[styles.leftActions, (!isActive || isConverted) && { flex: 1 }]}>
           {isConverted ? (
             isActive ? (
-              <Pressable style={styles.whiteAction} onPress={onToggleArchive} disabled={isArchiving || isConverting}>
+              <Pressable style={[styles.whiteAction, { flex: 1 }]} onPress={onToggleArchive} disabled={isArchiving || isConverting}>
                 {isArchiving ? (
                   <ActivityIndicator size="small" color={colors.textPrimary} />
                 ) : (
@@ -224,7 +224,7 @@ export default function LeadsScreen() {
   const [editTag, setEditTag] = useState('Lead');
   const [editSource, setEditSource] = useState('Manual Entry');
   const [editStatus, setEditStatus] = useState('Active');
-  const [editColor, setEditColor] = useState('#0BA0B2');
+  const [editColor, setEditColor] = useState('#0a2341');
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [addGroupModalVisible, setAddGroupModalVisible] = useState(false);
 
@@ -284,7 +284,7 @@ export default function LeadsScreen() {
       setEditTag(leadToEdit.tag?.name || 'Lead');
       setEditSource(leadToEdit.source || 'Manual Entry');
       setEditStatus(leadToEdit.status === 1 ? 'Active' : 'Inactive');
-      setEditColor(leadToEdit.tag?.tag_color || '#0BA0B2');
+      setEditColor(leadToEdit.tag?.tag_color || '#0a2341');
       setSelectedGroupId(leadToEdit.group_id);
       setSelectedTagId(leadToEdit.tag_id);
     }
@@ -583,12 +583,14 @@ export default function LeadsScreen() {
               onConvertPress={() => handleDirectConvert(lead)}
               onToggleArchive={() => toggleArchive(lead)}
               onEditPress={() => {
+                console.log(lead);
+
                 setLeadToEdit(lead);
                 setEditGroup('Buyer');
                 setEditTag('Lead');
                 setEditSource(lead.source);
                 setEditStatus(lead.status === 1 ? 'Active' : 'Inactive');
-                setEditColor('#0BA0B2');
+                setEditColor('#0a2341');
                 setIsEditModalVisible(true);
               }}
             />
@@ -748,8 +750,8 @@ export default function LeadsScreen() {
             </View>
 
 
-            <View style={[styles.convertRow, { zIndex: 11 }]}>
-              <View style={styles.convertCol}>
+            <View style={{ zIndex: 12 }}>
+              <View style={[styles.convertCol, { marginBottom: 16 }]}>
                 <Text style={styles.convertLabel}>Source</Text>
                 <Pressable
                   style={styles.convertDropdown}
@@ -761,7 +763,10 @@ export default function LeadsScreen() {
                   <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                 </Pressable>
               </View>
-              <View style={styles.convertCol}>
+            </View>
+
+            <View style={{ zIndex: 11 }}>
+              <View style={[styles.convertCol, { marginBottom: 16 }]}>
                 <Text style={styles.convertLabel}>Status</Text>
                 <Pressable
                   style={styles.convertDropdown}
@@ -864,7 +869,7 @@ export default function LeadsScreen() {
               <View style={[styles.convertCol, { marginBottom: 32 }]}>
                 <Text style={styles.convertLabel}>Tag Color Theme</Text>
                 <View style={styles.tagColorRow}>
-                  {['#0BA0B2', '#FF6B00', '#0B2D3E', '#6366F1', '#10B981', '#64748B', '#E11D48', '#9333EA'].map((color) => {
+                  {['#0a2341', '#FF6B00', '#0B2D3E', '#6366F1', '#10B981', '#64748B', '#E11D48', '#9333EA'].map((color) => {
                     const isActive = editColor === color;
                     return (
                       <Pressable
@@ -935,7 +940,6 @@ export default function LeadsScreen() {
                       onPress={() => onSelectHandler(opt)}
                     >
                       <Text style={styles.pickerItemText}>{opt}</Text>
-                      <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
                     </Pressable>
                   ))
                 )}
@@ -968,7 +972,7 @@ export default function LeadsScreen() {
           setSelectedTagId(null);
           setEditSource('Manual Entry');
           setEditStatus('Active');
-          setEditColor('#0BA0B2');
+          setEditColor('#0a2341');
           setErrors({});
           setIsEditModalVisible(true);
         }}>
@@ -1005,10 +1009,10 @@ function getStyles(colors: any) {
       width: 63,
       height: 63,
       borderRadius: 31.5,
-      backgroundColor: '#0BA0B2',
+      backgroundColor: '#0a2341',
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#0BA0B2',
+      shadowColor: '#0a2341',
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.35,
       shadowRadius: 16,
@@ -1370,6 +1374,7 @@ function getStyles(colors: any) {
       alignItems: 'center',
       justifyContent: 'space-between',
       marginTop: 4,
+      gap: 10
     },
     leftActions: {
       flexDirection: 'row',
@@ -2068,7 +2073,7 @@ function getStyles(colors: any) {
     mappingBtn: {
       borderRadius: 16,
       overflow: 'hidden',
-      shadowColor: '#0BA0B2',
+      shadowColor: '#0a2341',
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.2,
       shadowRadius: 12,

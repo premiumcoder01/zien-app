@@ -145,11 +145,11 @@ export const LightTheme: ThemeVariables = {
   iconPrimary: '#2A3C4B',
 
   // Main app / Dashboard
-  accentTeal: '#0BA0B2',
+  accentTeal: '#0a2341',
   accentBlue: '#1B5E9A',
   accentDark: '#0B2D3E',
   accentGreen: '#16A34A',
-  statAccents: ['#0BA0B2', '#1B5E9A', '#0B2D3E', '#16A34A'],
+  statAccents: ['#0a2341', '#1B5E9A', '#0B2D3E', '#16A34A'],
   cardBorder: '#E4EAF2',
   cardBackgroundSemi: 'rgba(255, 255, 255, 0.92)',
   surfaceSoft: '#F7FAFE',
@@ -231,11 +231,11 @@ export const DarkThemeColors: ThemeVariables = {
   iconPrimary: '#ECF2F8',
 
   // Main app / Dashboard
-  accentTeal: '#0BA0B2',
+  accentTeal: '#0a2341',
   accentBlue: '#1B5E9A',
   accentDark: '#F0F5F9',
   accentGreen: '#16A34A',
-  statAccents: ['#0BA0B2', '#1B5E9A', '#F0F5F9', '#16A34A'],
+  statAccents: ['#0a2341', '#1B5E9A', '#F0F5F9', '#16A34A'],
   cardBorder: '#273646',
   cardBackgroundSemi: 'rgba(26, 36, 47, 0.92)',
   surfaceSoft: '#151D26',
@@ -245,7 +245,7 @@ export const DarkThemeColors: ThemeVariables = {
   badgeHotBg: 'rgba(220, 38, 38, 0.15)',
   badgeHotBorder: '#DC2626',
   badgeNewBg: 'rgba(11, 160, 178, 0.15)',
-  badgeNewBorder: '#0BA0B2',
+  badgeNewBorder: '#0a2341',
   badgeMutedBg: '#2A384A',
   badgeMutedBorder: '#273646',
   textHot: '#FF4545',

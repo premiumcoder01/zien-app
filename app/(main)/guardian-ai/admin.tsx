@@ -1,3 +1,4 @@
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
@@ -10,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme } from '@/context/ThemeContext';
 
 const STAT_CARDS = [
   {
@@ -390,7 +390,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 20,
     marginLeft: 12,
   },
-  roleTagText: { fontSize: 11, fontWeight: '800', color: '#0BA0B2' },
+  roleTagText: { fontSize: 11, fontWeight: '800', color: '#0a2341' },
 
   rightCol: { flex: 1, minWidth: 280, gap: 16 },
   apiCard: {
@@ -420,7 +420,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     gap: 10,
     marginBottom: 12,
   },
-  activeBadge: { backgroundColor: 'rgba(13, 148, 136, 0.15)',
+  activeBadge: {
+    backgroundColor: 'rgba(13, 148, 136, 0.15)',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 8,
@@ -445,7 +446,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(11, 160, 178, 0.1)',
   },
-  rotateBtnText: { fontSize: 12, fontWeight: '800', color: '#0BA0B2' },
+  rotateBtnText: { fontSize: 12, fontWeight: '800', color: '#0a2341' },
 
   governanceCard: {
     backgroundColor: '#0B2D3E',

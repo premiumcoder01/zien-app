@@ -11,6 +11,7 @@ import { DashboardLayout } from '@/components/main';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useProfile } from '@/hooks/useProfile';
+import { formatStatValue } from '@/utils/number-format';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, useRouter } from 'expo-router';
@@ -58,7 +59,7 @@ const STATS_CONFIG = [
     key: 'totalLeads',
     title: 'Total Leads',
     icon: 'account-group-outline',
-    gradient: ['#0BA0B2', '#1B5E9A'] as [string, string],
+    gradient: ['#0a2341', '#1B5E9A'] as [string, string],
     route: '/(main)/crm/leads' as Href,
   },
   {
@@ -341,9 +342,11 @@ export default function DashboardScreen() {
 
     return STATS_CONFIG.map(config => {
       const apiStat = (dashboardData.stats as any)[config.key];
+      const rawValue = apiStat?.value || '0';
+      const formattedValue = formatStatValue(rawValue, config.key === 'estRevenue');
       return {
         ...config,
-        value: apiStat?.value || '0',
+        value: formattedValue,
         meta: apiStat?.trend || '',
         metaTone: (apiStat?.trend?.includes('+') || apiStat?.trend === 'Safe') ? 'positive' : 'neutral',
       };
@@ -517,7 +520,7 @@ export default function DashboardScreen() {
 
         {/* ── Lead Velocity + Active Leads (side by side on tablet) ── */}
         <View style={[styles.twoCol, isTablet ? styles.twoColRow : styles.twoColCol]}>
-          <SectionCard title="Lead Velocity" style={{ flex: 1 }} accent="#0BA0B2">
+          <SectionCard title="Lead Velocity" style={{ flex: 1 }} accent="#0a2341">
             <View style={styles.segment}>
               <Pressable
                 onPress={() => setVelocityRange('7d')}
@@ -611,7 +614,7 @@ export default function DashboardScreen() {
                   title={u.title}
                   description={u.description}
                   time={u.time || 'Just now'}
-                  accentColor={u.accent || '#0BA0B2'}
+                  accentColor={u.accent || '#0a2341'}
                 />
               ))}
               {(!dashboardData?.latestUpdates || dashboardData.latestUpdates.length === 0) && (

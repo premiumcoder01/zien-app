@@ -33,8 +33,8 @@ const NOTIFICATIONS_BY_SECTION: { section: string; items: NotificationItem[] }[]
       {
         id: '1',
         icon: 'home-city-outline',
-        iconColor: '#0BA0B2',
-        iconBg: '#0BA0B218',
+        iconColor: '#0a2341',
+        iconBg: '#0a234118',
         title: 'AI Valuation Completed',
         body: 'Valuation report for 124 Ocean Drive is ready. 15% increase in estimated value.',
         time: '2 hours ago',
@@ -73,8 +73,8 @@ const NOTIFICATIONS_BY_SECTION: { section: string; items: NotificationItem[] }[]
       {
         id: '5',
         icon: 'account-group-outline',
-        iconColor: '#0BA0B2',
-        iconBg: '#0BA0B218',
+        iconColor: '#0a2341',
+        iconBg: '#0a234118',
         title: 'New Leads Acquired',
         body: '3 new leads were captured via your Digital Card NFC tap.',
         time: 'Yesterday at 2:15 PM',
@@ -89,8 +89,8 @@ const NOTIFICATIONS_BY_SECTION: { section: string; items: NotificationItem[] }[]
       {
         id: '6',
         icon: 'home-city-outline',
-        iconColor: '#0BA0B2',
-        iconBg: '#0BA0B218',
+        iconColor: '#0a2341',
+        iconBg: '#0a234118',
         title: 'Property Status Changed',
         body: '45 Lakeview Dr has been moved from Active to Pending based on MLS data sync.',
         time: 'Feb 3, 2026',
