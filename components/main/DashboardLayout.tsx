@@ -1,4 +1,5 @@
 import { useAppTheme } from '@/context/ThemeContext';
+import { useMyMenus } from '@/hooks/useMyMenus';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { Href } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
@@ -42,6 +43,12 @@ export function DashboardLayout({
   const insets = useSafeAreaInsets();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const drawerTranslateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+
+  // Fetch dynamic menu items from the API hook
+  const { data: dynamicMenuItems, isLoading: isMenusLoading } = useMyMenus();
+
+  // If agency page, keep agency menu items. Otherwise, use dynamic menus (fall back to empty list while loading/error)
+  const finalMenuItems = isAgency ? menuItems : (dynamicMenuItems || []);
 
   const openMenu = useMemo(
     () => () => {
@@ -102,12 +109,13 @@ export function DashboardLayout({
         width={DRAWER_WIDTH}
         paddingTop={insets.top + 18}
         paddingBottom={insets.bottom}
-        menuItems={menuItems}
+        menuItems={finalMenuItems}
         onClose={closeMenu}
         onItemPress={handleMenuPress}
         customLogo={customLogo}
         customBackground={customBackground}
         backToMainRoute={backToMainRoute}
+        isLoading={!isAgency && isMenusLoading}
       />
     </View>
   );

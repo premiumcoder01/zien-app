@@ -481,7 +481,7 @@ export default function CRM_AutomationsScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.floatingAiGradient}
             >
-              <MaterialCommunityIcons name="robot-outline" size={20} color="#FFFFFF" />
+              <MaterialCommunityIcons name="creation" size={18} color="#FFFFFF" />
               <Text style={styles.floatingAiText}>AI Rule</Text>
             </LinearGradient>
           </Pressable>
@@ -1514,8 +1514,8 @@ function getStyles(colors: any, theme?: string) {
     },
     floatingAiBtn: {
       flex: 1,
-      height: 54,
-      borderRadius: 18,
+      height: 48,
+      borderRadius: 10,
       overflow: 'hidden',
       shadowColor: '#0a2341',
       shadowOffset: { width: 0, height: 8 },
@@ -1530,18 +1530,18 @@ function getStyles(colors: any, theme?: string) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
+      gap: 6,
     },
     floatingAiText: {
       color: '#FFFFFF',
-      fontSize: 14,
+      fontSize: 12.5,
       fontWeight: '900',
       letterSpacing: 0.5,
     },
     floatingCreateBtn: {
       flex: 1,
-      height: 54,
-      borderRadius: 18,
+      height: 48,
+      borderRadius: 10,
       overflow: 'hidden',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 8 },
@@ -1556,11 +1556,11 @@ function getStyles(colors: any, theme?: string) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
+      gap: 6,
     },
     floatingCreateText: {
       color: '#FFFFFF',
-      fontSize: 14,
+      fontSize: 12.5,
       fontWeight: '900',
       letterSpacing: 0.5,
     },
@@ -1571,10 +1571,10 @@ function getStyles(colors: any, theme?: string) {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.cardBackground,
-      borderRadius: 18,
-      paddingHorizontal: 18,
-      height: 54,
-      borderWidth: 1.5,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      height: 48,
+      borderWidth: 1,
       borderColor: colors.cardBorder,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
@@ -1584,8 +1584,8 @@ function getStyles(colors: any, theme?: string) {
     },
     searchInput: {
       flex: 1,
-      marginLeft: 10,
-      fontSize: 15,
+      marginLeft: 8,
+      fontSize: 13,
       fontWeight: '600',
       color: colors.textPrimary,
     },

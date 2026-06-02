@@ -172,7 +172,7 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
 
 export default function LeadsScreen() {
   const { colors, theme } = useAppTheme();
-  const styles = getStyles(colors);
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { accessToken } = useAuth();
@@ -492,11 +492,11 @@ export default function LeadsScreen() {
         {/* Actions */}
         <View style={styles.topActions}>
           <Pressable style={styles.actionBtn} onPress={() => setImportModalVisible(true)}>
-            <MaterialCommunityIcons name="robot-outline" size={18} color={colors.textPrimary} />
+            <MaterialCommunityIcons name="folder-upload-outline" size={18} color={colors.textPrimary} />
             <Text style={styles.actionBtnText}>AI Import</Text>
           </Pressable>
           <Pressable style={styles.actionBtn} onPress={() => setAddGroupModalVisible(true)}>
-            <MaterialCommunityIcons name="cog-outline" size={18} color={colors.textPrimary} />
+            <MaterialCommunityIcons name="account-multiple-outline" size={18} color={colors.textPrimary} />
             <Text style={styles.actionBtnText}>Groups & Tags</Text>
           </Pressable>
         </View>
@@ -976,14 +976,15 @@ export default function LeadsScreen() {
           setErrors({});
           setIsEditModalVisible(true);
         }}>
-          <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+          <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+          <Text style={styles.fabText}>Add Lead</Text>
         </Pressable>
       </View>
     </LinearGradient>
   );
 }
 
-function getStyles(colors: any) {
+function getStyles(colors: any, theme?: string) {
   return StyleSheet.create({
     container: { flex: 1 },
 
@@ -997,26 +998,33 @@ function getStyles(colors: any) {
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.cardBackground,
-      paddingVertical: 12,
-      borderRadius: 14,
-      gap: 8,
+      paddingVertical: 9,
+      borderRadius: 10,
+      gap: 6,
       borderWidth: 1,
-      borderColor: colors.cardBorder,
+      borderColor: colors.cardBorder || colors.borderLight,
     },
-    actionBtnText: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+    actionBtnText: { fontSize: 12.5, fontWeight: '700', color: colors.textPrimary },
     fabContainer: { position: 'absolute', right: 20 },
     fab: {
-      width: 63,
-      height: 63,
-      borderRadius: 31.5,
-      backgroundColor: '#0a2341',
+      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#0a2341',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.35,
-      shadowRadius: 16,
-      elevation: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: theme === 'dark' ? '#00a7b5' : '#0a2341',
+      gap: 5,
+      shadowColor: theme === 'dark' ? '#00a7b5' : '#0a2341',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    fabText: {
+      color: '#FFFFFF',
+      fontSize: 12.5,
+      fontWeight: '800',
     },
 
     searchFilterRow: {

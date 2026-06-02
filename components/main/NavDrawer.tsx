@@ -5,6 +5,7 @@ import type { Href } from 'expo-router';
 import { useRouter, useSegments } from 'expo-router';
 import { memo } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Image,
   Pressable,
@@ -33,6 +34,7 @@ type NavDrawerProps = {
   customLogo?: React.ReactNode;
   customBackground?: string;
   backToMainRoute?: Href;
+  isLoading?: boolean;
 };
 
 function NavDrawerComponent({
@@ -47,6 +49,7 @@ function NavDrawerComponent({
   customLogo,
   customBackground,
   backToMainRoute,
+  isLoading,
 }: NavDrawerProps) {
   const { colors, theme } = useAppTheme();
   const styles = getStyles(colors, theme);
@@ -103,51 +106,57 @@ function NavDrawerComponent({
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
         >
-          {menuItems.map((item) => {
-            const itemRoute = (item.route as string) || '';
-            const isActive = itemRoute === currentRoute ||
-              (itemRoute.includes('(main)') && currentRoute === itemRoute.replace('/(main)', '')) ||
-              (currentRoute === '/dashboard' && itemRoute.includes('dashboard'));
+          {isLoading ? (
+            <View style={{ paddingVertical: 40, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator size="small" color={colors.accentTeal} />
+            </View>
+          ) : (
+            menuItems.map((item) => {
+              const itemRoute = (item.route as string) || '';
+              const isActive = itemRoute === currentRoute ||
+                (itemRoute.includes('(main)') && currentRoute === itemRoute.replace('/(main)', '')) ||
+                (currentRoute === '/dashboard' && itemRoute.includes('dashboard'));
 
-            return (
-              <Pressable
-                key={item.label}
-                style={({ pressed }) => [
-                  styles.item,
-                  isActive && styles.itemActive,
-                  pressed && !isActive && styles.itemPressed,
-                  item.marginTop ? { marginTop: item.marginTop } : {},
-                ]}
-                onPress={() => handlePress(item.route)}
-                disabled={!item.route}
-              >
-                {isActive && <View style={styles.activeIndicator} />}
-
-                <View style={styles.iconWrap}>
-                  <MaterialCommunityIcons
-                    name={item.icon as any}
-                    size={20}
-                    color={
-                      isActive
-                        ? (theme === 'dark' ? '#FFFFFF' : '#00a7b5')
-                        : (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary)
-                    }
-                  />
-                </View>
-
-                <Text
-                  style={[
-                    styles.itemText,
-                    isActive ? styles.itemTextActive : {},
-                    !item.route ? styles.itemTextDisabled : {},
-                    customBackground ? { color: isActive ? '#00a7b5' : 'rgba(255,255,255,0.7)' } : {},
+              return (
+                <Pressable
+                  key={item.label}
+                  style={({ pressed }) => [
+                    styles.item,
+                    isActive && styles.itemActive,
+                    pressed && !isActive && styles.itemPressed,
+                    item.marginTop ? { marginTop: item.marginTop } : {},
                   ]}
+                  onPress={() => handlePress(item.route)}
+                  disabled={!item.route}
                 >
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  {isActive && <View style={styles.activeIndicator} />}
+
+                  <View style={styles.iconWrap}>
+                    <MaterialCommunityIcons
+                      name={item.icon as any}
+                      size={20}
+                      color={
+                        isActive
+                          ? (theme === 'dark' ? '#FFFFFF' : '#00a7b5')
+                          : (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary)
+                      }
+                    />
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.itemText,
+                      isActive ? styles.itemTextActive : {},
+                      !item.route ? styles.itemTextDisabled : {},
+                      customBackground ? { color: isActive ? '#00a7b5' : 'rgba(255,255,255,0.7)' } : {},
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })
+          )}
         </ScrollView>
 
 

@@ -1,6 +1,6 @@
 import { useAppTheme } from '@/context/ThemeContext';
 import { ThemeColors } from '@/constants/theme';
-import { addCRMLead, analyzeContactsFile } from '@/services/crmService';
+import { addCRMLead, analyzeContactsFile, extractContactsWithAI, importCRMLeads } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
@@ -63,13 +63,8 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [completedStepIndex, setCompletedStepIndex] = useState(-1);
   const [parsedContacts, setParsedContacts] = useState<any[]>([]);
+  const [selectedContactIndices, setSelectedContactIndices] = useState<Record<number, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
-
-  const { mutateAsync: analyzeFile } = useMutation({
-    mutationFn: (payload: { prompt: string; systemInstruction: string; file: { mimeType: string; data: string } }) => {
-      return analyzeContactsFile(accessToken || '', payload.prompt, payload.systemInstruction, payload.file);
-    }
-  });
 
   const spinValue = useRef(new Animated.Value(0)).current;
 
@@ -104,7 +99,38 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
     setIsAnalyzing(false);
     setCompletedStepIndex(-1);
     setParsedContacts([]);
+    setSelectedContactIndices({});
     setCurrentStep('upload');
+  };
+
+  const toggleSelectAll = () => {
+    const allSelected = parsedContacts.length > 0 && parsedContacts.every((_, idx) => selectedContactIndices[idx]);
+    const nextState = !allSelected;
+    const updated: Record<number, boolean> = {};
+    parsedContacts.forEach((_, idx) => {
+      updated[idx] = nextState;
+    });
+    setSelectedContactIndices(updated);
+  };
+
+  const toggleSelectContact = (idx: number) => {
+    setSelectedContactIndices(prev => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
+  };
+
+  const removeContact = (idx: number) => {
+    const updatedContacts = parsedContacts.filter((_, i) => i !== idx);
+    setParsedContacts(updatedContacts);
+    setSelectedContactIndices(prev => {
+      const updated: Record<number, boolean> = {};
+      updatedContacts.forEach((_, i) => {
+        const oldIndex = i >= idx ? i + 1 : i;
+        updated[i] = prev[oldIndex] !== undefined ? prev[oldIndex] : true;
+      });
+      return updated;
+    });
   };
 
   const formatBytes = (bytes?: number) => {
@@ -147,6 +173,8 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
     }
   };
 
+
+
   const startAnalysis = async () => {
     if (!selectedFile) {
       Alert.alert('No File Uploaded', 'Please upload a CSV file to begin.');
@@ -161,28 +189,47 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
       setCompletedStepIndex(0);
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Read actual file contents using expo-file-system
-      const base64Content = await FileSystem.readAsStringAsync(selectedFile.uri, { encoding: FileSystem.EncodingType.Base64 });
+      // Read actual file contents using expo-file-system as UTF8 text
+      const fileText = await FileSystem.readAsStringAsync(selectedFile.uri, { encoding: FileSystem.EncodingType.UTF8 });
 
       // Step 2: Analyzing field headers & structures
       setCompletedStepIndex(1);
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Step 3: Call Zien text generation AI API to semantically parse leads
+      // Step 3: Call Zien text extraction AI API
       setCompletedStepIndex(2);
 
-      const promptPayload = `\nAnalyze the following lead list data and extract the leads.\nUser instructions/context: "${instructions || 'Extract all leads'}"\n`;
-      const systemInstructionPayload = `\nYou are an expert CRM data analyst. Analyze the provided lead list data and any user instructions, and output a valid JSON array of lead objects. \nEach lead object MUST exactly match this JSON schema:\n{\n  \"name\": string (full name),\n  \"email\": string,\n  \"phone\": string,\n  \"group\": string (categorize as \"Buyer\", \"Seller\", \"Investor\", or \"Past Client\" based on context and user instructions),\n  \"tag\": string (such as \"High Priority\", \"Review Required\", \"Lead\", \"VIP\", etc.),\n  \"tagColor\": string (hex color code suitable for the tag, e.g., \"#F37021\", \"#00A7B5\", \"#64748B\"),\n  \"confidence\": number (confidence score from 1 to 100),\n  \"source\": string (the source of the lead, e.g., \"LinkedIn\", \"Web\", \"Referral\", \"Manual\"),\n  \"attribution\": string (attribution info or event, e.g., \"Tech Summit Lead\", \"Direct Search\", \"Past Client\"),\n  \"budget\": string (budget info, e.g. \"$2M - $5M\", \"$800k - $1.2M\", \"N/A\"),\n  \"timeline\": string (timeline info, e.g. \"Active\", \"3-6 Months\", \"Immediate\")\n}\n\nReturn ONLY the raw JSON array of objects. Do not include any markdown formatting, backticks (such as \`\`\`json), or other text outside the JSON array.\n`;
+      const promptPayload = `\nAnalyze the following lead list data and extract the leads.\nUser instructions/context: "${instructions || 'None'}"\n\nLead data:\n${fileText}\n`;
+      const systemInstructionPayload = `\nYou are an expert CRM lead analyst. Analyze the provided lead list data and any user instructions, and output a valid JSON array of lead objects. \nEach lead object MUST exactly match this JSON schema:\n{\n  \"name\": string (full name),\n  \"email\": string,\n  \"source\": string (the source of the lead, e.g., \"LinkedIn\", \"Web\", \"Referral\", \"Manual\"),\n  \"status\": string (categorize as \"New\" or \"Qualified\"),\n  \"score\": number (lead intent score from 1 to 100),\n  \"tag\": string (such as \"HOT\", \"WARM\", or \"COLD\"),\n  \"confidence\": number (confidence score of analysis from 1 to 100),\n  \"date\": string (such as \"Today\", \"Yesterday\", or a short relative date)\n}\n\nReturn ONLY the raw JSON array of objects. Do not include any markdown formatting, backticks (such as \`\`\`json), or other text outside the JSON array.\n`;
 
-      const responseData = await analyzeFile({
-        prompt: promptPayload,
-        systemInstruction: systemInstructionPayload,
-        file: {
-          mimeType: selectedFile.mimeType || 'application/octet-stream',
-          data: base64Content
+      const responseData = await extractContactsWithAI(
+        accessToken || '',
+        promptPayload,
+        systemInstructionPayload
+      );
+
+      let cleanResult = '';
+      if (Array.isArray(responseData)) {
+        cleanResult = JSON.stringify(responseData);
+      } else if (responseData && typeof responseData === 'object') {
+        const anyResponse = responseData as any;
+        if (Array.isArray(anyResponse.result)) {
+          cleanResult = JSON.stringify(anyResponse.result);
+        } else if (typeof anyResponse.result === 'string') {
+          cleanResult = anyResponse.result.trim();
+        } else if (Array.isArray(anyResponse.contacts)) {
+          cleanResult = JSON.stringify(anyResponse.contacts);
+        } else if (Array.isArray(anyResponse.leads)) {
+          cleanResult = JSON.stringify(anyResponse.leads);
+        } else {
+          const arrayKey = Object.keys(anyResponse).find(k => Array.isArray(anyResponse[k]));
+          if (arrayKey) {
+            cleanResult = JSON.stringify(anyResponse[arrayKey]);
+          } else {
+            throw new Error('AI returned an unparseable response.');
+          }
         }
-      });
-      let cleanResult = responseData.result || '';
+      }
 
       // Clean up markdown markers if present
       cleanResult = cleanResult.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
@@ -193,6 +240,11 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
       }
 
       setParsedContacts(leads);
+      const initialSelection: Record<number, boolean> = {};
+      leads.forEach((_, idx) => {
+        initialSelection[idx] = true;
+      });
+      setSelectedContactIndices(initialSelection);
 
       // Step 4: Applying matching tags and groups
       setCompletedStepIndex(3);
@@ -217,65 +269,76 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
   const confirmAndImport = async () => {
     setIsSaving(true);
     try {
-      // Find database groups/tags
       const defaultGroup = metaData?.groups?.[0]?.id || 1;
-      const buyerGroup = metaData?.groups?.find(g => g.name.toLowerCase().includes('buyer'))?.id || defaultGroup;
-      const sellerGroup = metaData?.groups?.find(g => g.name.toLowerCase().includes('seller'))?.id || defaultGroup;
-      const investorGroup = metaData?.groups?.find(g => g.name.toLowerCase().includes('investor'))?.id || defaultGroup;
+      const findGroupId = (aiGroupName: string) => {
+        if (!metaData?.groups) return defaultGroup;
+        const nameLower = (aiGroupName || '').toLowerCase().trim();
+        const exactMatch = metaData.groups.find(g => g.name.toLowerCase() === nameLower);
+        if (exactMatch) return exactMatch.id;
+        const subMatch = metaData.groups.find(g => nameLower.includes(g.name.toLowerCase()) || g.name.toLowerCase().includes(nameLower));
+        if (subMatch) return subMatch.id;
+        return defaultGroup;
+      };
 
       const defaultTag = metaData?.tags?.[0]?.id || 1;
-      const hotTag = metaData?.tags?.find(t => t.name.toLowerCase().includes('hot'))?.id || defaultTag;
-      const followUpTag = metaData?.tags?.find(t => t.name.toLowerCase().includes('follow'))?.id || defaultTag;
-      const vipTag = metaData?.tags?.find(t => t.name.toLowerCase().includes('vip'))?.id || defaultTag;
+      const findTagId = (aiTagName: string) => {
+        if (!metaData?.tags) return defaultTag;
+        const nameLower = (aiTagName || '').toLowerCase().trim();
+        const exactMatch = metaData.tags.find(t => t.name.toLowerCase() === nameLower);
+        if (exactMatch) return exactMatch.id;
+        const subMatch = metaData.tags.find(t => nameLower.includes(t.name.toLowerCase()) || t.name.toLowerCase().includes(nameLower));
+        if (subMatch) return subMatch.id;
+        return defaultTag;
+      };
 
-      // Ingest parsed leads sequentially
-      if (accessToken && parsedContacts.length > 0) {
-        for (const contact of parsedContacts) {
-          // Parse semantic group mapping
-          let groupId = defaultGroup;
-          const groupName = (contact.group || '').toLowerCase();
-          if (groupName.includes('buyer')) groupId = buyerGroup;
-          else if (groupName.includes('seller')) groupId = sellerGroup;
-          else if (groupName.includes('investor')) groupId = investorGroup;
+      // Prepare list of selected contacts to import
+      const leadsToImport = parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]);
+      if (leadsToImport.length === 0) {
+        Alert.alert('No Selection', 'Please select at least one lead to import.');
+        setIsSaving(false);
+        return;
+      }
 
-          // Parse semantic tag mapping
-          let tagId = defaultTag;
-          const tagName = (contact.tag || '').toLowerCase();
-          if (tagName.includes('hot') || tagName.includes('high')) tagId = hotTag;
-          else if (tagName.includes('follow') || tagName.includes('review')) tagId = followUpTag;
-          else if (tagName.includes('vip')) tagId = vipTag;
+      const importPayload = leadsToImport.map(contact => {
+        // Split name to first & last
+        let firstName = contact.name || 'Lead';
+        let lastName = '';
+        if (firstName.includes(' ')) {
+          const parts = firstName.split(' ');
+          firstName = parts[0];
+          lastName = parts.slice(1).join(' ');
+        }
 
-          // Split name to first & last
-          let firstName = contact.name || 'Lead';
-          let lastName = '';
-          if (firstName.includes(' ')) {
-            const parts = firstName.split(' ');
-            firstName = parts[0];
-            lastName = parts.slice(1).join(' ');
+        return {
+          first_name: firstName,
+          last_name: lastName || 'Lead',
+          email: contact.email || 'no-email@zien.ai',
+          phone: contact.phone || '',
+          country_code: contact.phone ? '+1' : null,
+          group_id: findGroupId(contact.group || 'Buyer'),
+          tag_id: findTagId(contact.tag || 'Lead'),
+          source: contact.source || 'AI Import',
+          status: contact.status === 'Qualified' ? 1 : 0,
+          score: contact.score || 75,
+          lead_date_label: contact.date || 'Today',
+        };
+      });
+
+      if (accessToken) {
+        try {
+          await importCRMLeads(accessToken, importPayload);
+        } catch (batchErr) {
+          console.warn('Batch leads import failed, falling back to sequential loops', batchErr);
+          for (const payload of importPayload) {
+            await addCRMLead(accessToken, payload);
           }
-
-          const payload = {
-            first_name: firstName,
-            last_name: lastName || 'Lead',
-            email: contact.email || 'no-email@zien.ai',
-            phone: contact.phone || '',
-            country_code: '+1',
-            group_id: groupId,
-            tag_id: tagId,
-            source: contact.source || 'AI Import',
-            status: '1',
-            score: contact.confidence || 75,
-            lead_date_label: 'Today',
-          };
-
-          await addCRMLead(accessToken, payload);
         }
       }
 
       setIsSaving(false);
       Alert.alert(
         'Synchronization Success',
-        `Successfully integrated all ${parsedContacts.length} leads into your Zien CRM.`,
+        `Successfully integrated all ${leadsToImport.length} leads into your Zien CRM.`,
         [
           {
             text: 'Done',
@@ -318,9 +381,9 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                     <MaterialCommunityIcons name="star-four-points" size={20} color="#FFFFFF" />
                   </LinearGradient>
                   <View style={styles.headerTexts}>
-                    <Text style={styles.title}>AI Import</Text>
+                    <Text style={styles.title}>AI Lead Import</Text>
                     <Text style={styles.subtitle}>
-                      Let AI analyze your files and automatically group leads by intent, tags, and data patterns.
+                      Let AI analyze your leads and automatically calculate heat scores and intent patterns.
                     </Text>
                   </View>
                   <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12}>
@@ -344,7 +407,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                 >
                   <View style={styles.sectionHeader}>
                     <MaterialCommunityIcons name="comment-text-outline" size={16} color={theme === 'dark' ? '#00a7b5' : colors.accentTeal} />
-                    <Text style={styles.sectionTitle}>Import Context & Instructions</Text>
+                    <Text style={styles.sectionTitle}>Lead Context & Campaign Info</Text>
                   </View>
 
                   <View style={styles.textareaContainer}>
@@ -354,7 +417,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                       numberOfLines={4}
                       value={instructions}
                       onChangeText={setInstructions}
-                      placeholder="Tell the AI how to categorize these leads... (e.g., 'Group by industry and tag VIPs')"
+                      placeholder="Describe the source of these leads... (e.g., 'From the Spring Open House, interested in luxury condos')"
                       placeholderTextColor={colors.textMuted}
                     />
 
@@ -400,9 +463,8 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                         </View>
                         <Text style={styles.uploadTitle}>Upload your lead list</Text>
                         <Text style={styles.uploadSubtitle}>
-                          Drag and drop your file here, or click to browse
+                          Drag and drop CSV or Excel files here
                         </Text>
-                        <Text style={styles.uploadFormats}>CSV files only</Text>
                       </Pressable>
                     </View>
                   ) : (
@@ -439,7 +501,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                           style={styles.initializeGradient}
                         >
                           <MaterialCommunityIcons name="star-four-points" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                          <Text style={styles.initializeBtnText}>Initialize AI Intelligence Mapping</Text>
+                          <Text style={styles.initializeBtnText}>Initialize AI Lead Scoring</Text>
                         </LinearGradient>
                       </Pressable>
                     </View>
@@ -464,7 +526,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                       <MaterialCommunityIcons name="table-large" size={20} color="#FFFFFF" />
                     </LinearGradient>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.title, { fontSize: 18 }]} numberOfLines={1}>AI Processing Table</Text>
+                      <Text style={[styles.title, { fontSize: 18 }]} numberOfLines={1}>Lead Intelligence Table</Text>
                     </View>
                   </View>
 
@@ -477,7 +539,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
 
                 {/* Subtitle rendered outside horizontal row, taking full width */}
                 <Text style={[styles.subtitle, { marginTop: 8 }]}>
-                  Review all mapped fields. AI has automatically extracted lead details, attribution, and intent.
+                  Review all mapped fields. AI has automatically calculated scores and identified high-intent leads.
                 </Text>
               </View>
 
@@ -496,15 +558,17 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                         <MaterialCommunityIcons name="robot-outline" size={16} color={theme === 'dark' ? '#00a7b5' : colors.accentTeal} />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.reviewBannerTitle}>Full Lead Field Mapping</Text>
-                        <Text style={styles.reviewBannerSub}>Previewing all data points before database synchronization.</Text>
+                        <Text style={styles.reviewBannerTitle}>Lead Intelligence Table</Text>
+                        <Text style={styles.reviewBannerSub}>Reviewing AI analyzed leads before CRM integration.</Text>
                       </View>
                     </View>
                     <View style={styles.confidenceBadgeWrap}>
-                      <Text style={styles.confidenceLabel}>AVG CONFIDENCE</Text>
+                      <Text style={styles.confidenceLabel}>AVG SCORE</Text>
                       <View style={styles.confidenceValueRow}>
-                        <Text style={styles.confidenceValue}>94.2%</Text>
-                        <View style={styles.confidenceCheckCircle}>
+                        <Text style={[styles.confidenceValue, { color: '#00a7b5' }]}>
+                          {(parsedContacts.length > 0 ? (parsedContacts.reduce((sum, c) => sum + (c.score || 50), 0) / parsedContacts.length).toFixed(1) : '80.4')}/100
+                        </Text>
+                        <View style={[styles.confidenceCheckCircle, { backgroundColor: '#00a7b5' }]}>
                           <MaterialCommunityIcons name="check-bold" size={10} color="#FFFFFF" />
                         </View>
                       </View>
@@ -513,66 +577,89 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                 </View>
 
                 {/* scrollable leads review list */}
-                <Text style={styles.contactsListHeader}>Parsed Lead Records ({parsedContacts.length})</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <Text style={styles.contactsListHeader}>Parsed Lead Records ({parsedContacts.length})</Text>
+                  
+                  <Pressable 
+                    onPress={toggleSelectAll} 
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surfaceSoft, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.borderLight }}
+                  >
+                    <MaterialCommunityIcons 
+                      name={parsedContacts.length > 0 && parsedContacts.every((_, idx) => selectedContactIndices[idx]) ? "checkbox-marked" : "checkbox-blank-outline"} 
+                      size={16} 
+                      color={colors.accentTeal} 
+                    />
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary }}>Select All</Text>
+                  </Pressable>
+                </View>
 
                 <View style={{ gap: 14 }}>
                   {parsedContacts.map((contact, idx) => (
-                    <View key={idx} style={styles.reviewCard}>
-
-                      {/* CONTACT DETAILS */}
-                      <View style={styles.reviewCardSection}>
-                        <Text style={styles.reviewCardLabel}>LEAD DETAILS</Text>
-                        <Text style={styles.reviewCardName}>{contact.name || 'Unknown'}</Text>
-                        <Text style={styles.reviewCardEmail}>{contact.email || 'no-email@zien.ai'}</Text>
-                        {contact.phone && (
-                          <Text style={styles.reviewCardPhone}>{contact.phone}</Text>
-                        )}
+                    <View key={idx} style={[styles.reviewCard, !selectedContactIndices[idx] && { opacity: 0.6 }]}>
+                      {/* Checkbox and Delete Row */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.divider, opacity: 0.8, marginBottom: 12 }}>
+                        <Pressable 
+                          onPress={() => toggleSelectContact(idx)} 
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                        >
+                          <MaterialCommunityIcons 
+                            name={selectedContactIndices[idx] ? "checkbox-marked" : "checkbox-blank-outline"} 
+                            size={20} 
+                            color={selectedContactIndices[idx] ? colors.accentTeal : colors.textMuted} 
+                          />
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textSecondary }}>
+                            {selectedContactIndices[idx] ? 'SELECTED FOR IMPORT' : 'EXCLUDED FROM IMPORT'}
+                          </Text>
+                        </Pressable>
+                        
+                        <Pressable onPress={() => removeContact(idx)} style={{ padding: 4 }}>
+                          <MaterialCommunityIcons name="trash-can-outline" size={18} color="#EF4444" />
+                        </Pressable>
                       </View>
 
-                      <View style={styles.cardSeparator} />
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+                        {/* COLUMN 1: LEAD DETAILS */}
+                        <View style={{ minWidth: 150, flex: 2 }}>
+                          <Text style={styles.reviewCardLabel}>LEAD DETAILS</Text>
+                          <Text style={styles.reviewCardName} numberOfLines={1}>{contact.name || 'Unknown'}</Text>
+                          <Text style={[styles.reviewCardEmail, { color: theme === 'dark' ? '#00a7b5' : '#0a2341' }]} numberOfLines={1}>{contact.email || 'no-email@zien.ai'}</Text>
+                        </View>
 
-                      {/* Row for Group and Source */}
-                      <View style={styles.reviewCardRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.reviewCardLabel}>INTELLIGENCE GROUP</Text>
-                          <View style={styles.groupTextBadge}>
-                            <Text style={styles.groupTextValue}>{contact.group || 'Lead'}</Text>
+                        {/* COLUMN 2: SOURCE */}
+                        <View style={{ minWidth: 80, flex: 1 }}>
+                          <Text style={styles.reviewCardLabel}>SOURCE</Text>
+                          <Text style={styles.reviewCardValueBold}>{contact.source || 'Manual'}</Text>
+                          <Text style={styles.reviewCardValueSub}>{contact.date || 'Today'}</Text>
+                        </View>
+
+                        {/* COLUMN 3: AI LEAD SCORE */}
+                        <View style={{ minWidth: 60, flex: 1, alignItems: 'center' }}>
+                          <Text style={styles.reviewCardLabel}>AI LEAD SCORE</Text>
+                          <Text style={{ fontSize: 18, fontWeight: '900', color: '#00a7b5', marginTop: 2 }}>{contact.score || 50}</Text>
+                        </View>
+
+                        {/* COLUMN 4: STATUS */}
+                        <View style={{ minWidth: 60, flex: 1, alignItems: 'center' }}>
+                          <Text style={styles.reviewCardLabel}>STATUS</Text>
+                          <View style={{ backgroundColor: contact.status === 'Qualified' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, marginTop: 4 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '900', color: contact.status === 'Qualified' ? '#10B981' : '#EF4444' }}>{(contact.status || 'New').toUpperCase()}</Text>
                           </View>
                         </View>
 
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.reviewCardLabel}>SOURCE / ATTRIBUTION</Text>
-                          <Text style={styles.reviewCardValueBold}>{contact.source || 'Web'}</Text>
-                          <Text style={styles.reviewCardValueSub}>{contact.attribution || 'Direct Submission'}</Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.cardSeparator} />
-
-                      {/* Row for Budget/Timeline and Tags */}
-                      <View style={styles.reviewCardRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.reviewCardLabel}>BUDGET / TIMELINE</Text>
-                          <Text style={styles.reviewCardValueBold}>{contact.budget || 'N/A'}</Text>
-                          <Text style={[styles.reviewCardValueBold, { color: theme === 'dark' ? '#00a7b5' : '#0a2341', marginTop: 2 }]}>
-                            {contact.timeline || 'Active'}
-                          </Text>
+                        {/* COLUMN 5: CATEGORY */}
+                        <View style={{ minWidth: 60, flex: 1, alignItems: 'center' }}>
+                          <Text style={styles.reviewCardLabel}>CATEGORY</Text>
+                          <View style={{ backgroundColor: 'rgba(100, 116, 139, 0.1)', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, marginTop: 4 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '900', color: colors.textSecondary }}>{(contact.tag || 'WARM').toUpperCase()}</Text>
+                          </View>
                         </View>
 
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.reviewCardLabel}>AI TAGS</Text>
-                          <View
-                            style={[
-                              styles.reviewTagBadge,
-                              {
-                                backgroundColor: (contact.tagColor || '#64748B') + '15',
-                                borderColor: (contact.tagColor || '#64748B') + '40',
-                              },
-                            ]}
-                          >
-                            <Text style={[styles.reviewTagText, { color: contact.tagColor || '#64748B' }]}>
-                              {(contact.tag || 'Lead').toUpperCase()}
-                            </Text>
+                        {/* COLUMN 6: CONFIDENCE */}
+                        <View style={{ minWidth: 80, flex: 1 }}>
+                          <Text style={styles.reviewCardLabel}>CONFIDENCE</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textSecondary, marginBottom: 4 }}>{contact.confidence || 95}%</Text>
+                          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.surfaceSoft, overflow: 'hidden' }}>
+                            <View style={{ height: 6, width: `${contact.confidence || 95}%` as any, backgroundColor: '#00a7b5' }} />
                           </View>
                         </View>
                       </View>
@@ -599,7 +686,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                         <>
                           <MaterialCommunityIcons name="check-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                           <Text style={styles.confirmImportBtnText}>
-                            Confirm & Import {parsedContacts.length} Leads
+                            Confirm & Import {parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length} Leads
                           </Text>
                         </>
                       )}

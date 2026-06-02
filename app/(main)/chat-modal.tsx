@@ -19,6 +19,7 @@ import {
     Modal,
     Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -72,11 +73,17 @@ const TypewriterText = memo(({
 });
 
 // ──────────────────────────────────────────────────────
-// Suggestion chips shown on empty state
+// Suggestion chips shown above text input
 // ──────────────────────────────────────────────────────
 const SUGGESTIONS = [
-    { icon: 'home-search-outline', label: 'Find listings near me' },
-    { icon: 'account-group-outline', label: 'Summarize my leads' }
+    { icon: 'map-marker-outline', label: 'Find listings near me' },
+    { icon: 'account-group-outline', label: 'Summarize my leads' },
+    { icon: 'home-search-outline', label: 'Listings in Houston' },
+    { icon: 'home-outline', label: 'Open houses this weekend' },
+    { icon: 'clipboard-list-outline', label: 'Show my activity log' },
+    { icon: 'card-account-details-outline', label: 'Zien Card details' },
+    { icon: 'shield-check-outline', label: 'Check guardian alerts' },
+    { icon: 'bell-outline', label: 'Latest notifications' },
 ];
 
 // ──────────────────────────────────────────────────────
@@ -192,12 +199,42 @@ export default function ChatModalScreen() {
         setIsListening(false);
         setIsRecordingMode(false);
         stopPulse();
-        Alert.alert('Voice Recognition Error', event.message || `An error occurred: ${event.error}`);
+
+        // If the speech recognition session was aborted (which happens when abort() is called manually on send or cancel),
+        // we do not show any error alert.
+        if (event.error === 'aborted') {
+            return;
+        }
+
+        let friendlyMessage = event.message;
+        if (event.error === 'service-not-allowed') {
+            friendlyMessage = 'Speech recognition service is not allowed or not installed on this device. Please check your system settings or test on a physical iOS/Android device.';
+        } else if (event.error === 'network') {
+            friendlyMessage = 'Network error during speech recognition. Please verify your internet connection.';
+        } else if (event.error === 'not-allowed') {
+            friendlyMessage = 'Microphone or Speech Recognition permission was denied. Please enable them in your device settings.';
+        }
+
+        Alert.alert('Voice Recognition Error', friendlyMessage || `An error occurred: ${event.error}`);
     });
 
     const startVoice = useCallback(async () => {
         setVoiceText('');
         setIsRecordingMode(true);
+
+        const isAvailable = typeof ExpoSpeechRecognitionModule.isRecognitionAvailable === 'function'
+            ? ExpoSpeechRecognitionModule.isRecognitionAvailable()
+            : true;
+
+        if (!isAvailable) {
+            Alert.alert(
+                'Speech Recognition Unavailable',
+                'Speech recognition is not available on this device. If you are running on an emulator or simulator, please test on a physical device.'
+            );
+            setIsRecordingMode(false);
+            return;
+        }
+
         const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
         if (!result.granted) {
             console.warn('Speech recognition permissions not granted');
@@ -429,21 +466,10 @@ export default function ChatModalScreen() {
                     {/* Empty state */}
                     {!hasMessages ? (
                         <Pressable style={[styles.emptyState, { flex: 1 }]} onPress={() => Keyboard.dismiss()}>
-
-
-                            {/* Suggestion chips */}
-                            <View style={styles.suggestions}>
-                                {SUGGESTIONS.map((s) => (
-                                    <Pressable
-                                        key={s.label}
-                                        style={({ pressed }) => [styles.suggestionChip, pressed && { opacity: 0.7 }]}
-                                        onPress={() => handleSubmit(s.label)}
-                                    >
-                                        <MaterialCommunityIcons name={s.icon as any} size={14} color={colors.accentTeal} />
-                                        <Text style={styles.suggestionText}>{s.label}</Text>
-                                    </Pressable>
-                                ))}
-                            </View>
+                            <Text style={styles.emptyTitle}>Ask Zien AI</Text>
+                            <Text style={styles.emptySubtitle}>
+                                Ask questions about your property listings, CRM leads, notifications, or safety logs.
+                            </Text>
                         </Pressable>
                     ) : (
                         <FlatList
@@ -456,6 +482,32 @@ export default function ChatModalScreen() {
                             keyboardDismissMode="on-drag"
                             keyboardShouldPersistTaps="handled"
                         />
+                    )}
+
+                    {/* Suggestions Row above text input */}
+                    {!hasMessages && (
+                        <View style={styles.suggestionsContainer}>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.suggestionsScrollContent}
+                                keyboardShouldPersistTaps="handled"
+                            >
+                                {SUGGESTIONS.map((s) => (
+                                    <Pressable
+                                        key={s.label}
+                                        style={({ pressed }) => [
+                                            styles.suggestionChip,
+                                            pressed && { opacity: 0.7 }
+                                        ]}
+                                        onPress={() => handleSubmit(s.label)}
+                                    >
+                                        <MaterialCommunityIcons name={s.icon as any} size={14} color={colors.accentTeal} />
+                                        <Text style={styles.suggestionText}>{s.label}</Text>
+                                    </Pressable>
+                                ))}
+                            </ScrollView>
+                        </View>
                     )}
 
                     {/* ── Input Bar ── */}
@@ -853,6 +905,16 @@ function getStyles(colors: any) {
             gap: 10,
             justifyContent: 'center',
             maxWidth: 340,
+        },
+        suggestionsContainer: {
+            paddingVertical: 10,
+            marginBottom: 4,
+        },
+        suggestionsScrollContent: {
+            paddingHorizontal: 16,
+            gap: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
         },
         suggestionChip: {
             flexDirection: 'row',

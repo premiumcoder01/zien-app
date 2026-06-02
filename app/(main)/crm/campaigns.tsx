@@ -417,7 +417,7 @@ export default function CRMCampaignsScreen() {
           style={styles.aiCampaignBtn}
           onPress={() => setAiCampaignVisible(true)}
         >
-          <MaterialCommunityIcons name="robot-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+          <MaterialCommunityIcons name="creation" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
           <Text style={styles.aiCampaignBtnText}>AI Campaign</Text>
         </Pressable>
 
@@ -492,7 +492,8 @@ export default function CRMCampaignsScreen() {
         style={[styles.fab, { bottom: 24 + insets.bottom }]}
         onPress={openNewCampaignModal}
       >
-        <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+        <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+        <Text style={styles.fabText}>New Campaign</Text>
       </Pressable>
 
       {/* ── Launch New Campaign Modal ── */}
@@ -1418,8 +1419,8 @@ function getStyles(colors: any, theme?: string) {
       flex: 1,
       flexDirection: 'row',
       backgroundColor: '#0B2D3E',
-      height: 52,
-      borderRadius: 14,
+      height: 48,
+      borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: '#0B2D3E',
@@ -1430,7 +1431,7 @@ function getStyles(colors: any, theme?: string) {
     },
     aiCampaignBtnText: {
       color: '#FFFFFF',
-      fontSize: 14,
+      fontSize: 12.5,
       fontWeight: '800',
     },
     channelFilterWrapper: {
@@ -1441,20 +1442,20 @@ function getStyles(colors: any, theme?: string) {
       alignItems: 'center',
       justifyContent: 'space-between',
       backgroundColor: colors.cardBackground,
-      height: 52,
-      paddingHorizontal: 16,
-      borderRadius: 14,
+      height: 48,
+      paddingHorizontal: 14,
+      borderRadius: 10,
       borderWidth: 1,
       borderColor: colors.cardBorder,
     },
     channelSelectorText: {
-      fontSize: 14,
+      fontSize: 12.5,
       fontWeight: '600',
       color: colors.textPrimary,
     },
     dropdownMenu: {
       position: 'absolute',
-      top: 56,
+      top: 52,
       left: 0,
       right: 0,
       backgroundColor: colors.cardBackground,
@@ -1487,34 +1488,41 @@ function getStyles(colors: any, theme?: string) {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.cardBackground,
-      height: 52,
-      paddingHorizontal: 16,
+      height: 48,
+      paddingHorizontal: 14,
       borderRadius: 14,
       borderWidth: 1,
       borderColor: colors.cardBorder,
-      gap: 10,
+      gap: 8,
     },
     searchInput: {
       flex: 1,
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: '500',
       color: colors.textPrimary,
     },
     fab: {
       position: 'absolute',
-      right: 24,
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: '#0B2D3E',
+      right: 20,
+      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: '#0B2D3E',
+      gap: 5,
       shadowColor: '#0B2D3E',
-      shadowOffset: { width: 0, height: 8 },
+      shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.3,
       shadowRadius: 12,
       elevation: 8,
       zIndex: 1000,
+    },
+    fabText: {
+      color: '#FFFFFF',
+      fontSize: 12.5,
+      fontWeight: '800',
     },
     content: {
       flex: 1,

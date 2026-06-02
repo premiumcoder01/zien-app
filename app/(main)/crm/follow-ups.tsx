@@ -40,13 +40,15 @@ function TaskCard({
   onEdit,
   onDelete,
   onReschedule,
-  onDone
+  onDone,
+  onIncomplete
 }: {
   task: CRMFollowUp,
   onEdit: () => void,
   onDelete: () => void,
   onReschedule: () => void,
-  onDone: () => void
+  onDone: () => void,
+  onIncomplete?: () => void
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
@@ -141,10 +143,13 @@ function TaskCard({
             </Pressable>
           </>
         ) : (
-          <View style={styles.completedBadge}>
-            <MaterialCommunityIcons name="check" size={16} color="#10B981" />
-            <Text style={styles.completedLabel}>Task Completed</Text>
-          </View>
+          <Pressable
+            style={({ pressed }) => [styles.completedBadge, pressed && { opacity: 0.7 }]}
+            onPress={onIncomplete}
+          >
+            <MaterialCommunityIcons name="check-circle" size={16} color="#10B981" />
+            <Text style={styles.completedLabel}>Task Completed (Undo)</Text>
+          </Pressable>
         )}
       </View>
     </View>
@@ -323,6 +328,17 @@ export default function FollowUpsScreen() {
     },
   });
 
+  const incompleteMutation = useMutation({
+    mutationFn: (id: string) => updateCRMFollowUp(accessToken!, id, { completed_at: null } as any),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm-follow-ups'] });
+      Alert.alert('Success', 'Task marked as active.');
+    },
+    onError: (error: any) => {
+      Alert.alert('Error', error.message || 'Failed to reactivate task.');
+    },
+  });
+
   const rescheduleMutation = useMutation({
     mutationFn: ({ id, due_at }: { id: string; due_at: string }) => rescheduleCRMFollowUp(accessToken!, id, due_at),
     onSuccess: () => {
@@ -404,6 +420,10 @@ export default function FollowUpsScreen() {
     doneMutation.mutate(id);
   };
 
+  const markTaskIncomplete = async (id: string) => {
+    incompleteMutation.mutate(id);
+  };
+
   const handleDeleteTask = async (id: string) => {
     deleteMutation.mutate(id);
   };
@@ -458,67 +478,70 @@ export default function FollowUpsScreen() {
         />
       </View>
 
-      <View style={styles.searchBarContainer}>
-        <View style={styles.searchInputWrapper}>
-          <MaterialCommunityIcons name="magnify" size={20} color={colors.textMuted || "#8DA4B5"} />
-          <TextInput
-            placeholder="Search by contact or subject..."
-            placeholderTextColor={colors.textMuted || "#8DA4B5"}
-            style={styles.searchInput}
-            value={search}
-            onChangeText={setSearch}
-          />
-        </View>
-      </View>
-
-      <View style={styles.filterSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll} keyboardDismissMode='on-drag' keyboardShouldPersistTaps="always">
-          <Pressable
-            style={[styles.filterBtn, groupFilter !== 'All Groups' && styles.filterBtnActive]}
-            onPress={() => setActiveDropdown('group')}
-          >
-            <Text style={[styles.filterBtnText, groupFilter !== 'All Groups' && styles.filterBtnTextActive]}>{groupFilter}</Text>
-            <MaterialCommunityIcons name="chevron-down" size={16} color={groupFilter !== 'All Groups' ? colors.textPrimary : colors.textMuted || '#64748B'} />
-          </Pressable>
-
-          <Pressable
-            style={[styles.filterBtn, tagFilter !== 'All Tags' && styles.filterBtnActive]}
-            onPress={() => setActiveDropdown('tag')}
-          >
-            <Text style={[styles.filterBtnText, tagFilter !== 'All Tags' && styles.filterBtnTextActive]}>{tagFilter}</Text>
-            <MaterialCommunityIcons name="chevron-down" size={16} color={tagFilter !== 'All Tags' ? colors.textPrimary : colors.textMuted || '#64748B'} />
-          </Pressable>
-        </ScrollView>
-      </View>
-
-      <View style={styles.tabsContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsScroll}
-        >
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab;
-            return (
-              <Pressable
-                key={tab}
-                style={[styles.tabItem, isActive && styles.tabItemActive]}
-                onPress={() => setActiveTab(tab)}>
-                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.listContainer, { paddingBottom: 100 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.accentTeal]} tintColor={colors.accentTeal} />
         }
       >
+        <View style={styles.searchBarContainer}>
+          <View style={styles.searchInputWrapper}>
+            <MaterialCommunityIcons name="magnify" size={20} color={colors.textMuted || "#8DA4B5"} />
+            <TextInput
+              placeholder="Search by contact or subject..."
+              placeholderTextColor={colors.textMuted || "#8DA4B5"}
+              style={styles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+            />
+          </View>
+        </View>
+
+        <View style={styles.filterSection}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll} keyboardDismissMode='on-drag' keyboardShouldPersistTaps="always">
+            <Pressable
+              style={[styles.filterBtn, groupFilter !== 'All Groups' && styles.filterBtnActive]}
+              onPress={() => setActiveDropdown('group')}
+            >
+              <MaterialCommunityIcons name="folder-outline" size={18} color={groupFilter !== 'All Groups' ? colors.accentTeal : colors.textSecondary} />
+              <Text style={[styles.filterBtnText, groupFilter !== 'All Groups' && styles.filterBtnTextActive]}>{groupFilter}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={16} color={groupFilter !== 'All Groups' ? colors.textPrimary : colors.textMuted || '#64748B'} />
+            </Pressable>
+
+            <Pressable
+              style={[styles.filterBtn, tagFilter !== 'All Tags' && styles.filterBtnActive]}
+              onPress={() => setActiveDropdown('tag')}
+            >
+              <MaterialCommunityIcons name="tag-outline" size={18} color={tagFilter !== 'All Tags' ? colors.accentTeal : colors.textSecondary} />
+              <Text style={[styles.filterBtnText, tagFilter !== 'All Tags' && styles.filterBtnTextActive]}>{tagFilter}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={16} color={tagFilter !== 'All Tags' ? colors.textPrimary : colors.textMuted || '#64748B'} />
+            </Pressable>
+          </ScrollView>
+        </View>
+
+        <View style={styles.tabsContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabsScroll}
+          >
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab;
+              return (
+                <Pressable
+                  key={tab}
+                  style={[styles.tabItem, isActive && styles.tabItemActive]}
+                  onPress={() => setActiveTab(tab)}>
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
         {isLoadingTasks ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 100 }}>
             <ActivityIndicator size="large" color={colors.accentTeal} />
@@ -533,6 +556,7 @@ export default function FollowUpsScreen() {
                 onEdit={() => openEditModal(t)}
                 onDelete={() => setDeletingTask(t)}
                 onDone={() => markTaskDone(t.id)}
+                onIncomplete={() => markTaskIncomplete(t.id)}
                 onReschedule={() => setRescheduleTask(t)}
               />
             ))}
@@ -550,7 +574,8 @@ export default function FollowUpsScreen() {
         style={[styles.fab, { bottom: 24 + insets.bottom }]}
         onPress={openAddModal}
       >
-        <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+        <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+        <Text style={styles.fabText}>Add Follow Up</Text>
       </Pressable>
 
       {/* Quick Filter Modal */}
@@ -1120,14 +1145,21 @@ function getStyles(colors: any) {
     container: { flex: 1, backgroundColor: colors.cardBackground },
     topTabsContainer: { marginBottom: 16 },
 
-    searchBarContainer: { paddingHorizontal: 20, marginBottom: 16 },
+    searchBarContainer: { paddingHorizontal: 0, marginBottom: 16 },
     searchInputWrapper: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.surfaceSoft,
-      height: 52,
-      borderRadius: 26,
-      paddingHorizontal: 20,
+      backgroundColor: colors.cardBackground,
+      height: 48,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
     selectionModalOverlay: {
       flex: 1,
@@ -1180,10 +1212,10 @@ function getStyles(colors: any) {
       color: colors.accentTeal,
       fontWeight: '800',
     },
-    searchInput: { flex: 1, marginLeft: 10, fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
+    searchInput: { flex: 1, marginLeft: 8, fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
 
     filterSection: { marginBottom: 16 },
-    filtersScroll: { paddingHorizontal: 20, gap: 10 },
+    filtersScroll: { paddingHorizontal: 0, gap: 10 },
     filterBtn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1215,7 +1247,7 @@ function getStyles(colors: any) {
     },
 
     tabsContainer: { marginBottom: 20 },
-    tabsScroll: { paddingHorizontal: 20, gap: 8 },
+    tabsScroll: { paddingHorizontal: 0, gap: 8 },
     tabItem: {
       paddingHorizontal: 20,
       paddingVertical: 10,
@@ -1234,18 +1266,25 @@ function getStyles(colors: any) {
     fab: {
       position: 'absolute',
       right: 20,
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: colors.accentTeal,
-      justifyContent: 'center',
+      flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: colors.accentTeal,
+      gap: 5,
       shadowColor: colors.accentTeal,
-      shadowOffset: { width: 0, height: 8 },
+      shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.3,
       shadowRadius: 12,
       elevation: 8,
       zIndex: 100,
+    },
+    fabText: {
+      color: '#FFFFFF',
+      fontSize: 12.5,
+      fontWeight: '800',
     },
 
     scroll: { flex: 1 },

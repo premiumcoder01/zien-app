@@ -30,11 +30,16 @@ export interface DashboardOverviewResponse {
   stats: DashboardStats;
   leadVelocity: number[];
   activeLeads: ActiveLead[];
-  crmSnapshot?: {
-    new: number;
-    negotiation: number;
-    closing: number;
-  };
+  crmSnapshot?:
+    | {
+        new: number;
+        negotiation: number;
+        closing: number;
+      }
+    | Array<{
+        name: string;
+        count: number;
+      }>;
   latestUpdates?: any[];
 }
 
@@ -513,4 +518,13 @@ export const getTeamPaymentMethods = async (accessToken: string): Promise<Paymen
   if (!response.ok) throw new Error('Failed to fetch payment methods');
   return response.json();
 };
+
+export const getMyMenus = async (accessToken: string): Promise<TeamMenu[]> => {
+  const response = await fetch(`${API_BASE_URL}/teams/my-menus`, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error('Failed to fetch user menus');
+  return response.json();
+};
+
 

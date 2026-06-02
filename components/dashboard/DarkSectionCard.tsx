@@ -75,7 +75,7 @@ function DarkSectionCardComponent({
         onPress={onButtonPress}
       >
         <Text style={styles.buttonText}>{buttonLabel}</Text>
-        <MaterialCommunityIcons name="arrow-right" size={16} color={colors.accentTeal} />
+        <MaterialCommunityIcons name="arrow-right" size={16} color="#0ECFDF" />
       </Pressable>
     </LinearGradient>
   );
@@ -119,7 +119,7 @@ function getStyles(colors: any) {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.accentTeal,
+    backgroundColor: '#0ECFDF',
   },
   title: {
     fontSize: 15.5,
@@ -142,7 +142,7 @@ function getStyles(colors: any) {
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: colors.accentTeal,
+    backgroundColor: '#0ECFDF',
   },
   liveText: {
     fontSize: 10,

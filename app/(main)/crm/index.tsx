@@ -114,12 +114,34 @@ export default function CRMScreen() {
   const displayStats = useMemo(() => {
     const stats = crmData?.stats;
     return [
-      { title: 'TOTAL CONTACTS', value: stats?.totalContacts?.value || '0', meta: stats?.totalContacts?.change || '0%', icon: 'account-group-outline' as const },
-      { title: 'TOTAL LEADS', value: stats?.totalLeads?.value || '0', meta: stats?.totalLeads?.change || '0', icon: 'account-outline' as const },
-      { title: 'PENDING FOLLOW-UPS', value: stats?.pendingFollowUps?.value || '0', meta: stats?.pendingFollowUps?.change || '0', icon: 'calendar-blank-outline' as const },
-      { title: 'ACTIVE DEALS', value: stats?.activeDeals?.value || '0', meta: stats?.activeDeals?.change || '0', icon: 'briefcase-outline' as const },
-      { title: 'HOT LEADS', value: stats?.hotLeads?.value || '0', meta: stats?.hotLeads?.change || '0', icon: 'fire' as const },
-      { title: 'AVG. HEAT INDEX', value: stats?.avgHeatIndex?.value || '0', meta: stats?.avgHeatIndex?.change || '0 pts', icon: 'trending-up' as const },
+      {
+        title: 'TOTAL CONTACTS',
+        value: stats?.totalContacts?.value || '0',
+        meta: stats?.totalContacts?.change || '0%',
+        icon: 'account-group-outline' as const,
+        route: '/(main)/crm/contacts' as Href
+      },
+      {
+        title: 'TOTAL LEADS',
+        value: stats?.totalLeads?.value || '0',
+        meta: stats?.totalLeads?.change || '0',
+        icon: 'account-plus-outline' as const,
+        route: '/(main)/crm/leads' as Href
+      },
+      {
+        title: 'PENDING FOLLOW-UPS',
+        value: stats?.pendingFollowUps?.value || '0',
+        meta: stats?.pendingFollowUps?.change || '0',
+        icon: 'calendar-blank-outline' as const,
+        route: '/(main)/crm/follow-ups' as Href
+      },
+      {
+        title: 'ACTIVE DEALS',
+        value: stats?.activeDeals?.value || '0',
+        meta: stats?.activeDeals?.change || '0',
+        icon: 'briefcase-outline' as const,
+        route: '/(main)/crm/deals' as Href
+      },
     ];
   }, [crmData]);
 
@@ -147,8 +169,8 @@ export default function CRMScreen() {
   const displayConversionFunnel = useMemo(() => {
     if (!crmData?.conversionRoi?.funnel) return [];
     const barColors = theme === 'dark'
-      ? ['#202E3B', '#27384A', '#2D445B', '#007A87', '#00a7b5']
-      : ['#CAD8E4', '#B8CCDC', '#9FC5D8', '#5BA8C9', '#0a2341'];
+      ? ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.08)', 'rgba(0, 167, 181, 0.15)', 'rgba(0, 167, 181, 0.3)', '#00A7B5']
+      : ['#F1F5F9', '#E2E8F0', '#E0F2FE', '#BAE6FD', '#00A7B5'];
     return crmData.conversionRoi.funnel.map((item, index) => ({
       id: `funnel-${index}`,
       label: item.level,
@@ -321,7 +343,19 @@ export default function CRMScreen() {
             <Text style={styles.sectionTitle}>Key Metrics</Text>
             <View style={styles.statsGrid}>
               {displayStats.map((card) => (
-                <View key={card.title} style={[styles.statCard, { width: statCardWidth }]}>
+                <Pressable
+                  key={card.title}
+                  style={({ pressed }) => [
+                    styles.statCard,
+                    { width: statCardWidth },
+                    pressed && { opacity: 0.7 }
+                  ]}
+                  onPress={() => {
+                    if (card.route) {
+                      router.push(card.route);
+                    }
+                  }}
+                >
                   <View style={styles.statHeader}>
                     <View style={styles.statIconWrap}>
                       <MaterialCommunityIcons name={card.icon as any} size={18} color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
@@ -334,7 +368,7 @@ export default function CRMScreen() {
                     <Text style={styles.statValue}>{card.value}</Text>
                     <Text style={styles.statTitle}>{card.title}</Text>
                   </View>
-                </View>
+                </Pressable>
               ))}
             </View>
 
@@ -423,29 +457,25 @@ export default function CRMScreen() {
               <View key={item.id} style={styles.leadSourceCardFull}>
                 <View style={styles.leadSourceMain}>
                   <View style={styles.leadSourceHeader}>
+                    <Text style={styles.leadSourceLabel}>SOURCE: {item.source}</Text>
                     <View style={[styles.leadSourceDot, { backgroundColor: item.dotColor }]} />
-                    <Text style={styles.leadSourceLabel}>{item.source}</Text>
                   </View>
                   <View style={styles.leadSourceValueContainer}>
                     <Text style={styles.leadSourceValue}>{item.leads}</Text>
-                    <Text style={styles.leadSourceMeta}>Leads</Text>
+                    <Text style={styles.leadSourceMeta}>Total Leads Captured</Text>
                   </View>
                 </View>
 
                 <View style={styles.leadSourceMetrics}>
                   <View style={styles.leadSourceMetricBox}>
-                    <Text style={styles.leadSourceLabelSmall}>CONV.</Text>
-                    <Text style={[styles.leadSourceConv, item.roiHigh && styles.leadSourceConvTeal]}>
-                      {item.convRate}
-                    </Text>
+                    <Text style={styles.leadSourceLabelSmall}>CONV. RATE</Text>
+                    <Text style={styles.leadSourceConv}>{item.convRate}</Text>
                   </View>
-                  <View style={styles.leadSourceMetricBox}>
-                    <Text style={styles.leadSourceLabelSmall}>ROI</Text>
-                    <View style={[styles.roiBadge, item.roiHigh ? styles.roiBadgeHigh : styles.roiBadgeLow]}>
-                      <Text style={[styles.leadSourceRoi, item.roiHigh && styles.leadSourceRoiGreen]}>
-                        {item.roi}
-                      </Text>
-                    </View>
+                  <View style={[styles.leadSourceMetricBox, { alignItems: 'flex-end' }]}>
+                    <Text style={styles.leadSourceLabelSmall}>EST. ROI</Text>
+                    <Text style={[styles.leadSourceRoi, item.roiHigh ? styles.leadSourceRoiGreen : styles.leadSourceRoiRed]}>
+                      {item.roi}
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -456,23 +486,33 @@ export default function CRMScreen() {
         {overviewTab === 'conversion-roi' && (
           <View style={styles.funnelCard}>
             <View style={styles.cardHeader}>
-              <Text style={styles.funnelTitle}>Lead-to-Deal Funnel</Text>
-              <MaterialCommunityIcons name="filter-outline" size={20} color="#94A3B8" />
+              <Text style={styles.funnelTitle}>Lead-to-Deal Conversion Funnel</Text>
             </View>
-            {displayConversionFunnel.map((stage, idx) => (
-              <View
-                key={stage.id}
-                style={[
-                  styles.funnelBar,
-                  { backgroundColor: stage.barColor, opacity: 1 - idx * 0.1 },
-                  idx === displayConversionFunnel.length - 1 && styles.funnelBarLast,
-                ]}>
-                <Text style={styles.funnelBarLabel}>{stage.label}</Text>
-                <View style={styles.funnelValueContainer}>
-                  <Text style={styles.funnelBarValue}>{stage.value}</Text>
+            {displayConversionFunnel.map((stage, idx) => {
+              const isLast = idx === displayConversionFunnel.length - 1;
+              const widthPct = `${100 - idx * 8}%`; // Progressive narrowing for a perfect funnel visual shape
+              return (
+                <View
+                  key={stage.id}
+                  style={[
+                    styles.funnelBar,
+                    {
+                      backgroundColor: stage.barColor,
+                      width: widthPct as any,
+                      alignSelf: 'center',
+                    },
+                    isLast && styles.funnelBarLast,
+                  ]}
+                >
+                  <Text style={[styles.funnelBarLabel, isLast && { color: '#FFFFFF' }]}>
+                    {stage.label}
+                  </Text>
+                  <Text style={[styles.funnelBarValue, isLast && { color: '#FFFFFF' }]}>
+                    {stage.value}
+                  </Text>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
@@ -829,9 +869,8 @@ function getStyles(colors: any, theme: string) {
       marginBottom: 24,
     },
     leadSourceCardFull: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: 'column',
+      alignItems: 'stretch',
       backgroundColor: colors.cardBackground,
       borderRadius: 24,
       padding: 20,
@@ -842,87 +881,80 @@ function getStyles(colors: any, theme: string) {
       elevation: 3,
       borderWidth: 1,
       borderColor: colors.cardBorder,
+      gap: 12,
     },
     leadSourceMain: {
-      flex: 1,
-      paddingRight: 16,
+      width: '100%',
     },
     leadSourceHeader: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 8,
-      marginBottom: 8,
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
     },
     leadSourceDot: {
       width: 8,
       height: 8,
       borderRadius: 4,
-      marginTop: 3,
     },
     leadSourceLabel: {
-      flex: 1,
       fontSize: 11,
       fontWeight: '800',
-      color: colors.textSecondary,
+      color: colors.inputPlaceholder,
       letterSpacing: 0.5,
       textTransform: 'uppercase',
     },
     leadSourceValueContainer: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      gap: 8,
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+      gap: 2,
+      marginBottom: 8,
     },
     leadSourceValue: {
-      fontSize: 32,
+      fontSize: 40,
       fontWeight: '900',
       color: colors.textPrimary,
       letterSpacing: -1,
     },
     leadSourceMeta: {
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: '600',
-      color: colors.inputPlaceholder,
+      color: colors.textSecondary,
     },
     leadSourceMetrics: {
       flexDirection: 'row',
-      gap: 10,
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 16,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
     },
     leadSourceMetricBox: {
       alignItems: 'flex-start',
       justifyContent: 'center',
-      backgroundColor: colors.surfaceSoft,
-      paddingVertical: 12,
-      paddingHorizontal: 14,
-      borderRadius: 16,
-      minWidth: 72,
     },
     leadSourceLabelSmall: {
-      fontSize: 10,
+      fontSize: 9,
       fontWeight: '700',
       color: colors.inputPlaceholder,
-      marginBottom: 6,
-      letterSpacing: 0.3,
+      marginBottom: 4,
+      letterSpacing: 0.5,
     },
     leadSourceConv: {
-      fontSize: 15,
+      fontSize: 16,
       fontWeight: '800',
-      color: colors.textPrimary,
+      color: theme === 'dark' ? '#00a7b5' : '#0a2341',
     },
-    leadSourceConvTeal: { color: theme === 'dark' ? '#00a7b5' : '#0a2341' },
-    roiBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
-      borderWidth: 1,
-    },
-    roiBadgeHigh: { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.2)' },
-    roiBadgeLow: { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.2)' },
     leadSourceRoi: {
-      fontSize: 13,
+      fontSize: 16,
       fontWeight: '800',
       color: '#EF4444',
     },
     leadSourceRoiGreen: { color: '#10B981' },
+    leadSourceRoiRed: { color: '#EF4444' },
     funnelCard: {
       backgroundColor: colors.cardBackground,
       borderRadius: 24,
@@ -952,8 +984,7 @@ function getStyles(colors: any, theme: string) {
     },
     funnelBarLast: {
       marginBottom: 0,
-      borderWidth: 1.5,
-      borderColor: 'rgba(11, 160, 178, 0.4)',
+      borderWidth: 0,
     },
     funnelBarLabel: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
     funnelValueContainer: {

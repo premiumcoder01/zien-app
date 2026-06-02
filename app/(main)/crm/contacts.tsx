@@ -55,9 +55,9 @@ export default function ContactsScreen() {
     enabled: !!accessToken,
   });
 
-  const [selectedGroup, setSelectedGroup] = useState('All Groups');
+  const [selectedGroup, setSelectedGroup] = useState('All groups');
   const [selectedStatus, setSelectedStatus] = useState('All status');
-  const [selectedTag, setSelectedTag] = useState('All Tags');
+  const [selectedTag, setSelectedTag] = useState('All tags');
 
   // API Contacts - Server-side Filtering
   const { data: serverContacts, isLoading: isLoadingContacts } = useQuery({
@@ -66,12 +66,12 @@ export default function ContactsScreen() {
       const filters: any = {};
       if (debouncedSearch) filters.q = debouncedSearch;
 
-      if (selectedGroup !== 'All Groups') {
+      if (selectedGroup !== 'All groups') {
         const groupObj = metaData?.groups?.find(g => g.name === selectedGroup);
         if (groupObj) filters.group_id = groupObj.id;
       }
 
-      if (selectedTag !== 'All Tags') {
+      if (selectedTag !== 'All tags') {
         const tagObj = metaData?.tags?.find(t => t.name === selectedTag);
         if (tagObj) filters.tag_id = tagObj.id;
       }
@@ -98,12 +98,12 @@ export default function ContactsScreen() {
 
   const clearFilters = () => {
     setSearch('');
-    setSelectedGroup('All Groups');
+    setSelectedGroup('All groups');
     setSelectedStatus('All status');
-    setSelectedTag('All Tags');
+    setSelectedTag('All tags');
   };
 
-  const filtersActive = search !== '' || selectedGroup !== 'All Groups' || selectedStatus !== 'All status' || selectedTag !== 'All Tags';
+  const filtersActive = search !== '' || selectedGroup !== 'All groups' || selectedStatus !== 'All status' || selectedTag !== 'All tags';
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -127,8 +127,8 @@ export default function ContactsScreen() {
     return metaData?.tags?.map(t => t.name) || [];
   }, [metaData]);
 
-  const groupOptions = ['All Groups', ...availableGroups];
-  const tagOptionsShow = ['All Tags', ...availableTags];
+  const groupOptions = ['All groups', ...availableGroups];
+  const tagOptionsShow = ['All tags', ...availableTags];
 
   const contactsList = useMemo(() => {
     return serverContacts || [];
@@ -257,49 +257,54 @@ export default function ContactsScreen() {
         {/* Actions */}
         <View style={styles.topActions}>
           <Pressable style={styles.actionBtn} onPress={() => setAiImportVisible(true)}>
-            <MaterialCommunityIcons name="robot-outline" size={18} color={colors.textPrimary} />
+            <MaterialCommunityIcons name="folder-upload-outline" size={18} color={colors.textPrimary} />
             <Text style={styles.actionBtnText}>AI Import</Text>
           </Pressable>
           <Pressable style={styles.actionBtn} onPress={() => setManageMetaVisible(true)}>
-            <MaterialCommunityIcons name="cog-outline" size={18} color={colors.textPrimary} />
-            <Text style={styles.actionBtnText}>Groups & Tags</Text>
+            <MaterialCommunityIcons name="account-multiple-outline" size={18} color={colors.textPrimary} />
+            <Text style={styles.actionBtnText}>Groups & tags</Text>
           </Pressable>
         </View>
 
         {/* Filters */}
         <View style={styles.filterSection}>
-          <View style={styles.searchContainer}>
-            <MaterialCommunityIcons name="magnify" size={20} color="#94A3B8" />
-            <TextInput
-              style={styles.searchInput}
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search leads by name or email..."
-              placeholderTextColor="#94A3B8"
-            />
-            {search !== '' && (
-              <Pressable onPress={() => setSearch('')} style={{ padding: 4 }}>
-                <MaterialCommunityIcons name="close-circle" size={18} color="#94A3B8" />
-              </Pressable>
-            )}
+          <View style={styles.searchRow}>
+            <View style={styles.searchContainer}>
+              <MaterialCommunityIcons name="magnify" size={20} color="#94A3B8" />
+              <TextInput
+                style={styles.searchInput}
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Find by name, email, or source..."
+                placeholderTextColor="#94A3B8"
+              />
+              {search !== '' && (
+                <Pressable onPress={() => setSearch('')} style={{ padding: 4 }}>
+                  <MaterialCommunityIcons name="close-circle" size={18} color="#94A3B8" />
+                </Pressable>
+              )}
+            </View>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll}>
-            <Pressable style={[styles.filterBtn, selectedGroup !== 'All Groups' && styles.filterBtnActive]} onPress={() => toggleDropdown('group')}>
-              <Text style={[styles.filterBtnText, selectedGroup !== 'All Groups' && styles.filterBtnTextActive]}>{selectedGroup}</Text>
-              <MaterialCommunityIcons name="chevron-down" size={16} color={selectedGroup !== 'All Groups' ? colors.textPrimary : '#64748B'} />
+          <View style={styles.dropdownRowThree}>
+            <Pressable style={[styles.filterBtn, selectedGroup !== 'All groups' && styles.filterBtnActive]} onPress={() => toggleDropdown('group')}>
+              <MaterialCommunityIcons name="filter-outline" size={14} color={selectedGroup !== 'All groups' ? colors.textPrimary : '#64748B'} />
+              <Text style={[styles.filterBtnText, selectedGroup !== 'All groups' && styles.filterBtnTextActive]} numberOfLines={1}>{selectedGroup}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={14} color={selectedGroup !== 'All groups' ? colors.textPrimary : '#64748B'} />
             </Pressable>
 
             <Pressable style={[styles.filterBtn, selectedStatus !== 'All status' && styles.filterBtnActive]} onPress={() => toggleDropdown('status')}>
-              <Text style={[styles.filterBtnText, selectedStatus !== 'All status' && styles.filterBtnTextActive]}>{selectedStatus}</Text>
-              <MaterialCommunityIcons name="chevron-down" size={16} color={selectedStatus !== 'All status' ? colors.textPrimary : '#64748B'} />
+              <MaterialCommunityIcons name="account-outline" size={14} color={selectedStatus !== 'All status' ? colors.textPrimary : '#64748B'} />
+              <Text style={[styles.filterBtnText, selectedStatus !== 'All status' && styles.filterBtnTextActive]} numberOfLines={1}>{selectedStatus}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={14} color={selectedStatus !== 'All status' ? colors.textPrimary : '#64748B'} />
             </Pressable>
 
-            <Pressable style={[styles.filterBtn, selectedTag !== 'All Tags' && styles.filterBtnActive]} onPress={() => toggleDropdown('tag')}>
-              <Text style={[styles.filterBtnText, selectedTag !== 'All Tags' && styles.filterBtnTextActive]}>{selectedTag}</Text>
-              <MaterialCommunityIcons name="chevron-down" size={16} color={selectedTag !== 'All Tags' ? colors.textPrimary : '#64748B'} />
+            <Pressable style={[styles.filterBtn, selectedTag !== 'All tags' && styles.filterBtnActive]} onPress={() => toggleDropdown('tag')}>
+              <MaterialCommunityIcons name="tag-outline" size={14} color={selectedTag !== 'All tags' ? colors.textPrimary : '#64748B'} />
+              <Text style={[styles.filterBtnText, selectedTag !== 'All tags' && styles.filterBtnTextActive]} numberOfLines={1}>{selectedTag}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={14} color={selectedTag !== 'All tags' ? colors.textPrimary : '#64748B'} />
             </Pressable>
-          </ScrollView>
+          </View>
           <View style={styles.resultsHeader}>
             <Text style={styles.resultsCount}>Showing <Text style={{ fontWeight: '900', color: colors.textPrimary }}>{contactsList.length}</Text> intelligent matches</Text>
             {filtersActive && (
@@ -573,7 +578,8 @@ export default function ContactsScreen() {
       {/* Dynamic Action Button */}
       <View style={[styles.fabContainer, { bottom: insets.bottom + 16 }]}>
         <Pressable style={styles.fab} onPress={openAddModal}>
-          <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+          <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+          <Text style={styles.fabText}>Add Contact</Text>
         </Pressable>
       </View>
     </LinearGradient>
@@ -591,14 +597,17 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.cardBackground,
-    paddingVertical: 12,
-    borderRadius: 14,
-    gap: 8,
+    paddingVertical: 9,
+    borderRadius: 10,
+    gap: 6,
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
-  actionBtnText: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+  actionBtnText: { fontSize: 12.5, fontWeight: '700', color: colors.textPrimary },
   filterSection: { marginBottom: 20 },
+  searchRow: {
+    marginBottom: 12,
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -606,25 +615,31 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 14,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 15, color: colors.textPrimary, fontWeight: '600' },
-  filtersScroll: { gap: 8, marginBottom: 12 },
-  filterBtn: {
+  dropdownRowThree: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  filterBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.cardBackground,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 10,
     borderRadius: 10,
     gap: 4,
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
   filterBtnActive: { borderColor: colors.accent, backgroundColor: colors.accent + '08' },
-  filterBtnText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  filterBtnText: { fontSize: 11.5, fontWeight: '700', color: colors.textSecondary },
   filterBtnTextActive: { color: colors.accent },
   resultsHeader: {
     flexDirection: 'row',
@@ -844,17 +859,24 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
   },
   fabContainer: { position: 'absolute', right: 20 },
   fab: {
-    width: 63,
-    height: 63,
-    borderRadius: 31.5,
-    backgroundColor: theme === 'dark' ? '#00a7b5' : '#0a2341',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: theme === 'dark' ? '#00a7b5' : '#0a2341',
+    gap: 5,
     shadowColor: theme === 'dark' ? '#00a7b5' : '#0a2341',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  fabText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '800',
   },
   alertBackdrop: {
     flex: 1,

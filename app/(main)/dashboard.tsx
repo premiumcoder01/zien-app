@@ -337,6 +337,31 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [refetch]);
 
+  const crmCounts = useMemo(() => {
+    const counts = { new: 0, negotiation: 0, closing: 0 };
+    if (!dashboardData?.crmSnapshot) return counts;
+
+    if (Array.isArray(dashboardData.crmSnapshot)) {
+      dashboardData.crmSnapshot.forEach((item: any) => {
+        const name = item?.name?.toLowerCase();
+        const count = Number(item?.count ?? 0);
+        if (name === 'lead' || name === 'new') {
+          counts.new = count;
+        } else if (name === 'offer' || name === 'negotiation') {
+          counts.negotiation = count;
+        } else if (name === 'closed' || name === 'closing') {
+          counts.closing = count;
+        }
+      });
+    } else if (typeof dashboardData.crmSnapshot === 'object') {
+      const snapshot = dashboardData.crmSnapshot as any;
+      counts.new = Number(snapshot.new ?? snapshot.lead ?? 0);
+      counts.negotiation = Number(snapshot.negotiation ?? snapshot.offer ?? 0);
+      counts.closing = Number(snapshot.closing ?? snapshot.closed ?? 0);
+    }
+    return counts;
+  }, [dashboardData]);
+
   const STATS = useMemo(() => {
     if (!dashboardData) return [];
 
@@ -471,7 +496,7 @@ export default function DashboardScreen() {
             Hi <Text style={styles.greetingName}>{firstName}</Text> 👋
           </Text>
           <Text style={styles.greetingSubtitle}>
-            Your pipeline is healthy. {dashboardData?.crmSnapshot?.new || 0} new leads need follow-up today.
+            Your pipeline is healthy. {crmCounts.new} new leads need follow-up today.
           </Text>
         </LinearGradient>
 
@@ -627,11 +652,11 @@ export default function DashboardScreen() {
           </SectionCard>
 
           <DarkSectionCard
-            title="CRM Snapshot"
+            title="Deals"
             items={[
-              { value: String(dashboardData?.crmSnapshot?.new || '0'), label: 'New' },
-              { value: String(dashboardData?.crmSnapshot?.negotiation || '0'), label: 'Negotiation' },
-              { value: String(dashboardData?.crmSnapshot?.closing || '0'), label: 'Closing' },
+              { value: String(crmCounts.new), label: 'Lead' },
+              { value: String(crmCounts.negotiation), label: 'Offer' },
+              { value: String(crmCounts.closing), label: 'Closed' },
             ]}
             buttonLabel="Go to Pipeline"
             onButtonPress={() => router.push('/(main)/crm/deals' as Href)}

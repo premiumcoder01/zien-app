@@ -1286,7 +1286,8 @@ export default function DealsScreen() {
           style={[styles.fab, { bottom: 24 + insets.bottom }]}
           onPress={() => setIsModalVisible(true)}
         >
-          <MaterialCommunityIcons name="plus" size={32} color="#FFFFFF" />
+          <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+          <Text style={styles.fabText}>New Deal</Text>
         </Pressable>
       </View>
     </View>
@@ -1311,11 +1312,11 @@ function getStyles(colors: any, insets: any) {
       paddingRight: 20,
     },
     pillBtn: {
-      paddingHorizontal: 20,
-      paddingVertical: 11,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
       borderRadius: 100,
       backgroundColor: colors.cardBackground,
-      borderWidth: 1.5,
+      borderWidth: 1,
       borderColor: colors.cardBorder,
     },
     pillBtnActive: {
@@ -1328,7 +1329,7 @@ function getStyles(colors: any, insets: any) {
       elevation: 6,
     },
     pillBtnText: {
-      fontSize: 13,
+      fontSize: 12.5,
       fontWeight: '700',
       color: colors.textSecondary,
     },
@@ -1348,12 +1349,12 @@ function getStyles(colors: any, insets: any) {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.cardBackground,
-      paddingHorizontal: 18,
-      paddingVertical: 11,
-      borderRadius: 14,
-      borderWidth: 1.5,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 10,
+      borderWidth: 1,
       borderColor: colors.cardBorder,
-      gap: 8,
+      gap: 6,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.04,
@@ -1361,7 +1362,7 @@ function getStyles(colors: any, insets: any) {
       elevation: 2,
     },
     filterBtnText: {
-      fontSize: 14,
+      fontSize: 12.5,
       fontWeight: '700',
       color: colors.textPrimary,
     },
@@ -2233,18 +2234,26 @@ function getStyles(colors: any, insets: any) {
     },
     fab: {
       position: 'absolute',
-      right: 24,
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: colors.accentTeal,
+      right: 20,
+      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: colors.accentTeal,
+      gap: 5,
       shadowColor: colors.accentTeal,
-      shadowOffset: { width: 0, height: 8 },
+      shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.3,
       shadowRadius: 12,
       elevation: 8,
+      zIndex: 100,
+    },
+    fabText: {
+      color: '#FFFFFF',
+      fontSize: 12.5,
+      fontWeight: '800',
     },
   });
 }
