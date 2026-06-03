@@ -1,13 +1,13 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { createCRMCampaign, CRMCampaign, deleteCRMCampaign, getCRMCampaigns, getCRMTemplates, patchCRMCampaignStatus, updateCRMCampaign } from '@/services/crmService';
+import { createCRMCampaign, CRMCampaign, deleteCRMCampaign, getCRMCampaigns, getCRMTemplates, patchCRMCampaignStatus, updateCRMCampaign, extractContactsWithAI, addCRMTemplate } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -45,6 +45,16 @@ export default function CRMCampaignsScreen() {
     queryFn: () => getCRMTemplates(accessToken || ''),
     enabled: !!accessToken
   });
+
+  const [aiGeneratedTemplate, setAiGeneratedTemplate] = useState<any | null>(null);
+
+  const extendedTemplateList = useMemo(() => {
+    const list = [...(templateList || [])];
+    if (aiGeneratedTemplate) {
+      list.unshift(aiGeneratedTemplate);
+    }
+    return list;
+  }, [templateList, aiGeneratedTemplate]);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -94,10 +104,10 @@ export default function CRMCampaignsScreen() {
     setAbTesting(true);
     setVersionA('');
     setVersionB('');
-    setVersionB('');
     setScheduledDate(new Date());
     setScheduledTime(new Date());
     setEditingCampaignId(null);
+    setAiGeneratedTemplate(null);
   };
 
   const handleEditCampaign = (campaign: Campaign) => {
@@ -153,11 +163,25 @@ export default function CRMCampaignsScreen() {
           scheduledAt = combined.toISOString();
         }
 
+        let finalTemplateId = formTemplateId;
+
+        // If the selected template is the dynamically generated AI template, create it on the server first
+        if (formTemplateId && formTemplateId.startsWith('ai-temp-') && aiGeneratedTemplate) {
+          const createdTemplate = await addCRMTemplate(accessToken || '', {
+            name: aiGeneratedTemplate.name,
+            template_type: aiGeneratedTemplate.template_type,
+            subject: versionA.trim() || aiGeneratedTemplate.subject,
+            content_json: aiGeneratedTemplate.content_json,
+            status: 1
+          });
+          finalTemplateId = createdTemplate.id;
+        }
+
         const payload = {
           name: formCampaignName,
           channel: commChannel.toLowerCase(),
           target_segment: targetSegment,
-          template_id: formTemplateId,
+          template_id: finalTemplateId,
           sending_account: sendingAccount,
           schedule_type: isNow ? 0 : 1,
           scheduled_at: scheduledAt,
@@ -203,7 +227,7 @@ export default function CRMCampaignsScreen() {
 
   // AI Campaign Form State
   const [aiCampaignVisible, setAiCampaignVisible] = useState(false);
-  const [aiSegment, setAiSegment] = useState('All Audience (Leads + Contacts)');
+  const [aiSegment, setAiSegment] = useState('All Contacts');
   const [aiTemplateId, setAiTemplateId] = useState<string | null>(null);
   const [aiDescription, setAiDescription] = useState('');
   const [aiSegmentDropdown, setAiSegmentDropdown] = useState(false);
@@ -222,28 +246,66 @@ export default function CRMCampaignsScreen() {
 
     setIsGeneratingAI(true);
     try {
-      const selectedTemplate = templateList?.find(t => t.id === aiTemplateId);
-      const channel = selectedTemplate?.template_type?.toLowerCase() || 'email';
-      const promptName = aiDescription.trim().substring(0, 30);
+      const systemInstruction = `You are a professional Real Estate Marketing Copywriter.
+The user wants to create a new marketing campaign targeting "${aiSegment}".
+Here is their instruction/prompt: "${aiDescription.trim()}".
+Based on this, generate a JSON object with exactly the following fields:
+1. "campaignName": A catchy, professional name for this campaign (max 50 chars).
+2. "subjectA": A compelling email subject line for variation A.
+3. "subjectB": A compelling email subject line for variation B (different approach than A).
+4. "emailBody": The complete HTML body of the email. Use professional styling, inline CSS, and placeholder variables like {{first_name}} where appropriate. Make it persuasive and directly related to the user's prompt.`;
 
-      const payload = {
-        name: `AI: ${promptName}...`,
-        channel: channel,
-        target_segment: aiSegment,
-        template_id: aiTemplateId,
-        schedule_type: 1,
-        status: 1,
-        ai_prompt: aiDescription.trim()
-      };
+      const aiResponse = await extractContactsWithAI(accessToken || '', aiDescription.trim(), systemInstruction);
+      
+      const rawResult = (aiResponse as any).result || '';
+      if (!rawResult) {
+        throw new Error("AI returned empty content. Please try again.");
+      }
 
-      await createCRMCampaign(accessToken || '', payload);
+      // Handle raw markdown format
+      let cleanJsonStr = rawResult.trim();
+      if (cleanJsonStr.startsWith('```')) {
+        const matches = cleanJsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (matches && matches[1]) {
+          cleanJsonStr = matches[1].trim();
+        }
+      }
+
+      const data = JSON.parse(cleanJsonStr);
+
+      const tempId = `ai-temp-${Date.now()}`;
+      setAiGeneratedTemplate({
+        id: tempId,
+        name: `[AI] ${data.campaignName}`,
+        template_type: 'email',
+        content_json: {
+          components: [
+            {
+              type: 'Text Block',
+              content: data.emailBody
+            }
+          ]
+        },
+        subject: data.subjectA,
+        status: 1
+      });
+
+      // Populate campaign form fields
+      setFormCampaignName(data.campaignName || '');
+      setCommChannel('EMAIL');
+      setTargetSegment(aiSegment);
+      setFormTemplateId(tempId);
+      setAbTesting(true);
+      setVersionA(data.subjectA || '');
+      setVersionB(data.subjectB || '');
 
       setAiCampaignVisible(false);
+      setNewCampaignVisible(true);
+
+      // Reset AI form fields
       setAiTemplateId(null);
       setAiDescription('');
-      setAiSegment('All Audience (Leads + Contacts)');
-      Alert.alert("Success", "AI Campaign generated and scheduled successfully.");
-      refetch(); // Refresh campaigns list
+      setAiSegment('All Contacts');
     } catch (error: any) {
       Alert.alert("Generation Failed", error.message || "Could not generate AI campaign.");
     } finally {
@@ -637,7 +699,7 @@ export default function CRMCampaignsScreen() {
                       <Text style={styles.manageLink}>Manage Templates</Text>
                     </Pressable>
                   </View>
-                  {(templateList || []).filter(t => t.template_type.toUpperCase() === commChannel).length === 0 ? (
+                  {(extendedTemplateList || []).filter(t => t.template_type.toUpperCase() === commChannel).length === 0 ? (
                     <View style={styles.noTemplateCard}>
                       <View style={styles.noTemplateIconWrap}>
                         <MaterialCommunityIcons
@@ -664,7 +726,7 @@ export default function CRMCampaignsScreen() {
                         style={[styles.formSelector, formErrors.template && styles.inputError]}
                         onPress={() => setTemplateDropdown(true)}
                       >
-                        <Text style={styles.formSelectorText}>{formTemplateId ? (templateList?.find(t => t.id === formTemplateId)?.name || 'Select a template') : 'Select a template'}</Text>
+                        <Text style={styles.formSelectorText}>{formTemplateId ? (extendedTemplateList?.find(t => t.id === formTemplateId)?.name || 'Select a template') : 'Select a template'}</Text>
                         <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                       </Pressable>
                       {formErrors.template && (
@@ -967,7 +1029,7 @@ export default function CRMCampaignsScreen() {
               </View>
 
               <ScrollView style={styles.bottomSheetScroll} showsVerticalScrollIndicator={false}>
-                {(templateList || [])
+                {(extendedTemplateList || [])
                   .filter(t => t.template_type.toUpperCase() === commChannel)
                   .map(opt => {
                     const isSelected = formTemplateId === opt.id;
@@ -1002,7 +1064,7 @@ export default function CRMCampaignsScreen() {
                       </Pressable>
                     );
                   })}
-                {(templateList || []).filter(t => t.template_type.toUpperCase() === commChannel).length === 0 && (
+                {(extendedTemplateList || []).filter(t => t.template_type.toUpperCase() === commChannel).length === 0 && (
                   <View style={styles.dropdownEmpty}>
                     <MaterialCommunityIcons name="email-alert-outline" size={48} color="#CBD5E1" />
                     <Text style={styles.dropdownEmptyText}>No {commChannel.toLowerCase()} templates available.</Text>
@@ -1267,136 +1329,303 @@ export default function CRMCampaignsScreen() {
 
       <Modal
         visible={aiCampaignVisible}
-        animationType="slide"
-        presentationStyle="fullScreen"
+        transparent={true}
+        animationType="fade"
         onRequestClose={() => setAiCampaignVisible(false)}
       >
-        <LinearGradient
-          colors={colors.backgroundGradient as any}
-          style={{ flex: 1, paddingTop: insets.top }}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
         >
-          <View style={styles.modalHeader}>
-            <View style={styles.modalHeaderTitleBox}>
-              <Text style={styles.modalTitle}>AI Campaign</Text>
-              <Text style={styles.modalSubtitle}>Generate smart marketing campaigns with AI.</Text>
-            </View>
-            <Pressable
-              onPress={() => setAiCampaignVisible(false)}
-              hitSlop={12}
-            >
-              <MaterialCommunityIcons name="close" size={28} color={colors.textPrimary} />
-            </Pressable>
-          </View>
-
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1 }}
+          <Pressable 
+            style={{
+              flex: 1,
+              backgroundColor: 'rgba(0, 0, 0, 0.4)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingHorizontal: 20
+            }}
+            onPress={() => setAiCampaignVisible(false)}
           >
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={{ padding: 20 }}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.formCard}>
-                <View style={[styles.aiRow, { zIndex: 3000 }]}>
-                  <View style={styles.aiCol}>
-                    <Text style={styles.aiLabel}>TARGET SEGMENT</Text>
-                    <Pressable
-                      style={styles.aiSelector}
-                      onPress={() => {
-                        setAiSegmentDropdown(!aiSegmentDropdown);
-                        setAiTemplateDropdown(false);
-                      }}
-                    >
-                      <Text style={styles.aiSelectorText} numberOfLines={1}>{aiSegment}</Text>
-                      <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                    </Pressable>
-                    {aiSegmentDropdown && (
-                      <View style={[styles.aiDropdown, { top: 68 }]}>
-                        {['All Audience (Leads + Contacts)', 'All Leads', 'All Contacts'].map(opt => (
-                          <Pressable key={opt} style={styles.aiDropdownItem} onPress={() => { setAiSegment(opt); setAiSegmentDropdown(false); }}>
-                            <Text style={styles.aiDropdownItemText}>{opt}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.aiCol}>
-                    <Text style={styles.aiLabel}>BRAND TEMPLATE</Text>
-                    <Pressable
-                      style={styles.aiSelector}
-                      onPress={() => {
-                        setAiTemplateDropdown(!aiTemplateDropdown);
-                        setAiSegmentDropdown(false);
-                      }}
-                    >
-                      <Text style={styles.aiSelectorText} numberOfLines={1}>
-                        {aiTemplateId ? (templateList?.find(t => t.id === aiTemplateId)?.name || 'Select template') : 'Select template'}
-                      </Text>
-                      <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                    </Pressable>
-                    {aiTemplateDropdown && (
-                      <View style={[styles.aiDropdown, { top: 68 }]}>
-                        {(templateList || []).map(opt => (
-                          <Pressable key={opt.id} style={styles.aiDropdownItem} onPress={() => { setAiTemplateId(opt.id); setAiTemplateDropdown(false); }}>
-                            <Text style={styles.aiDropdownItemText}>{opt.name}</Text>
-                          </Pressable>
-                        ))}
-                        {(templateList || []).length === 0 && (
-                          <View style={{ padding: 10 }}>
-                            <Text style={{ color: '#FFFFFF', fontSize: 12 }}>No templates found</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                </View>
-
-                <View style={styles.aiInputGroup}>
-                  <Text style={styles.aiLabel}>CAMPAIGN OBJECTIVE & DESCRIPTION</Text>
-                  <TextInput
-                    style={styles.aiTextArea}
-                    multiline={true}
-                    placeholder="Describe the campaign you want to generate. e.g., 'Re-engage buyers who looked at luxury condos in West Hollywood last month with a price drop alert.'"
-                    placeholderTextColor="#94A3B8"
-                    value={aiDescription}
-                    onChangeText={setAiDescription}
-                    textAlignVertical="top"
-                  />
-                </View>
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-
-          <View style={[styles.modalFooter, { paddingBottom: insets.bottom + 12 }]}>
-            <View style={styles.aiModalActions}>
+          <Pressable
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 28,
+              width: '100%',
+              maxWidth: 540,
+              padding: 24,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.15,
+              shadowRadius: 20,
+              elevation: 10
+            }}
+            onPress={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 20
+            }}>
+              <Text style={{
+                fontSize: 22,
+                fontWeight: '900',
+                color: '#0A2341'
+              }}>AI Campaign</Text>
               <Pressable
-                style={styles.aiCancelBtn}
+                onPress={() => setAiCampaignVisible(false)}
+                hitSlop={12}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: '#F8FAFC',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <MaterialCommunityIcons name="close" size={20} color="#0A2341" />
+              </Pressable>
+            </View>
+
+            {/* Selector Row */}
+            <View style={{
+              flexDirection: 'row',
+              gap: 16,
+              marginBottom: 20,
+              zIndex: 3000
+            }}>
+              {/* Target Segment */}
+              <View style={{ flex: 1, position: 'relative' }}>
+                <Text style={{
+                  fontSize: 11,
+                  fontWeight: '800',
+                  color: '#94A3B8',
+                  marginBottom: 8,
+                  letterSpacing: 0.5
+                }}>TARGET SEGMENT</Text>
+                <Pressable
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: '#FFFFFF',
+                    borderWidth: 1,
+                    borderColor: '#CBD5E1',
+                    borderRadius: 12,
+                    paddingHorizontal: 12,
+                    height: 44
+                  }}
+                  onPress={() => {
+                    setAiSegmentDropdown(!aiSegmentDropdown);
+                    setAiTemplateDropdown(false);
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: '#0F172A', fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                    {aiSegment}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color="#0F172A" />
+                </Pressable>
+                {aiSegmentDropdown && (
+                  <View style={{
+                    position: 'absolute',
+                    top: 68,
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#4A4A4A',
+                    borderRadius: 12,
+                    paddingVertical: 8,
+                    zIndex: 4000,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 8,
+                    elevation: 5
+                  }}>
+                    {['All Contacts', 'Hot Leads', 'New Leads', 'Past Clients', 'Investor Group'].map(opt => (
+                      <Pressable
+                        key={opt}
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingVertical: 10,
+                          paddingHorizontal: 12
+                        }}
+                        onPress={() => { setAiSegment(opt); setAiSegmentDropdown(false); }}
+                      >
+                        <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600' }}>{opt}</Text>
+                        {aiSegment === opt && (
+                          <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />
+                        )}
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Brand Template */}
+              <View style={{ flex: 1, position: 'relative' }}>
+                <Text style={{
+                  fontSize: 11,
+                  fontWeight: '800',
+                  color: '#94A3B8',
+                  marginBottom: 8,
+                  letterSpacing: 0.5
+                }}>BRAND TEMPLATE</Text>
+                <Pressable
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: '#FFFFFF',
+                    borderWidth: 1,
+                    borderColor: '#CBD5E1',
+                    borderRadius: 12,
+                    paddingHorizontal: 12,
+                    height: 44
+                  }}
+                  onPress={() => {
+                    setAiTemplateDropdown(!aiTemplateDropdown);
+                    setAiSegmentDropdown(false);
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: '#0F172A', fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                    {aiTemplateId ? (templateList?.find(t => t.id === aiTemplateId)?.name || 'Select template') : 'Select template'}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color="#0F172A" />
+                </Pressable>
+                {aiTemplateDropdown && (
+                  <View style={{
+                    position: 'absolute',
+                    top: 68,
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#4A4A4A',
+                    borderRadius: 12,
+                    paddingVertical: 8,
+                    zIndex: 4000,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 8,
+                    elevation: 5
+                  }}>
+                    {(templateList || []).map(opt => (
+                      <Pressable
+                        key={opt.id}
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingVertical: 10,
+                          paddingHorizontal: 12
+                        }}
+                        onPress={() => { setAiTemplateId(opt.id); setAiTemplateDropdown(false); }}
+                      >
+                        <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600' }}>{opt.name}</Text>
+                        {aiTemplateId === opt.id && (
+                          <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />
+                        )}
+                      </Pressable>
+                    ))}
+                    {(templateList || []).length === 0 && (
+                      <View style={{ padding: 10 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>No templates found</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Campaign Objective */}
+            <View style={{ marginBottom: 24 }}>
+              <Text style={{
+                fontSize: 11,
+                fontWeight: '800',
+                color: '#94A3B8',
+                marginBottom: 8,
+                letterSpacing: 0.5
+              }}>CAMPAIGN OBJECTIVE & DESCRIPTION</Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderWidth: 1,
+                  borderColor: '#E2E8F0',
+                  borderRadius: 12,
+                  padding: 16,
+                  height: 120,
+                  fontSize: 14,
+                  color: '#0F172A',
+                  lineHeight: 20
+                }}
+                multiline={true}
+                placeholder="Describe the campaign you want to generate. e.g., 'Re-engage buyers who looked at luxury condos in West Hollywood last month with a price drop alert.'"
+                placeholderTextColor="#94A3B8"
+                value={aiDescription}
+                onChangeText={setAiDescription}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Footer Buttons */}
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <Pressable
+                style={{
+                  flex: 1,
+                  height: 48,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#E2E8F0',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#FFFFFF'
+                }}
                 onPress={() => {
                   setAiCampaignVisible(false);
                   setAiTemplateId(null);
                   setAiDescription('');
-                  setAiSegment('All Audience (Leads + Contacts)');
+                  setAiSegment('All Contacts');
                 }}
                 disabled={isGeneratingAI}
               >
-                <Text style={styles.aiCancelBtnText}>Cancel</Text>
+                <Text style={{
+                  fontSize: 14,
+                  fontWeight: '700',
+                  color: '#0A2341'
+                }}>Cancel</Text>
               </Pressable>
+              
               <Pressable
-                style={[styles.aiGenerateBtn, isGeneratingAI && { opacity: 0.7 }]}
+                style={{
+                  flex: 1.5,
+                  height: 48,
+                  borderRadius: 12,
+                  backgroundColor: '#5A6E7D',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: isGeneratingAI ? 0.7 : 1
+                }}
                 onPress={handleGenerateAICampaign}
                 disabled={isGeneratingAI}
               >
                 {isGeneratingAI ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.aiGenerateBtnText}>Generate Campaign</Text>
+                  <Text style={{
+                    fontSize: 14,
+                    fontWeight: '700',
+                    color: '#FFFFFF'
+                  }}>Generate campaign</Text>
                 )}
               </Pressable>
             </View>
-          </View>
-        </LinearGradient>
+          </Pressable>
+        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
     </LinearGradient>

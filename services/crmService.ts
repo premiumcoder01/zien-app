@@ -1492,6 +1492,34 @@ export const getCRMTemplates = async (accessToken: string): Promise<CRMTemplate[
     }
 };
 
+export const addCRMTemplate = async (accessToken: string, templateData: any): Promise<CRMTemplate> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/templates`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify(templateData),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
 export const createCRMCampaign = async (accessToken: string, campaignData: any) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -2032,4 +2060,46 @@ export const getCRMSettings = async (accessToken: string): Promise<CRMSettingsPa
         clearTimeout(timeoutId);
     }
 };
+
+export const generateCRMAutomationWithAI = async (
+    accessToken: string,
+    prompt: string,
+    systemInstruction: string
+): Promise<{ result: string }> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    try {
+        const response = await fetch('https://staging-api.zien.ai/api/shared/ai/extract-data', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+                prompt,
+                systemInstruction,
+                complexity: 'complex',
+            }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('AI generation timed out. Please try again.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
 

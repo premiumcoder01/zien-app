@@ -16,6 +16,8 @@ import {
   TextInput,
   View,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,7 +35,6 @@ const AUTOMATED_ACTION_OPTIONS = ["Send 'Just Checking In' Email", 'Create Follo
 const EMAIL_PROVIDERS = [
   { id: 'mailgun', name: 'Mailgun' },
   { id: 'sendgrid', name: 'SendGrid' },
-  { id: 'ses', name: 'Amazon SES' },
 ];
 
 const ANNIVERSARY_RULES = [
@@ -88,11 +89,12 @@ export default function CRMSettingsScreen() {
   const [newMilestoneName, setNewMilestoneName] = useState('');
 
   // ── Transactional Email Providers State ──
-  const [connectedProviders, setConnectedProviders] = useState<Record<string, { apiKey: string; domain: string }>>({});
+  const [connectedProviders, setConnectedProviders] = useState<Record<string, { apiKey: string; domain?: string; senderEmail?: string }>>({});
   const [providerModalOpen, setProviderModalOpen] = useState(false);
   const [activeProvider, setActiveProvider] = useState<{ id: string; name: string } | null>(null);
   const [modalApiKey, setModalApiKey] = useState('');
   const [modalDomain, setModalDomain] = useState('');
+  const [modalSenderEmail, setModalSenderEmail] = useState('');
 
   useEffect(() => {
     async function loadSettings() {
@@ -162,26 +164,36 @@ export default function CRMSettingsScreen() {
     const existing = connectedProviders[provider.id];
     setModalApiKey(existing?.apiKey || '');
     setModalDomain(existing?.domain || '');
+    setModalSenderEmail(existing?.senderEmail || '');
     setProviderModalOpen(true);
   };
 
   const handleSaveConnection = () => {
     if (!activeProvider) return;
-    if (!modalApiKey.trim() || !modalDomain.trim()) {
-      Alert.alert('Required Fields', 'Please fill in both the API Key and Verified Domain.');
-      return;
+    if (activeProvider.id === 'mailgun') {
+      if (!modalApiKey.trim() || !modalDomain.trim() || !modalSenderEmail.trim()) {
+        Alert.alert('Required Fields', 'Please fill in the API Key, Verified Domain, and Sender Email.');
+        return;
+      }
+    } else if (activeProvider.id === 'sendgrid') {
+      if (!modalApiKey.trim() || !modalSenderEmail.trim()) {
+        Alert.alert('Required Fields', 'Please fill in the API Key and Sender Email.');
+        return;
+      }
     }
     setConnectedProviders(prev => ({
       ...prev,
       [activeProvider.id]: {
         apiKey: modalApiKey,
-        domain: modalDomain,
+        domain: activeProvider.id === 'mailgun' ? modalDomain : '',
+        senderEmail: modalSenderEmail,
       }
     }));
     setProviderModalOpen(false);
     setActiveProvider(null);
     setModalApiKey('');
     setModalDomain('');
+    setModalSenderEmail('');
   };
 
   const handleDisconnectProvider = (providerId: string) => {
@@ -415,7 +427,11 @@ export default function CRMSettingsScreen() {
                               <Text style={styles.connectedBadgeText}>CONNECTED</Text>
                             </View>
                           </View>
-                          <Text style={styles.providerDomainText}>Domain: {conn.domain}</Text>
+                          {provider.id === 'mailgun' ? (
+                            <Text style={styles.providerDomainText}>Domain: {conn.domain}</Text>
+                          ) : (
+                            <Text style={styles.providerDomainText}>Sender: {conn.senderEmail}</Text>
+                          )}
                         </View>
                         <View style={styles.providerActionsRow}>
                           <Pressable
@@ -782,35 +798,40 @@ export default function CRMSettingsScreen() {
       {isMilestoneModalOpen && (
         <View style={styles.modalOverlay}>
           <Pressable style={styles.modalBackdrop} onPress={() => setIsMilestoneModalOpen(false)} />
-          <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <View style={styles.bottomSheetHeader}>
-              <Text style={styles.modalTitleText}>New Milestone</Text>
-              <Text style={styles.modalSubTitleText}>
-                Enter a name for this anniversary trigger. This will allow you to automate personalized outreach for this life event.
-              </Text>
-            </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ width: '100%' }}
+          >
+            <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+              <View style={styles.bottomSheetHeader}>
+                <Text style={styles.modalTitleText}>New Milestone</Text>
+                <Text style={styles.modalSubTitleText}>
+                  Enter a name for this anniversary trigger. This will allow you to automate personalized outreach for this life event.
+                </Text>
+              </View>
 
-            <View style={styles.modalField}>
-              <Text style={styles.modalLabel}>MILESTONE NAME</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="e.g., Child's Birthday"
-                placeholderTextColor="#94A3B8"
-                value={newMilestoneName}
-                onChangeText={setNewMilestoneName}
-                autoFocus
-              />
-            </View>
+              <View style={styles.modalField}>
+                <Text style={styles.modalLabel}>MILESTONE NAME</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g., Child's Birthday"
+                  placeholderTextColor="#94A3B8"
+                  value={newMilestoneName}
+                  onChangeText={setNewMilestoneName}
+                  autoFocus
+                />
+              </View>
 
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalCancelBtn} onPress={() => setIsMilestoneModalOpen(false)}>
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.modalCreateBtn} onPress={handleAddMilestone}>
-                <Text style={styles.modalCreateBtnText}>Create</Text>
-              </Pressable>
+              <View style={styles.modalActions}>
+                <Pressable style={styles.modalCancelBtn} onPress={() => setIsMilestoneModalOpen(false)}>
+                  <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={styles.modalCreateBtn} onPress={handleAddMilestone}>
+                  <Text style={styles.modalCreateBtnText}>Create</Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       )}
 
@@ -818,56 +839,81 @@ export default function CRMSettingsScreen() {
       {providerModalOpen && activeProvider && (
         <View style={styles.modalOverlay}>
           <Pressable style={styles.modalBackdrop} onPress={() => setProviderModalOpen(false)} />
-          <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitleText}>Connect {activeProvider.name}</Text>
-              <Pressable onPress={() => setProviderModalOpen(false)}>
-                <MaterialCommunityIcons name="close" size={22} color={colors.textPrimary} />
-              </Pressable>
-            </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ width: '100%' }}
+          >
+            <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+              <View style={styles.modalHeaderRow}>
+                <Text style={styles.modalTitleText}>Connect {activeProvider.name}</Text>
+                <Pressable onPress={() => setProviderModalOpen(false)}>
+                  <MaterialCommunityIcons name="close" size={22} color={colors.textPrimary} />
+                </Pressable>
+              </View>
 
-            <View style={styles.modalSectionCard}>
-              <View style={{ marginBottom: 16 }}>
-                <Text style={styles.modalLabel}>API KEY / CREDENTIALS *</Text>
-                <View style={styles.modalInputWrap}>
-                  <MaterialCommunityIcons name="key-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
-                  <TextInput
-                    style={styles.modalInputText}
-                    placeholder="Paste your transactional API secret..."
-                    placeholderTextColor={colors.inputPlaceholder}
-                    value={modalApiKey}
-                    onChangeText={setModalApiKey}
-                    secureTextEntry
-                  />
+              <View style={styles.modalSectionCard}>
+                {/* API Key */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={styles.modalLabel}>API KEY / CREDENTIALS *</Text>
+                  <View style={styles.modalInputWrap}>
+                    <MaterialCommunityIcons name="key-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                    <TextInput
+                      style={styles.modalInputText}
+                      placeholder={activeProvider.id === 'mailgun' ? "Paste your Mailgun API key..." : "Paste your SendGrid API key..."}
+                      placeholderTextColor={colors.inputPlaceholder}
+                      value={modalApiKey}
+                      onChangeText={setModalApiKey}
+                      secureTextEntry
+                    />
+                  </View>
+                </View>
+
+                {/* Verified Domain (Mailgun only) */}
+                {activeProvider.id === 'mailgun' && (
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={styles.modalLabel}>VERIFIED DOMAIN (MAILGUN) *</Text>
+                    <View style={styles.modalInputWrap}>
+                      <MaterialCommunityIcons name="earth" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                      <TextInput
+                        style={styles.modalInputText}
+                        placeholder="e.g., mg.youragency.com"
+                        placeholderTextColor={colors.inputPlaceholder}
+                        value={modalDomain}
+                        onChangeText={setModalDomain}
+                        autoCapitalize="none"
+                      />
+                    </View>
+                  </View>
+                )}
+
+                {/* Sender Email */}
+                <View>
+                  <Text style={styles.modalLabel}>SENDER EMAIL *</Text>
+                  <View style={styles.modalInputWrap}>
+                    <MaterialCommunityIcons name="email-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                    <TextInput
+                      style={styles.modalInputText}
+                      placeholder="e.g., John Doe <hello@yourdomain.com>"
+                      placeholderTextColor={colors.inputPlaceholder}
+                      value={modalSenderEmail}
+                      onChangeText={setModalSenderEmail}
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                    />
+                  </View>
                 </View>
               </View>
 
-              <View>
-                <Text style={styles.modalLabel}>VERIFIED DOMAIN / SENDER EMAIL *</Text>
-                <View style={[styles.modalInputWrap, styles.modalInputWrapLast]}>
-                  <MaterialCommunityIcons name="earth" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
-                  <TextInput
-                    style={styles.modalInputText}
-                    placeholder="e.g., mail.youragency.com or sender@agency.com"
-                    placeholderTextColor={colors.inputPlaceholder}
-                    value={modalDomain}
-                    onChangeText={setModalDomain}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                  />
-                </View>
+              <View style={styles.modalActions}>
+                <Pressable style={styles.modalCancelBtn} onPress={() => setProviderModalOpen(false)}>
+                  <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={styles.modalCreateBtn} onPress={handleSaveConnection}>
+                  <Text style={styles.modalCreateBtnText}>Save Connection</Text>
+                </Pressable>
               </View>
             </View>
-
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalCancelBtn} onPress={() => setProviderModalOpen(false)}>
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.modalCreateBtn} onPress={handleSaveConnection}>
-                <Text style={styles.modalCreateBtnText}>Save Connection</Text>
-              </Pressable>
-            </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       )}
 

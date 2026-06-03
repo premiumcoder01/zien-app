@@ -46,6 +46,73 @@ const ANALYSIS_STEPS = [
   { id: 'complete', label: 'Successfully ingested leads' },
 ] as const;
 
+const parseRobustJSON = (jsonString: string): any[] => {
+  try {
+    return JSON.parse(jsonString);
+  } catch (e) {
+    console.warn("Standard JSON parsing failed, attempting repair/recovery:", e);
+    const parsedList: any[] = [];
+    let index = 0;
+    
+    while (index < jsonString.length) {
+      const startIdx = jsonString.indexOf('{', index);
+      if (startIdx === -1) break;
+      
+      let braceCount = 0;
+      let endIdx = -1;
+      let inString = false;
+      let escape = false;
+      
+      for (let i = startIdx; i < jsonString.length; i++) {
+        const char = jsonString[i];
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (char === '\\') {
+          escape = true;
+          continue;
+        }
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (char === '{') {
+            braceCount++;
+          } else if (char === '}') {
+            braceCount--;
+            if (braceCount === 0) {
+              endIdx = i;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (endIdx !== -1) {
+        const objStr = jsonString.substring(startIdx, endIdx + 1);
+        try {
+          const parsedObj = JSON.parse(objStr);
+          if (parsedObj && typeof parsedObj === 'object') {
+            parsedList.push(parsedObj);
+          }
+        } catch (err) {
+          // Ignore parse errors for individual elements
+        }
+        index = endIdx + 1;
+      } else {
+        break;
+      }
+    }
+    
+    if (parsedList.length > 0) {
+      return parsedList;
+    }
+    throw e;
+  }
+};
+
 export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
   visible,
   onClose,
@@ -65,6 +132,10 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
   const [parsedContacts, setParsedContacts] = useState<any[]>([]);
   const [selectedContactIndices, setSelectedContactIndices] = useState<Record<number, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
+
+  const isButtonEnabled = instructions.trim().length > 0 || selectedFile !== null;
+  const selectedCount = parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length;
+  const isConfirmDisabled = isSaving || selectedCount === 0;
 
   const spinValue = useRef(new Animated.Value(0)).current;
 
@@ -176,8 +247,8 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
 
 
   const startAnalysis = async () => {
-    if (!selectedFile) {
-      Alert.alert('No File Uploaded', 'Please upload a CSV file to begin.');
+    if (!selectedFile && !instructions.trim()) {
+      Alert.alert('Details Required', 'Please write instructions/context or upload a file to begin mapping.');
       return;
     }
 
@@ -189,8 +260,11 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
       setCompletedStepIndex(0);
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Read actual file contents using expo-file-system as UTF8 text
-      const fileText = await FileSystem.readAsStringAsync(selectedFile.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      // Read actual file contents using expo-file-system as UTF8 text if available
+      let fileText = '';
+      if (selectedFile) {
+        fileText = await FileSystem.readAsStringAsync(selectedFile.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      }
 
       // Step 2: Analyzing field headers & structures
       setCompletedStepIndex(1);
@@ -199,7 +273,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
       // Step 3: Call Zien text extraction AI API
       setCompletedStepIndex(2);
 
-      const promptPayload = `\nAnalyze the following lead list data and extract the leads.\nUser instructions/context: "${instructions || 'None'}"\n\nLead data:\n${fileText}\n`;
+      const promptPayload = `\nAnalyze the following lead list data and extract the leads.\nUser instructions/context: "${instructions || 'None'}"\n\nLead data:\n${fileText || '[No file uploaded. Extract and generate leads based purely on the instructions/context provided.]'}\n`;
       const systemInstructionPayload = `\nYou are an expert CRM lead analyst. Analyze the provided lead list data and any user instructions, and output a valid JSON array of lead objects. \nEach lead object MUST exactly match this JSON schema:\n{\n  \"name\": string (full name),\n  \"email\": string,\n  \"source\": string (the source of the lead, e.g., \"LinkedIn\", \"Web\", \"Referral\", \"Manual\"),\n  \"status\": string (categorize as \"New\" or \"Qualified\"),\n  \"score\": number (lead intent score from 1 to 100),\n  \"tag\": string (such as \"HOT\", \"WARM\", or \"COLD\"),\n  \"confidence\": number (confidence score of analysis from 1 to 100),\n  \"date\": string (such as \"Today\", \"Yesterday\", or a short relative date)\n}\n\nReturn ONLY the raw JSON array of objects. Do not include any markdown formatting, backticks (such as \`\`\`json), or other text outside the JSON array.\n`;
 
       const responseData = await extractContactsWithAI(
@@ -233,7 +307,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
 
       // Clean up markdown markers if present
       cleanResult = cleanResult.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
-      const leads = JSON.parse(cleanResult);
+      const leads = parseRobustJSON(cleanResult);
 
       if (!Array.isArray(leads)) {
         throw new Error('AI returned an invalid lead list format.');
@@ -420,21 +494,6 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                       placeholder="Describe the source of these leads... (e.g., 'From the Spring Open House, interested in luxury condos')"
                       placeholderTextColor={colors.textMuted}
                     />
-
-                    <Pressable style={styles.textareaUploadBtn} onPress={handlePickDocument} hitSlop={8}>
-                      <MaterialCommunityIcons name="upload" size={18} color="#64748B" />
-                    </Pressable>
-
-                    {selectedFile && (
-                      <View style={styles.textareaBadgeRow}>
-                        <View style={styles.badgeGreen}>
-                          <MaterialCommunityIcons name="star-four-points" size={10} color="#10B981" />
-                        </View>
-                        <View style={styles.badgeRed}>
-                          <Text style={styles.badgeRedText}>1</Text>
-                        </View>
-                      </View>
-                    )}
                   </View>
 
                   {/* Advice Card */}
@@ -447,7 +506,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                     </Text>
                   </View>
 
-                  {/* File Upload Selector */}
+                  {/* File Upload Selector or Selected File Badge */}
                   {!selectedFile ? (
                     <View style={styles.uploadSection}>
                       <Pressable
@@ -457,14 +516,15 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                         <View style={styles.uploadIconBadge}>
                           <MaterialCommunityIcons
                             name="upload"
-                            size={24}
-                            color={colors.textSecondary}
+                            size={28}
+                            color={theme === 'dark' ? colors.textPrimary : '#0a2341'}
                           />
                         </View>
                         <Text style={styles.uploadTitle}>Upload your lead list</Text>
                         <Text style={styles.uploadSubtitle}>
-                          Drag and drop CSV or Excel files here
+                          Drag and drop your file here, or click to browse
                         </Text>
+                        <Text style={styles.uploadFormats}>CSV • XLSX • TXT • PDF</Text>
                       </Pressable>
                     </View>
                   ) : (
@@ -485,15 +545,31 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                             <Text style={styles.attachedReadyText}>
                               Ready to Process • {selectedFile.size}
                             </Text>
-                            <Pressable onPress={handlePickDocument} hitSlop={12}>
-                              <Text style={styles.attachedChangeText}>Change File</Text>
-                            </Pressable>
+                            <View style={{ flexDirection: 'row', gap: 12 }}>
+                              <Pressable onPress={handlePickDocument} hitSlop={12}>
+                                <Text style={[styles.attachedChangeText, { color: colors.textSecondary }]}>Change</Text>
+                              </Pressable>
+                              <Pressable onPress={() => setSelectedFile(null)} hitSlop={12}>
+                                <Text style={styles.attachedChangeText}>Remove</Text>
+                              </Pressable>
+                            </View>
                           </View>
                         </View>
                       </View>
+                    </View>
+                  )}
 
-                      {/* Launch AI Analysis Button */}
-                      <Pressable style={styles.initializeBtn} onPress={startAnalysis}>
+                  {/* Launch AI Analysis Button (Always visible, enabled if context is filled or file selected) */}
+                  <View style={{ marginTop: 8, marginBottom: 12 }}>
+                    <Pressable
+                      style={[
+                        styles.initializeBtn,
+                        !isButtonEnabled && styles.initializeBtnDisabled
+                      ]}
+                      onPress={startAnalysis}
+                      disabled={!isButtonEnabled}
+                    >
+                      {isButtonEnabled ? (
                         <LinearGradient
                           colors={['#0a2341', '#00a7b5']}
                           start={{ x: 0, y: 0 }}
@@ -503,9 +579,14 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                           <MaterialCommunityIcons name="star-four-points" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
                           <Text style={styles.initializeBtnText}>Initialize AI Lead Scoring</Text>
                         </LinearGradient>
-                      </Pressable>
-                    </View>
-                  )}
+                      ) : (
+                        <View style={styles.initializeGradientDisabled}>
+                          <MaterialCommunityIcons name="star-four-points" size={18} color={theme === 'dark' ? 'rgba(255,255,255,0.3)' : '#94A3B8'} style={{ marginRight: 6 }} />
+                          <Text style={styles.initializeBtnTextDisabled}>Initialize AI Lead Scoring</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  </View>
                 </ScrollView>
               </KeyboardAvoidingView>
             </>
@@ -594,8 +675,9 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                 </View>
 
                 <View style={{ gap: 14 }}>
-                  {parsedContacts.map((contact, idx) => (
-                    <View key={idx} style={[styles.reviewCard, !selectedContactIndices[idx] && { opacity: 0.6 }]}>
+                  {parsedContacts.length > 0 ? (
+                    parsedContacts.map((contact, idx) => (
+                      <View key={idx} style={[styles.reviewCard, !selectedContactIndices[idx] && { opacity: 0.6 }]}>
                       {/* Checkbox and Delete Row */}
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.divider, opacity: 0.8, marginBottom: 12 }}>
                         <Pressable 
@@ -664,33 +746,57 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                         </View>
                       </View>
                     </View>
-                  ))}
+                  ))
+                  ) : (
+                    <View style={styles.emptyReviewState}>
+                      <MaterialCommunityIcons name="alert-circle-outline" size={40} color={colors.textMuted || '#8DA4B5'} />
+                      <Text style={styles.emptyReviewStateTitle}>No Records Found</Text>
+                      <Text style={styles.emptyReviewStateText}>
+                        Zien Neural Studio was unable to extract any records. Please try adjusting your context/instructions or check the uploaded file content.
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Bottom buttons row */}
                 <View style={styles.reviewActionsRow}>
                   <Pressable
-                    style={styles.confirmImportBtn}
+                    style={[styles.confirmImportBtn, isConfirmDisabled && styles.confirmImportBtnDisabled]}
                     onPress={confirmAndImport}
-                    disabled={isSaving}
+                    disabled={isConfirmDisabled}
                   >
-                    <LinearGradient
-                      colors={['#0a2341', '#00a7b5']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.confirmImportGradient}
-                    >
-                      {isSaving ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <MaterialCommunityIcons name="check-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                          <Text style={styles.confirmImportBtnText}>
-                            Confirm & Import {parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length} Leads
-                          </Text>
-                        </>
-                      )}
-                    </LinearGradient>
+                    {!isConfirmDisabled ? (
+                      <LinearGradient
+                        colors={['#0a2341', '#00a7b5']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.confirmImportGradient}
+                      >
+                        {isSaving ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <MaterialCommunityIcons name="check-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                            <Text style={styles.confirmImportBtnText}>
+                              Confirm & Import {selectedCount} Leads
+                            </Text>
+                          </>
+                        )}
+                      </LinearGradient>
+                    ) : (
+                      <View style={styles.confirmImportGradientDisabled}>
+                        {isSaving ? (
+                          <ActivityIndicator size="small" color={theme === 'dark' ? 'rgba(255,255,255,0.3)' : '#94A3B8'} />
+                        ) : (
+                          <>
+                            <MaterialCommunityIcons name="check-circle-outline" size={16} color={theme === 'dark' ? 'rgba(255,255,255,0.3)' : '#94A3B8'} style={{ marginRight: 6 }} />
+                            <Text style={styles.confirmImportBtnTextDisabled}>
+                              Confirm & Import {selectedCount} Leads
+                            </Text>
+                          </>
+                        )}
+                      </View>
+                    )}
                   </Pressable>
 
                   <Pressable
@@ -989,86 +1095,95 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    backgroundColor: colors.surfaceSoft,
   },
   uploadIconBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1.5,
-    borderColor: colors.borderLight,
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: theme === 'dark' ? colors.cardBackground : '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
   },
   uploadTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.textPrimary,
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: -0.3,
   },
   uploadSubtitle: {
     fontSize: 12,
     color: colors.textSecondary,
     fontWeight: '600',
     textAlign: 'center',
-    lineHeight: 16,
-    marginBottom: 8,
+    marginBottom: 12,
+    paddingHorizontal: 12,
   },
   uploadFormats: {
-    fontSize: 10,
+    fontSize: 10.5,
     color: colors.textMuted,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
   attachedCardContainer: {
+    marginBottom: 20,
     gap: 16,
   },
   attachedFileBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: 16,
-    borderWidth: 1.5,
+    backgroundColor: 'rgba(100, 116, 139, 0.05)',
+    borderWidth: 1.2,
     borderColor: colors.borderLight,
-    padding: 14,
+    borderRadius: 20,
+    padding: 16,
+    gap: 14,
   },
   attachedIconFrame: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 12,
-    backgroundColor: theme === 'dark' ? '#00a7b5' : colors.accentTeal,
+    backgroundColor: theme === 'dark' ? '#00a7b5' : '#0b2341',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
   },
   attachedInfo: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
   attachedFileName: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '900',
+    color: theme === 'dark' ? '#00a7b5' : '#0b2341',
   },
   attachedStatusRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   attachedReadyText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#10B981',
   },
   attachedChangeText: {
     fontSize: 12,
-    color: theme === 'dark' ? '#00a7b5' : colors.accentTeal,
-    fontWeight: '800',
+    fontWeight: '900',
+    color: '#EF4444',
   },
   initializeBtn: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: theme === 'dark' ? '#000000' : '#0a2341',
     shadowOffset: { width: 0, height: 6 },
@@ -1076,17 +1191,35 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     shadowRadius: 10,
     elevation: 4,
   },
+  initializeBtnDisabled: {
+    shadowColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
   initializeGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 52,
-    paddingHorizontal: 20,
+    paddingVertical: 15,
+  },
+  initializeGradientDisabled: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+    borderRadius: 14,
   },
   initializeBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  initializeBtnTextDisabled: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: theme === 'dark' ? 'rgba(255,255,255,0.3)' : '#94A3B8',
   },
   analysisOverlay: {
     flex: 1,
@@ -1390,5 +1523,49 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '800',
+  },
+  confirmImportBtnDisabled: {
+    shadowColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  confirmImportGradientDisabled: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+    borderRadius: 16,
+  },
+  confirmImportBtnTextDisabled: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: theme === 'dark' ? 'rgba(255,255,255,0.3)' : '#94A3B8',
+  },
+  emptyReviewState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(100, 116, 139, 0.03)',
+    borderRadius: 20,
+    borderWidth: 1.2,
+    borderColor: colors.borderLight,
+    borderStyle: 'dashed',
+  },
+  emptyReviewStateTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  emptyReviewStateText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

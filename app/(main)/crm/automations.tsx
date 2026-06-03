@@ -5,6 +5,7 @@ import {
   addCRMAutomation,
   CRMAutomation,
   deleteCRMAutomation,
+  generateCRMAutomationWithAI,
   getCRMAutomations,
   getCRMMeta,
   getCRMTemplates,
@@ -91,9 +92,13 @@ export default function CRM_AutomationsScreen() {
   const [editIcon, setEditIcon] = useState('Sparkles');
 
   // Proposed AI values state
+  const [proposedName, setProposedName] = useState('');
   const [proposedTrigger, setProposedTrigger] = useState('Heat Index > 85');
   const [proposedAction, setProposedAction] = useState('Predictive Retargeting SMS');
   const [proposedReasoning, setProposedReasoning] = useState('Analyzing lead behavior patterns for this segment suggests this trigger will maximize ROI.');
+  const [proposedExecution, setProposedExecution] = useState('Immediate');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [assistantSegmentSearch, setAssistantSegmentSearch] = useState('');
 
   // Add Mutation
   const addMutation = useMutation({
@@ -260,19 +265,61 @@ export default function CRM_AutomationsScreen() {
     setRuleIdentity("Generate a workflow for: " + flow.title);
     setTargetSegment("Cold Database");
     // Dynamically set based on flow type if needed, or keep these common AI defaults
+    setProposedName(flow.title);
     setProposedTrigger("Heat Index > 85");
     setProposedAction("Predictive Retargeting SMS");
     setProposedReasoning("Analyzing lead behavior patterns for this segment suggests this trigger will maximize ROI.");
+    setProposedExecution("Immediate");
     setFlowModalVisible(true);
+  };
+
+  const handleGenerate = async () => {
+    if (!ruleIdentity.trim()) {
+      Alert.alert('Error', 'Please provide a rule identity (name or objective)');
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const systemInstruction = `You are an expert CRM Automation Architect. \nThe user wants to create an automation rule targeting "${targetSegment}".\nTheir instruction is: "${ruleIdentity}".\n\nValid Triggers: 'New Lead Captured', 'Status Changed', 'Inactivity Threshold Met', 'Score > 80', 'Deal Stage Updated'.\nValid Actions: 'Send Follow-up SMS', 'Send Email from Template', 'Send WhatsApp from Template', 'Update Lead Score', 'Assign Agent Task'.\nValid Executions: 'Immediate', 'Wait 1 Hour', 'Wait 24 Hours', 'Wait 3 Days'.\n\nBased on the prompt, generate a JSON object with EXACTLY the following fields:\n1. "name": A catchy name for this rule (max 40 chars).\n2. "trigger": One of the valid triggers that best fits.\n3. "action": One of the valid actions that best fits.\n4. "target": The exact string "${targetSegment}".\n5. "execution": One of the valid execution times.\n6. "reasoning": A 1-2 sentence explanation of why this automation logic is effective.`;
+
+      const response = await generateCRMAutomationWithAI(accessToken!, ruleIdentity, systemInstruction);
+      
+      let cleanResult = response.result.trim();
+      if (cleanResult.startsWith('```')) {
+        cleanResult = cleanResult.replace(/^```(json)?/, '');
+        cleanResult = cleanResult.replace(/```$/, '');
+        cleanResult = cleanResult.trim();
+      }
+      
+      const parsed = JSON.parse(cleanResult);
+      
+      setProposedName(parsed.name || ruleIdentity);
+      setProposedTrigger(parsed.trigger || 'New Lead Captured');
+      setProposedAction(parsed.action || 'Send Follow-up SMS');
+      setProposedReasoning(parsed.reasoning || '');
+      setProposedExecution(parsed.execution || 'Immediate');
+      
+      if (parsed.target) {
+        setTargetSegment(parsed.target);
+      }
+
+      setAiAssistantVisible(false);
+      setFlowModalVisible(true);
+    } catch (error: any) {
+      Alert.alert('AI Generation Error', error.message || 'Failed to generate automation rule');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const deployAutomation = () => {
     addMutation.mutate({
-      name: ruleIdentity || "Auto-assign Premium Leads to Senior Agents",
+      name: proposedName || ruleIdentity || "Auto-assign Premium Leads to Senior Agents",
       trigger: proposedTrigger,
       action: proposedAction,
       target: targetSegment,
-      execution: "Immediate",
+      execution: proposedExecution,
       reasoning: proposedReasoning,
       category: "AI-Generated",
       icon: "Sparkles",
@@ -630,55 +677,27 @@ export default function CRM_AutomationsScreen() {
                 <Text style={styles.fieldLabel}>TARGET SEGMENT</Text>
                 <Pressable
                   style={styles.segmentPickerTrigger}
-                  onPress={() => setSegmentPickerVisible(!segmentPickerVisible)}
+                  onPress={() => { setSegmentPickerVisible(true); setAssistantSegmentSearch(''); }}
                 >
                   <Text style={styles.segmentValue}>{targetSegment}</Text>
                   <MaterialCommunityIcons
-                    name={segmentPickerVisible ? "chevron-up" : "chevron-down"}
+                    name="chevron-down"
                     size={20}
                     color={colors.textPrimary}
                   />
                 </Pressable>
-
-                {segmentPickerVisible && (
-                  <View style={styles.segmentDropdown}>
-                    <ScrollView style={{ maxHeight: 200 }} bounces={false}>
-                      {SEGMENTS.map(segment => (
-                        <Pressable
-                          key={segment}
-                          style={styles.segmentOption}
-                          onPress={() => {
-                            setTargetSegment(segment);
-                            setSegmentPickerVisible(false);
-                          }}
-                        >
-                          <View style={styles.optionContent}>
-                            <Text style={[
-                              styles.optionText,
-                              targetSegment === segment && styles.optionTextSelected
-                            ]}>
-                              {segment}
-                            </Text>
-                            {targetSegment === segment && (
-                              <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
-                            )}
-                          </View>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
               </View>
             </View>
 
             {/* Bottom Footer - Fixed */}
             <View style={styles.modalFooter}>
               <Pressable
-                style={styles.generateBtn}
-                onPress={() => {
-                  setAiAssistantVisible(false);
-                  setFlowModalVisible(true);
-                }}
+                style={[
+                  styles.generateBtn,
+                  { opacity: (isGenerating || !ruleIdentity.trim()) ? 0.5 : 1 }
+                ]}
+                onPress={handleGenerate}
+                disabled={isGenerating || !ruleIdentity.trim()}
               >
                 <LinearGradient
                   colors={['#475569', '#1E293B']}
@@ -686,10 +705,63 @@ export default function CRM_AutomationsScreen() {
                   end={{ x: 0, y: 1 }}
                   style={styles.generateBtnGradient}
                 >
-                  <Text style={styles.generateBtnText}>Generate</Text>
+                  {isGenerating ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.generateBtnText}>Generate</Text>
+                  )}
                 </LinearGradient>
               </Pressable>
             </View>
+
+            {/* Segment Picker Overlay for Zien Assistant */}
+            {segmentPickerVisible && (
+              <View style={styles.pickerOverlayAbsolute}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={() => setSegmentPickerVisible(false)} />
+                
+                <View style={styles.selectionModalContainer}>
+                  <View style={styles.selectionModalHeader}>
+                    <Text style={styles.selectionModalTitle}>Select Target Segment</Text>
+                    <Pressable onPress={() => setSegmentPickerVisible(false)}>
+                      <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                    </Pressable>
+                  </View>
+                  <View style={styles.pickerSearchBoxSmall}>
+                    <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                    <TextInput
+                      style={styles.pickerSearchInputSmall}
+                      placeholder="Search segment..."
+                      placeholderTextColor={colors.textMuted}
+                      value={assistantSegmentSearch}
+                      onChangeText={setAssistantSegmentSearch}
+                    />
+                  </View>
+                  <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                    {SEGMENTS.filter(opt => opt.toLowerCase().includes(assistantSegmentSearch.toLowerCase())).map(segment => {
+                      const isActive = targetSegment === segment;
+                      return (
+                        <Pressable
+                          key={segment}
+                          style={[styles.selectionModalItem, isActive && styles.selectionModalItemActive]}
+                          onPress={() => {
+                            setTargetSegment(segment);
+                            setSegmentPickerVisible(false);
+                            setAssistantSegmentSearch('');
+                          }}
+                        >
+                          <Text style={[styles.selectionModalItemText, isActive && styles.selectionModalItemTextActive]}>
+                            {segment}
+                          </Text>
+                          {isActive && (
+                            <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              </View>
+            )}
           </View>
         </LinearGradient>
       </Modal>
@@ -1001,6 +1073,11 @@ export default function CRM_AutomationsScreen() {
               </View>
 
               <View style={styles.proposalDetailRow}>
+                <Text style={styles.proposalLabel}>NAME:</Text>
+                <Text style={styles.proposalValue}>{proposedName || ruleIdentity}</Text>
+              </View>
+
+              <View style={styles.proposalDetailRow}>
                 <Text style={styles.proposalLabel}>TRIGGER:</Text>
                 <Text style={styles.proposalValue}>{proposedTrigger}</Text>
               </View>
@@ -1013,6 +1090,11 @@ export default function CRM_AutomationsScreen() {
               <View style={styles.proposalDetailRow}>
                 <Text style={styles.proposalLabel}>SEGMENT:</Text>
                 <Text style={styles.proposalValue}>{targetSegment}</Text>
+              </View>
+
+              <View style={styles.proposalDetailRow}>
+                <Text style={styles.proposalLabel}>TIMING:</Text>
+                <Text style={styles.proposalValue}>{proposedExecution}</Text>
               </View>
 
               <View style={styles.logicDivider} />

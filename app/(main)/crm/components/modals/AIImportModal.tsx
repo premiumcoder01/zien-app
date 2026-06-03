@@ -46,6 +46,73 @@ const ANALYSIS_STEPS = [
   { id: 'complete', label: 'Successfully ingested leads' },
 ] as const;
 
+const parseRobustJSON = (jsonString: string): any[] => {
+  try {
+    return JSON.parse(jsonString);
+  } catch (e) {
+    console.warn("Standard JSON parsing failed, attempting repair/recovery:", e);
+    const parsedList: any[] = [];
+    let index = 0;
+    
+    while (index < jsonString.length) {
+      const startIdx = jsonString.indexOf('{', index);
+      if (startIdx === -1) break;
+      
+      let braceCount = 0;
+      let endIdx = -1;
+      let inString = false;
+      let escape = false;
+      
+      for (let i = startIdx; i < jsonString.length; i++) {
+        const char = jsonString[i];
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (char === '\\') {
+          escape = true;
+          continue;
+        }
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (char === '{') {
+            braceCount++;
+          } else if (char === '}') {
+            braceCount--;
+            if (braceCount === 0) {
+              endIdx = i;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (endIdx !== -1) {
+        const objStr = jsonString.substring(startIdx, endIdx + 1);
+        try {
+          const parsedObj = JSON.parse(objStr);
+          if (parsedObj && typeof parsedObj === 'object') {
+            parsedList.push(parsedObj);
+          }
+        } catch (err) {
+          // Ignore parse errors for individual elements
+        }
+        index = endIdx + 1;
+      } else {
+        break;
+      }
+    }
+    
+    if (parsedList.length > 0) {
+      return parsedList;
+    }
+    throw e;
+  }
+};
+
 export const AIImportModal: React.FC<AIImportModalProps> = ({
   visible,
   onClose,
@@ -65,6 +132,10 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
   const [parsedContacts, setParsedContacts] = useState<any[]>([]);
   const [selectedContactIndices, setSelectedContactIndices] = useState<Record<number, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
+
+  const isButtonEnabled = instructions.trim().length > 0 || selectedFile !== null;
+  const selectedCount = parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length;
+  const isConfirmDisabled = isSaving || selectedCount === 0;
 
   const spinValue = useRef(new Animated.Value(0)).current;
 
@@ -174,8 +245,8 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
   };
 
   const startAnalysis = async () => {
-    if (!selectedFile) {
-      Alert.alert('No File Uploaded', 'Please upload a CSV file to begin.');
+    if (!selectedFile && !instructions.trim()) {
+      Alert.alert('Details Required', 'Please write instructions/context or upload a file to begin mapping.');
       return;
     }
 
@@ -187,8 +258,11 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
       setCompletedStepIndex(0);
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Read actual file contents using expo-file-system as UTF8 text
-      const fileText = await FileSystem.readAsStringAsync(selectedFile.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      // Read actual file contents using expo-file-system as UTF8 text if available
+      let fileText = '';
+      if (selectedFile) {
+        fileText = await FileSystem.readAsStringAsync(selectedFile.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      }
 
       // Step 2: Analyzing field headers & structures
       setCompletedStepIndex(1);
@@ -197,7 +271,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
       // Step 3: Call Zien text extraction AI API
       setCompletedStepIndex(2);
 
-      const promptPayload = `\nAnalyze the following contact list data and extract the contacts.\nUser instructions/context: "${instructions || 'make them in a list and find out the context'}"\n\nContact data:\n${fileText}\n`;
+      const promptPayload = `\nAnalyze the following contact list data and extract the contacts.\nUser instructions/context: "${instructions || 'make them in a list and find out the context'}"\n\nContact data:\n${fileText || '[No file uploaded. Extract and generate contacts based purely on the instructions/context provided.]'}\n`;
       const systemInstructionPayload = `\nYou are an expert CRM data analyst. Analyze the provided contact list data and any user instructions, and output a valid JSON array of contact objects. \nEach contact object MUST exactly match this JSON schema:\n{\n  \"name\": string (full name),\n  \"email\": string,\n  \"phone\": string,\n  \"group\": string (categorize as \"Buyer\", \"Seller\", \"Investor\", or \"Past Client\" based on context and user instructions),\n  \"tag\": string (such as \"High Priority\", \"Review Required\", \"Lead\", \"VIP\", etc.),\n  \"tagColor\": string (hex color code suitable for the tag, e.g., \"#F37021\", \"#00A7B5\", \"#64748B\"),\n  \"confidence\": number (confidence score from 1 to 100),\n  \"source\": string (the source of the contact, e.g., \"LinkedIn\", \"Web\", \"Referral\", \"Manual\"),\n  \"attribution\": string (attribution info or event, e.g., \"Tech Summit Lead\", \"Direct Search\", \"Past Client\"),\n  \"budget\": string (budget info, e.g. \"$2M - $5M\", \"$800k - $1.2M\", \"N/A\"),\n  \"timeline\": string (timeline info, e.g. \"Active\", \"3-6 Months\", \"Immediate\")\n}\n\nReturn ONLY the raw JSON array of objects. Do not include any markdown formatting, backticks (such as \`\`\`json), or other text outside the JSON array.\n`;
 
       const responseData = await extractContactsWithAI(
@@ -229,7 +303,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
 
       // Clean up markdown markers if present
       cleanResult = cleanResult.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
-      const contacts = JSON.parse(cleanResult);
+      const contacts = parseRobustJSON(cleanResult);
 
       if (!Array.isArray(contacts)) {
         throw new Error('AI returned an invalid contact list format.');
@@ -409,21 +483,6 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                       placeholder="Tell the AI how to categorize these contacts... (e.g., 'Group by industry and tag VIPs')"
                       placeholderTextColor={colors.textMuted}
                     />
-
-                    <Pressable style={styles.textareaUploadBtn} onPress={handlePickDocument} hitSlop={8}>
-                      <MaterialCommunityIcons name="upload" size={18} color="#64748B" />
-                    </Pressable>
-
-                    {selectedFile && (
-                      <View style={styles.textareaBadgeRow}>
-                        <View style={styles.badgeGreen}>
-                          <MaterialCommunityIcons name="star-four-points" size={10} color="#10B981" />
-                        </View>
-                        <View style={styles.badgeRed}>
-                          <Text style={styles.badgeRedText}>1</Text>
-                        </View>
-                      </View>
-                    )}
                   </View>
 
                   {/* Advice Card */}
@@ -436,7 +495,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                     </Text>
                   </View>
 
-                  {/* File Upload Selector */}
+                  {/* File Upload Selector or Selected File Badge */}
                   {!selectedFile ? (
                     <View style={styles.uploadSection}>
                       <Pressable
@@ -446,15 +505,15 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                         <View style={styles.uploadIconBadge}>
                           <MaterialCommunityIcons
                             name="upload"
-                            size={24}
-                            color={colors.textSecondary}
+                            size={28}
+                            color={theme === 'dark' ? colors.textPrimary : '#0a2341'}
                           />
                         </View>
                         <Text style={styles.uploadTitle}>Upload your contact list</Text>
                         <Text style={styles.uploadSubtitle}>
                           Drag and drop your file here, or click to browse
                         </Text>
-                        <Text style={styles.uploadFormats}>CSV files only</Text>
+                        <Text style={styles.uploadFormats}>CSV • XLSX • TXT • PDF</Text>
                       </Pressable>
                     </View>
                   ) : (
@@ -475,15 +534,31 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                             <Text style={styles.attachedReadyText}>
                               Ready to Process • {selectedFile.size}
                             </Text>
-                            <Pressable onPress={handlePickDocument} hitSlop={12}>
-                              <Text style={styles.attachedChangeText}>Change File</Text>
-                            </Pressable>
+                            <View style={{ flexDirection: 'row', gap: 12 }}>
+                              <Pressable onPress={handlePickDocument} hitSlop={12}>
+                                <Text style={[styles.attachedChangeText, { color: colors.textSecondary }]}>Change</Text>
+                              </Pressable>
+                              <Pressable onPress={() => setSelectedFile(null)} hitSlop={12}>
+                                <Text style={styles.attachedChangeText}>Remove</Text>
+                              </Pressable>
+                            </View>
                           </View>
                         </View>
                       </View>
+                    </View>
+                  )}
 
-                      {/* Launch AI Analysis Button */}
-                      <Pressable style={styles.initializeBtn} onPress={startAnalysis}>
+                  {/* Launch AI Analysis Button (Always visible, enabled if context is filled or file selected) */}
+                  <View style={{ marginTop: 8, marginBottom: 12 }}>
+                    <Pressable
+                      style={[
+                        styles.initializeBtn,
+                        !isButtonEnabled && styles.initializeBtnDisabled
+                      ]}
+                      onPress={startAnalysis}
+                      disabled={!isButtonEnabled}
+                    >
+                      {isButtonEnabled ? (
                         <LinearGradient
                           colors={['#0a2341', '#00a7b5']}
                           start={{ x: 0, y: 0 }}
@@ -493,9 +568,14 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                           <MaterialCommunityIcons name="star-four-points" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
                           <Text style={styles.initializeBtnText}>Initialize AI Intelligence Mapping</Text>
                         </LinearGradient>
-                      </Pressable>
-                    </View>
-                  )}
+                      ) : (
+                        <View style={styles.initializeGradientDisabled}>
+                          <MaterialCommunityIcons name="star-four-points" size={18} color={theme === 'dark' ? 'rgba(255,255,255,0.3)' : '#94A3B8'} style={{ marginRight: 6 }} />
+                          <Text style={styles.initializeBtnTextDisabled}>Initialize AI Intelligence Mapping</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  </View>
                 </ScrollView>
               </KeyboardAvoidingView>
             </>
@@ -582,8 +662,9 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                 </View>
 
                 <View style={{ gap: 14 }}>
-                  {parsedContacts.map((contact, idx) => (
-                    <View key={idx} style={[styles.reviewCard, !selectedContactIndices[idx] && { opacity: 0.6 }]}>
+                  {parsedContacts.length > 0 ? (
+                    parsedContacts.map((contact, idx) => (
+                      <View key={idx} style={[styles.reviewCard, !selectedContactIndices[idx] && { opacity: 0.6 }]}>
                       {/* Checkbox and Delete Row */}
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.divider, opacity: 0.8, marginBottom: 8 }}>
                         <Pressable 
@@ -663,33 +744,57 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                         </View>
                       </View>
                     </View>
-                  ))}
+                  ))
+                  ) : (
+                    <View style={styles.emptyReviewState}>
+                      <MaterialCommunityIcons name="alert-circle-outline" size={40} color={colors.textMuted || '#8DA4B5'} />
+                      <Text style={styles.emptyReviewStateTitle}>No Records Found</Text>
+                      <Text style={styles.emptyReviewStateText}>
+                        Zien Neural Studio was unable to extract any records. Please try adjusting your context/instructions or check the uploaded file content.
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Bottom buttons row */}
                 <View style={styles.reviewActionsRow}>
                   <Pressable
-                    style={styles.confirmImportBtn}
+                    style={[styles.confirmImportBtn, isConfirmDisabled && styles.confirmImportBtnDisabled]}
                     onPress={confirmAndImport}
-                    disabled={isSaving}
+                    disabled={isConfirmDisabled}
                   >
-                    <LinearGradient
-                      colors={['#0a2341', '#00a7b5']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.confirmImportGradient}
-                    >
-                      {isSaving ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <MaterialCommunityIcons name="check-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                          <Text style={styles.confirmImportBtnText}>
-                            Confirm & Import {parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length} Contacts
-                          </Text>
-                        </>
-                      )}
-                    </LinearGradient>
+                    {!isConfirmDisabled ? (
+                      <LinearGradient
+                        colors={['#0a2341', '#00a7b5']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.confirmImportGradient}
+                      >
+                        {isSaving ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <MaterialCommunityIcons name="check-circle-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                            <Text style={styles.confirmImportBtnText}>
+                              Confirm & Import {selectedCount} Contacts
+                            </Text>
+                          </>
+                        )}
+                      </LinearGradient>
+                    ) : (
+                      <View style={styles.confirmImportGradientDisabled}>
+                        {isSaving ? (
+                          <ActivityIndicator size="small" color={theme === 'dark' ? 'rgba(255,255,255,0.3)' : '#94A3B8'} />
+                        ) : (
+                          <>
+                            <MaterialCommunityIcons name="check-circle-outline" size={16} color={theme === 'dark' ? 'rgba(255,255,255,0.3)' : '#94A3B8'} style={{ marginRight: 6 }} />
+                            <Text style={styles.confirmImportBtnTextDisabled}>
+                              Confirm & Import {selectedCount} Contacts
+                            </Text>
+                          </>
+                        )}
+                      </View>
+                    )}
                   </Pressable>
 
                   <Pressable
@@ -1002,13 +1107,18 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     minHeight: 180,
   },
   uploadIconBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.surfaceIcon,
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: theme === 'dark' ? colors.cardBackground : '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
   },
   uploadTitle: {
     fontSize: 16,
@@ -1026,10 +1136,10 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     paddingHorizontal: 12,
   },
   uploadFormats: {
-    fontSize: 10,
+    fontSize: 10.5,
     color: colors.textMuted,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   attachedCardContainer: {
     marginBottom: 20,
@@ -1091,16 +1201,35 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     shadowRadius: 10,
     elevation: 4,
   },
+  initializeBtnDisabled: {
+    shadowColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
   initializeGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 15,
   },
+  initializeGradientDisabled: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+    borderRadius: 14,
+  },
   initializeBtnText: {
     fontSize: 15,
     fontWeight: '900',
     color: '#FFFFFF',
+  },
+  initializeBtnTextDisabled: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: theme === 'dark' ? 'rgba(255,255,255,0.3)' : '#94A3B8',
   },
 
   /* Review Screen Mappings */
@@ -1419,5 +1548,49 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1.5,
     borderColor: colors.borderLight,
+  },
+  confirmImportBtnDisabled: {
+    shadowColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  confirmImportGradientDisabled: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+    borderRadius: 14,
+  },
+  confirmImportBtnTextDisabled: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: theme === 'dark' ? 'rgba(255,255,255,0.3)' : '#94A3B8',
+  },
+  emptyReviewState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(100, 116, 139, 0.03)',
+    borderRadius: 20,
+    borderWidth: 1.2,
+    borderColor: colors.borderLight,
+    borderStyle: 'dashed',
+  },
+  emptyReviewStateTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  emptyReviewStateText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

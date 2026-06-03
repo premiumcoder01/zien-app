@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { CRMContact, CRMDeal, CRMPipeline, CRMStage, addCRMDeal, addCRMPipelineStage, deleteCRMPipelineStage, updateCRMPipelineStage, getCRMContacts, getCRMDeals, getCRMPipelines, updateCRMDealStage, deleteCRMDeal } from '@/services/crmService';
+import { CRMContact, CRMDeal, CRMPipeline, CRMStage, addCRMDeal, addCRMPipelineStage, deleteCRMPipelineStage, updateCRMPipelineStage, getCRMContacts, getCRMDeals, getCRMPipelines, updateCRMDealStage, deleteCRMDeal, getCRMAutomations, addCRMAutomation, deleteCRMAutomation, updateCRMAutomation } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -229,14 +229,16 @@ export default function DealsScreen() {
 
   // Auto-Trigger states
   const [isAutoTriggerModalVisible, setIsAutoTriggerModalVisible] = useState(false);
-  const [automations, setAutomations] = useState([
-    { id: 'lead', stage: 'Lead', enabled: true, action: 'Send Email' },
-    { id: 'contacted', stage: 'Contacted', enabled: false, action: 'Send Email' },
-    { id: 'showing', stage: 'Showing', enabled: false, action: 'SMS Alert' },
-    { id: 'offer', stage: 'Offer', enabled: true, action: 'Send Email' },
-    { id: 'closed', stage: 'Closed', enabled: true, action: 'Send Email' },
-  ]);
   const [activeActionStageId, setActiveActionStageId] = useState<string | null>(null);
+  const [stageActions, setStageActions] = useState<Record<string, string>>({});
+  const [updatingStages, setUpdatingStages] = useState<Record<string, boolean>>({});
+
+  // Fetch Automations from API
+  const { data: apiAutomations = [], isLoading: isLoadingAutomations } = useQuery({
+    queryKey: ['crmAutomations', accessToken],
+    queryFn: () => getCRMAutomations(accessToken!),
+    enabled: !!accessToken && isAutoTriggerModalVisible,
+  });
 
   const handleSaveAutomations = () => {
     setIsAutoTriggerModalVisible(false);
@@ -303,19 +305,49 @@ export default function DealsScreen() {
     }
   };
 
-  const toggleAutomation = (id: string) => {
-    setAutomations(prev => prev.map(a => a.id === id ? { ...a, enabled: !a.enabled } : a));
+  const toggleAutomation = async (stageName: string, matchedAutomation?: any, currentAction: string = 'Schedule Follow-up Call') => {
+    if (!accessToken) return;
+
+    setUpdatingStages(prev => ({ ...prev, [stageName]: true }));
+    try {
+      if (matchedAutomation) {
+        // Toggle OFF -> Delete
+        await deleteCRMAutomation(accessToken, matchedAutomation.id);
+      } else {
+        // Toggle ON -> Create
+        await addCRMAutomation(accessToken, {
+          name: `Pipeline Stage: ${stageName}`,
+          trigger: `Deal Stage: ${stageName}`,
+          action: currentAction,
+          category: "Pipeline Event",
+          execution: "Immediate",
+          status: 1
+        });
+      }
+      await queryClient.invalidateQueries({ queryKey: ['crmAutomations'] });
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update automation');
+    } finally {
+      setUpdatingStages(prev => ({ ...prev, [stageName]: false }));
+    }
   };
 
-  const updateAutomationAction = (stageName: string, action: string) => {
-    setAutomations(prev => {
-      const exists = prev.find(a => a.stage === stageName);
-      if (exists) {
-        return prev.map(a => a.stage === stageName ? { ...a, action } : a);
-      }
-      return [...prev, { id: Math.random().toString(), stage: stageName, enabled: false, action }];
-    });
+  const updateAutomationAction = async (stageName: string, actionName: string, matchedAutomation?: any) => {
+    setStageActions(prev => ({ ...prev, [stageName]: actionName }));
     setActiveActionStageId(null);
+
+    if (matchedAutomation) {
+      if (!accessToken) return;
+      setUpdatingStages(prev => ({ ...prev, [stageName]: true }));
+      try {
+        await updateCRMAutomation(accessToken, matchedAutomation.id, { action: actionName });
+        await queryClient.invalidateQueries({ queryKey: ['crmAutomations'] });
+      } catch (error: any) {
+        Alert.alert('Error', error.message || 'Failed to update action');
+      } finally {
+        setUpdatingStages(prev => ({ ...prev, [stageName]: false }));
+      }
+    }
   };
 
   const handleValueChange = (text: string) => {
@@ -1153,74 +1185,85 @@ export default function DealsScreen() {
               contentContainerStyle={styles.modalContent}
               showsVerticalScrollIndicator={false}
             >
-              {(activePipeline?.stages || []).map((stage) => {
-                const item = automations.find(a => a.stage === stage.name) || {
-                  id: stage.id,
-                  stage: stage.name,
-                  enabled: false,
-                  action: 'Send Email'
-                };
-                return (
-                  <View
-                    key={stage.id}
-                    style={[
-                      styles.automationCard,
-                      item.enabled && styles.automationCardActive
-                    ]}
-                  >
-                    <View style={styles.automationCardMain}>
-                      <View style={styles.automationInfo}>
-                        <View style={styles.automationTitleRow}>
-                          <View style={[styles.statusDot, { backgroundColor: item.enabled ? colors.accentTeal : colors.iconMuted }]} />
-                          <Text style={styles.automationStageName}>{stage.name}</Text>
-                        </View>
-                        <View style={styles.automationActionRow}>
-                          <Text style={styles.thenText}>Then </Text>
-                          <Pressable
-                            style={styles.actionSelector}
-                            onPress={() => setActiveActionStageId(activeActionStageId === stage.id ? null : stage.id)}
-                          >
-                            <Text style={styles.actionText}>{item.action}</Text>
-                            <MaterialCommunityIcons name="chevron-down" size={16} color={colors.accentTeal} />
-                          </Pressable>
+              {isLoadingAutomations ? (
+                <View style={{ paddingVertical: 100, alignItems: 'center', justifyContent: 'center' }}>
+                  <ActivityIndicator size="large" color={colors.accentTeal} />
+                  <Text style={{ color: colors.textSecondary, marginTop: 12, fontWeight: '600' }}>Loading Automations...</Text>
+                </View>
+              ) : (
+                (activePipeline?.stages || []).map((stage) => {
+                  const matched = apiAutomations.find((a: any) => a.trigger === `Deal Stage: ${stage.name}`);
+                  const isEnabled = !!matched;
+                  const currentAction = stageActions[stage.name] || matched?.action || 'Schedule Follow-up Call';
+                  const isUpdating = !!updatingStages[stage.name];
+                  
+                  return (
+                    <View
+                      key={stage.id}
+                      style={[
+                        styles.automationCard,
+                        isEnabled && styles.automationCardActive
+                      ]}
+                    >
+                      <View style={styles.automationCardMain}>
+                        <View style={styles.automationInfo}>
+                          <View style={styles.automationTitleRow}>
+                            <View style={[styles.statusDot, { backgroundColor: isEnabled ? colors.accentTeal : colors.iconMuted }]} />
+                            <Text style={styles.automationStageName}>{stage.name}</Text>
+                          </View>
+                          <View style={styles.automationActionRow}>
+                            <Text style={styles.thenText}>Then </Text>
+                            <Pressable
+                              style={[styles.actionSelector, isUpdating && { opacity: 0.5 }]}
+                              onPress={() => !isUpdating && setActiveActionStageId(activeActionStageId === stage.id ? null : stage.id)}
+                              disabled={isUpdating}
+                            >
+                              <Text style={styles.actionText}>{currentAction}</Text>
+                              <MaterialCommunityIcons name="chevron-down" size={16} color={colors.accentTeal} />
+                            </Pressable>
 
-                          {activeActionStageId === stage.id && (
-                            <View style={styles.actionDropdownMenu}>
-                              {['Send Email', 'Create Task', 'SMS Alert', 'Internal Ping'].map((act) => (
-                                <Pressable
-                                  key={act}
-                                  style={[
-                                    styles.actionDropdownItem,
-                                    item.action === act && styles.actionDropdownItemActive
-                                  ]}
-                                  onPress={() => updateAutomationAction(stage.name, act)}
-                                >
-                                  <Text style={[
-                                    styles.actionDropdownText,
-                                    item.action === act && styles.actionDropdownTextActive
-                                  ]}>
-                                    {act}
-                                  </Text>
-                                  {item.action === act && (
-                                    <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" style={styles.actionCheck} />
-                                  )}
-                                </Pressable>
-                              ))}
-                            </View>
-                          )}
+                            {activeActionStageId === stage.id && (
+                              <View style={styles.actionDropdownMenu}>
+                                {['Schedule Follow-up Call', 'Notify Team & Assign Task', 'Mark Contact as Hot Lead'].map((act) => (
+                                  <Pressable
+                                    key={act}
+                                    style={[
+                                      styles.actionDropdownItem,
+                                      currentAction === act && styles.actionDropdownItemActive
+                                    ]}
+                                    onPress={() => updateAutomationAction(stage.name, act, matched)}
+                                  >
+                                    <Text style={[
+                                      styles.actionDropdownText,
+                                      currentAction === act && styles.actionDropdownTextActive
+                                    ]}>
+                                      {act}
+                                    </Text>
+                                    {currentAction === act && (
+                                      <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" style={styles.actionCheck} />
+                                    )}
+                                  </Pressable>
+                                ))}
+                              </View>
+                            )}
+                          </View>
                         </View>
+                        {isUpdating ? (
+                          <ActivityIndicator size="small" color={colors.accentTeal} style={{ marginRight: 8 }} />
+                        ) : (
+                          <Switch
+                            value={isEnabled}
+                            onValueChange={() => toggleAutomation(stage.name, matched, currentAction)}
+                            trackColor={{ false: colors.borderLight, true: colors.accentTeal }}
+                            thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
+                            ios_backgroundColor={colors.borderLight}
+                          />
+                        )}
                       </View>
-                      <Switch
-                        value={item.enabled}
-                        onValueChange={() => toggleAutomation(item.id)}
-                        trackColor={{ false: colors.borderLight, true: colors.accentTeal }}
-                        thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
-                        ios_backgroundColor={colors.borderLight}
-                      />
                     </View>
-                  </View>
-                );
-              })}
+                  );
+                })
+              )}
             </ScrollView>
 
             <View style={[styles.modalFooter, { paddingBottom: insets.bottom + 16 }]}>
