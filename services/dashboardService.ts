@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://staging.zien.ai/api';
+const API_BASE_URL = 'https://staging-api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface StatItem {
@@ -77,6 +77,11 @@ export interface TeamProfile {
   address: string | null;
   website: string | null;
   description: string | null;
+  mailgun_api_key?: string | null;
+  mailgun_domain?: string | null;
+  mailgun_from_email?: string | null;
+  sendgrid_api_key?: string | null;
+  sendgrid_from_email?: string | null;
 }
 
 export interface Employee {
@@ -278,6 +283,19 @@ export const getTeamProfile = async (accessToken: string): Promise<TeamProfile> 
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
   if (!response.ok) throw new Error('Failed to fetch team profile');
+  return response.json();
+};
+
+export const updateTeamProfile = async (accessToken: string, data: any): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/teams/settings/profile`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Failed to update team profile');
   return response.json();
 };
 

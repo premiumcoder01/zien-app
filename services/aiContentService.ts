@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://staging.zien.ai/api';
+const API_BASE_URL = 'https://staging-api.zien.ai/api';
 const AI_API_BASE_URL = 'https://staging-api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 const AI_GENERATE_TIMEOUT_MS = 60000; // AI generation can take longer

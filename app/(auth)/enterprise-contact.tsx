@@ -133,7 +133,7 @@ export default function EnterpriseContactScreen() {
 
       console.log('Demo request payload:', JSON.stringify(payload, null, 2));
 
-      const response = await fetch('https://staging.zien.ai/api/website/demo-requests', {
+      const response = await fetch('https://staging-api.zien.ai/api/website/demo-requests', {
         method: 'POST',
         headers: {
           Accept: 'application/json',

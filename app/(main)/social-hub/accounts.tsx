@@ -85,7 +85,7 @@ export default function AccountsScreen() {
     if (!activeAccount) return;
     setIsConnecting(true);
     try {
-      const response = await fetch(`https://staging.zien.ai/api/solo/social/oauth/facebook/url`);
+      const response = await fetch(`https://staging-api.zien.ai/api/solo/social/oauth/facebook/url`);
       const data = await response.json();
       console.log(data, "vishal")
       if (data && data.url) {

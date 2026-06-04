@@ -2,6 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAppTheme } from '@/context/ThemeContext';
 import { updateCRMSettings, getCRMSettings } from '@/services/crmService';
+import { getTeamProfile, updateTeamProfile } from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -101,7 +102,33 @@ export default function CRMSettingsScreen() {
       if (!accessToken) return;
       try {
         setLoading(true);
-        const data = await getCRMSettings(accessToken);
+        const [data, profileData] = await Promise.all([
+          getCRMSettings(accessToken),
+          getTeamProfile(accessToken).catch(err => {
+            console.warn('Failed to load team profile:', err);
+            return null;
+          })
+        ]);
+
+        if (profileData) {
+          const providers: Record<string, { apiKey: string; domain?: string; senderEmail?: string }> = {};
+          if (profileData.mailgun_api_key) {
+            providers.mailgun = {
+              apiKey: profileData.mailgun_api_key,
+              domain: profileData.mailgun_domain || '',
+              senderEmail: profileData.mailgun_from_email || '',
+            };
+          }
+          if (profileData.sendgrid_api_key) {
+            providers.sendgrid = {
+              apiKey: profileData.sendgrid_api_key,
+              domain: '',
+              senderEmail: profileData.sendgrid_from_email || '',
+            };
+          }
+          setConnectedProviders(providers);
+        }
+
         if (data) {
           if (data.lead_distribution) {
             setLeadDistribution(data.lead_distribution as any);
@@ -279,10 +306,24 @@ export default function CRMSettingsScreen() {
       anniversary_settings: anniversarySettings,
     };
 
+    const mailgun = connectedProviders.mailgun;
+    const sendgrid = connectedProviders.sendgrid;
+
+    const profilePayload = {
+      mailgun_api_key: mailgun?.apiKey || null,
+      mailgun_domain: mailgun?.domain || null,
+      mailgun_from_email: mailgun?.senderEmail || null,
+      sendgrid_api_key: sendgrid?.apiKey || null,
+      sendgrid_from_email: sendgrid?.senderEmail || null,
+    };
+
     try {
       setSaving(true);
-      await updateCRMSettings(accessToken, payload);
-      Alert.alert('Success', 'CRM settings saved successfully.');
+      await Promise.all([
+        updateCRMSettings(accessToken, payload),
+        updateTeamProfile(accessToken, profilePayload),
+      ]);
+      Alert.alert('Success', 'CRM and Email settings saved successfully.');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to save settings. Please try again.');
     } finally {
@@ -406,8 +447,11 @@ export default function CRMSettingsScreen() {
             </Text>
             <View style={styles.card}>
               {EMAIL_PROVIDERS.map((provider, idx) => {
+                const activeConnectedProvider = EMAIL_PROVIDERS.find(p => connectedProviders[p.id]);
+                const isAnyProviderConnected = !!activeConnectedProvider;
                 const conn = connectedProviders[provider.id];
                 const isConnected = !!conn;
+                const isDisabled = isAnyProviderConnected && !isConnected;
 
                 return (
                   <View
@@ -420,25 +464,22 @@ export default function CRMSettingsScreen() {
                   >
                     {isConnected ? (
                       <>
-                        <View style={styles.providerInfoColumn}>
-                          <View style={styles.providerNameBadgeRow}>
-                            <Text style={styles.providerName}>{provider.name}</Text>
-                            <View style={styles.connectedBadgeCapsule}>
-                              <Text style={styles.connectedBadgeText}>CONNECTED</Text>
-                            </View>
+                        <View style={styles.providerNameBadgeRow}>
+                          <Text style={styles.providerName}>{provider.name}</Text>
+                          <View style={styles.activeUseBadge}>
+                            <View style={styles.greenDot} />
+                            <Text style={styles.activeUseBadgeText}>ACTIVE IN USE</Text>
                           </View>
-                          {provider.id === 'mailgun' ? (
-                            <Text style={styles.providerDomainText}>Domain: {conn.domain}</Text>
-                          ) : (
-                            <Text style={styles.providerDomainText}>Sender: {conn.senderEmail}</Text>
-                          )}
                         </View>
+                        <Text style={styles.providerConfiguredText}>
+                          Configured: {provider.id === 'mailgun' ? conn.domain : conn.senderEmail}
+                        </Text>
                         <View style={styles.providerActionsRow}>
                           <Pressable
                             style={styles.connectApiBtnConnected}
                             onPress={() => handleOpenConnect(provider)}
                           >
-                            <Text style={styles.connectApiBtnTextConnected}>Manage API Key</Text>
+                            <Text style={styles.connectApiBtnTextConnected}>Manage Credentials</Text>
                           </Pressable>
                           <Pressable
                             style={styles.disconnectProviderBtn}
@@ -448,6 +489,18 @@ export default function CRMSettingsScreen() {
                           </Pressable>
                         </View>
                       </>
+                    ) : isDisabled ? (
+                      <View style={styles.providerRowLayout}>
+                        <View style={[styles.providerInfoColumn, { flex: 1, marginRight: 12 }]}>
+                          <Text style={[styles.providerName, { opacity: 0.5 }]}>{provider.name}</Text>
+                          <Text style={styles.warningText}>
+                            Disconnect current provider to use {provider.name}.
+                          </Text>
+                        </View>
+                        <View style={styles.connectApiBtnDisabled}>
+                          <Text style={styles.connectApiBtnTextDisabled}>Connect API Key</Text>
+                        </View>
+                      </View>
                     ) : (
                       <View style={styles.providerRowLayout}>
                         <Text style={styles.providerName}>{provider.name}</Text>
@@ -1767,10 +1820,8 @@ function getStyles(colors: any, theme: string) {
     providerRowConnected: {
       flexDirection: 'column',
       alignItems: 'stretch',
-      backgroundColor: colors.cardBackground,
-      borderColor: 'rgba(11, 160, 178, 0.25)',
-      gap: 12,
       paddingVertical: 16,
+      gap: 12,
     },
     providerRowLayout: {
       flexDirection: 'row',
@@ -1806,12 +1857,13 @@ function getStyles(colors: any, theme: string) {
     },
     providerActionsRow: {
       flexDirection: 'row',
-      gap: 12,
+      gap: 8,
       width: '100%',
     },
     connectApiBtnConnected: {
       flex: 1,
-      height: 40,
+      height: 38,
+      paddingHorizontal: 12,
       borderRadius: 10,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
@@ -1826,7 +1878,8 @@ function getStyles(colors: any, theme: string) {
     },
     disconnectProviderBtn: {
       flex: 1,
-      height: 40,
+      height: 38,
+      paddingHorizontal: 12,
       backgroundColor: '#EF4444',
       borderRadius: 10,
       alignItems: 'center',
@@ -1836,6 +1889,55 @@ function getStyles(colors: any, theme: string) {
       color: '#FFFFFF',
       fontSize: 13,
       fontWeight: '700',
+    },
+    activeUseBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme === 'dark' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      gap: 5,
+    },
+    greenDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#10B981',
+    },
+    activeUseBadgeText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: '#10B981',
+      letterSpacing: 0.5,
+    },
+    warningText: {
+      fontSize: 11,
+      color: '#EF4444',
+      fontWeight: '500',
+      marginTop: 4,
+    },
+    providerConfiguredText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      marginTop: 4,
+    },
+    connectApiBtnDisabled: {
+      height: 38,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      opacity: 0.5,
+    },
+    connectApiBtnTextDisabled: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textMuted,
     },
   });
 }
