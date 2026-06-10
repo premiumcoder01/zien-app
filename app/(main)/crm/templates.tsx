@@ -1,12 +1,13 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { CRMTemplate, deleteCRMTemplate, duplicateCRMTemplate, getCRMTemplates, patchCRMTemplateStatus } from '@/services/crmService';
+import { CRMTemplate, deleteCRMTemplate, duplicateCRMTemplate, getCRMTemplates, patchCRMTemplateStatus, renderCRMTemplate } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -22,6 +23,162 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+
+const generateEmailHtml = (components: any[], theme: string) => {
+    const isDark = theme === 'dark';
+    const bgColor = isDark ? '#0f172a' : '#f1f5f9';
+    const cardBgColor = isDark ? '#1e293b' : '#ffffff';
+    const textColor = isDark ? '#cbd5e1' : '#334155';
+    const headingColor = isDark ? '#ffffff' : '#0f172a';
+    const borderColor = isDark ? '#334155' : '#e2e8f0';
+    const subtextColor = isDark ? '#94a3b8' : '#64748b';
+
+    const replaceTokens = (text: string) => {
+        if (!text) return '';
+        return text
+            .replace(/\{\{\s*name\s*\}\}/gi, 'Jessica Miller')
+            .replace(/\{\{\s*property\s*\}\}/gi, 'Malibu Oceanview Estate')
+            .replace(/\{\{\s*company\s*\}\}/gi, 'Zien Realty');
+    };
+
+    let bodyHtml = '';
+
+    components.forEach((comp: any) => {
+        if (comp.type === 'Branding') {
+            const brandColor = comp.brandColor || '#3B82F6';
+            bodyHtml += `
+                <div style="border-top: 4px solid ${brandColor}; padding-top: 12px; border-bottom: 1px solid ${borderColor}; padding-bottom: 12px; margin-bottom: 16px;">
+                    <div style="font-size: 18px; font-weight: 800; color: ${headingColor};">${comp.content || 'Elite Realty Group'}</div>
+                    ${comp.subtext ? `<div style="font-size: 11px; color: ${subtextColor}; margin-top: 2px;">${comp.subtext}</div>` : ''}
+                </div>
+            `;
+        } else if (comp.type === 'Property Header') {
+            bodyHtml += `
+                <div style="background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 16px; color: #ffffff; font-family: sans-serif;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🏢</div>
+                    <div style="font-size: 14px; font-weight: 800; letter-spacing: 1px; color: #2dd4bf; margin-bottom: 4px;">EXQUISITE PROPERTY FEATURE</div>
+                    <div style="font-size: 12px; color: #94a3b8;">Curated Luxury by Zien</div>
+                </div>
+            `;
+        } else if (comp.type === 'Text Block') {
+            bodyHtml += `
+                <div style="font-size: 15px; line-height: 1.6; color: ${textColor}; margin-bottom: 16px; font-family: sans-serif;">
+                    ${replaceTokens(comp.content)}
+                </div>
+            `;
+        } else if (comp.type === 'CTA Button') {
+            bodyHtml += `
+                <div style="text-align: center; margin-bottom: 16px; margin-top: 16px;">
+                    <a href="#" style="display: inline-block; background-color: #2563eb; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-family: sans-serif;">
+                        ${comp.content}
+                    </a>
+                </div>
+            `;
+        } else if (comp.type === 'Page Link') {
+            bodyHtml += `
+                <div style="display: flex; align-items: center; padding: 12px; border: 1px solid ${borderColor}; border-radius: 8px; margin-bottom: 12px; background-color: ${isDark ? '#1e293b' : '#ffffff'}; font-family: sans-serif;">
+                    <span style="color: #0d9488; font-weight: bold; margin-right: 8px;">🔗</span>
+                    <span style="font-size: 13px; color: ${textColor}; flex-grow: 1;">${comp.content || 'Visit Page'}</span>
+                    <span style="color: ${subtextColor}; margin-left: auto;">&gt;</span>
+                </div>
+            `;
+        } else if (comp.type === 'Spacer') {
+            const heightVal = parseInt(comp.content) || 16;
+            bodyHtml += `<div style="height: ${heightVal}px;"></div>`;
+        } else if (comp.type === 'Property Details') {
+            bodyHtml += `
+                <div style="padding: 16px; background-color: ${isDark ? '#1e293b' : '#f8fafc'}; border: 1px solid ${borderColor}; border-radius: 12px; margin-bottom: 16px; font-family: sans-serif;">
+                    <div style="font-size: 16px; font-weight: 700; color: ${headingColor}; margin-bottom: 4px;">${comp.content || 'Malibu Oceanview Estate'}</div>
+                    <div style="font-size: 15px; font-weight: 800; color: #0d9488; margin-bottom: 4px;">${comp.price || '$5,450,000'}</div>
+                    <div style="font-size: 12px; color: ${subtextColor}; margin-bottom: 4px;">${comp.specs || '5 Beds • 6 Baths • 4,500 SqFt'}</div>
+                    ${comp.address ? `<div style="font-size: 12px; color: ${subtextColor};">${comp.address}</div>` : ''}
+                </div>
+            `;
+        } else if (comp.type === 'Document Attachment') {
+            bodyHtml += `
+                <div style="display: flex; align-items: center; padding: 12px; border: 1px dashed ${borderColor}; border-radius: 10px; margin-bottom: 16px; background-color: ${isDark ? '#1e293b' : '#f8fafc'}; font-family: sans-serif;">
+                    <span style="font-size: 20px; margin-right: 10px;">📄</span>
+                    <div style="flex-grow: 1; text-align: left;">
+                        <div style="font-size: 13px; font-weight: 600; color: ${headingColor};">${comp.content || 'Brochure.pdf'}</div>
+                        <div style="font-size: 11px; color: ${subtextColor};">2.4 MB • PDF Document</div>
+                    </div>
+                    <span style="font-size: 16px; color: ${subtextColor}; margin-left: auto;">⬇️</span>
+                </div>
+            `;
+        } else if (comp.type === 'Email Signature') {
+            let socialHtml = '';
+            if (comp.socialLinks && comp.socialLinks.length > 0) {
+                socialHtml += '<div style="display: flex; gap: 8px; margin-top: 8px;">';
+                comp.socialLinks.forEach((social: any) => {
+                    socialHtml += `
+                        <span style="display: inline-block; padding: 4px 8px; font-size: 10px; background-color: ${isDark ? '#334155' : '#f1f5f9'}; color: ${textColor}; border-radius: 4px; font-weight: bold; font-family: sans-serif;">
+                            ${social.platform.toUpperCase()}
+                        </span>
+                    `;
+                });
+                socialHtml += '</div>';
+            }
+
+            bodyHtml += `
+                <div style="margin-top: 24px; border-top: 1px solid ${borderColor}; padding-top: 16px; font-family: sans-serif;">
+                    <div style="font-size: 13px; color: ${subtextColor}; line-height: 1.5;">${comp.content}</div>
+                    ${socialHtml}
+                </div>
+            `;
+        }
+    });
+
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    background-color: ${bgColor};
+                    margin: 0;
+                    padding: 8px;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                }
+                .card {
+                    background-color: ${cardBgColor};
+                    border-radius: 16px;
+                    padding: 16px;
+                    border: 1px solid ${borderColor};
+                    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+                    max-width: 600px;
+                    margin: 0 auto;
+                }
+                /* Formatting styling within text block content */
+                p {
+                    margin-top: 0;
+                    margin-bottom: 12px;
+                }
+                p:last-child {
+                    margin-bottom: 0;
+                }
+                strong {
+                    color: ${headingColor};
+                    font-weight: 700;
+                }
+                ul {
+                    margin: 0 0 12px 20px;
+                    padding: 0;
+                }
+                li {
+                    margin-bottom: 6px;
+                    color: ${textColor};
+                }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                ${bodyHtml}
+            </div>
+        </body>
+        </html>
+    `;
+};
 
 export default function CRM_TemplatesScreen() {
     const { colors, theme } = useAppTheme();
@@ -49,6 +206,33 @@ export default function CRM_TemplatesScreen() {
     const [webOnlyModalVisible, setWebOnlyModalVisible] = useState(false);
     const [previewTemplate, setPreviewTemplate] = useState<CRMTemplate | null>(null);
     const [previewVisible, setPreviewVisible] = useState(false);
+    const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+    const [loadingPreview, setLoadingPreview] = useState(false);
+
+    useEffect(() => {
+        async function fetchPreview() {
+            if (!previewTemplate || !accessToken) {
+                setPreviewHtml(null);
+                return;
+            }
+            if (previewTemplate.template_type.toUpperCase() !== 'EMAIL') {
+                setPreviewHtml(null);
+                return;
+            }
+
+            try {
+                setLoadingPreview(true);
+                const html = await renderCRMTemplate(accessToken, previewTemplate.content_json);
+                setPreviewHtml(html);
+            } catch (error) {
+                console.error('Failed to load template preview:', error);
+                setPreviewHtml(null);
+            } finally {
+                setLoadingPreview(false);
+            }
+        }
+        fetchPreview();
+    }, [previewTemplate, accessToken]);
 
     const queryClient = useQueryClient();
 
@@ -173,113 +357,21 @@ export default function CRM_TemplatesScreen() {
                         </View>
                     </View>
 
-                    {/* Email Body Scroll */}
-                    <ScrollView style={styles.emailBodyContainer} contentContainerStyle={{ padding: 16, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
-                        <View style={styles.emailCardMock}>
-                            {components.map((comp: any, index: number) => {
-                                if (comp.type === 'Branding') {
-                                    return (
-                                        <View key={index} style={[styles.emailBrandingHeader, { borderTopColor: comp.brandColor || '#3B82F6' }]}>
-                                            <Text style={styles.emailBrandingTitle}>{comp.content || 'Elite Realty Group'}</Text>
-                                            {comp.subtext ? <Text style={styles.emailBrandingSub}>{comp.subtext}</Text> : null}
-                                        </View>
-                                    );
-                                }
-                                if (comp.type === 'Property Header') {
-                                    return (
-                                        <View key={index} style={styles.emailPropHeaderContainer}>
-                                            <LinearGradient
-                                                colors={['#1E293B', '#0F172A']}
-                                                style={styles.emailPropHeaderGradient}
-                                            >
-                                                <MaterialCommunityIcons name="home-city" size={32} color="#2DD4BF" />
-                                                <Text style={styles.emailPropHeaderTitle}>EXQUISITE PROPERTY FEATURE</Text>
-                                                <Text style={styles.emailPropHeaderSub}>Curated Luxury by Zien</Text>
-                                            </LinearGradient>
-                                        </View>
-                                    );
-                                }
-                                if (comp.type === 'Text Block') {
-                                    return (
-                                        <Text key={index} style={styles.emailTextContent}>
-                                            {replaceTokens(comp.content)}
-                                        </Text>
-                                    );
-                                }
-                                if (comp.type === 'CTA Button') {
-                                    return (
-                                        <View key={index} style={{ alignItems: 'center', marginBottom: 16 }}>
-                                            <Pressable style={styles.emailCtaBtn}>
-                                                <Text style={styles.emailCtaBtnText}>{comp.content}</Text>
-                                            </Pressable>
-                                        </View>
-                                    );
-                                }
-                                if (comp.type === 'Page Link') {
-                                    return (
-                                        <Pressable key={index} style={styles.emailPageLinkRow}>
-                                            <MaterialCommunityIcons name="link-variant" size={16} color="#0D9488" style={{ marginRight: 8 }} />
-                                            <Text style={styles.emailPageLinkText}>{comp.content || 'Visit Page'}</Text>
-                                            <MaterialCommunityIcons name="chevron-right" size={16} color="#94A3B8" style={{ marginLeft: 'auto' }} />
-                                        </Pressable>
-                                    );
-                                }
-                                if (comp.type === 'Spacer') {
-                                    const heightVal = parseInt(comp.content) || 16;
-                                    return <View key={index} style={{ height: heightVal }} />;
-                                }
-                                if (comp.type === 'Property Details') {
-                                    return (
-                                        <View key={index} style={styles.emailPropDetailsCard}>
-                                            <Text style={styles.emailPropTitle}>{comp.content || 'Malibu Oceanview Estate'}</Text>
-                                            <Text style={styles.emailPropPrice}>{comp.price || '$5,450,000'}</Text>
-                                            <Text style={styles.emailPropSpecs}>{comp.specs || '5 Beds • 6 Baths • 4,500 SqFt'}</Text>
-                                            {comp.address ? <Text style={styles.emailPropAddress}>{comp.address}</Text> : null}
-                                        </View>
-                                    );
-                                }
-                                if (comp.type === 'Document Attachment') {
-                                    return (
-                                        <View key={index} style={styles.emailAttachmentCard}>
-                                            <MaterialCommunityIcons name="file-pdf-box" size={24} color="#EF4444" />
-                                            <View style={{ marginLeft: 10, flex: 1 }}>
-                                                <Text style={styles.emailAttachmentName}>{comp.content || 'Brochure.pdf'}</Text>
-                                                <Text style={styles.emailAttachmentSize}>2.4 MB • PDF Document</Text>
-                                            </View>
-                                            <MaterialCommunityIcons name="download" size={20} color="#64748B" />
-                                        </View>
-                                    );
-                                }
-                                if (comp.type === 'Email Signature') {
-                                    return (
-                                        <View key={index} style={styles.emailSignatureBox}>
-                                            <View style={styles.signatureDivider} />
-                                            <Text style={styles.emailSignatureText}>{comp.content}</Text>
-                                            <View style={styles.signatureSocialRow}>
-                                                {(comp.socialLinks || []).map((social: any, sIdx: number) => {
-                                                    let iconName: any = 'link';
-                                                    if (social.platform === 'email') iconName = 'email';
-                                                    else if (social.platform === 'phone') iconName = 'phone';
-                                                    else if (social.platform === 'linkedin') iconName = 'linkedin';
-                                                    else if (social.platform === 'instagram') iconName = 'instagram';
-                                                    return (
-                                                        <View key={sIdx} style={styles.sigSocialIconBadge}>
-                                                            <MaterialCommunityIcons 
-                                                                name={iconName} 
-                                                                size={12} 
-                                                                color="#64748B" 
-                                                            />
-                                                        </View>
-                                                    );
-                                                })}
-                                            </View>
-                                        </View>
-                                    );
-                                }
-                                return null;
-                            })}
-                        </View>
-                    </ScrollView>
+                    {/* Email Body rendered via WebView */}
+                    <View style={styles.emailBodyContainer}>
+                        {loadingPreview ? (
+                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                <ActivityIndicator size="large" color={colors.accentTeal} />
+                            </View>
+                        ) : (
+                            <WebView
+                                originWhitelist={['*']}
+                                source={{ html: previewHtml || generateEmailHtml(components, theme) }}
+                                style={{ flex: 1, backgroundColor: 'transparent' }}
+                                showsVerticalScrollIndicator={false}
+                            />
+                        )}
+                    </View>
                 </View>
             );
         }
@@ -1325,6 +1417,8 @@ function getStyles(colors: any, theme?: string) {
             justifyContent: 'center',
         },
         fullPagePreviewTitle: {
+            flex: 1,
+            textAlign: 'center',
             fontSize: 16,
             fontWeight: '900',
             color: colors.textPrimary,

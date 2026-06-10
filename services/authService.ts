@@ -37,12 +37,18 @@ export interface UserProfile {
   first_name: string;
   last_name: string;
   email: string;
-  country_code: string;
   phone: string;
   role_id: number;
-  complete_profile: boolean;
-  address: string;
-  license_number: string;
+  image: string | null;
+  company_id: number | null;
+  company_role_id: number | null;
+  is_owner: boolean;
+  description?: string;
+  website?: string;
+  country_code?: string;
+  complete_profile?: boolean;
+  address?: string;
+  license_number?: string;
 }
 
 export const loginAgent = async (payload: LoginRequest): Promise<LoginResponse> => {
@@ -170,7 +176,7 @@ export const getProfile = async (accessToken: string): Promise<UserProfile> => {
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/website/user/me`, {
+    const response = await fetch(`${API_BASE_URL}/teams/settings/profile`, {
       method: 'GET',
       signal: controller.signal,
       headers: {
@@ -190,6 +196,51 @@ export const getProfile = async (accessToken: string): Promise<UserProfile> => {
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Profile request timed out. Please check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+export interface UpdateProfileRequest {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  website?: string;
+  description?: string;
+  image?: string | null;
+}
+
+export const updateProfile = async (
+  accessToken: string,
+  payload: UpdateProfileRequest
+): Promise<UserProfile> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/teams/settings/profile`, {
+      method: 'PATCH',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+    }
+
+    return data;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Update profile request timed out. Please check your connection and try again.');
     }
     throw error;
   } finally {

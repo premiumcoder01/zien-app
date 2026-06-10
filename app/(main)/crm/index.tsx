@@ -402,7 +402,7 @@ export default function CRMScreen() {
               <LinearGradient
                 colors={[colors.cardBackground, colors.surfaceSoft]}
                 style={styles.velocityFooter}>
-                <View>
+                <View style={styles.velocityLeft}>
                   <Text style={styles.velocityLabel}>TOP PERFORMING SOURCE</Text>
                   <Text style={styles.velocityValue}>{topSource.source}</Text>
                 </View>
@@ -453,33 +453,40 @@ export default function CRMScreen() {
 
         {overviewTab === 'lead-sources' && (
           <View style={styles.leadSourceList}>
-            {displaySourceAttribution.map((item) => (
-              <View key={item.id} style={styles.leadSourceCardFull}>
-                <View style={styles.leadSourceMain}>
-                  <View style={styles.leadSourceHeader}>
-                    <Text style={styles.leadSourceLabel}>SOURCE: {item.source}</Text>
-                    <View style={[styles.leadSourceDot, { backgroundColor: item.dotColor }]} />
-                  </View>
-                  <View style={styles.leadSourceValueContainer}>
-                    <Text style={styles.leadSourceValue}>{item.leads}</Text>
-                    <Text style={styles.leadSourceMeta}>Total Leads Captured</Text>
-                  </View>
-                </View>
-
-                <View style={styles.leadSourceMetrics}>
-                  <View style={styles.leadSourceMetricBox}>
-                    <Text style={styles.leadSourceLabelSmall}>CONV. RATE</Text>
-                    <Text style={styles.leadSourceConv}>{item.convRate}</Text>
-                  </View>
-                  <View style={[styles.leadSourceMetricBox, { alignItems: 'flex-end' }]}>
-                    <Text style={styles.leadSourceLabelSmall}>EST. ROI</Text>
-                    <Text style={[styles.leadSourceRoi, item.roiHigh ? styles.leadSourceRoiGreen : styles.leadSourceRoiRed]}>
-                      {item.roi}
-                    </Text>
-                  </View>
-                </View>
+            {displaySourceAttribution.length === 0 ? (
+              <View style={styles.noDataBox}>
+                <MaterialCommunityIcons name="database-off-outline" size={36} color={colors.textMuted} style={styles.noDataIcon} />
+                <Text style={styles.noDataText}>No Lead Sources Found</Text>
               </View>
-            ))}
+            ) : (
+              displaySourceAttribution.map((item) => (
+                <View key={item.id} style={styles.leadSourceCardFull}>
+                  <View style={styles.leadSourceMain}>
+                    <View style={styles.leadSourceHeader}>
+                      <Text style={styles.leadSourceLabel}>SOURCE: {item.source}</Text>
+                      <View style={[styles.leadSourceDot, { backgroundColor: item.dotColor }]} />
+                    </View>
+                    <View style={styles.leadSourceValueContainer}>
+                      <Text style={styles.leadSourceValue}>{item.leads}</Text>
+                      <Text style={styles.leadSourceMeta}>Total Leads Captured</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.leadSourceMetrics}>
+                    <View style={styles.leadSourceMetricBox}>
+                      <Text style={styles.leadSourceLabelSmall}>CONV. RATE</Text>
+                      <Text style={styles.leadSourceConv}>{item.convRate}</Text>
+                    </View>
+                    <View style={[styles.leadSourceMetricBox, { alignItems: 'flex-end' }]}>
+                      <Text style={styles.leadSourceLabelSmall}>EST. ROI</Text>
+                      <Text style={[styles.leadSourceRoi, item.roiHigh ? styles.leadSourceRoiGreen : styles.leadSourceRoiRed]}>
+                        {item.roi}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
           </View>
         )}
 
@@ -817,10 +824,12 @@ function getStyles(colors: any, theme: string) {
       padding: 16,
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
+      gap: 12,
     },
     velocityLabel: { fontSize: 10, fontWeight: '800', color: colors.inputPlaceholder, letterSpacing: 0.8 },
     velocityValue: { fontSize: 14, fontWeight: '700', color: colors.textPrimary, marginTop: 4 },
-    velocityRight: { alignItems: 'flex-end' },
+    velocityLeft: { flex: 1 },
+    velocityRight: { flex: 1, alignItems: 'flex-end' },
     leadRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -867,6 +876,28 @@ function getStyles(colors: any, theme: string) {
       flexDirection: 'column',
       gap: 14,
       marginBottom: 24,
+    },
+    noDataBox: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      padding: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderStyle: 'dashed',
+      marginTop: 8,
+      marginBottom: 8,
+    },
+    noDataIcon: {
+      marginBottom: 12,
+      opacity: 0.8,
+    },
+    noDataText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textAlign: 'center',
     },
     leadSourceCardFull: {
       flexDirection: 'column',

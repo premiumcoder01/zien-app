@@ -10,6 +10,9 @@ import { PageHeader } from '@/components/ui';
 import LabeledInput from '@/components/ui/labeled-input';
 import { Theme } from '@/constants/theme';
 import { useProfile } from '@/hooks/useProfile';
+import { useAuth } from '@/context/AuthContext';
+import { updateProfile } from '@/services/authService';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -209,27 +213,25 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const { data: profile } = useProfile();
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<ProfileTabKey>('identity');
-  const [specializations, setSpecializations] = useState<string[]>(DEFAULT_SPECIALIZATIONS);
+  const [specializations, setSpecializations] = useState<string[]>([]);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
   // Identity fields
-  const [fullName, setFullName] = useState('John Olakoya');
-  const [mobilePhone, setMobilePhone] = useState('+1 (555) 000-0000');
-  const [professionalEmail, setProfessionalEmail] = useState('john@zien.ai');
-  const [personalWebsite, setPersonalWebsite] = useState('www.johnolakoya.com');
-  const [professionalBio, setProfessionalBio] = useState(
-    'Over 12 years of experience in high-end real estate brokerage. Specialized in coastal properties and architectural landmarks.'
-  );
+  const [fullName, setFullName] = useState('');
+  const [mobilePhone, setMobilePhone] = useState('');
+  const [professionalEmail, setProfessionalEmail] = useState('');
+  const [personalWebsite, setPersonalWebsite] = useState('');
+  const [professionalBio, setProfessionalBio] = useState('');
 
   // Professional fields
-  const [licenseId, setLicenseId] = useState('CA-BROKER-98210');
-  const [licenseExpiry, setLicenseExpiry] = useState(() => {
-    const d = new Date(); d.setFullYear(2027, 11, 31); return d;
-  });
+  const [licenseId, setLicenseId] = useState('');
+  const [licenseExpiry, setLicenseExpiry] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [yearsExperience, setYearsExperience] = useState('12');
+  const [yearsExperience, setYearsExperience] = useState('');
   const [preferredLanguage, setPreferredLanguage] = useState('English (US)');
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showSpecializationModal, setShowSpecializationModal] = useState(false);
@@ -241,19 +243,47 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (profile) {
-      setFullName(`${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'John Olakoya');
-      setProfessionalEmail(profile.email || 'john@zien.ai');
+      setFullName(`${profile.first_name || ''} ${profile.last_name || ''}`.trim());
+      setProfessionalEmail(profile.email || '');
 
       const phoneStr = profile.phone
         ? `${profile.country_code ? '+' + profile.country_code + ' ' : ''}${profile.phone}`
-        : '+1 (555) 000-0000';
+        : '';
       setMobilePhone(phoneStr);
 
-      if (profile.license_number) {
-        setLicenseId(profile.license_number);
-      }
+      setLicenseId(profile.license_number || '');
+      setAvatarUri(profile.image || null);
+      setPersonalWebsite(profile.website || '');
+      setProfessionalBio(profile.description || '');
     }
   }, [profile]);
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof updateProfile>[1]) =>
+      updateProfile(accessToken!, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      Alert.alert('Success', 'Profile updated successfully.');
+    },
+    onError: (error: Error) => {
+      Alert.alert('Error', error.message || 'Failed to update profile.');
+    },
+  });
+
+  const handleSave = useCallback(() => {
+    const names = fullName.trim().split(' ');
+    const firstName = names[0] || '';
+    const lastName = names.slice(1).join(' ') || '';
+
+    saveMutation.mutate({
+      first_name: firstName,
+      last_name: lastName,
+      phone: mobilePhone.replace(/[^\d]/g, ''),
+      website: personalWebsite,
+      description: professionalBio,
+      image: avatarUri,
+    });
+  }, [fullName, mobilePhone, personalWebsite, professionalBio, avatarUri, saveMutation]);
 
   const handleYearsChange = useCallback((text: string) => {
     const digits = text.replace(/\D/g, '');
@@ -300,7 +330,7 @@ export default function ProfileScreen() {
     } else if (names.length === 1 && names[0].length > 0) {
       return names[0].substring(0, 2).toUpperCase();
     }
-    return 'JO';
+    return '--';
   }, [fullName]);
 
   const tabContent = useMemo(() => {
@@ -670,10 +700,20 @@ export default function ProfileScreen() {
 
         {/* ── Save button ── */}
         <View style={[styles.fixedBottom, { paddingBottom: insets.bottom + 12 }]}>
-          <Pressable style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.88 }]}>
+          <Pressable
+            style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.88 }]}
+            onPress={handleSave}
+            disabled={saveMutation.isPending}
+          >
             <LinearGradient colors={['#0D2F45', '#0B3B50']} style={styles.saveBtnGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-              <Text style={styles.saveBtnText}>Save Changes</Text>
-              <MaterialCommunityIcons name="content-save-outline" size={20} color="#fff" />
+              {saveMutation.isPending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.saveBtnText}>Save Changes</Text>
+                  <MaterialCommunityIcons name="content-save-outline" size={20} color="#fff" />
+                </>
+              )}
             </LinearGradient>
           </Pressable>
         </View>

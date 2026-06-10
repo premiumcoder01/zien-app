@@ -1,101 +1,155 @@
-import ColorPickerModal from '@/components/ui/ColorPickerModal';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { disconnectSocialAccount, getSocialAccounts } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
   Linking,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const CONNECTED_ACCOUNTS = [
-  { id: 'instagram', name: 'Instagram', handle: 'Not connected', status: 'DISCONNECTED' as const, action: 'Connect', icon: 'instagram', color: '#E1306C' },
-  { id: 'facebook', name: 'Facebook', handle: 'Not connected', status: 'DISCONNECTED' as const, action: 'Connect', icon: 'facebook', color: '#1877F2' },
-  { id: 'linkedin', name: 'LinkedIn', handle: 'Not connected', status: 'DISCONNECTED' as const, action: 'Connect', icon: 'linkedin', color: '#0A66C2' },
-  { id: 'tiktok', name: 'TikTok', handle: 'Not connected', status: 'DISCONNECTED' as const, action: 'Connect', icon: 'music-note', color: '#000000' },
-];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const AUTO_RULES = [
-  { key: 'property_live', label: 'Auto-post when property goes live', value: true },
-  { key: 'open_house', label: 'Auto-post 24h before open house', value: true },
-  { key: 'price_drop', label: 'Auto-post when price drops', value: false },
-  { key: 'repost', label: 'Re-post high performing assets weekly', value: true },
+const SOCIAL_PLATFORMS = [
+  { id: 'instagram', name: 'Instagram', icon: 'instagram', color: '#E1306C', bgColor: '#FDF2F8' },
+  { id: 'facebook', name: 'Facebook', icon: 'facebook', color: '#1877F2', bgColor: '#EFF6FF' },
+  { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin', color: '#0A66C2', bgColor: '#F0F9FF' },
+  { id: 'tiktok', name: 'TikTok', icon: 'music-note', color: '#000000', bgColor: '#F8FAFC' },
 ];
 
 export default function AccountsScreen() {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const { theme, colors } = useAppTheme();
+  const styles = getStyles(colors, theme);
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [hashtags, setHashtags] = useState('#RealEstate #LuxuryLiving #ZienAI');
-  const [brandColor, setBrandColor] = useState('#0B2341');
-  const [watermark, setWatermark] = useState(true);
-  const [rules, setRules] = useState(() =>
-    AUTO_RULES.reduce((acc, r) => ({ ...acc, [r.key]: r.value }), {} as Record<string, boolean>)
-  );
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Fetch social accounts
+  const { data: connectedAccounts, isLoading: accountsLoading } = useQuery({
+    queryKey: ['social-accounts'],
+    queryFn: () => getSocialAccounts(accessToken || ''),
+    enabled: !!accessToken,
+  });
+
+  // Disconnect social account mutation
+  const disconnectMutation = useMutation({
+    mutationFn: (accountId: number) => disconnectSocialAccount(accessToken || '', accountId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['social-accounts'] });
+      setEditAccount(null);
+      Alert.alert('Success', 'Social account disconnected successfully.');
+    },
+    onError: (err: any) => {
+      Alert.alert('Error', err.message || 'Failed to disconnect social account.');
+    },
+  });
 
   // Modal States
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [activeAccount, setActiveAccount] = useState<typeof CONNECTED_ACCOUNTS[0] | null>(null);
-  const [showStatusPicker, setShowStatusPicker] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState('Connected');
-  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [activeAccount, setActiveAccount] = useState<typeof SOCIAL_PLATFORMS[0] | null>(null);
+  const [editAccount, setEditAccount] = useState<{ platform: typeof SOCIAL_PLATFORMS[0]; apiAccount: any } | null>(null);
 
-  const setRule = (key: string, value: boolean) => setRules((prev) => ({ ...prev, [key]: value }));
-
-  const handleSave = () => {
-    setShowSuccessModal(true);
-  };
-
-  const handleAccountPress = (account: typeof CONNECTED_ACCOUNTS[0]) => {
-    const statusMap: Record<string, string> = {
-      'CONNECTED': 'Connected',
-      'DISCONNECTED': 'Disconnected',
-      'PENDING VERIFY': 'Pending Verify'
-    };
-    setSelectedStatus(statusMap[account.status] || 'Connected');
+  const handleAccountPress = (account: typeof SOCIAL_PLATFORMS[0]) => {
     setActiveAccount(account);
   };
 
-  const closeSuccessModal = () => {
-    setShowSuccessModal(false);
-    router.back();
+  const handleDisconnectPress = (platform: typeof SOCIAL_PLATFORMS[0], apiAccount: any) => {
+    setEditAccount({ platform, apiAccount });
   };
 
   const closeAccountModal = () => {
     setActiveAccount(null);
-    setShowStatusPicker(false);
+    setLinkedinHandle('');
   };
 
+  const [linkedinHandle, setLinkedinHandle] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
 
   const handleConnect = async () => {
     if (!activeAccount) return;
     setIsConnecting(true);
     try {
-      const response = await fetch(`https://staging-api.zien.ai/api/solo/social/oauth/facebook/url`);
-      const data = await response.json();
-      console.log(data, "vishal")
-      if (data && data.url) {
-        await Linking.openURL(data.url);
+      const headers: HeadersInit = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      if (activeAccount.id === 'linkedin') {
+        if (!linkedinHandle.trim()) {
+          Alert.alert('Error', 'Please enter your LinkedIn handle.');
+          setIsConnecting(false);
+          return;
+        }
+
+        const timestamp = Date.now();
+        const payload = {
+          platform: 'LinkedIn',
+          account_name: linkedinHandle.trim(),
+          platform_account_id: `mock_${timestamp}`,
+          access_token: `mock_token_${timestamp}`,
+        };
+
+        const url = `https://staging-api.zien.ai/api/solo/social/accounts`;
+        console.log(`[LinkedIn Connect] Posting to: ${url} with payload:`, payload);
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        console.log(`[LinkedIn Connect] Response Status Code: ${response.status}`);
+        const data = await response.json();
+        console.log('[LinkedIn Connect] Response Data:', data);
+
+        if (response.ok && data.success) {
+          queryClient.invalidateQueries({ queryKey: ['social-accounts'] });
+          Alert.alert('Success', 'LinkedIn connected successfully.');
+          closeAccountModal();
+        } else {
+          Alert.alert('Error', data.message || 'Failed to connect LinkedIn.');
+        }
+      } else {
+        const url = `https://staging-api.zien.ai/api/solo/social/oauth/${activeAccount.id}/url`;
+        console.log(`[OAuth] Fetching: ${url}`);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+        });
+        console.log(`[OAuth] Response Status Code: ${response.status}`);
+        const data = await response.json();
+        console.log("[OAuth] Response Data:", data);
+        if (data && data.url) {
+          await Linking.openURL(data.url);
+        } else {
+          Alert.alert('Error', `Failed to retrieve connection URL (Status: ${response.status}).`);
+        }
+        closeAccountModal();
       }
     } catch (error) {
       console.error('Failed to get OAuth URL:', error);
+      Alert.alert('Error', 'Failed to initiate authentication flow.');
+      closeAccountModal();
     } finally {
       setIsConnecting(false);
-      closeAccountModal();
     }
   };
 
@@ -109,11 +163,8 @@ export default function AccountsScreen() {
       <View style={styles.headerRow}>
         <PageHeader
           title="Account Settings"
-          subtitle="Manage your connected accounts and automation preferences."
+          subtitle="Manage your connected accounts."
           onBack={() => router.back()}
-          rightIcon="content-save"
-          onRightPress={handleSave}
-          rightIconColor={colors.textPrimary}
         />
       </View>
 
@@ -123,137 +174,71 @@ export default function AccountsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
 
-        <View style={styles.gridContainer}>
-          <View style={styles.leftColumn}>
-            {/* Social Channels Card */}
-            <View style={[styles.proCard, { borderTopWidth: 4, borderTopColor: '#0F172A', borderRadius: 0 }]}>
-              <View style={styles.cardHeaderRow}>
-                <MaterialCommunityIcons name="cellphone" size={20} color={colors.textPrimary} />
-                <Text style={styles.sectionTitle}>Social Channels</Text>
-              </View>
-              <View style={styles.accountsList}>
-                {CONNECTED_ACCOUNTS.map((acc, index) => (
-                  <Pressable
-                    key={acc.id}
-                    onPress={() => handleAccountPress(acc)}
-                    style={({ pressed }) => [
-                      styles.accountRow,
-                      pressed && { opacity: 0.8 },
-                    ]}>
-                    <View style={styles.accountIconBox}>
-                      <MaterialCommunityIcons name={acc.icon as any} size={22} color={acc.color} />
+        {/* Social Channels Card */}
+        <View style={[styles.proCard, { borderTopWidth: 4, borderTopColor: '#0F172A', maxWidth: 600, alignSelf: 'center', width: '100%' }]}>
+          <View style={styles.cardHeaderRow}>
+            <MaterialCommunityIcons name="cellphone" size={20} color={colors.textPrimary} />
+            <Text style={styles.sectionTitle}>Social Channels</Text>
+          </View>
+
+          {accountsLoading ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="small" color={colors.accentTeal} />
+            </View>
+          ) : (
+            <View style={styles.accountsList}>
+              {SOCIAL_PLATFORMS.map((platform) => {
+                const apiAccount = connectedAccounts?.find(
+                  (acc: any) => acc.platform.toLowerCase() === platform.id.toLowerCase()
+                );
+                const isConnected = !!apiAccount;
+                const displayName = isConnected ? (apiAccount.account_name || 'Connected') : 'Not connected';
+
+                return (
+                  <View key={platform.id} style={styles.accountRow}>
+                    <View style={[styles.accountIconBox, { backgroundColor: platform.bgColor }]}>
+                      <MaterialCommunityIcons name={platform.icon as any} size={22} color={platform.color} />
                     </View>
 
                     <View style={styles.accountTextContent}>
-                      <Text style={styles.accountRowName} numberOfLines={1}>{acc.name}</Text>
-                      <Text style={styles.accountRowHandle} numberOfLines={1}>{acc.handle}</Text>
+                      <Text style={styles.accountRowName} numberOfLines={1}>{platform.name}</Text>
+                      <Text style={styles.accountRowHandle} numberOfLines={1}>{displayName}</Text>
                     </View>
 
                     <View style={styles.accountRowRight}>
-                      <View style={styles.manageBtn}>
-                        <Text style={styles.manageBtnText}>{acc.action}</Text>
-                      </View>
+                      {isConnected ? (
+                        <View style={[
+                          styles.connectedRightContainer,
+                          SCREEN_WIDTH < 480 && { flexDirection: 'column', alignItems: 'flex-end', gap: 4 }
+                        ]}>
+                          <Text style={styles.connectedLabel}>CONNECTED</Text>
+                          <Pressable
+                            style={({ pressed }) => [
+                              styles.disconnectBtn,
+                              pressed && { opacity: 0.8 },
+                            ]}
+                            onPress={() => handleDisconnectPress(platform, apiAccount)}>
+                            <Text style={styles.disconnectBtnText}>Disconnect</Text>
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.connectBtn,
+                            pressed && { opacity: 0.8 },
+                          ]}
+                          onPress={() => handleAccountPress(platform)}>
+                          <Text style={styles.connectBtnText}>Connect</Text>
+                        </Pressable>
+                      )}
                     </View>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            {/* Auto-Publishing Rules Card */}
-            <View style={styles.proCard}>
-              <View style={styles.cardHeaderRow}>
-                <MaterialCommunityIcons name="shield-check-outline" size={20} color={colors.textPrimary} />
-                <Text style={styles.sectionTitle}>Auto-Publishing Rules</Text>
-              </View>
-              <View style={styles.rulesList}>
-                {AUTO_RULES.map((r) => (
-                  <View key={r.key} style={styles.premiumRuleItem}>
-                    <Text style={styles.premiumRuleLabel}>{r.label}</Text>
-                    <Switch
-                      value={rules[r.key] ?? r.value}
-                      onValueChange={(v) => setRule(r.key, v)}
-                      trackColor={{ false: '#E2E8F0', true: '#0F172A' }}
-                      thumbColor="#FFFFFF"
-                      ios_backgroundColor="#E2E8F0"
-                    />
                   </View>
-                ))}
-              </View>
+                );
+              })}
             </View>
-          </View>
-
-          <View style={styles.rightColumn}>
-            {/* Brand Assets Card */}
-            <View style={styles.proCard}>
-              <View style={styles.cardHeaderRow}>
-                <MaterialCommunityIcons name="palette-outline" size={20} color={colors.textPrimary} />
-                <Text style={styles.sectionTitle}>Brand Assets</Text>
-              </View>
-
-              <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>Default Hashtags</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={hashtags}
-                    onChangeText={setHashtags}
-                    placeholder="#RealEstate #LuxuryLiving"
-                    placeholderTextColor="#94A3B8"
-                    multiline
-                  />
-                </View>
-              </View>
-
-              <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>Brand Primary Color</Text>
-                <View style={styles.colorPickerContainer}>
-                  <Pressable onPress={() => setShowColorPicker(true)}>
-                    <View style={[styles.colorBox, { backgroundColor: brandColor }]} />
-                  </Pressable>
-                  <View style={[styles.inputWrapper, { flex: 1 }]}>
-                    <TextInput
-                      style={[styles.input, styles.colorInput]}
-                      value={brandColor}
-                      onChangeText={setBrandColor}
-                      placeholder="#0B2341"
-                      placeholderTextColor="#94A3B8"
-                      onPressIn={() => setShowColorPicker(true)}
-                      showSoftInputOnFocus={false}
-                    />
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.toggleRowPremium}>
-                <Text style={styles.toggleTitle}>Auto-Watermark Media</Text>
-                <Switch
-                  value={watermark}
-                  onValueChange={setWatermark}
-                  trackColor={{ false: '#E2E8F0', true: '#0F172A' }}
-                  thumbColor="#FFFFFF"
-                  ios_backgroundColor="#E2E8F0"
-                />
-              </View>
-            </View>
-          </View>
+          )}
         </View>
       </ScrollView>
-
-      {/* Success Modal */}
-      <Modal visible={showSuccessModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.successIconCircle}>
-              <MaterialCommunityIcons name="check" size={40} color="#FFFFFF" />
-            </View>
-            <Text style={styles.modalTitle}>Settings Saved</Text>
-            <Text style={styles.modalsubtitle}>Your social media and automation preferences have been successfully updated.</Text>
-            <Pressable style={styles.modalBtn} onPress={closeSuccessModal}>
-              <Text style={styles.modalBtnText}>Done</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
 
       {/* Connect Account Modal */}
       <Modal visible={!!activeAccount} transparent animationType="fade">
@@ -268,24 +253,44 @@ export default function AccountsScreen() {
             <Text style={styles.connectModalTitle}>Connect {activeAccount?.name}</Text>
             <Text style={styles.connectModalSubtitle}>Authorize Zien to manage your posts and analytics.</Text>
 
-            <View style={styles.permissionsBox}>
-              <View style={styles.permissionsHeader}>
-                <MaterialCommunityIcons name="shield-outline" size={18} color="#0F172A" />
-                <Text style={styles.permissionsTitle}>Permissions Requested</Text>
+            {activeAccount?.id === 'linkedin' ? (
+              <View style={styles.linkedinForm}>
+                <Text style={styles.inputLabel}>Enter your LinkedIn Handle</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="@username"
+                  placeholderTextColor={colors.textMuted}
+                  value={linkedinHandle}
+                  onChangeText={setLinkedinHandle}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                
+                <View style={styles.partnerBanner}>
+                  <MaterialCommunityIcons name="check" size={16} color={theme === 'dark' ? '#34D399' : '#15803D'} style={{ marginRight: 6 }} />
+                  <Text style={styles.partnerText}>Zien is a verified partner of LinkedIn</Text>
+                </View>
               </View>
-              <View style={styles.permissionItem}>
-                <Text style={styles.permissionDot}>•</Text>
-                <Text style={styles.permissionText}>Read profile information and media</Text>
+            ) : (
+              <View style={styles.permissionsBox}>
+                <View style={styles.permissionsHeader}>
+                  <MaterialCommunityIcons name="shield-outline" size={18} color={theme === 'dark' ? '#FFFFFF' : '#0F172A'} />
+                  <Text style={styles.permissionsTitle}>Permissions Requested</Text>
+                </View>
+                <View style={styles.permissionItem}>
+                  <Text style={styles.permissionDot}>•</Text>
+                  <Text style={styles.permissionText}>Read profile information and media</Text>
+                </View>
+                <View style={styles.permissionItem}>
+                  <Text style={styles.permissionDot}>•</Text>
+                  <Text style={styles.permissionText}>Create and publish posts on your behalf</Text>
+                </View>
+                <View style={styles.permissionItem}>
+                  <Text style={styles.permissionDot}>•</Text>
+                  <Text style={styles.permissionText}>Access audience insights and engagement metrics</Text>
+                </View>
               </View>
-              <View style={styles.permissionItem}>
-                <Text style={styles.permissionDot}>•</Text>
-                <Text style={styles.permissionText}>Create and publish posts on your behalf</Text>
-              </View>
-              <View style={styles.permissionItem}>
-                <Text style={styles.permissionDot}>•</Text>
-                <Text style={styles.permissionText}>Access audience insights and engagement metrics</Text>
-              </View>
-            </View>
+            )}
 
             <Pressable
               style={[styles.continueBtn, isConnecting && { opacity: 0.7 }]}
@@ -293,12 +298,14 @@ export default function AccountsScreen() {
               disabled={isConnecting}
             >
               <Text style={styles.continueBtnText}>
-                {isConnecting ? 'Connecting...' : `Continue to ${activeAccount?.name} Login`}
+                {isConnecting ? 'Connecting...' : activeAccount?.id === 'linkedin' ? 'Authorize Zien' : `Continue to ${activeAccount?.name} Login`}
               </Text>
             </Pressable>
 
             <Pressable style={styles.cancelLinkBtn} onPress={closeAccountModal}>
-              <Text style={styles.cancelLinkText}>Cancel</Text>
+              <Text style={styles.cancelLinkText}>
+                {activeAccount?.id === 'linkedin' ? 'Go Back' : 'Cancel'}
+              </Text>
             </Pressable>
 
           </View>
@@ -306,17 +313,55 @@ export default function AccountsScreen() {
         </View>
       </Modal>
 
-      <ColorPickerModal
-        visible={showColorPicker}
-        onClose={() => setShowColorPicker(false)}
-        initialColor={brandColor}
-        onSelectColor={setBrandColor}
-      />
+      {/* Edit Account Modal */}
+      <Modal visible={!!editAccount} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.flex1} onPress={() => setEditAccount(null)} />
+          <View style={styles.editModalContent}>
+
+            {/* Header */}
+            <View style={styles.editModalHeader}>
+              <View style={[styles.platformIconContainerSmall, { backgroundColor: editAccount?.platform?.bgColor }]}>
+                <MaterialCommunityIcons name={editAccount?.platform?.icon as any} size={22} color={editAccount?.platform?.color} />
+              </View>
+              <Text style={styles.editModalTitle}>Edit {editAccount?.platform?.name.toLowerCase()}</Text>
+              <Pressable onPress={() => setEditAccount(null)} style={styles.editModalCloseBtn}>
+                <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            {/* Account Details */}
+            <View style={styles.accountDetailsRow}>
+              <Text style={styles.detailsLabel}>Account Name: </Text>
+              <Text style={styles.detailsValue}>{editAccount?.apiAccount?.account_name || 'Connected'}</Text>
+            </View>
+
+            {/* Buttons */}
+            <View style={styles.editModalButtonsRow}>
+              <Pressable style={styles.cancelBtn} onPress={() => setEditAccount(null)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.disconnectAccountBtn, disconnectMutation.isPending && { opacity: 0.7 }]}
+                onPress={() => editAccount?.apiAccount?.id && disconnectMutation.mutate(editAccount.apiAccount.id)}
+                disabled={disconnectMutation.isPending}
+              >
+                <Text style={styles.disconnectAccountBtnText}>
+                  {disconnectMutation.isPending ? 'Disconnecting...' : 'Disconnect Account'}
+                </Text>
+              </Pressable>
+            </View>
+
+          </View>
+          <Pressable style={styles.flex1} onPress={() => setEditAccount(null)} />
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
 
-function getStyles(colors: any) {
+function getStyles(colors: any, theme: string) {
   return StyleSheet.create({
     background: { flex: 1 },
     headerRow: {
@@ -352,8 +397,10 @@ function getStyles(colors: any) {
 
     // Pro Card Styles
     proCard: {
-      backgroundColor: '#FFFFFF',
-      padding: 24,
+      backgroundColor: colors.cardBackground,
+      padding: SCREEN_WIDTH < 480 ? 16 : 24,
+      borderRadius: 16,
+      overflow: 'hidden',
       shadowColor: colors.cardShadowColor,
       shadowOpacity: 0.05,
       shadowOffset: { width: 0, height: 4 },
@@ -369,7 +416,7 @@ function getStyles(colors: any) {
     sectionTitle: {
       fontSize: 18,
       fontWeight: '900',
-      color: '#0F172A',
+      color: colors.textPrimary,
       letterSpacing: -0.4,
     },
 
@@ -380,16 +427,15 @@ function getStyles(colors: any) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingVertical: 12,
-      paddingHorizontal: 16,
+      paddingHorizontal: SCREEN_WIDTH < 480 ? 10 : 16,
       borderWidth: 1,
-      borderColor: '#E2E8F0',
+      borderColor: colors.cardBorder,
       borderRadius: 12,
     },
     accountIconBox: {
       width: 44,
       height: 44,
       borderRadius: 12,
-      backgroundColor: '#FFF0F0',
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -414,93 +460,49 @@ function getStyles(colors: any) {
       gap: 6,
       marginLeft: 8,
     },
-    manageBtn: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 8,
-      backgroundColor: '#0F172A',
-      minWidth: 90,
+    loaderContainer: {
+      paddingVertical: 40,
       alignItems: 'center',
-    },
-    manageBtnText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: '#FFF',
-    },
-
-    // Field Groups
-    fieldGroup: {
-      marginBottom: 20,
-    },
-    fieldLabel: {
-      fontSize: 13,
-      fontWeight: '800',
-      color: '#0F172A',
-      marginBottom: 8,
-      marginLeft: 4,
-    },
-    inputWrapper: {
-      position: 'relative',
       justifyContent: 'center',
     },
-    input: {
-      backgroundColor: '#FFFFFF',
-      borderWidth: 1,
-      borderColor: '#E2E8F0',
-      borderRadius: 8,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      fontSize: 14,
-      color: colors.textPrimary,
-      fontWeight: '500',
-    },
-    textArea: {
-      minHeight: 80,
-      textAlignVertical: 'top',
-    },
-    colorPickerContainer: {
+    connectedRightContainer: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
     },
-    colorBox: {
-      width: 48,
-      height: 48,
-      borderRadius: 4,
-      borderWidth: 1,
-      borderColor: '#E2E8F0',
-    },
-    colorInput: {
-      flex: 1,
-    },
-    toggleRowPremium: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: 14,
-    },
-    toggleTitle: {
-      fontSize: 14,
+    connectedLabel: {
+      fontSize: 11,
       fontWeight: '800',
-      color: '#0F172A',
+      color: '#0D9488',
+      letterSpacing: 0.3,
     },
-
-    // Rules List
-    rulesList: {
-      gap: 16,
-    },
-    premiumRuleItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+    disconnectBtn: {
+      paddingHorizontal: 16,
       paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: '#FEE2E2',
+      minWidth: 90,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    premiumRuleLabel: {
-      fontSize: 14,
-      fontWeight: '800',
-      color: '#0F172A',
-      flex: 1,
-      marginRight: 16,
+    disconnectBtnText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#EF4444',
+    },
+    connectBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: theme === 'dark' ? colors.textPrimary : '#0F172A',
+      minWidth: 90,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    connectBtnText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme === 'dark' ? colors.cardBackground : '#FFFFFF',
     },
 
     // Modals
@@ -524,55 +526,10 @@ function getStyles(colors: any) {
       shadowRadius: 40,
       elevation: 15,
     },
-    successIconCircle: {
-      width: 88,
-      height: 88,
-      borderRadius: 44,
-      backgroundColor: '#0a2341',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 24,
-      shadowColor: '#0a2341',
-      shadowOpacity: 0.3,
-      shadowOffset: { width: 0, height: 8 },
-      shadowRadius: 16,
-    },
-    modalTitle: {
-      fontSize: 26,
-      fontWeight: '900',
-      color: colors.textPrimary,
-      textAlign: 'center',
-      marginBottom: 14,
-      letterSpacing: -0.5,
-    },
-    modalsubtitle: {
-      fontSize: 15,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      lineHeight: 24,
-      marginBottom: 32,
-      fontWeight: '500',
-    },
-    modalBtn: {
-      backgroundColor: colors.accentTeal,
-      width: '100%',
-      paddingVertical: 18,
-      borderRadius: 16,
-      alignItems: 'center',
-      shadowColor: colors.cardShadowColor,
-      shadowOpacity: 0.2,
-      shadowOffset: { width: 0, height: 4 },
-      shadowRadius: 12,
-    },
-    modalBtnText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '800'
-    },
 
     flex1: { flex: 1 },
     connectModalContent: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.cardBackground,
       borderRadius: 24,
       padding: 32,
       width: '100%',
@@ -595,13 +552,13 @@ function getStyles(colors: any) {
     connectModalTitle: {
       fontSize: 22,
       fontWeight: '900',
-      color: '#0F172A',
+      color: colors.textPrimary,
       letterSpacing: -0.4,
       marginBottom: 8,
     },
     connectModalSubtitle: {
       fontSize: 14,
-      color: '#64748B',
+      color: theme === 'dark' ? colors.textSecondary : '#64748B',
       textAlign: 'center',
       marginBottom: 24,
       fontWeight: '500',
@@ -609,7 +566,7 @@ function getStyles(colors: any) {
     permissionsBox: {
       width: '100%',
       borderWidth: 1,
-      borderColor: '#E2E8F0',
+      borderColor: colors.cardBorder,
       borderRadius: 16,
       padding: 20,
       marginBottom: 28,
@@ -623,7 +580,7 @@ function getStyles(colors: any) {
     permissionsTitle: {
       fontSize: 14,
       fontWeight: '800',
-      color: '#0F172A',
+      color: colors.textPrimary,
     },
     permissionItem: {
       flexDirection: 'row',
@@ -633,26 +590,26 @@ function getStyles(colors: any) {
     },
     permissionDot: {
       fontSize: 14,
-      color: '#64748B',
+      color: theme === 'dark' ? colors.textSecondary : '#64748B',
       marginRight: 8,
       marginTop: -2,
     },
     permissionText: {
       fontSize: 13,
-      color: '#64748B',
+      color: theme === 'dark' ? colors.textSecondary : '#64748B',
       fontWeight: '500',
       lineHeight: 18,
     },
     continueBtn: {
       width: '100%',
-      backgroundColor: '#0F172A',
+      backgroundColor: theme === 'dark' ? colors.textPrimary : '#0F172A',
       paddingVertical: 16,
       borderRadius: 12,
       alignItems: 'center',
       marginBottom: 16,
     },
     continueBtnText: {
-      color: '#FFFFFF',
+      color: theme === 'dark' ? colors.cardBackground : '#FFFFFF',
       fontSize: 15,
       fontWeight: '700',
     },
@@ -660,9 +617,128 @@ function getStyles(colors: any) {
       paddingVertical: 8,
     },
     cancelLinkText: {
-      color: '#64748B',
+      color: theme === 'dark' ? colors.textSecondary : '#64748B',
       fontSize: 15,
       fontWeight: '700',
-    }
+    },
+    editModalContent: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      padding: 24,
+      width: '100%',
+      maxWidth: 400,
+      shadowColor: colors.cardShadowColor,
+      shadowOpacity: 0.1,
+      shadowOffset: { width: 0, height: 10 },
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    editModalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    platformIconContainerSmall: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+    editModalTitle: {
+      fontSize: 20,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    editModalCloseBtn: {
+      padding: 4,
+    },
+    accountDetailsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 28,
+    },
+    detailsLabel: {
+      fontSize: 14,
+      color: theme === 'dark' ? colors.textSecondary : '#64748B',
+      fontWeight: '500',
+    },
+    detailsValue: {
+      fontSize: 14,
+      color: colors.textPrimary,
+      fontWeight: '800',
+    },
+    editModalButtonsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    cancelBtn: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.cardBackgroundSoft,
+    },
+    cancelBtnText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    disconnectAccountBtn: {
+      flex: 1.5,
+      paddingVertical: 12,
+      borderRadius: 8,
+      backgroundColor: '#FEE2E2',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    disconnectAccountBtnText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#EF4444',
+    },
+    linkedinForm: {
+      width: '100%',
+      marginBottom: 20,
+    },
+    inputLabel: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 8,
+      alignSelf: 'flex-start',
+    },
+    textInput: {
+      width: '100%',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 15,
+      color: colors.textPrimary,
+      backgroundColor: colors.surfaceSoft,
+    },
+    partnerBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme === 'dark' ? 'rgba(16, 185, 129, 0.1)' : '#F0FDF4',
+      padding: 12,
+      borderRadius: 10,
+      gap: 8,
+      marginTop: 16,
+      width: '100%',
+    },
+    partnerText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme === 'dark' ? '#34D399' : '#15803D',
+    },
   });
 }

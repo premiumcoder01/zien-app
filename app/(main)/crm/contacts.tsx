@@ -235,7 +235,7 @@ export default function ContactsScreen() {
       style={[styles.background, { paddingTop: insets.top }]}>
       <PageHeader
         title="Contacts"
-        subtitle="Unified lead intelligence with real-time attribution data."
+        subtitle="Unified database with full attribution and grouped automation."
         onBack={() => router.back()}
       />
 

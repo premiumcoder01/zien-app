@@ -441,8 +441,6 @@ export default function PropertyInventoryScreen() {
         title="Property "
         subtitle="Manage your high-confidence property data."
         onBack={() => router.back()}
-        rightIcon="plus"
-        onRightPress={handleCreateListing}
       />
 
       <ScrollView
@@ -535,8 +533,28 @@ export default function PropertyInventoryScreen() {
           isDeleting={isLoading}
         />
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 90 }} />
       </ScrollView>
+
+      {/* ── Floating Add Property Button ── */}
+      <Pressable
+        onPress={handleCreateListing}
+        style={({ pressed }) => [
+          styles.fab,
+          { bottom: insets.bottom + 24 },
+          pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] },
+        ]}
+      >
+        <LinearGradient
+          colors={['#0D2F45', '#0B3B50']}
+          style={styles.fabGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <MaterialCommunityIcons name="plus" size={20} color="#fff" />
+          <Text style={styles.fabText}>Add Property</Text>
+        </LinearGradient>
+      </Pressable>
     </View>
   );
 }
@@ -937,6 +955,32 @@ function getStyles(colors: any) {
       fontSize: 14,
       fontWeight: '700',
       color: colors.accentTeal,
+    },
+
+    // ── Floating Action Button ──
+    fab: {
+      position: 'absolute',
+      right: H_PADDING,
+      borderRadius: 16,
+      overflow: 'hidden',
+      shadowColor: '#0a2341',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 14,
+      elevation: 8,
+    },
+    fabGradient: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+    },
+    fabText: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: '#fff',
+      letterSpacing: 0.2,
     },
   });
 }

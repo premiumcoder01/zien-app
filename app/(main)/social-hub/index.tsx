@@ -59,8 +59,8 @@ function getPostTitle(post: SocialPost): string {
 }
 
 export default function SocialHubScreen() {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const { theme, colors } = useAppTheme();
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { accessToken } = useAuth();
@@ -136,7 +136,7 @@ export default function SocialHubScreen() {
               <View key={i} style={styles.statCardPremium}>
                 <View style={styles.statCardHeader}>
                   <View style={styles.statIconBox}>
-                    <MaterialCommunityIcons name={card.icon} size={16} color={colors.accentTeal} />
+                    <MaterialCommunityIcons name={card.icon} size={16} color={theme === 'dark' ? '#FFFFFF' : colors.accentTeal} />
                   </View>
                   <Text style={styles.statMetaPremium}>{card.meta}</Text>
                 </View>
@@ -223,6 +223,91 @@ export default function SocialHubScreen() {
             </View>
           )}
 
+          {/* Power-Ups */}
+          <Pressable onPress={() => router.push('/(main)/social-hub/accounts')}>
+            <LinearGradient
+              colors={['#0a2341', '#1B5E9A']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.powerUpsCard}
+            >
+              <View style={styles.powerUpsContent}>
+                <Text style={styles.powerUpsTitle}>Power-Ups</Text>
+                <Text style={styles.powerUpsDescription}>
+                  Connect more accounts to unlock advanced analytics and seamless multi-platform broadcasting.
+                </Text>
+                <View style={styles.powerUpsPlatformsRow}>
+                  {['instagram', 'facebook', 'linkedin', 'music-note'].map((icon, idx) => (
+                    <Pressable
+                      key={idx}
+                      style={styles.platformIconBtn}
+                      onPress={() => router.push('/(main)/social-hub/accounts')}
+                    >
+                      <MaterialCommunityIcons name={icon as any} size={22} color="#FFFFFF" />
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            </LinearGradient>
+          </Pressable>
+
+          {/* Social Templates Section */}
+          <View style={styles.sectionHeaderPremiumWithSubtitle}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.sectionTitlePremium}>Social Templates</Text>
+              <Pressable
+                onPress={() => router.push('/(main)/social-hub/templates')}
+                style={styles.manageLinkRow}
+              >
+                <Text style={styles.sectionLinkPremium}>Manage</Text>
+                <MaterialCommunityIcons name="arrow-right" size={14} color={theme === 'dark' ? '#FFFFFF' : colors.accentTeal} />
+              </Pressable>
+            </View>
+            <Text style={styles.sectionSubtitlePremium}>Ready-to-use designs for instant publishing.</Text>
+          </View>
+
+          {overviewLoading ? (
+            <View style={styles.loaderBox}>
+              <ActivityIndicator size="small" color={colors.accentTeal} />
+            </View>
+          ) : (overview?.templates || []).length > 0 ? (
+            <View style={{ gap: 8 }}>
+              {(overview?.templates || []).map((tpl: any) => {
+                const platformLower = (tpl.platform || '').toLowerCase();
+                const platformIcon = platformLower === 'instagram' ? 'instagram' :
+                                     platformLower === 'facebook' ? 'facebook' :
+                                     platformLower === 'linkedin' ? 'linkedin' :
+                                     platformLower === 'tiktok' ? 'music-note' : 'layers-outline';
+                
+                return (
+                  <Pressable
+                    key={tpl.id}
+                    style={styles.templateCardPremium}
+                    onPress={() => router.push('/(main)/social-hub/templates')}
+                  >
+                    <View style={styles.templateIconBox}>
+                      <MaterialCommunityIcons name={platformIcon as any} size={22} color={theme === 'dark' ? '#FFFFFF' : colors.accentTeal} />
+                    </View>
+                    <View style={styles.templateInfo}>
+                      <Text style={styles.templateName}>{tpl.name}</Text>
+                      <View style={styles.templatePlatformRow}>
+                        <MaterialCommunityIcons name="creation" size={12} color="#f97316" style={{ marginRight: 2 }} />
+                        <Text style={styles.templatePlatformText}>{tpl.platform}</Text>
+                      </View>
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.emptyPostsBox}>
+              <MaterialCommunityIcons name="layers-off-outline" size={32} color={colors.textMuted} />
+              <Text style={styles.emptyPostsText}>No templates created</Text>
+              <Text style={styles.emptyPostsSub}>Manage templates to add your first design</Text>
+            </View>
+          )}
+
           {/* Tools & Utilities Grid */}
           <View style={styles.sectionHeaderPremium}>
             <Text style={styles.sectionTitlePremium}>Hub Tools</Text>
@@ -246,7 +331,7 @@ export default function SocialHubScreen() {
           {/* AI Credits */}
           <View style={styles.usageCardPremium}>
             <View style={styles.usageHeader}>
-              <MaterialCommunityIcons name="lightning-bolt" size={16} color={colors.accentTeal} />
+              <MaterialCommunityIcons name="lightning-bolt" size={16} color={theme === 'dark' ? '#FFFFFF' : colors.accentTeal} />
               <Text style={styles.usageTitle}>AI Generation Credits</Text>
               <Text style={styles.usageCount}>150 / 1000</Text>
             </View>
@@ -272,7 +357,8 @@ export default function SocialHubScreen() {
   );
 }
 
-function getStyles(colors: any) {
+function getStyles(colors: any, theme: string) {
+  const accentColor = theme === 'dark' ? '#FFFFFF' : colors.accentTeal;
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.surfaceSoft },
     background: { flex: 1 },
@@ -280,7 +366,7 @@ function getStyles(colors: any) {
     scrollContent: { paddingHorizontal: 20, paddingTop: 10 },
     sectionHeaderPremium: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 20 },
     sectionTitlePremium: { fontSize: 16, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.2 },
-    sectionLinkPremium: { fontSize: 13, fontWeight: '800', color: colors.accentTeal },
+    sectionLinkPremium: { fontSize: 13, fontWeight: '800', color: accentColor },
     statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
     statCardPremium: { width: (SCREEN_WIDTH - 52) / 2, backgroundColor: colors.cardBackground, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: colors.cardBorder, flexDirection: 'column', alignItems: 'stretch', gap: 12 },
     statCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -311,10 +397,25 @@ function getStyles(colors: any) {
     usageCardPremium: { marginTop: 30, backgroundColor: colors.cardBackground, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: colors.cardBorder },
     usageHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
     usageTitle: { flex: 1, fontSize: 12, fontWeight: '800', color: colors.textPrimary },
-    usageCount: { fontSize: 12, fontWeight: '900', color: colors.accentTeal },
+    usageCount: { fontSize: 12, fontWeight: '900', color: accentColor },
     usageBar: { height: 6, backgroundColor: colors.surfaceSoft, borderRadius: 3, overflow: 'hidden' },
-    usageFill: { height: '100%', backgroundColor: colors.accentTeal, borderRadius: 3 },
+    usageFill: { height: '100%', backgroundColor: accentColor, borderRadius: 3 },
     fab: { position: 'absolute', right: 20, borderRadius: 28, ...Platform.select({ ios: { shadowColor: '#0a2341', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 5 } }, android: { elevation: 8 } }) },
     fabGradient: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+    powerUpsCard: { borderRadius: 20, overflow: 'hidden', marginTop: 24, marginBottom: 12 },
+    powerUpsContent: { padding: 20 },
+    powerUpsTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', marginBottom: 8 },
+    powerUpsDescription: { fontSize: 13, fontWeight: '600', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 18, marginBottom: 20 },
+    powerUpsPlatformsRow: { flexDirection: 'row', gap: 12 },
+    platformIconBtn: { width: 48, height: 48, borderRadius: 14, backgroundColor: 'rgba(255, 255, 255, 0.15)', alignItems: 'center', justifyContent: 'center' },
+    sectionHeaderPremiumWithSubtitle: { marginTop: 24, marginBottom: 16 },
+    sectionSubtitlePremium: { fontSize: 13, color: colors.textMuted, fontWeight: '600', marginTop: 4 },
+    manageLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    templateCardPremium: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.cardBackground, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: colors.cardBorder, marginBottom: 12 },
+    templateIconBox: { width: 48, height: 48, borderRadius: 14, backgroundColor: 'rgba(13, 148, 136, 0.08)', alignItems: 'center', justifyContent: 'center' },
+    templateInfo: { flex: 1, marginLeft: 14 },
+    templateName: { fontSize: 14, fontWeight: '800', color: colors.textPrimary, marginBottom: 4 },
+    templatePlatformRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    templatePlatformText: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   });
 }

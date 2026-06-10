@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -25,18 +25,71 @@ import MapView, { Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const TABS = ['Structural', 'Exterior', 'Interior', 'Utilities', 'Legal', 'Remarks', 'Media'];
+
+// --- Helper Functions ---
+const hasValue = (val: any): boolean => {
+  if (val === null || val === undefined) return false;
+  if (typeof val === 'string') {
+    const cleaned = val.trim();
+    return cleaned !== '' && cleaned !== '—';
+  }
+  if (typeof val === 'number') {
+    return !isNaN(val);
+  }
+  if (Array.isArray(val)) {
+    return val.length > 0 && val.some(item => hasValue(item));
+  }
+  return true;
+};
 
 // --- Helper Components ---
-function PropertyStatItem({ label, value, icon }: { label: string; value: string | number; icon?: string }) {
+function PropertyStatItem({
+  label,
+  value,
+  icon,
+  isPill,
+}: {
+  label: string;
+  value: string | number | string[] | null | undefined;
+  icon?: string;
+  isPill?: boolean;
+}) {
   const { colors } = useAppTheme();
+  
+  const hasArrayValue = Array.isArray(value) && value.length > 0;
+  
+  const displayValue = useMemo(() => {
+    if (Array.isArray(value)) {
+      return value.join(', ');
+    }
+    return value;
+  }, [value]);
+
   return (
-    <View style={{ width: '48%', marginBottom: 20, backgroundColor: colors.surfaceIcon + '50', padding: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-        {icon && <MaterialCommunityIcons name={icon as any} size={12} color={colors.textMuted} />}
-        <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</Text>
+    <View style={{ width: '48%', marginBottom: 16, backgroundColor: colors.surfaceIcon + '50', padding: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+        {icon && <MaterialCommunityIcons name={icon as any} size={11} color={colors.textMuted} />}
+        <Text style={{ fontSize: 8.5, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Text>
       </View>
-      <Text style={{ fontSize: 15, fontWeight: '900', color: colors.textPrimary }}>{value || '—'}</Text>
+      {isPill || hasArrayValue ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 2 }}>
+          {Array.isArray(value) ? (
+            value.map((item, idx) => (
+              <View key={idx} style={{ backgroundColor: colors.accentTeal + '10', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.accentTeal + '20', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 9.5, fontWeight: '700', color: colors.accentTeal }}>{item}</Text>
+              </View>
+            ))
+          ) : (
+            <View style={{ backgroundColor: colors.accentTeal + '10', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.accentTeal + '20', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 9.5, fontWeight: '700', color: colors.accentTeal }}>{value}</Text>
+            </View>
+          )}
+        </View>
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }} numberOfLines={1} adjustsFontSizeToFit>{displayValue || '—'}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -45,12 +98,12 @@ function FeaturePillSection({ title, data }: { title: string; data: string[] | u
   const { colors } = useAppTheme();
   if (!data || data.length === 0) return null;
   return (
-    <View style={{ width: '100%', marginBottom: 24 }}>
-      <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', marginBottom: 12 }}>{title}</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+    <View style={{ width: '100%', marginBottom: 20 }}>
+      <Text style={{ fontSize: 9, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.8 }}>{title}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {data.map((item, idx) => (
-          <View key={idx} style={{ backgroundColor: colors.accentTeal + '15', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.accentTeal + '20' }}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.accentTeal }}>{item}</Text>
+          <View key={idx} style={{ backgroundColor: colors.accentTeal + '15', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: colors.accentTeal + '20' }}>
+            <Text style={{ fontSize: 10, fontWeight: '700', color: colors.accentTeal }}>{item}</Text>
           </View>
         ))}
       </View>
@@ -69,6 +122,7 @@ export default function PropertyDetailScreen() {
   const [activeTab, setActiveTab] = useState('Structural');
   const [currImageIndex, setCurrImageIndex] = useState(0);
   const [showMap, setShowMap] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const carouselRef = useRef<ScrollView>(null);
   const mainScrollRef = useRef<ScrollView>(null);
 
@@ -97,27 +151,30 @@ export default function PropertyDetailScreen() {
           id: id,
           address: d.UnparsedAddress || d.address || 'Unknown Address',
           price: d.ListPrice ? `$${d.ListPrice.toLocaleString()}` : (d.price || '—'),
-          beds: d.BedroomsTotal || d.beds || '0',
-          baths: (parseFloat(d.BathroomsFull || d.bathsFull || '0')) + (d.BathroomsHalf || d.bathsHalf ? 0.5 : 0),
-          sqft: d.BuildingAreaTotal || d.sqft || '—',
-          year: d.YearBuilt || d.year || '—',
-          type: d.PropertySubType || d.type || 'Residential',
+          beds: d.BedroomsTotal || d.beds || null,
+          baths: (parseFloat(d.BathroomsFull || d.bathsFull || '0')) + (d.BathroomsHalf || d.bathsHalf ? 0.5 : 0) || null,
+          sqft: d.BuildingAreaTotal || d.LivingArea || d.sqft || null,
+          year: d.YearBuilt || d.year || null,
+          type: d.PropertySubType || d.PropertyType || d.type || 'Residential',
           mlsImages: (d.Media || []).map((m: any) => (typeof m === 'string' ? m : m.MediaURL || m.MediaUrl || m.url || m.URL)).filter(Boolean),
           userImages: (d.user_images || []).map((m: any) => (typeof m === 'string' ? m : m.url || m.uri || m.MediaURL)).filter(Boolean),
           remarks: d.PublicRemarks || d.publicRemarks || '',
-          stories: d.Stories || d.stories || '—',
-          lotSize: d.LotSizeArea || d.lotSize || '—',
-          roof: d.Roof || d.roof || '—',
-          cooling: d.Cooling || d.cooling || '—',
-          heating: d.Heating || d.heating || '—',
+          stories: d.Stories || d.stories || null,
+          lotSizeSqft: d.LotSizeSquareFeet || (d.LotSizeUnits === 'Acres' && d.LotSizeArea ? Math.round(d.LotSizeArea * 43560) : null) || null,
+          lotSizeAcres: d.LotSizeAcres || d.LotSizeArea || (d.LotSizeUnits === 'Square Feet' && d.LotSizeSquareFeet ? parseFloat((d.LotSizeSquareFeet / 43560).toFixed(3)) : null) || null,
+          lotSizeUnits: d.LotSizeUnits || 'Acres',
+          roof: d.Roof || d.roof || null,
+          cooling: d.Cooling || d.cooling || null,
+          heating: d.Heating || d.heating || null,
           flooring: d.Flooring || d.flooring || [],
           status: d.StandardStatus || 'Ready for Use',
           confidence: 98,
           lastSync: '2 min ago',
-          listingId: d.ListingId || d.listingId || '—',
-          parking: d.ParkingTotal || '2',
-          foundation: d.FoundationDetails || 'Slab',
-          lotFeatures: d.LotFeatures || 'On Street',
+          listingId: d.ListingId || d.listingId || null,
+          parking: d.ParkingFeatures || (d.ParkingTotal ? [`${d.ParkingTotal} Spaces`] : null) || null,
+          garage: d.GarageYN === true ? (d.GarageSpaces ? `${d.GarageSpaces} Spaces` : 'Yes') : (d.GarageYN === false ? 'N/A' : null),
+          foundation: d.FoundationDetails || d.foundation || null,
+          lotFeatures: d.LotFeatures || null,
           zienAvm: '$734,020',
           walkScore: 88,
           walkLabel: 'EXTREMELY WALKABLE',
@@ -131,13 +188,65 @@ export default function PropertyDetailScreen() {
           listingTerms: d.ListingTerms || [],
           exemptions: d.TaxExemptions || [],
           fencing: d.Fencing || d.fencing || [],
-          exteriorFeatures: d.ExteriorFeatures || d.exteriorFeatures || []
+          exteriorFeatures: d.ExteriorFeatures || d.exteriorFeatures || [],
+          patioAndPorch: d.PatioAndPorchFeatures || [],
+          sewer: d.Sewer || [],
+          waterSource: d.WaterSource || [],
+          community: d.CommunityFeatures || [],
+          schoolDistrict: d.HighSchoolDistrict || null,
+          highSchool: d.HighSchool || null,
+          middleSchool: d.MiddleOrJuniorSchool || null,
+          elementarySchool: d.ElementarySchool || null,
+          taxAnnualAmount: d.TaxAnnualAmount || null,
+          subdivision: d.SubdivisionName || null,
         };
       }
       throw new Error("Failed to fetch");
     },
     enabled: !!id && !!accessToken
   });
+
+  const visibleTabs = useMemo(() => {
+    if (!property) return [];
+    const tabs = [];
+    
+    // Check Structural
+    if (hasValue(property.type) || hasValue(property.year) || hasValue(property.stories) || hasValue(property.sqft) || hasValue(property.lotSizeSqft) || hasValue(property.roof) || hasValue(property.foundation)) {
+      tabs.push('Structural');
+    }
+    // Check Exterior
+    if (hasValue(property.lotSizeAcres) || hasValue(property.parking) || hasValue(property.garage) || hasValue(property.lotFeatures) || hasValue(property.exteriorFeatures) || hasValue(property.fencing) || hasValue(property.patioAndPorch)) {
+      tabs.push('Exterior');
+    }
+    // Check Interior
+    if (hasValue(property.beds) || hasValue(property.baths) || hasValue(property.flooring) || hasValue(property.appliances) || hasValue(property.interiorFeatures) || hasValue(property.kitchenFeatures) || hasValue(property.bathroomFeatures) || hasValue(property.laundryFeatures)) {
+      tabs.push('Interior');
+    }
+    // Check Utilities
+    if (hasValue(property.heating) || hasValue(property.cooling) || hasValue(property.waterSource) || hasValue(property.sewer)) {
+      tabs.push('Utilities');
+    }
+    // Check Legal
+    if (hasValue(property.listingId) || hasValue(property.status) || hasValue(property.listingTerms) || hasValue(property.exemptions) || hasValue(property.taxAnnualAmount) || hasValue(property.subdivision) || hasValue(property.schoolDistrict) || hasValue(property.highSchool) || hasValue(property.middleSchool) || hasValue(property.elementarySchool)) {
+      tabs.push('Legal');
+    }
+    // Check Remarks
+    if (hasValue(property.remarks)) {
+      tabs.push('Remarks');
+    }
+    // Check Media
+    if ((property.userImages && property.userImages.length > 0) || (property.mlsImages && property.mlsImages.length > 0)) {
+      tabs.push('Media');
+    }
+    
+    return tabs;
+  }, [property]);
+
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0]);
+    }
+  }, [visibleTabs, activeTab]);
 
   const allImages = useMemo(() => {
     if (!property) return [];
@@ -159,58 +268,68 @@ export default function PropertyDetailScreen() {
       case 'Structural':
         return (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 20 }}>
-            <PropertyStatItem label="PROPERTY TYPE" value={property.type} icon="home-outline" />
-            <PropertyStatItem label="YEAR BUILT" value={property.year} icon="calendar-outline" />
-            <PropertyStatItem label="STORIES" value={property.stories} icon="layers-outline" />
-            <PropertyStatItem label="LIVING AREA" value={`${property.sqft} sqft`} icon="arrow-expand-all" />
-            <PropertyStatItem label="LOT SIZE" value={`${property.lotSize} sqft`} icon="texture-box" />
-            <PropertyStatItem label="ROOF MATERIAL" value={Array.isArray(property.roof) ? property.roof[0] : (property.roof || 'Composition')} icon="home-roof" />
-            <PropertyStatItem label="FOUNDATION" value={property.foundation} icon="floor-plan" />
+            {hasValue(property.type) && <PropertyStatItem label="PROPERTY TYPE" value={property.type} icon="home-outline" />}
+            {hasValue(property.year) && <PropertyStatItem label="YEAR BUILT" value={property.year} icon="calendar-outline" />}
+            {hasValue(property.stories) && <PropertyStatItem label="STORIES" value={property.stories} icon="layers-outline" />}
+            {hasValue(property.sqft) && <PropertyStatItem label="LIVING AREA" value={typeof property.sqft === 'number' ? `${property.sqft.toLocaleString()} sqft` : `${property.sqft} sqft`} icon="arrow-expand-all" />}
+            {hasValue(property.lotSizeSqft) && <PropertyStatItem label="LOT SIZE" value={typeof property.lotSizeSqft === 'number' ? `${property.lotSizeSqft.toLocaleString()} sqft` : `${property.lotSizeSqft} sqft`} icon="texture-box" />}
+            {hasValue(property.roof) && <PropertyStatItem label="ROOF MATERIAL" value={property.roof} icon="home-roof" isPill />}
+            {hasValue(property.foundation) && <PropertyStatItem label="FOUNDATION" value={property.foundation} icon="floor-plan" isPill />}
           </View>
         );
       case 'Exterior':
         return (
           <View style={{ marginTop: 20 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-              <PropertyStatItem label="PARKING" value={property.parking} icon="car-outline" />
-              <PropertyStatItem label="LOT FEATURES" value={Array.isArray(property.lotFeatures) ? property.lotFeatures[0] : property.lotFeatures} icon="sprout-outline" />
+              {hasValue(property.lotSizeAcres) && <PropertyStatItem label="LOT AREA" value={`${property.lotSizeAcres} Acres`} icon="texture-box" />}
+              {hasValue(property.parking) && <PropertyStatItem label="PARKING" value={property.parking} icon="car-outline" isPill />}
+              {hasValue(property.garage) && <PropertyStatItem label="GARAGE" value={property.garage} icon="garage" />}
+              {hasValue(property.lotFeatures) && <PropertyStatItem label="LOT FEATURES" value={property.lotFeatures} icon="sprout-outline" isPill />}
             </View>
-            <FeaturePillSection title="EXTERIOR FEATURES" data={property.exteriorFeatures} />
-            <FeaturePillSection title="FENCING" data={property.fencing} />
+            {hasValue(property.exteriorFeatures) && <FeaturePillSection title="EXTERIOR FEATURES" data={property.exteriorFeatures} />}
+            {hasValue(property.fencing) && <FeaturePillSection title="FENCING" data={property.fencing} />}
+            {hasValue(property.patioAndPorch) && <FeaturePillSection title="PATIO/PORCH" data={property.patioAndPorch} />}
           </View>
         );
       case 'Interior':
         return (
           <View style={{ marginTop: 20 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-              <PropertyStatItem label="BEDS" value={property.beds} icon="bed-outline" />
-              <PropertyStatItem label="BATHS" value={property.baths} icon="bathtub-outline" />
+              {hasValue(property.beds) && <PropertyStatItem label="BEDS" value={property.beds} icon="bed-outline" />}
+              {hasValue(property.baths) && <PropertyStatItem label="BATHS" value={property.baths} icon="bathtub-outline" />}
             </View>
-            <FeaturePillSection title="FLOORING" data={property.flooring} />
-            <FeaturePillSection title="APPLIANCES" data={property.appliances} />
-            <FeaturePillSection title="INTERIOR" data={property.interiorFeatures} />
-            <FeaturePillSection title="KITCHEN" data={property.kitchenFeatures} />
-            <FeaturePillSection title="BATHROOM" data={property.bathroomFeatures} />
-            <FeaturePillSection title="LAUNDRY" data={property.laundryFeatures} />
+            {hasValue(property.flooring) && <FeaturePillSection title="FLOORING" data={property.flooring} />}
+            {hasValue(property.appliances) && <FeaturePillSection title="APPLIANCES" data={property.appliances} />}
+            {hasValue(property.interiorFeatures) && <FeaturePillSection title="INTERIOR" data={property.interiorFeatures} />}
+            {hasValue(property.kitchenFeatures) && <FeaturePillSection title="KITCHEN" data={property.kitchenFeatures} />}
+            {hasValue(property.bathroomFeatures) && <FeaturePillSection title="BATHROOM" data={property.bathroomFeatures} />}
+            {hasValue(property.laundryFeatures) && <FeaturePillSection title="LAUNDRY" data={property.laundryFeatures} />}
           </View>
         );
       case 'Utilities':
         return (
-          <View style={{ marginTop: 20 }}>
-            <FeaturePillSection title="HEATING" data={Array.isArray(property.heating) ? property.heating : [property.heating]} />
-            <FeaturePillSection title="COOLING" data={Array.isArray(property.cooling) ? property.cooling : [property.cooling]} />
-            <PropertyStatItem label="SEWER" value="Public Sewer" icon="water-outline" />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 20 }}>
+            {hasValue(property.heating) && <PropertyStatItem label="HEATING" value={property.heating} icon="fire" isPill />}
+            {hasValue(property.cooling) && <PropertyStatItem label="COOLING" value={property.cooling} icon="air-conditioner" isPill />}
+            {hasValue(property.waterSource) && <PropertyStatItem label="WATER" value={property.waterSource} icon="water" isPill />}
+            {hasValue(property.sewer) && <PropertyStatItem label="SEWER" value={property.sewer} icon="water-pump" isPill />}
           </View>
         )
       case 'Legal':
         return (
           <View style={{ marginTop: 20 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-              <PropertyStatItem label="LISTING ID" value={property.listingId} icon="tag-outline" />
-              <PropertyStatItem label="STATUS" value={property.status} icon="check-circle-outline" />
+              {hasValue(property.listingId) && <PropertyStatItem label="LISTING ID" value={property.listingId} icon="tag-outline" />}
+              {hasValue(property.status) && <PropertyStatItem label="STATUS" value={property.status} icon="check-circle-outline" />}
+              {hasValue(property.taxAnnualAmount) && <PropertyStatItem label="TAX ANNUAL AMOUNT" value={typeof property.taxAnnualAmount === 'number' ? `$${property.taxAnnualAmount.toLocaleString()}` : property.taxAnnualAmount} icon="cash-multiple" />}
+              {hasValue(property.subdivision) && <PropertyStatItem label="SUBDIVISION" value={property.subdivision} icon="map-outline" />}
+              {hasValue(property.schoolDistrict) && <PropertyStatItem label="SCHOOL DISTRICT" value={property.schoolDistrict} icon="school-outline" />}
+              {hasValue(property.highSchool) && <PropertyStatItem label="HIGH SCHOOL" value={property.highSchool} icon="school-outline" />}
+              {hasValue(property.middleSchool) && <PropertyStatItem label="MIDDLE SCHOOL" value={property.middleSchool} icon="school-outline" />}
+              {hasValue(property.elementarySchool) && <PropertyStatItem label="ELEMENTARY SCHOOL" value={property.elementarySchool} icon="school-outline" />}
             </View>
-            <FeaturePillSection title="TERMS" data={property.listingTerms} />
-            <FeaturePillSection title="EXEMPTIONS" data={property.exemptions} />
+            {hasValue(property.listingTerms) && <FeaturePillSection title="TERMS" data={property.listingTerms} />}
+            {hasValue(property.exemptions) && <FeaturePillSection title="EXEMPTIONS" data={property.exemptions} />}
           </View>
         )
       case 'Remarks':
@@ -343,12 +462,20 @@ export default function PropertyDetailScreen() {
 
             {allImages.length > 1 && (
               <View style={styles.carouselNav}>
-                <TouchableOpacity onPress={() => carouselRef.current?.scrollTo({ x: (currImageIndex - 1) * (SCREEN_WIDTH - 40), animated: true })} style={styles.navCirc}>
-                  <MaterialCommunityIcons name="chevron-left" size={24} color="#FFF" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => carouselRef.current?.scrollTo({ x: (currImageIndex + 1) * (SCREEN_WIDTH - 40), animated: true })} style={styles.navCirc}>
-                  <MaterialCommunityIcons name="chevron-right" size={24} color="#FFF" />
-                </TouchableOpacity>
+                {currImageIndex > 0 ? (
+                  <TouchableOpacity onPress={() => carouselRef.current?.scrollTo({ x: (currImageIndex - 1) * (SCREEN_WIDTH - 40), animated: true })} style={styles.navCirc}>
+                    <MaterialCommunityIcons name="chevron-left" size={24} color="#FFF" />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ width: 36 }} />
+                )}
+                {currImageIndex < allImages.length - 1 ? (
+                  <TouchableOpacity onPress={() => carouselRef.current?.scrollTo({ x: (currImageIndex + 1) * (SCREEN_WIDTH - 40), animated: true })} style={styles.navCirc}>
+                    <MaterialCommunityIcons name="chevron-right" size={24} color="#FFF" />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ width: 36 }} />
+                )}
               </View>
             )}
             <View style={styles.phaseBadge}>
@@ -362,32 +489,18 @@ export default function PropertyDetailScreen() {
         <View style={{ paddingHorizontal: 20 }}>
           {/* Profile Card */}
           <View style={styles.profileCard}>
-            <View style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
-              <View style={{ width: '100%' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <View style={styles.cardIconBox}>
-                    <MaterialCommunityIcons name="office-building-cog" size={18} color={colors.accentTeal} />
-                  </View>
-                  <Text style={styles.cardTitle}>Property Profile</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                <View style={styles.cardIconBox}>
+                  <MaterialCommunityIcons name="office-building-cog" size={18} color={colors.accentTeal} />
                 </View>
-                <Text style={styles.cardSubtitle}>Comprehensive assessment</Text>
+                <Text style={styles.cardTitle} numberOfLines={1}>Property Profile</Text>
               </View>
-              <TouchableOpacity style={styles.autoScanBadge} activeOpacity={0.8}>
-                <LinearGradient
-                  colors={[colors.accentTeal + '20', colors.accentTeal + '05']}
-                  style={StyleSheet.absoluteFill}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                />
-                <MaterialCommunityIcons name="shimmer" size={12} color={colors.accentTeal} />
-                <Text style={styles.autoScanText}>
-                  ARCHITECTURAL <Text style={styles.autoScanTextBold}>AUTO-SCAN</Text>
-                </Text>
-              </TouchableOpacity>
             </View>
+            <Text style={styles.cardSubtitle}>Comprehensive structural and interior assessment</Text>
             <View style={styles.tabOuterContainer}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabContainer} contentContainerStyle={{ gap: 8 }}>
-                {TABS.map(t => (
+                {visibleTabs.map(t => (
                   <TouchableOpacity key={t} onPress={() => setActiveTab(t)} style={[styles.tabItem, activeTab === t && styles.activeTabItem]}>
                     <Text style={[styles.tabText, activeTab === t && styles.activeTabText]}>{t}</Text>
                   </TouchableOpacity>
@@ -452,6 +565,20 @@ export default function PropertyDetailScreen() {
             <TouchableOpacity style={styles.mapBtn} onPress={() => setShowMap(true)}><Text style={styles.mapBtnText}>View Neighborhood Map</Text></TouchableOpacity>
           </View>
 
+          <View style={styles.syndicationCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <MaterialCommunityIcons name="earth" size={20} color={colors.accent} />
+              <Text style={styles.syndicationTitle}>SYNDICATION & SHARING</Text>
+            </View>
+            <Text style={styles.syndicationDescription}>
+              Distribute this property to your marketing channels within the Zien ecosystem.
+            </Text>
+            <TouchableOpacity style={styles.syndicationBtn} activeOpacity={0.8} onPress={() => setShowShareModal(true)}>
+              <MaterialCommunityIcons name="bullhorn-outline" size={16} color="#FFF" />
+              <Text style={styles.syndicationBtnText}>Open Share Portal</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.integrityCard}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
               <Text style={styles.sectionHead}>DATA INTEGRITY SCORE</Text>
@@ -470,6 +597,90 @@ export default function PropertyDetailScreen() {
       </TouchableOpacity>
 
       <NeighborhoodMapModal visible={showMap} onClose={() => setShowMap(false)} property={property as any} />
+
+      <Modal visible={showShareModal} transparent animationType="fade" onRequestClose={() => setShowShareModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.shareModalContent}>
+            {/* Header */}
+            <View style={styles.shareModalHeader}>
+              <View style={{ flex: 1, marginRight: 20 }}>
+                <Text style={styles.shareModalTitle}>Share Property</Text>
+                <Text style={styles.shareModalSubtitle} numberOfLines={2}>
+                  Distribute {property.address} across the Zien marketing stack.
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowShareModal(false)} style={styles.closeModalBtn}>
+                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.modalDivider} />
+
+            {/* Options */}
+            <View style={{ gap: 12 }}>
+              <TouchableOpacity
+                style={styles.shareOptionCard}
+                activeOpacity={0.7}
+                onPress={() => {
+                  setShowShareModal(false);
+                  router.push('/(main)/open-house');
+                }}
+              >
+                <View style={[styles.shareIconBox, { backgroundColor: colors.surfaceIcon }]}>
+                  <MaterialCommunityIcons name="account-group-outline" size={22} color={colors.textPrimary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.shareOptionTitle}>Live to Open House</Text>
+                  <Text style={styles.shareOptionSubtitle}>Add this property to your upcoming open house circuit.</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.shareOptionCard}
+                activeOpacity={0.7}
+                onPress={() => {
+                  setShowShareModal(false);
+                  router.push('/(main)/crm/campaigns');
+                }}
+              >
+                <View style={[styles.shareIconBox, { backgroundColor: '#E0F2FE' }]}>
+                  <MaterialCommunityIcons name="bullhorn-outline" size={22} color="#0369A1" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.shareOptionTitle}>Email/SMS Campaign</Text>
+                  <Text style={styles.shareOptionSubtitle}>Launch an email and SMS campaign for this listing.</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.shareOptionCard}
+                activeOpacity={0.7}
+                onPress={() => {
+                  setShowShareModal(false);
+                  router.push({
+                    pathname: '/(main)/social-hub/create-post',
+                    params: { propertyId: id }
+                  } as any);
+                }}
+              >
+                <View style={[styles.shareIconBox, { backgroundColor: '#FFF1F2' }]}>
+                  <MaterialCommunityIcons name="cellphone" size={22} color="#E11D48" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.shareOptionTitle}>Post to Social Media</Text>
+                  <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>Directly publish this property to your social accounts.</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Bottom Button */}
+            <TouchableOpacity style={styles.closePortalBtn} onPress={() => setShowShareModal(false)} activeOpacity={0.7}>
+              <Text style={styles.closePortalBtnText}>Close Portal</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -588,7 +799,7 @@ function ScoreRow({ label, value, color }: { label: string; value: number; color
 
 function getStyles(colors: any) {
   return StyleSheet.create({
-    bigTitle: { fontSize: 24, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.5 },
+    bigTitle: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.5 },
     statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.accentTeal + '20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
     statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accentTeal },
     statusText: { fontSize: 10, fontWeight: '800', color: colors.accentTeal },
@@ -606,12 +817,12 @@ function getStyles(colors: any) {
     phaseBadgeText: { color: '#FFF', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
     profileCard: { backgroundColor: colors.cardBackground, borderRadius: 28, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: colors.cardBorder, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12 },
     cardIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.accentTeal + '10', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.accentTeal + '20' },
-    cardTitle: { fontSize: 20, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.5 },
-    cardSubtitle: { fontSize: 12, color: colors.textMuted, lineHeight: 18, fontWeight: '500' },
-    autoScanBadge: { width: '100%', paddingHorizontal: 12, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, borderColor: colors.accentTeal + '40', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+    cardTitle: { fontSize: 16, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.3 },
+    cardSubtitle: { fontSize: 12, color: colors.textMuted, lineHeight: 18, fontWeight: '500', marginTop: 6, marginBottom: 2 },
+    autoScanBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.accentTeal + '12', flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
     badgeTopRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-    autoScanText: { fontSize: 11, fontWeight: '700', color: colors.accentTeal, letterSpacing: 1.5 },
-    autoScanTextBold: { fontSize: 11, fontWeight: '900', color: colors.accentTeal, letterSpacing: 1.5 },
+    autoScanText: { fontSize: 9, fontWeight: '700', color: colors.accentTeal, letterSpacing: 0.8 },
+    autoScanTextBold: { fontSize: 9, fontWeight: '900', color: colors.accentTeal, letterSpacing: 0.8 },
     tabOuterContainer: { marginTop: 20, marginBottom: 4 },
     tabContainer: { flexDirection: 'row' },
     tabItem: {
@@ -658,6 +869,46 @@ function getStyles(colors: any) {
     sectionHead: { fontSize: 10, fontWeight: '900', color: colors.textMuted, letterSpacing: 1 },
     mapBtn: { marginTop: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, alignItems: 'center' },
     mapBtnText: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
+    syndicationCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 20,
+      marginBottom: 16,
+      borderWidth: 1.5,
+      borderColor: colors.accent,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
+      elevation: 2,
+    },
+    syndicationTitle: {
+      fontSize: 13,
+      fontWeight: '900',
+      color: colors.accent,
+      letterSpacing: 0.5,
+    },
+    syndicationDescription: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      lineHeight: 18,
+      marginBottom: 16,
+      marginTop: 4,
+    },
+    syndicationBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.textPrimary,
+      paddingVertical: 12,
+      borderRadius: 12,
+    },
+    syndicationBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#FFF',
+    },
     integrityCard: { backgroundColor: colors.cardBackground, borderRadius: 24, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: colors.cardBorder },
     integrityTrack: { width: '100%', height: 8, backgroundColor: colors.surfaceIcon, borderRadius: 4, overflow: 'hidden' },
     integrityFill: { height: '100%', backgroundColor: colors.accentTeal },
@@ -716,6 +967,91 @@ function getStyles(colors: any) {
       fontWeight: '800',
       color: colors.textMuted,
       letterSpacing: 0.5
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    shareModalContent: {
+      width: '100%',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 24,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.15,
+      shadowRadius: 16,
+      elevation: 10,
+    },
+    shareModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 16,
+    },
+    shareModalTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    shareModalSubtitle: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: 4,
+      lineHeight: 18,
+    },
+    closeModalBtn: {
+      padding: 4,
+    },
+    modalDivider: {
+      height: 1,
+      backgroundColor: colors.divider,
+      marginBottom: 20,
+    },
+    shareOptionCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 12,
+      backgroundColor: colors.cardBackground,
+    },
+    shareIconBox: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    shareOptionTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    shareOptionSubtitle: {
+      fontSize: 11,
+      color: colors.textMuted,
+      marginTop: 2,
+      lineHeight: 16,
+    },
+    closePortalBtn: {
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+      marginTop: 12,
+    },
+    closePortalBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textPrimary,
     }
   });
 }

@@ -1492,6 +1492,38 @@ export const getCRMTemplates = async (accessToken: string): Promise<CRMTemplate[
     }
 };
 
+export const renderCRMTemplate = async (accessToken: string, contentJson: any): Promise<string> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/templates/render`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ content_json: contentJson }),
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || `Server error: ${response.status}`);
+        }
+
+        return await response.text();
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
 export const addCRMTemplate = async (accessToken: string, templateData: any): Promise<CRMTemplate> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);

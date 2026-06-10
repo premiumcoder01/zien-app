@@ -3,7 +3,7 @@ import * as AuthSession from 'expo-auth-session';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState, useRef } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text as RNText, View } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -255,17 +255,23 @@ export default function LoginScreen() {
                 error={emailError}
                 required
               />
-              <PasswordInput
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  if (passwordError) setPasswordError('');
-                }}
-                rightLabel="Forgot?"
-                onRightLabelPress={() => router.push('/(auth)/forgot-password')}
-                error={passwordError}
-                required
-              />
+              <View style={styles.passwordWrapper}>
+                <PasswordInput
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (passwordError) setPasswordError('');
+                  }}
+                  error={passwordError}
+                  required
+                />
+                <Pressable
+                  onPress={() => router.push('/(auth)/forgot-password')}
+                  style={styles.forgotPasswordContainer}
+                >
+                  <RNText style={styles.forgotPasswordText}>Forgot Password?</RNText>
+                </Pressable>
+              </View>
             </View>
 
             <View style={styles.actionRow}>
@@ -322,6 +328,17 @@ function getStyles(colors: any) {
     form: {
       alignSelf: 'stretch',
       gap: 12,
+    },
+    passwordWrapper: {
+      gap: 6,
+    },
+    forgotPasswordContainer: {
+      alignSelf: 'flex-end',
+    },
+    forgotPasswordText: {
+      fontSize: 13,
+      color: colors.link,
+      fontWeight: '600',
     },
     actionRow: {
       flexDirection: 'row',

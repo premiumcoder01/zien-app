@@ -132,6 +132,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
   const [parsedContacts, setParsedContacts] = useState<any[]>([]);
   const [selectedContactIndices, setSelectedContactIndices] = useState<Record<number, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const isButtonEnabled = instructions.trim().length > 0 || selectedFile !== null;
   const selectedCount = parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length;
@@ -410,19 +411,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
       }
 
       setIsSaving(false);
-      Alert.alert(
-        'Synchronization Success',
-        `Successfully integrated all ${leadsToImport.length} leads into your Zien CRM.`,
-        [
-          {
-            text: 'Done',
-            onPress: () => {
-              onImportSuccess();
-              onClose();
-            },
-          },
-        ]
-      );
+      setShowSuccessModal(true);
     } catch (err: any) {
       setIsSaving(false);
       Alert.alert('Database Sync Failed', err.message || 'Could not save imported leads.');
@@ -892,6 +881,46 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                 );
               })}
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowSuccessModal(false);
+          onImportSuccess();
+          onClose();
+        }}
+      >
+        <View style={styles.successModalOverlay}>
+          <View style={styles.successModalContent}>
+            <View style={styles.successModalIconContainer}>
+              <MaterialCommunityIcons name="check-circle-outline" size={48} color={colors.accent || '#00a7b5'} />
+            </View>
+            <Text style={styles.successModalTitle}>Synchronization Success</Text>
+            <Text style={styles.successModalMessage}>
+              Successfully integrated all {parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length} leads into your Zien CRM.
+            </Text>
+            <Pressable
+              style={styles.successModalButton}
+              onPress={() => {
+                setShowSuccessModal(false);
+                onImportSuccess();
+                onClose();
+              }}
+            >
+              <LinearGradient
+                colors={['#0a2341', '#00a7b5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.successModalGradient}
+              >
+                <Text style={styles.successModalButtonText}>Done</Text>
+              </LinearGradient>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -1567,5 +1596,61 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  successModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  successModalContent: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  successModalIconContainer: {
+    marginBottom: 16,
+  },
+  successModalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  successModalMessage: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  successModalButton: {
+    width: '100%',
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  successModalGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 54,
+  },
+  successModalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 });

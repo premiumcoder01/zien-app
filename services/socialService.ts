@@ -280,3 +280,45 @@ export const getSocialOverview = async (token: string): Promise<SocialOverviewDa
 
   return json.data;
 };
+
+/**
+ * Fetch connected social accounts.
+ */
+export const getSocialAccounts = async (token: string): Promise<any[]> => {
+  const response = await fetch(`${API_BASE_URL}/solo/social/accounts`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to fetch social accounts');
+  }
+
+  return json.data;
+};
+
+/**
+ * Disconnect a social account.
+ */
+export const disconnectSocialAccount = async (token: string, accountId: number): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/solo/social/accounts/${accountId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to disconnect social account');
+  }
+
+  return json;
+};

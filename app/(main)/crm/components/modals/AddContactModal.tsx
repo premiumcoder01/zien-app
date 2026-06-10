@@ -289,7 +289,9 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
           <View style={styles.header}>
             <View>
               <Text style={styles.headerTitle}>{isEditing ? 'Edit Contact' : 'Add New Contact'}</Text>
-              <Text style={styles.headerSubtitle}>{isEditing ? 'Update lead details and tags' : 'Register a new lead into your CRM'}</Text>
+              {isEditing ? (
+                <Text style={styles.headerSubtitle}>Update lead details and tags</Text>
+              ) : null}
             </View>
             <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12}>
               <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />

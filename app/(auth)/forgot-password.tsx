@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AuthCard, AuthLogoBrand, AuthScreenBackground, AuthSubtitle, AuthTitle } from '@/components/auth';
 import GradientButton from '@/components/ui/GradientButton';
@@ -32,6 +32,7 @@ export default function ForgotPasswordScreen() {
   const [isResending, setIsResending] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [expiryTimer, setExpiryTimer] = useState(0);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -124,9 +125,7 @@ export default function ForgotPasswordScreen() {
       });
 
       if (response.reset) {
-        Alert.alert('Success', 'Your password has been reset successfully.', [
-          { text: 'Login Now', onPress: () => router.replace('/(auth)/login') },
-        ]);
+        setShowSuccessModal(true);
       }
     } catch (error: any) {
       const msg = error.message.toLowerCase();
@@ -213,11 +212,32 @@ export default function ForgotPasswordScreen() {
                     required
                   />
 
-                  {expiryTimer > 0 && (
-                    <Text style={styles.expiryText}>
-                      Code expires in <Text style={styles.bold}>{formatTime(expiryTimer)}</Text>
-                    </Text>
-                  )}
+                  <View style={styles.expiryRow}>
+                    {expiryTimer > 0 ? (
+                      <Text style={styles.expiryText}>
+                        Code expires in <Text style={styles.bold}>{formatTime(expiryTimer)}</Text>
+                      </Text>
+                    ) : (
+                      <Text style={styles.expiryText}>Code expired</Text>
+                    )}
+                    <Pressable
+                      onPress={handleResendOtp}
+                      disabled={isResending || resendTimer > 0}
+                      style={({ pressed }) => [
+                        styles.resendButton,
+                        (isResending || resendTimer > 0) && styles.resendButtonDisabled,
+                        pressed && !isResending && resendTimer === 0 && { opacity: 0.7 }
+                      ]}
+                    >
+                      {isResending ? (
+                        <ActivityIndicator size="small" color={colors.accent || '#0a2341'} />
+                      ) : (
+                        <Text style={[styles.resendLink, resendTimer > 0 && styles.disabledLink]}>
+                          Resend {resendTimer > 0 ? `(${resendTimer}s)` : ''}
+                        </Text>
+                      )}
+                    </Pressable>
+                  </View>
 
                   <PasswordInput
                     label="New Password"
@@ -248,26 +268,7 @@ export default function ForgotPasswordScreen() {
                   <GradientButton title="Reset Password" style={styles.flexButton} onPress={handleReset} isLoading={isLoading} />
                 </View>
 
-                <View style={styles.footer}>
-                  <Text style={styles.footerText}>Didn't receive OTP? </Text>
-                  <Pressable
-                    onPress={handleResendOtp}
-                    disabled={isResending || resendTimer > 0}
-                    style={({ pressed }) => [
-                      styles.resendButton,
-                      (isResending || resendTimer > 0) && styles.resendButtonDisabled,
-                      pressed && !isResending && resendTimer === 0 && { opacity: 0.7 }
-                    ]}
-                  >
-                    {isResending ? (
-                      <ActivityIndicator size="small" color={colors.accent || '#0a2341'} />
-                    ) : (
-                      <Text style={[styles.resendLink, resendTimer > 0 && styles.disabledLink]}>
-                        Resend {resendTimer > 0 ? `(${resendTimer}s)` : ''}
-                      </Text>
-                    )}
-                  </Pressable>
-                </View>
+
 
                 <Pressable onPress={() => setStep(1)} style={styles.backLink}>
                   <Text style={styles.backLinkText}>← Back</Text>
@@ -277,6 +278,34 @@ export default function ForgotPasswordScreen() {
           </AuthCard>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowSuccessModal(false);
+          router.replace('/(auth)/login');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <MaterialCommunityIcons name="check-circle-outline" size={48} color={colors.accent || '#00a7b5'} />
+            </View>
+            <Text style={styles.modalTitle}>Success</Text>
+            <Text style={styles.modalMessage}>Your password has been reset successfully.</Text>
+            <GradientButton
+              title="Login Now"
+              style={styles.modalButton}
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.replace('/(auth)/login');
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
     </AuthScreenBackground>
   );
 }
@@ -308,16 +337,22 @@ function getStyles(colors: any, theme: string) {
     infoText: {
       fontSize: 13,
       color: colors.textPrimary,
+      flex: 1,
     },
     bold: {
       fontWeight: '700',
     },
+    expiryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: -4,
+      marginBottom: 4,
+      gap: 8,
+    },
     expiryText: {
       fontSize: 13,
       color: colors.textSecondary,
-      textAlign: 'center',
-      marginTop: -8,
-      marginBottom: 4,
     },
     actionRow: {
       flexDirection: 'row',
@@ -327,24 +362,13 @@ function getStyles(colors: any, theme: string) {
     flexButton: {
       flex: 1,
     },
-    footer: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginTop: 24,
-    },
-    footerText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-    },
     resendButton: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 16,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
       backgroundColor: colors.accent ? `${colors.accent}15` : 'rgba(11, 160, 178, 0.1)',
       alignItems: 'center',
       justifyContent: 'center',
-      marginLeft: 4,
     },
     resendButtonDisabled: {
       backgroundColor: 'transparent',
@@ -367,6 +391,48 @@ function getStyles(colors: any, theme: string) {
       fontSize: 14,
       color: colors.textSecondary,
       fontWeight: '600',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    modalContent: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      padding: 24,
+      width: '100%',
+      maxWidth: 340,
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.25,
+      shadowRadius: 15,
+      elevation: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    modalIconContainer: {
+      marginBottom: 16,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    modalMessage: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: 24,
+      lineHeight: 20,
+    },
+    modalButton: {
+      width: '100%',
     }
   });
 }
