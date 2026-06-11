@@ -1,4 +1,3 @@
-import { ExternalLink } from '@/components/external-link';
 import GradientButton from '@/components/ui/GradientButton';
 import OutlineButton from '@/components/ui/OutlineButton';
 import { useAuth } from '@/context/AuthContext';
@@ -6,11 +5,14 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { deleteOpenHouse, getOpenHouseById, updateOpenHouse } from '@/services/openHouseService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import * as Sharing from 'expo-sharing';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -22,7 +24,6 @@ import {
     StyleSheet,
     Switch,
     Text,
-    TextInput,
     View
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -33,6 +34,43 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TABS = ['Overview', 'Enquiries', 'Automation', 'Assets & Design', 'Settings', 'Seller Report'];
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800';
+
+const formatPhoneNumber = (phone: string) => {
+    if (!phone) return '';
+    const clean = phone.replace(/\s+/g, '');
+    if (!clean.startsWith('+')) return phone;
+
+    // Check common country codes (3-digit first, then 2-digit, then 1-digit)
+    const countryCodes3 = ['380', '971', '964', '966', '359', '234', '254', '263', '353', '358', '372', '385', '420', '502', '506', '593', '852', '853', '961', '962', '965', '968', '972', '973', '974', '994', '998'];
+    const countryCodes2 = ['91', '44', '61', '33', '49', '39', '34', '31', '32', '41', '43', '46', '47', '48', '30', '36', '45', '55', '52', '60', '62', '63', '64', '65', '66', '81', '82', '84', '86', '90', '92', '93', '94', '95', '98', '20', '27', '36', '38', '51', '54', '56', '57', '58', '99'];
+    const countryCodes1 = ['1', '7'];
+
+    const digits = clean.substring(1); // remove +
+    for (const code of countryCodes3) {
+        if (digits.startsWith(code)) {
+            return `+${code} ${digits.substring(code.length)}`;
+        }
+    }
+    for (const code of countryCodes2) {
+        if (digits.startsWith(code)) {
+            return `+${code} ${digits.substring(code.length)}`;
+        }
+    }
+    for (const code of countryCodes1) {
+        if (digits.startsWith(code)) {
+            return `+${code} ${digits.substring(code.length)}`;
+        }
+    }
+
+    // Fallback: if we can't match, just split after 3 digits if total length > 10
+    if (digits.length > 10) {
+        return `+${digits.substring(0, 3)} ${digits.substring(3)}`;
+    } else if (digits.length > 7) {
+        return `+${digits.substring(0, 2)} ${digits.substring(2)}`;
+    }
+    return phone;
+};
+
 export default function EventDashboardScreen() {
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
@@ -57,14 +95,30 @@ export default function EventDashboardScreen() {
 
     const eventPrice = pData?.price || (pData?.ListPrice ? `$${Number(pData.ListPrice).toLocaleString()}` : 'N/A');
     const eventStatus = openHouseData?.status?.toUpperCase() || 'UPCOMING';
-    const eventDescription = openHouseData?.ai_description || 'A premium real estate opportunity.';
     const eventBeds = pData?.beds || pData?.BedroomsTotal || 'N/A';
     const eventBaths = pData?.bathsFull || pData?.BathroomsFull || 'N/A';
     const eventSqft = pData?.sqft || pData?.LivingArea || 'N/A';
     const agentName = openHouseData?.agent_details?.name || 'Agent Name';
-    const agentTitle = [openHouseData?.agent_details?.brokerage, openHouseData?.agent_details?.license ? `DRE# ${openHouseData.agent_details.license}` : ''].filter(Boolean).join(' | ') || 'Real Estate Professional';
+    const agentTitle = [openHouseData?.agent_details?.brokerage, openHouseData?.agent_details?.license ? `License: ${openHouseData.agent_details.license}` : ''].filter(Boolean).join(' | ') || 'Real Estate Professional';
     const agentEmail = openHouseData?.agent_details?.email || 'email@example.com';
     const agentPhone = openHouseData?.agent_details?.phone || '';
+
+    // Computed extras
+    const checkInUrl = `https://staging.zien.ai/open-house/check-in/${encodeURIComponent(eventAddress)}`;
+    const eventDateFormatted = openHouseData?.date
+        ? new Date(openHouseData.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+        : '';
+    const eventTimeFormatted = openHouseData?.start_time && openHouseData?.end_time
+        ? `${openHouseData.start_time} - ${openHouseData.end_time}`
+        : '';
+    const addressParts = eventAddress.split(',');
+    const streetAddress = addressParts[0]?.trim() || eventAddress;
+    const cityStateZip = addressParts.slice(1).join(',').trim();
+    const propDescription = (openHouseData?.ai_description && openHouseData.ai_description.trim())
+        ? openHouseData.ai_description
+        : pData?.PrivateRemarks
+            ? pData.PrivateRemarks.substring(0, 160) + (pData.PrivateRemarks.length > 160 ? '...' : '')
+            : 'Join us for an exclusive open house event. Discover this beautiful property and explore its features.';
 
     // Dynamic brand tint color
     const currentColor = openHouseData?.brand_color || colors.accentTeal || '#0D9488';
@@ -79,7 +133,16 @@ export default function EventDashboardScreen() {
     const [anonymizeLeads, setAnonymizeLeads] = useState(true);
     const [hideVisitorNames, setHideVisitorNames] = useState(true);
 
-    const scrollViewRef = React.useRef<ScrollView>(null);
+    // Notification & QR settings — seeded from API, user-editable locally
+    const [notifRealtime, setNotifRealtime] = useState(true);
+    const [notifHotLead, setNotifHotLead] = useState(true);
+    const [notifEmailSummary, setNotifEmailSummary] = useState(true);
+    const [qrEnableCheckIn, setQrEnableCheckIn] = useState(true);
+    const [qrRequireEmail, setQrRequireEmail] = useState(false);
+    const [qrRequirePhone, setQrRequirePhone] = useState(true);
+
+    const scrollViewRef = useRef<ScrollView>(null);
+    const qrRef = useRef<any>(null);
     const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
     const onScrollEnd = (e: any) => {
@@ -126,6 +189,14 @@ export default function EventDashboardScreen() {
             setSettingsTimeStr(openHouseData.start_time && openHouseData.end_time ? `${openHouseData.start_time} - ${openHouseData.end_time}` : '');
             setSettingsAddress(openHouseData.property?.address || '');
             setSettingsAgentName(openHouseData.agent_details?.name || '');
+
+            // Seed notification & QR toggles from API settings
+            setNotifRealtime(openHouseData.settings?.realtimeAlerts ?? true);
+            setNotifHotLead(openHouseData.settings?.hotLeadAlerts ?? true);
+            setNotifEmailSummary(openHouseData.settings?.emailSummaries ?? true);
+            setQrEnableCheckIn(openHouseData.settings?.enableCheckIn ?? true);
+            setQrRequireEmail(openHouseData.settings?.requireEmail ?? false);
+            setQrRequirePhone(openHouseData.settings?.requirePhone ?? true);
         }
     }, [openHouseData]);
 
@@ -202,16 +273,40 @@ export default function EventDashboardScreen() {
     };
 
     const handleShare = async () => {
-        const shareUrl = `http://18.219.170.119:3000/check-in/OH-${id}/`;
         try {
             await Share.share({
-                message: `Check out the digital portfolio for ${eventAddress}: ${shareUrl}`,
-                url: shareUrl,
+                message: `Check out the digital portfolio for ${eventAddress}: ${checkInUrl}`,
+                url: checkInUrl,
                 title: `Digital Portfolio - ${eventAddress}`,
             });
         } catch (error) {
             console.error('Error sharing portfolio:', error);
         }
+    };
+
+    const handleCopyLink = async () => {
+        try {
+            await Clipboard.setStringAsync(checkInUrl);
+            Alert.alert('Copied!', 'Check-in link has been copied to clipboard.');
+        } catch (e) {
+            Alert.alert('Error', 'Could not copy link.');
+        }
+    };
+
+    const handleDownloadQR = () => {
+        if (!qrRef.current) {
+            Alert.alert('Not Ready', 'QR code is not ready yet. Please try again.');
+            return;
+        }
+        qrRef.current.toDataURL(async (data: string) => {
+            try {
+                const filePath = `${FileSystem.documentDirectory}qrcode-${id}.png`;
+                await FileSystem.writeAsStringAsync(filePath, data, { encoding: FileSystem.EncodingType.Base64 });
+                await Sharing.shareAsync(filePath, { mimeType: 'image/png', UTI: 'public.png', dialogTitle: 'Save QR Code' });
+            } catch (e) {
+                Alert.alert('Error', 'Failed to download QR code.');
+            }
+        });
     };
 
     const renderHeader = () => (
@@ -227,9 +322,9 @@ export default function EventDashboardScreen() {
                         <Text style={styles.headerStatusText}>{eventStatus}</Text>
                     </View>
                 </View>
-                <Pressable onPress={handleShare} style={styles.headerCircleBtn} hitSlop={10}>
+                {/* <Pressable onPress={handleShare} style={styles.headerCircleBtn} hitSlop={10}>
                     <MaterialCommunityIcons name="share-variant-outline" size={20} color={colors.textPrimary} />
-                </Pressable>
+                </Pressable> */}
             </View>
         </View>
     );
@@ -311,85 +406,101 @@ export default function EventDashboardScreen() {
 
     const renderOverview = () => (
         <View style={styles.tabContentPremium}>
-            {/* KPI statistics cards */}
-            <View style={styles.kpiRow}>
-                <View style={styles.kpiCard}>
-                    <View style={[styles.kpiIconBox, { backgroundColor: currentColor + '15' }]}>
-                        <MaterialCommunityIcons name="account-group" size={20} color={currentColor} />
+
+            {/* ── Property Info Card ── */}
+            <View style={styles.propInfoCard}>
+                {/* Date & Time */}
+                <View style={styles.propDateTimeRow}>
+                    <View style={styles.propDateBox}>
+                        <MaterialCommunityIcons name="calendar-outline" size={13} color={currentColor} />
+                        <Text style={[styles.propDateText, { color: currentColor }]} numberOfLines={1}>{eventDateFormatted}</Text>
                     </View>
-                    <Text style={styles.kpiValue}>{eventVisitors}</Text>
-                    <Text style={styles.kpiLabel}>TOTAL VISITORS</Text>
+                    {eventTimeFormatted ? (
+                        <View style={styles.propTimeBox}>
+                            <MaterialCommunityIcons name="clock-outline" size={13} color={colors.textSecondary} />
+                            <Text style={styles.propTimeText}>{eventTimeFormatted}</Text>
+                        </View>
+                    ) : null}
                 </View>
-                <View style={styles.kpiCard}>
-                    <View style={[styles.kpiIconBox, { backgroundColor: 'rgba(244, 63, 94, 0.1)' }]}>
-                        <MaterialCommunityIcons name="fire" size={20} color="#F43F5E" />
+
+                {/* Description */}
+                <Text style={styles.propDesc} numberOfLines={3}>{propDescription}</Text>
+            </View>
+
+            {/* ── Live Stats Card ── */}
+            <View style={styles.liveStatsCard}>
+                <Text style={styles.liveStatsHeader}>Live Stats</Text>
+                <View style={styles.statsGridRow}>
+                    <View style={styles.statGridCellItem}>
+                        <Text style={styles.statGridValueText}>{eventVisitors}</Text>
+                        <Text style={styles.statGridLabelText}>CHECK-INS</Text>
                     </View>
-                    <Text style={styles.kpiValue}>{eventHotLeads}</Text>
-                    <Text style={styles.kpiLabel}>HOT LEADS</Text>
+                    <View style={styles.statGridCellItem}>
+                        <Text style={[styles.statGridValueText, { color: '#F43F5E' }]}>{eventHotLeads}</Text>
+                        <Text style={styles.statGridLabelText}>HOT LEADS</Text>
+                    </View>
+                </View>
+                <View style={[styles.statsGridRow, { marginTop: 12 }]}>
+                    <View style={styles.statGridCellItem}>
+                        <Text style={styles.statGridValueText}>{eventRating.replace('★', '')}</Text>
+                        <Text style={styles.statGridLabelText}>RATING</Text>
+                    </View>
+                    <View style={[styles.statGridCellItem, styles.hotScoreCellItem, { borderColor: currentColor + '40', backgroundColor: currentColor + '08' }]}>
+                        <Text style={[styles.statGridValueText, { color: currentColor }]}>
+                            {eventVisitors > 0 ? `${Math.round((eventHotLeads / eventVisitors) * 100)}%` : '0%'}
+                        </Text>
+                        <Text style={[styles.statGridLabelText, { color: currentColor }]}>HOT SCORE</Text>
+                    </View>
                 </View>
             </View>
 
-            {/* Event QR Code Check-in Card */}
-            <View style={styles.qrHeroPremium}>
-                <View style={styles.qrHeroDetails}>
-                    <Text style={styles.qrHeroTitle}>Event Check-In</Text>
-                    <Text style={styles.qrHeroSub}>Scan to capture lead details</Text>
-                    <Pressable onPress={handleShare} style={[styles.qrShareBtn, { backgroundColor: currentColor }]} android_ripple={{ color: 'rgba(255,255,255,0.15)' }}>
-                        <MaterialCommunityIcons name="share-variant" size={14} color="#FFFFFF" />
-                        <Text style={styles.qrShareBtnText}>Share Check-in Link</Text>
-                    </Pressable>
-                </View>
-                <View style={styles.qrContainerPremium}>
+            {/* ── QR Check-In Card (dark navy) ── */}
+            <View style={styles.qrDarkCard}>
+                <Text style={styles.qrDarkTitle}>EVENT CHECK-IN</Text>
+                <Text style={styles.qrDarkSub}>SCAN TO CAPTURE LEAD</Text>
+                <View style={styles.qrDarkCode}>
                     <QRCode
-                        value={`http://18.219.170.119:3000/check-in/OH-${id}/`}
-                        size={80}
+                        value={checkInUrl || 'https://staging.zien.ai'}
+                        size={130}
                         color="#0B2D3E"
-                        backgroundColor="transparent"
+                        backgroundColor="#FFFFFF"
+                        {...({ getRef: (ref: any) => { qrRef.current = ref; } } as any)}
                     />
                 </View>
+                <View style={styles.qrDarkBtnsRow}>
+                    <Pressable
+                        style={({ pressed }) => [styles.qrDarkBtn, pressed && { opacity: 0.75 }]}
+                        onPress={handleDownloadQR}
+                    >
+                        <MaterialCommunityIcons name="download-outline" size={16} color="#FFFFFF" />
+                        <Text style={styles.qrDarkBtnText}>Download</Text>
+                    </Pressable>
+                    <View style={styles.qrDarkBtnDivider} />
+                    <Pressable
+                        style={({ pressed }) => [styles.qrDarkBtn, pressed && { opacity: 0.75 }]}
+                        onPress={handleCopyLink}
+                    >
+                        <MaterialCommunityIcons name="link-variant" size={16} color="#FFFFFF" />
+                        <Text style={styles.qrDarkBtnText}>Copy Link</Text>
+                    </Pressable>
+                </View>
             </View>
 
-            {/* Event Check-in Actions (Open Public / Generate Sheet) */}
-            <View style={styles.qrActionsRow}>
-                <ExternalLink
-                    href={`https://staging.zien.ai/open-house/check-in/${id}`}
-                    style={[styles.qrActionBtn, styles.qrActionBtnSecondary]}
-                >
-                    <Text style={[styles.qrActionBtnText, styles.qrActionBtnTextSecondary]}>Open Public Check-In</Text>
-                    <MaterialCommunityIcons name="open-in-new" size={14} color={colors.textPrimary} style={{ marginLeft: 6 }} />
-                </ExternalLink>
-
-                <Pressable
-                    style={({ pressed }) => [
-                        styles.qrActionBtn,
-                        styles.qrActionBtnPrimary,
-                        pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
-                    ]}
-                    onPress={() => {
-                        Alert.alert(
-                            "Coming Soon",
-                            "We are finalising Zien's dynamic sheet generation. Soon you will be able to export and print custom physical check-in sheets!"
-                        );
-                    }}
-                >
-                    <Text style={[styles.qrActionBtnText, styles.qrActionBtnTextPrimary]}>Generate Sheet</Text>
-                </Pressable>
-            </View>
-
-            {/* Agent Details Card */}
+            {/* ── Agent & Brokerage Card ── */}
             <View style={styles.agentCardPremium}>
+                <View style={styles.agentCardTopRow}>
+                    <Text style={styles.agentCardHeader}>Agent & Brokerage</Text>
+                    <View style={styles.verifiedBadge}>
+                        <MaterialCommunityIcons name="check-decagram" size={13} color={currentColor} />
+                        <Text style={[styles.verifiedText, { color: currentColor }]}>VERIFIED</Text>
+                    </View>
+                </View>
                 <View style={styles.agentInfoRow}>
                     <View style={[styles.agentAvatarBox, { backgroundColor: currentColor }]}>
                         <Text style={styles.agentAvatarText}>{agentName[0]?.toUpperCase()}</Text>
                     </View>
                     <View style={styles.agentNameBox}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={styles.agentNamePremium}>{agentName}</Text>
-                            <View style={styles.verifiedBadge}>
-                                <MaterialCommunityIcons name="check-decagram" size={14} color={currentColor} />
-                                <Text style={[styles.verifiedText, { color: currentColor }]}>VERIFIED</Text>
-                            </View>
-                        </View>
+                        <Text style={styles.agentNamePremium}>{agentName}</Text>
                         <Text style={styles.agentTitlePremium} numberOfLines={1}>{agentTitle}</Text>
                     </View>
                 </View>
@@ -399,53 +510,14 @@ export default function EventDashboardScreen() {
                         <Text style={styles.contactTextPremium}>{agentEmail}</Text>
                     </View>
                     {agentPhone ? (
-                        <View style={[styles.contactItemPremium, { marginTop: 8 }]}>
+                        <View style={[styles.contactItemPremium, { marginTop: 10 }]}>
                             <MaterialCommunityIcons name="phone-outline" size={14} color={colors.textSecondary} />
-                            <Text style={styles.contactTextPremium}>{agentPhone}</Text>
+                            <Text style={styles.contactTextPremium}>{formatPhoneNumber(agentPhone)}</Text>
                         </View>
                     ) : null}
                 </View>
             </View>
 
-            {/* Activity Feed / Real-Time Timeline */}
-            <View style={styles.sectionHeaderPremium}>
-                <Text style={styles.sectionTitlePremium}>Real-Time Timeline</Text>
-                <Pressable onPress={() => setActiveTab('Enquiries')} hitSlop={8}>
-                    <Text style={[styles.sectionLinkPremium, { color: currentColor }]}>View All</Text>
-                </Pressable>
-            </View>
-
-            <View style={styles.activityFeed}>
-                {(openHouseData?.enquiries || []).length > 0 ? (
-                    <View style={{ position: 'relative' }}>
-                        {/* Vertical Connector Line */}
-                        {(openHouseData?.enquiries || []).length > 1 && (
-                            <View style={[styles.timelineConnector, { backgroundColor: currentColor + '20' }]} />
-                        )}
-                        {(openHouseData?.enquiries || []).slice(0, 3).map((v: any, i: number) => {
-                            const isHot = (v.signal || '').toLowerCase() === 'hot';
-                            return (
-                                <View key={i} style={[styles.activityItem, { marginBottom: 12 }]}>
-                                    <View style={[styles.timelineDot, { backgroundColor: currentColor }]} />
-                                    <View style={styles.activityAvatar}>
-                                        <Text style={styles.activityAvatarText}>{(v.name || 'A')[0].toUpperCase()}</Text>
-                                    </View>
-                                    <View style={styles.activityInfo}>
-                                        <Text style={styles.activityTitle}>{v.name || 'Anonymous'}</Text>
-                                        <Text style={styles.activityTime}>{new Date(v.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-                                    </View>
-                                    <View style={[styles.activitySignal, { backgroundColor: isHot ? '#F43F5E' : currentColor }]} />
-                                </View>
-                            );
-                        })}
-                    </View>
-                ) : (
-                    <View style={styles.emptyActivityBox}>
-                        <MaterialCommunityIcons name="radar" size={36} color={colors.textMuted} />
-                        <Text style={styles.emptyActivityText}>Waiting for first check-in...</Text>
-                    </View>
-                )}
-            </View>
         </View>
     );
 
@@ -464,8 +536,8 @@ export default function EventDashboardScreen() {
                                     <Text style={styles.vNameText}>{visitor.name || 'Anonymous'}</Text>
                                     <Text style={styles.vEmailText} numberOfLines={1}>{visitor.email || 'No email provided'}</Text>
                                 </View>
-                                <View style={[styles.vSignalBadge, { backgroundColor: isHot ? '#F43F5E' : '#E2E8F0' }]}>
-                                    <Text style={[styles.vSignalText, { color: isHot ? '#FFFFFF' : '#475569' }]}>
+                                <View style={[styles.vSignalBadge, { backgroundColor: isHot ? '#F43F5E' : colors.badgeMutedBg }]}>
+                                    <Text style={[styles.vSignalText, { color: isHot ? '#FFFFFF' : colors.textSecondary }]}>
                                         {(visitor.signal || 'Cold').toUpperCase()}
                                     </Text>
                                 </View>
@@ -502,41 +574,11 @@ export default function EventDashboardScreen() {
                 <Text style={styles.premiumCardHeader}>Follow-Up Sequence Control</Text>
                 <View style={styles.automationSelector}>
                     <Text style={styles.selectorLabel}>ACTIVE AUTOMATION SEQUENCE</Text>
-                    <Pressable style={styles.selectorBox} onPress={() => setShowSequenceDropdown(!showSequenceDropdown)}>
+                    <Pressable style={styles.selectorBox} onPress={() => setShowSequenceDropdown(true)}>
                         <Text style={styles.selectorValue}>{activeSequence}</Text>
                         <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                     </Pressable>
-                    {showSequenceDropdown && (
-                        <View style={styles.dropdownMenu}>
-                            {[
-                                'Open House: Instant Digital Portfolio',
-                                'Luxury Listing: VIP Walkthrough Nurture',
-                                'Drip: 7-Day Market Insights',
-                                'None (Manual Follow-up Only)'
-                            ].map((seq) => {
-                                const isSelected = seq === activeSequence;
-                                return (
-                                    <Pressable
-                                        key={seq}
-                                        style={[styles.dropdownItem, isSelected && { backgroundColor: currentColor + '10' }]}
-                                        onPress={() => {
-                                            setActiveSequence(seq);
-                                            setShowSequenceDropdown(false);
-                                        }}
-                                    >
-                                        <View style={{ width: 20, marginRight: 8, alignItems: 'center', justifyContent: 'center' }}>
-                                            {isSelected && (
-                                                <MaterialCommunityIcons name="check" size={16} color={currentColor} />
-                                            )}
-                                        </View>
-                                        <Text style={[styles.dropdownItemText, isSelected && { color: currentColor, fontWeight: '800' }]}>
-                                            {seq}
-                                        </Text>
-                                    </Pressable>
-                                );
-                            })}
-                        </View>
-                    )}
+                    <Text style={styles.selectorHint}>This sequence triggers automatically for every person who scans the QR code.</Text>
                 </View>
 
                 {/* Automation Sequence email preview card */}
@@ -547,20 +589,18 @@ export default function EventDashboardScreen() {
                             <Text style={[styles.editBuilderText, { color: currentColor }]}>EDIT IN BUILDER</Text>
                         </Pressable>
                     </View>
-                    <Text style={styles.templateSubject}>{"\"Thank you for visiting " + (settingsEventName || 'our Open House') + "!\""}</Text>
+                    <Text style={styles.templateSubject}>{"\"Thank you for visiting " + streetAddress + "!\""}</Text>
                     <Text style={styles.templateBody}>
-                        {"Hi {first_name}, it was great meeting you today at the showing. I've attached the complete digital property dossier, layout plans, and the local market report we discussed..."}
+                        {"Hi {{first_name}}, it was great meeting you today. I've attached the property dossier including the virtual tour and local market report we discussed..."}
                     </Text>
                     <View style={styles.attachmentsRow}>
-                        <View style={styles.attachmentBadge}>
-                            <MaterialCommunityIcons name="paperclip" size={12} color={colors.textSecondary} />
-                            <Text style={styles.attachmentLabel}>Property Dossier</Text>
+                        <View style={styles.attachmentIconBox}>
+                            <MaterialCommunityIcons name="file-document-outline" size={16} color={colors.textSecondary} />
                         </View>
-                        <View style={styles.attachmentBadge}>
-                            <MaterialCommunityIcons name="paperclip" size={12} color={colors.textSecondary} />
-                            <Text style={styles.attachmentLabel}>Market Report</Text>
+                        <View style={styles.attachmentIconBox}>
+                            <MaterialCommunityIcons name="pulse" size={16} color={colors.textSecondary} />
                         </View>
-                        <Text style={styles.attachmentsCount}>+2 attachments</Text>
+                        <Text style={styles.attachmentsCount}>+3 attachments</Text>
                     </View>
                 </View>
             </View>
@@ -643,7 +683,7 @@ export default function EventDashboardScreen() {
                 </View>
                 <View style={styles.aiDescriptionBox}>
                     <Text style={[styles.aiDescriptionTitle, { color: currentColor }]}>AI DESCRIPTION SUMMARY</Text>
-                    <Text style={styles.aiDescriptionText}>{"\"" + eventDescription + "\""}</Text>
+                    <Text style={styles.aiDescriptionText}>{"\"" + propDescription + "\""}</Text>
                 </View>
                 <Pressable style={[styles.pdfExportBtn, { backgroundColor: currentColor }]} android_ripple={{ color: 'rgba(255,255,255,0.15)' }}>
                     <MaterialCommunityIcons name="file-pdf-box" size={18} color="#FFFFFF" />
@@ -660,10 +700,6 @@ export default function EventDashboardScreen() {
                             <Image source={{ uri: photo }} style={styles.galleryImgPremium} contentFit="cover" />
                         </View>
                     ))}
-                    <Pressable style={[styles.addMediaBtn, { borderColor: currentColor }]} onPress={handleAddPhoto}>
-                        <MaterialCommunityIcons name="plus" size={24} color={currentColor} />
-                        <Text style={[styles.addMediaText, { color: currentColor }]}>ADD PHOTO</Text>
-                    </Pressable>
                 </View>
             </View>
         </View>
@@ -671,100 +707,50 @@ export default function EventDashboardScreen() {
 
     const renderSettings = () => (
         <View style={styles.tabContentPremium}>
-            {/* Event configuration card */}
-            <View style={styles.premiumCard}>
-                <Text style={styles.premiumCardHeader}>Event Configuration</Text>
-
-                <View style={styles.formField}>
-                    <Text style={styles.formLabel}>EVENT NAME</Text>
-                    <View style={styles.formInputWrap}>
-                        <TextInput
-                            style={styles.formInput}
-                            value={settingsEventName}
-                            onChangeText={setSettingsEventName}
-                            placeholder="Event Name"
-                            placeholderTextColor="#94A3B8"
-                        />
-                    </View>
-                </View>
-
-                <View style={styles.formField}>
-                    <Text style={styles.formLabel}>DATE</Text>
-                    <View style={styles.formInputWrap}>
-                        <TextInput
-                            style={styles.formInput}
-                            value={settingsDateStr}
-                            onChangeText={setSettingsDateStr}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor="#94A3B8"
-                        />
-                    </View>
-                </View>
-
-                <View style={styles.formField}>
-                    <Text style={styles.formLabel}>TIME</Text>
-                    <View style={styles.formInputWrap}>
-                        <TextInput
-                            style={styles.formInput}
-                            value={settingsTimeStr}
-                            onChangeText={setSettingsTimeStr}
-                            placeholder="e.g. 13:00 - 16:00"
-                            placeholderTextColor="#94A3B8"
-                        />
-                    </View>
-                </View>
-
-                <View style={styles.formField}>
-                    <Text style={styles.formLabel}>PROPERTY ADDRESS</Text>
-                    <View style={[styles.formInputWrap, { backgroundColor: colors.surfaceSoft }]}>
-                        <TextInput
-                            style={[styles.formInput, { color: colors.textSecondary }]}
-                            value={settingsAddress}
-                            editable={false}
-                            placeholder="Property Address"
-                        />
-                    </View>
-                </View>
-
-                <View style={styles.formField}>
-                    <Text style={styles.formLabel}>AGENT NAME</Text>
-                    <View style={styles.formInputWrap}>
-                        <TextInput
-                            style={styles.formInput}
-                            value={settingsAgentName}
-                            onChangeText={setSettingsAgentName}
-                            placeholder="Agent Name"
-                            placeholderTextColor="#94A3B8"
-                        />
-                    </View>
-                </View>
-            </View>
-
-            {/* Notification preferences */}
+            {/* Notification preferences — driven by API settings */}
             <View style={styles.premiumCard}>
                 <Text style={styles.premiumCardHeader}>Notification Settings</Text>
                 <View style={styles.preferencesList}>
-                    {[
-                        { id: 'realtime', label: 'Real-time Check-in Alerts', desc: 'Get notified when visitors check in', val: true },
-                        { id: 'hot', label: 'Hot Lead Notifications', desc: 'Alert when high-interest leads arrive', val: true },
-                        { id: 'summary', label: 'Email Summaries', desc: 'Daily recap of visitor activity', val: true }
-                    ].map((pref) => (
-                        <View key={pref.id} style={styles.preferenceRow}>
-                            <View style={{ flex: 1, paddingRight: 10 }}>
-                                <Text style={styles.preferenceTitle}>{pref.label}</Text>
-                                <Text style={styles.preferenceDesc}>{pref.desc}</Text>
-                            </View>
-                            <Switch
-                                value={pref.val}
-                                trackColor={{ false: '#E2E8F0', true: currentColor }}
-                                thumbColor="#FFFFFF"
-                            />
+                    <View style={styles.preferenceRow}>
+                        <View style={{ flex: 1, paddingRight: 10 }}>
+                            <Text style={styles.preferenceTitle}>Real-time Check-in Alerts</Text>
+                            <Text style={styles.preferenceDesc}>Get notified when visitors check in</Text>
                         </View>
-                    ))}
+                        <Switch
+                            value={notifRealtime}
+                            onValueChange={setNotifRealtime}
+                            trackColor={{ false: '#E2E8F0', true: currentColor }}
+                            thumbColor="#FFFFFF"
+                        />
+                    </View>
+                    <View style={styles.preferenceRow}>
+                        <View style={{ flex: 1, paddingRight: 10 }}>
+                            <Text style={styles.preferenceTitle}>Hot Lead Notifications</Text>
+                            <Text style={styles.preferenceDesc}>Alert when high-interest leads arrive</Text>
+                        </View>
+                        <Switch
+                            value={notifHotLead}
+                            onValueChange={setNotifHotLead}
+                            trackColor={{ false: '#E2E8F0', true: currentColor }}
+                            thumbColor="#FFFFFF"
+                        />
+                    </View>
+                    <View style={styles.preferenceRow}>
+                        <View style={{ flex: 1, paddingRight: 10 }}>
+                            <Text style={styles.preferenceTitle}>Email Summaries</Text>
+                            <Text style={styles.preferenceDesc}>Daily recap of visitor activity</Text>
+                        </View>
+                        <Switch
+                            value={notifEmailSummary}
+                            onValueChange={setNotifEmailSummary}
+                            trackColor={{ false: '#E2E8F0', true: currentColor }}
+                            thumbColor="#FFFFFF"
+                        />
+                    </View>
                 </View>
             </View>
 
-            {/* QR Code Preferences */}
+            {/* QR Code Preferences — driven by API settings */}
             <View style={styles.premiumCard}>
                 <Text style={styles.premiumCardHeader}>QR Code Settings</Text>
                 <View style={styles.preferencesList}>
@@ -772,57 +758,93 @@ export default function EventDashboardScreen() {
                         <View style={{ flex: 1 }}>
                             <Text style={styles.preferenceTitle}>Enable QR Check-in</Text>
                         </View>
-                        <Switch value={true} trackColor={{ false: '#E2E8F0', true: currentColor }} thumbColor="#FFFFFF" />
+                        <Switch
+                            value={qrEnableCheckIn}
+                            onValueChange={setQrEnableCheckIn}
+                            trackColor={{ false: '#E2E8F0', true: currentColor }}
+                            thumbColor="#FFFFFF"
+                        />
                     </View>
                     <View style={styles.preferenceRow}>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.preferenceTitle}>Require Email</Text>
                         </View>
-                        <Switch value={true} trackColor={{ false: '#E2E8F0', true: currentColor }} thumbColor="#FFFFFF" />
+                        <Switch
+                            value={qrRequireEmail}
+                            onValueChange={setQrRequireEmail}
+                            trackColor={{ false: '#E2E8F0', true: currentColor }}
+                            thumbColor="#FFFFFF"
+                        />
                     </View>
                     <View style={styles.preferenceRow}>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.preferenceTitle}>Require Phone</Text>
                         </View>
-                        <Switch value={false} trackColor={{ false: '#E2E8F0', true: currentColor }} thumbColor="#FFFFFF" />
+                        <Switch
+                            value={qrRequirePhone}
+                            onValueChange={setQrRequirePhone}
+                            trackColor={{ false: '#E2E8F0', true: currentColor }}
+                            thumbColor="#FFFFFF"
+                        />
                     </View>
                 </View>
-                <Pressable style={styles.downloadQrBtn} android_ripple={{ color: colors.cardBorder }}>
-                    <MaterialCommunityIcons name="qrcode-scan" size={16} color={colors.textPrimary} />
-                    <Text style={styles.downloadQrText}>Download QR Code</Text>
+                <Pressable style={styles.downloadQrBtnFilled} onPress={handleDownloadQR} android_ripple={{ color: 'rgba(255,255,255,0.1)' }}>
+                    <MaterialCommunityIcons name="qrcode" size={16} color="#FFFFFF" />
+                    <Text style={styles.downloadQrTextFilled}>Download QR Code</Text>
                 </Pressable>
             </View>
 
             {/* Data & Privacy Actions */}
             <View style={styles.premiumCard}>
                 <Text style={styles.premiumCardHeader}>Data & Privacy</Text>
-                <View style={styles.dataGrid}>
-                    <Pressable style={styles.dataCard} android_ripple={{ color: colors.cardBorder }}>
-                        <MaterialCommunityIcons name="file-excel-outline" size={24} color={currentColor} />
-                        <Text style={styles.dataCardTitle}>Export Visitors</Text>
-                        <Text style={styles.dataCardSub}>Download CSV</Text>
-                    </Pressable>
-                    <Pressable style={styles.dataCard} android_ripple={{ color: colors.cardBorder }}>
-                        <MaterialCommunityIcons name="email-edit-outline" size={24} color={currentColor} />
-                        <Text style={styles.dataCardTitle}>Emails Templates</Text>
-                        <Text style={styles.dataCardSub}>Customize</Text>
-                    </Pressable>
-                    <Pressable style={styles.dataCard} android_ripple={{ color: colors.cardBorder }}>
-                        <MaterialCommunityIcons name="chart-bell-curve-cumulative" size={24} color={currentColor} />
-                        <Text style={styles.dataCardTitle}>Analytics</Text>
-                        <Text style={styles.dataCardSub}>View Report</Text>
-                    </Pressable>
+                <View style={styles.dataVerticalList}>
+                    <View style={styles.dataListItemPremium}>
+                        <View style={styles.dataListItemLeft}>
+                            <MaterialCommunityIcons name="account-group-outline" size={22} color={colors.textPrimary} />
+                            <Text style={styles.dataListItemTitle}>Export Visitors</Text>
+                        </View>
+                        <Pressable
+                            style={styles.dataListItemBtn}
+                            onPress={() => {
+                                if (eventVisitors === 0) {
+                                    Alert.alert("No visitors to export yet.");
+                                } else {
+                                    Alert.alert("Export", "Exporting visitors as CSV...");
+                                }
+                            }}
+                        >
+                            <Text style={styles.dataListItemBtnText}>Download CSV</Text>
+                        </Pressable>
+                    </View>
+                    <View style={styles.dataListItemPremium}>
+                        <View style={styles.dataListItemLeft}>
+                            <MaterialCommunityIcons name="email-outline" size={22} color={colors.textPrimary} />
+                            <Text style={styles.dataListItemTitle}>Emails Templates</Text>
+                        </View>
+                        <Pressable style={styles.dataListItemBtn} onPress={() => router.push('/(main)/crm/templates' as any)}>
+                            <Text style={styles.dataListItemBtnText}>Customize</Text>
+                        </Pressable>
+                    </View>
+                    <View style={styles.dataListItemPremium}>
+                        <View style={styles.dataListItemLeft}>
+                            <MaterialCommunityIcons name="pulse" size={22} color={colors.textPrimary} />
+                            <Text style={styles.dataListItemTitle}>Analytics</Text>
+                        </View>
+                        <Pressable style={styles.dataListItemBtn} onPress={() => setActiveTab('Seller Report')}>
+                            <Text style={styles.dataListItemBtnText}>View Report</Text>
+                        </Pressable>
+                    </View>
                 </View>
             </View>
 
             {/* Danger Zone */}
             <View style={[styles.premiumCard, styles.dangerCard]}>
-                <Text style={[styles.premiumCardHeader, { color: '#EF4444' }]}>Danger Zone</Text>
+                <Text style={[styles.premiumCardHeader, { color: '#EF4444', marginBottom: 15 }]}>Danger Zone</Text>
                 <Text style={styles.dangerText}>
-                    Permanently delete this open house event and all associated visitor information. This cannot be undone.
+                    Permanently delete this open house event and all associated data
                 </Text>
-                <Pressable style={styles.deleteEventBtn} onPress={handleDeleteEvent}>
-                    <Text style={styles.deleteEventText}>Delete Event</Text>
+                <Pressable style={styles.deleteEventBtnPremium} onPress={handleDeleteEvent}>
+                    <Text style={styles.deleteEventTextPremium}>Delete Event</Text>
                 </Pressable>
             </View>
         </View>
@@ -941,28 +963,10 @@ export default function EventDashboardScreen() {
             {renderHeader()}
             <ScrollView
                 showsVerticalScrollIndicator={false}
-                stickyHeaderIndices={[2]}
+                stickyHeaderIndices={[1]}
                 contentContainerStyle={{ backgroundColor: colors.surfaceSoft }}
             >
                 {renderHero()}
-
-                {/* Stats KPI belt banner */}
-                <View style={styles.kpiBelt}>
-                    <View style={styles.beltItem}>
-                        <Text style={styles.beltVal}>{eventVisitors}</Text>
-                        <Text style={styles.beltLabel}>CHECK-INS</Text>
-                    </View>
-                    <View style={styles.beltDivider} />
-                    <View style={styles.beltItem}>
-                        <Text style={[styles.beltVal, { color: '#F43F5E' }]}>{eventHotLeads}</Text>
-                        <Text style={styles.beltLabel}>HOT LEADS</Text>
-                    </View>
-                    <View style={styles.beltDivider} />
-                    <View style={styles.beltItem}>
-                        <Text style={styles.beltVal}>{eventRating}</Text>
-                        <Text style={styles.beltLabel}>RATING</Text>
-                    </View>
-                </View>
 
                 {renderTabs()}
 
@@ -976,6 +980,48 @@ export default function EventDashboardScreen() {
                 </View>
                 <View style={{ height: 160 }} />
             </ScrollView>
+
+            {/* Overview bottom fixed action buttons */}
+            {activeTab === 'Overview' && (
+                <View style={[styles.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+                    <View style={styles.fixedBtnRow}>
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.overviewSecondaryBtn,
+                                pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }
+                            ]}
+                            onPress={async () => {
+                                try {
+                                    const { openBrowserAsync, WebBrowserPresentationStyle } = await import('expo-web-browser');
+                                    await openBrowserAsync(checkInUrl, {
+                                        presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
+                                    });
+                                } catch (e) {
+                                    console.error('Failed to open browser:', e);
+                                }
+                            }}
+                        >
+                            <MaterialCommunityIcons name="open-in-new" size={15} color={colors.textPrimary} />
+                            <Text style={styles.overviewSecondaryBtnText}>Open Public Check-In</Text>
+                        </Pressable>
+
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.overviewPrimaryBtn,
+                                pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
+                            ]}
+                            onPress={() => {
+                                Alert.alert(
+                                    "Coming Soon",
+                                    "We are finalising Zien's dynamic sheet generation. Soon you will be able to export and print custom physical check-in sheets!"
+                                );
+                            }}
+                        >
+                            <Text style={styles.overviewPrimaryBtnText}>Generate Sheet</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            )}
 
             {/* Settings bottom fixed action buttons ( Cancel / Save Changes ) */}
             {activeTab === 'Settings' && (
@@ -1038,7 +1084,7 @@ export default function EventDashboardScreen() {
                                         Timeline: <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{selectedVisitor.timeline || 'Immediate'}</Text>
                                     </Text>
                                     <Text style={[styles.intelValSmall, { marginTop: 6 }]}>
-                                        Phone: <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{selectedVisitor.phone || 'No phone provided'}</Text>
+                                        Phone: <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{formatPhoneNumber(selectedVisitor.phone) || 'No phone provided'}</Text>
                                     </Text>
                                 </View>
                                 <Pressable style={[styles.modalActionBtn, { backgroundColor: currentColor }]} android_ripple={{ color: 'rgba(255,255,255,0.15)' }}>
@@ -1046,6 +1092,49 @@ export default function EventDashboardScreen() {
                                 </Pressable>
                             </View>
                         )}
+                    </View>
+                </Pressable>
+            </Modal>
+
+            {/* Active Automation Sequence Selection Modal */}
+            <Modal visible={showSequenceDropdown} transparent animationType="slide">
+                <Pressable style={styles.modalOverlay} onPress={() => setShowSequenceDropdown(false)}>
+                    <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 30) }]}>
+                        <View style={styles.modalHandle} />
+                        <Text style={styles.modalHeaderTitle}>Select Follow-up Sequence</Text>
+                        {[
+                            'Open House: Instant Digital Portfolio',
+                            'Luxury Listing: VIP Walkthrough Nurture',
+                            'Drip: 7-Day Market Insights',
+                            'None (Manual Follow-up Only)'
+                        ].map((seq) => {
+                            const isSelected = seq === activeSequence;
+                            return (
+                                <Pressable
+                                    key={seq}
+                                    style={[
+                                        styles.sequenceOptionRow,
+                                        isSelected && { backgroundColor: currentColor + '08', borderColor: currentColor + '40' }
+                                    ]}
+                                    onPress={() => {
+                                        setActiveSequence(seq);
+                                        setShowSequenceDropdown(false);
+                                    }}
+                                >
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[
+                                            styles.sequenceOptionText,
+                                            isSelected && { color: currentColor, fontWeight: '700' }
+                                        ]}>
+                                            {seq}
+                                        </Text>
+                                    </View>
+                                    {isSelected && (
+                                        <MaterialCommunityIcons name="check" size={20} color={currentColor} />
+                                    )}
+                                </Pressable>
+                            );
+                        })}
                     </View>
                 </Pressable>
             </Modal>
@@ -1114,6 +1203,78 @@ const getStyles = (colors: any) => StyleSheet.create({
     kpiIconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
     kpiValue: { fontSize: 26, fontWeight: '900', color: colors.textPrimary },
     kpiLabel: { fontSize: 9, fontWeight: '800', color: colors.textMuted, marginTop: 4, letterSpacing: 0.6 },
+    // ── Property Info Card ──
+    propInfoCard: { backgroundColor: colors.cardBackground, borderRadius: 24, padding: 22, borderWidth: 1, borderColor: colors.cardBorder },
+    propDateTimeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+    propDateBox: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 },
+    propDateText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
+    propTimeBox: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    propTimeText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+    propPrice: { fontSize: 22, fontWeight: '900', marginBottom: 6 },
+    propStreet: { fontSize: 20, fontWeight: '900', color: colors.textPrimary, lineHeight: 26 },
+    propCityState: { fontSize: 14, color: colors.textSecondary, fontWeight: '500', marginTop: 3, marginBottom: 18 },
+    propSpecsRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 16 },
+    propSpecBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surfaceSoft, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder },
+    propSpecText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+    propDesc: { fontSize: 13, color: colors.textSecondary, lineHeight: 20, fontWeight: '500', marginTop: 14 },
+    // ── Live Stats Card ──
+    liveStatsCard: {
+        backgroundColor: colors.cardBackground,
+        borderRadius: 24,
+        padding: 22,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+    },
+    liveStatsHeader: {
+        fontSize: 17,
+        fontWeight: '900',
+        color: colors.textPrimary,
+        marginBottom: 16,
+    },
+    statsGridRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    statGridCellItem: {
+        flex: 1,
+        backgroundColor: colors.surfaceSoft,
+        borderRadius: 16,
+        paddingVertical: 18,
+        paddingHorizontal: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+    },
+    statGridValueText: {
+        fontSize: 24,
+        fontWeight: '900',
+        color: colors.textPrimary,
+        textAlign: 'center',
+    },
+    statGridLabelText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: colors.textMuted,
+        marginTop: 6,
+        letterSpacing: 0.5,
+        textAlign: 'center',
+    },
+    hotScoreCellItem: {
+        borderWidth: 1.5,
+    },
+    // ── QR Dark Card ──
+    qrDarkCard: { backgroundColor: '#0B2D3E', borderRadius: 24, padding: 24, alignItems: 'center' },
+    qrDarkTitle: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1.5, marginBottom: 4 },
+    qrDarkSub: { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 1.2, marginBottom: 20 },
+    qrDarkCode: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12, marginBottom: 20 },
+    qrDarkBtnsRow: { flexDirection: 'row', width: '100%', borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+    qrDarkBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 13, backgroundColor: 'rgba(255,255,255,0.1)' },
+    qrDarkBtnText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
+    qrDarkBtnDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.15)' },
+    // ── Agent Card extras ──
+    agentCardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+    agentCardHeader: { fontSize: 17, fontWeight: '900', color: colors.textPrimary },
     qrHeroPremium: { flexDirection: 'row', backgroundColor: colors.cardBackground, borderRadius: 24, padding: 20, alignItems: 'center', gap: 20, borderWidth: 1, borderColor: colors.cardBorder },
     qrHeroDetails: { flex: 1 },
     qrHeroTitle: { fontSize: 18, fontWeight: '900', color: colors.textPrimary },
@@ -1124,10 +1285,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     qrActionsRow: { flexDirection: 'row', gap: 12, marginTop: 15 },
     qrActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
     qrActionBtnPrimary: { backgroundColor: '#0B2D3E', borderColor: '#0B2D3E' },
-    qrActionBtnSecondary: { backgroundColor: '#F1F5F9', borderColor: colors.cardBorder },
+    qrActionBtnSecondary: { backgroundColor: colors.surfaceSoft, borderColor: colors.cardBorder },
     qrActionBtnText: { fontSize: 13, fontWeight: '800' },
     qrActionBtnTextPrimary: { color: '#FFFFFF' },
-    qrActionBtnTextSecondary: { color: '#0B2D3E' },
+    qrActionBtnTextSecondary: { color: colors.textPrimary },
     sectionHeaderPremium: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15 },
     sectionTitlePremium: { fontSize: 18, fontWeight: '900', color: colors.textPrimary },
     sectionLinkPremium: { fontSize: 13, fontWeight: '800' },
@@ -1160,36 +1321,30 @@ const getStyles = (colors: any) => StyleSheet.create({
     premiumCardHeader: { fontSize: 19, fontWeight: '900', color: colors.textPrimary, marginBottom: 25 },
     automationSelector: { marginBottom: 24, position: 'relative', zIndex: 100 },
     selectorLabel: { fontSize: 10, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.8, marginBottom: 12 },
-    selectorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceSoft, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: colors.cardBorder },
-    selectorValue: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-    dropdownMenu: {
-        position: 'absolute',
-        top: 86,
-        left: 0,
-        right: 0,
-        backgroundColor: colors.cardBackground,
-        borderRadius: 16,
-        borderWidth: 1.5,
-        borderColor: colors.cardBorder,
-        zIndex: 500,
-        shadowColor: '#000',
-        shadowOpacity: 0.15,
-        shadowRadius: 10,
-        elevation: 10,
-        overflow: 'hidden',
+    selectorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceSoft, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.cardBorder },
+    selectorValue: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+    selectorHint: { fontSize: 12, color: colors.textMuted, marginTop: 8, lineHeight: 18, fontWeight: '500' },
+    modalHeaderTitle: {
+        fontSize: 18,
+        fontWeight: '900',
+        color: colors.textPrimary,
+        marginBottom: 20,
+        textAlign: 'center',
     },
-    dropdownItem: {
+    sequenceOptionRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 18,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.cardBorder,
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        borderRadius: 14,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
     },
-    dropdownItemText: {
+    sequenceOptionText: {
         fontSize: 14,
-        color: colors.textPrimary,
         fontWeight: '600',
+        color: colors.textPrimary,
     },
     templatePreviewCard: { backgroundColor: colors.surfaceSoft, borderRadius: 18, padding: 20, borderWidth: 1, borderColor: colors.cardBorder },
     templateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
@@ -1199,8 +1354,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     templateSubject: { fontSize: 15, fontWeight: '800', color: colors.textPrimary, marginBottom: 8 },
     templateBody: { fontSize: 13, fontWeight: '500', color: colors.textSecondary, lineHeight: 20, marginBottom: 16 },
     attachmentsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-    attachmentBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.cardBorder + '20', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-    attachmentLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary },
+    attachmentIconBox: { width: 32, height: 32, borderRadius: 8, backgroundColor: colors.cardBackground, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.cardBorder },
     attachmentsCount: { fontSize: 11, fontWeight: '600', color: colors.textMuted, marginLeft: 4 },
     ghostTitle: { fontSize: 16, fontWeight: '800', color: colors.textPrimary },
     ghostSub: { fontSize: 12, color: colors.textSecondary, marginTop: 4, lineHeight: 18, fontWeight: '500' },
@@ -1230,16 +1384,65 @@ const getStyles = (colors: any) => StyleSheet.create({
     preferenceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     preferenceTitle: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
     preferenceDesc: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-    downloadQrBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: colors.cardBorder, borderRadius: 14, paddingVertical: 14, marginTop: 20 },
-    downloadQrText: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-    dataGrid: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-    dataCard: { width: (SCREEN_WIDTH - 88) / 2, padding: 16, backgroundColor: colors.surfaceSoft, borderRadius: 18, borderWidth: 1.5, borderColor: colors.cardBorder, alignItems: 'center', gap: 6 },
-    dataCardTitle: { fontSize: 14, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
-    dataCardSub: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
-    dangerCard: { borderColor: '#EF4444' + '40', backgroundColor: '#FEF2F2' },
-    dangerText: { fontSize: 13, color: '#991B1B', lineHeight: 20, fontWeight: '500', marginBottom: 20 },
-    deleteEventBtn: { backgroundColor: '#EF4444', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-    deleteEventText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+    downloadQrBtnFilled: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.accentTeal, borderRadius: 14, paddingVertical: 14, marginTop: 20 },
+    downloadQrTextFilled: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+    dataVerticalList: {
+        gap: 12,
+    },
+    dataListItemPremium: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: colors.surfaceSoft,
+        borderRadius: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+    },
+    dataListItemLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        flex: 1,
+        paddingRight: 10,
+    },
+    dataListItemTitle: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.textPrimary,
+    },
+    dataListItemBtn: {
+        backgroundColor: colors.cardBackground,
+        borderWidth: 1.5,
+        borderColor: colors.cardBorder,
+        borderRadius: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dataListItemBtnText: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: colors.textPrimary,
+    },
+    dangerCard: { borderColor: colors.dangerBorder, backgroundColor: colors.dangerBg },
+    dangerText: { fontSize: 13, color: colors.textSecondary, lineHeight: 20, fontWeight: '500', marginBottom: 20 },
+    deleteEventBtnPremium: {
+        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(239, 68, 68, 0.15)',
+        borderRadius: 12,
+        paddingVertical: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    deleteEventTextPremium: {
+        color: '#EF4444',
+        fontSize: 14,
+        fontWeight: '800',
+    },
     sellerDescPremium: { fontSize: 13, color: colors.textSecondary, lineHeight: 20, fontWeight: '500', marginBottom: 20 },
     actionBtnPrimaryPremium: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, borderRadius: 18, paddingVertical: 18, marginTop: 25 },
     actionBtnTextPremium: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
@@ -1295,14 +1498,14 @@ const getStyles = (colors: any) => StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        backgroundColor: colors.cardBackground,
         borderTopWidth: 1,
         borderColor: colors.cardBorder,
         paddingHorizontal: 18,
         paddingTop: 16,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.08,
         shadowRadius: 10,
         elevation: 8,
     },
@@ -1322,5 +1525,37 @@ const getStyles = (colors: any) => StyleSheet.create({
     },
     fixedBtnText: {
         fontSize: 13.5,
+    },
+    overviewSecondaryBtn: {
+        flex: 3,
+        height: 50,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 7,
+        borderRadius: 13,
+        borderWidth: 1.5,
+        borderColor: colors.cardBorder,
+        backgroundColor: colors.surfaceSoft,
+    },
+    overviewSecondaryBtnText: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: colors.textPrimary,
+    },
+    overviewPrimaryBtn: {
+        flex: 2,
+        height: 50,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 7,
+        borderRadius: 13,
+        backgroundColor: colors.accentTeal,
+    },
+    overviewPrimaryBtnText: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: '#FFFFFF',
     },
 });

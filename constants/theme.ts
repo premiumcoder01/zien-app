@@ -231,11 +231,11 @@ export const DarkThemeColors: ThemeVariables = {
   iconPrimary: '#ECF2F8',
 
   // Main app / Dashboard
-  accentTeal: '#0a2341',
+  accentTeal: '#00a7b5',
   accentBlue: '#1B5E9A',
   accentDark: '#F0F5F9',
   accentGreen: '#16A34A',
-  statAccents: ['#0a2341', '#1B5E9A', '#F0F5F9', '#16A34A'],
+  statAccents: ['#00a7b5', '#1B5E9A', '#F0F5F9', '#16A34A'],
   cardBorder: '#273646',
   cardBackgroundSemi: 'rgba(26, 36, 47, 0.92)',
   surfaceSoft: '#151D26',
@@ -245,7 +245,7 @@ export const DarkThemeColors: ThemeVariables = {
   badgeHotBg: 'rgba(220, 38, 38, 0.15)',
   badgeHotBorder: '#DC2626',
   badgeNewBg: 'rgba(11, 160, 178, 0.15)',
-  badgeNewBorder: '#0a2341',
+  badgeNewBorder: '#00a7b5',
   badgeMutedBg: '#2A384A',
   badgeMutedBorder: '#273646',
   textHot: '#FF4545',
@@ -255,8 +255,8 @@ export const DarkThemeColors: ThemeVariables = {
   darkCardTextMuted: 'rgba(234, 242, 255, 0.65)',
 
   // Danger / destructive
-  danger: '#DC2626',
-  dangerBorder: '#FECACA',
+  danger: '#EF4444',
+  dangerBorder: 'rgba(239, 68, 68, 0.3)',
   dangerBg: 'rgba(220, 38, 38, 0.1)',
 
   // Spacing / layout

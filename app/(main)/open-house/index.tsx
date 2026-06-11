@@ -346,7 +346,7 @@ function getStyles(colors: any) {
     liveBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: '#FEE2E2',
+      backgroundColor: colors.dangerBg,
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 20,
@@ -355,7 +355,7 @@ function getStyles(colors: any) {
     liveBadgeText: {
       fontSize: 10,
       fontWeight: '900',
-      color: '#EF4444',
+      color: colors.danger,
       letterSpacing: 0.5,
     },
 
@@ -508,9 +508,9 @@ function getStyles(colors: any) {
       height: 40,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#FEF2F2',
+      backgroundColor: colors.dangerBg,
       borderWidth: 1,
-      borderColor: '#FECACA',
+      borderColor: colors.dangerBorder,
       borderRadius: 10,
     },
 

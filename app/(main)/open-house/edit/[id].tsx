@@ -13,7 +13,11 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
+import PhoneInput from 'react-native-phone-number-input';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import QRCode from 'react-native-qrcode-svg';
 import {
   ActivityIndicator,
   Alert,
@@ -57,6 +61,149 @@ type DescStyleKey = 'luxury' | 'friendly' | 'modern';
 const DEFAULT_DESCRIPTION =
   'Breathtaking Luxury estate featuring rare architectural details, bespoke imported finishes, and a seamless connection to private, manicured grounds. This residence offers an unparalleled lifestyle for those who demand excellence in every square inch.';
 
+// Simple mapping for common country codes to ISO
+const COUNTRY_CODE_TO_ISO: Record<string, string> = {
+  '+1': 'US',
+  '+1-CA': 'CA',
+  '+7': 'RU',
+  '+20': 'EG',
+  '+27': 'ZA',
+  '+30': 'GR',
+  '+31': 'NL',
+  '+32': 'BE',
+  '+33': 'FR',
+  '+34': 'ES',
+  '+36': 'HU',
+  '+39': 'IT',
+  '+40': 'RO',
+  '+41': 'CH',
+  '+43': 'AT',
+  '+44': 'GB',
+  '+45': 'DK',
+  '+46': 'SE',
+  '+47': 'NO',
+  '+48': 'PL',
+  '+49': 'DE',
+  '+51': 'PE',
+  '+52': 'MX',
+  '+53': 'CU',
+  '+54': 'AR',
+  '+55': 'BR',
+  '+56': 'CL',
+  '+57': 'CO',
+  '+58': 'VE',
+  '+60': 'MY',
+  '+61': 'AU',
+  '+62': 'ID',
+  '+63': 'PH',
+  '+64': 'NZ',
+  '+65': 'SG',
+  '+66': 'TH',
+  '+81': 'JP',
+  '+82': 'KR',
+  '+84': 'VN',
+  '+86': 'CN',
+  '+90': 'TR',
+  '+91': 'IN',
+  '+92': 'PK',
+  '+93': 'AF',
+  '+94': 'LK',
+  '+95': 'MM',
+  '+98': 'IR',
+  '+212': 'MA',
+  '+213': 'DZ',
+  '+216': 'TN',
+  '+218': 'LY',
+  '+220': 'GM',
+  '+221': 'SN',
+  '+225': 'CI',
+  '+234': 'NG',
+  '+254': 'KE',
+  '+255': 'TZ',
+  '+256': 'UG',
+  '+260': 'ZM',
+  '+263': 'ZW',
+  '+351': 'PT',
+  '+353': 'IE',
+  '+355': 'AL',
+  '+358': 'FI',
+  '+359': 'BG',
+  '+372': 'EE',
+  '+373': 'MD',
+  '+374': 'AM',
+  '+375': 'BY',
+  '+380': 'UA',
+  '+381': 'RS',
+  '+385': 'HR',
+  '+386': 'SI',
+  '+387': 'BA',
+  '+420': 'CZ',
+  '+421': 'SK',
+  '+502': 'GT',
+  '+503': 'SV',
+  '+504': 'HN',
+  '+505': 'NI',
+  '+506': 'CR',
+  '+507': 'PA',
+  '+591': 'BO',
+  '+593': 'EC',
+  '+595': 'PY',
+  '+598': 'UY',
+  '+852': 'HK',
+  '+886': 'TW',
+  '+961': 'LB',
+  '+962': 'JO',
+  '+963': 'SY',
+  '+964': 'IQ',
+  '+965': 'KW',
+  '+966': 'SA',
+  '+968': 'OM',
+  '+971': 'AE',
+  '+972': 'IL',
+  '+973': 'BH',
+  '+974': 'QA',
+  '+977': 'NP',
+};
+
+const getIsoCode = (code: string | null) => {
+  if (!code) return 'US';
+  return COUNTRY_CODE_TO_ISO[code] || 'US';
+};
+
+const getCallingCodeForISO = (iso: string) => {
+  const entry = Object.entries(COUNTRY_CODE_TO_ISO).find(([code, val]) => val === iso);
+  return entry ? entry[0].replace('+', '') : '1';
+};
+
+const parseRawPhone = (rawPhone: string) => {
+  if (!rawPhone) return { countryCodeISO: 'US', nationalNumber: '' };
+  
+  const cleaned = rawPhone.trim();
+  if (!cleaned.startsWith('+')) {
+    return { countryCodeISO: 'US', nationalNumber: cleaned };
+  }
+  
+  let matchedKey = '';
+  for (const key of Object.keys(COUNTRY_CODE_TO_ISO)) {
+    if (cleaned.startsWith(key)) {
+      if (key.length > matchedKey.length) {
+        matchedKey = key;
+      }
+    }
+  }
+  
+  if (matchedKey) {
+    const national = cleaned.slice(matchedKey.length).replace(/[^0-9]/g, '');
+    return {
+      countryCodeISO: COUNTRY_CODE_TO_ISO[matchedKey],
+      nationalNumber: national
+    };
+  }
+  
+  return { countryCodeISO: 'US', nationalNumber: cleaned.replace(/[^0-9]/g, '') };
+};
+
+
 export default function OpenHouseEditScreen() {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
@@ -82,6 +229,9 @@ export default function OpenHouseEditScreen() {
   const [brokerageName, setBrokerageName] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [agentPhone, setAgentPhone] = useState('');
+  const [countryCodeISO, setCountryCodeISO] = useState('US');
+  const [callingCode, setCallingCode] = useState('+1');
+  const phoneInputRef = useRef<PhoneInput>(null);
   const [agentEmail, setAgentEmail] = useState('');
   const [sendReport, setSendReport] = useState(true);
   const [accentIndex, setAccentIndex] = useState(0);
@@ -105,10 +255,10 @@ export default function OpenHouseEditScreen() {
   const [agencyLogoUri, setAgencyLogoUri] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const [errors, setErrors] = useState<{ agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string }>({});
+  const [errors, setErrors] = useState<{ agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string; agentPhone?: string }>({});
 
   const validateStep2 = () => {
-    const newErrors: { agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string } = {};
+    const newErrors: { agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string; agentPhone?: string } = {};
     if (!eventDate) {
       newErrors.eventDate = 'Date is required';
     }
@@ -126,6 +276,11 @@ export default function OpenHouseEditScreen() {
       newErrors.agentEmail = 'Agent Email is required';
     } else if (!emailRegex.test(agentEmail.trim())) {
       newErrors.agentEmail = 'Please enter a valid email address';
+    }
+    if (!agentPhone.trim()) {
+      newErrors.agentPhone = 'Agent Phone is required';
+    } else if (phoneInputRef.current && !phoneInputRef.current.isValidNumber(agentPhone)) {
+      newErrors.agentPhone = `Invalid number for ${phoneInputRef.current.getCountryCode() || 'selected country'}`;
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -155,7 +310,10 @@ export default function OpenHouseEditScreen() {
       setAgentName(openHouseData.agent_details?.name || '');
       setBrokerageName(openHouseData.agent_details?.brokerage || '');
       setLicenseNumber(openHouseData.agent_details?.license || '');
-      setAgentPhone(openHouseData.agent_details?.phone || '');
+      const parsedPhone = parseRawPhone(openHouseData.agent_details?.phone || '');
+      setAgentPhone(parsedPhone.nationalNumber);
+      setCountryCodeISO(parsedPhone.countryCodeISO);
+      setCallingCode(`+${getCallingCodeForISO(parsedPhone.countryCodeISO)}`);
       setAgentEmail(openHouseData.agent_details?.email || '');
       setDescription(openHouseData.ai_description || DEFAULT_DESCRIPTION);
 
@@ -225,7 +383,7 @@ export default function OpenHouseEditScreen() {
         date: eventDate.toISOString().split('T')[0],
         start_time: startTimeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
         end_time: endTimeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
-        agent_details: { name: agentName, brokerage: brokerageName, license: licenseNumber, email: agentEmail, phone: agentPhone },
+        agent_details: { name: agentName, brokerage: brokerageName, license: licenseNumber, email: agentEmail, phone: agentPhone ? `${callingCode}${agentPhone}` : '' },
         ai_description: description,
         brand_color: brandColors[accentIndex],
         gallery_images: uploadedGalleryUrls,
@@ -330,6 +488,11 @@ export default function OpenHouseEditScreen() {
                 setSendReport={setSendReport}
                 errors={errors}
                 setErrors={setErrors}
+                phoneInputRef={phoneInputRef}
+                countryCodeISO={countryCodeISO}
+                setCountryCodeISO={setCountryCodeISO}
+                callingCode={callingCode}
+                setCallingCode={setCallingCode}
               />
             </ProgressStep>
             <ProgressStep label="CUSTOMIZATION" removeBtnRow>
@@ -361,6 +524,8 @@ export default function OpenHouseEditScreen() {
               ) : (
                 <Step5SheetReady
                   createdId={id as string}
+                  propertyAddress={openHouseData?.property?.address || ''}
+                  propertyId={openHouseData?.property_id?.toString() || ''}
                   onGoToDashboard={() => router.push('/(main)/open-house' as any)}
                 />
               )}
@@ -422,6 +587,7 @@ function Step2Details({
   agentName, setAgentName, brokerageName, setBrokerageName, licenseNumber, setLicenseNumber,
   agentPhone, setAgentPhone, agentEmail, setAgentEmail, sendReport, setSendReport,
   errors, setErrors,
+  phoneInputRef, countryCodeISO, setCountryCodeISO, callingCode, setCallingCode,
 }: {
   eventDate: Date; setEventDate: (d: Date) => void;
   startTimeDate: Date; setStartTimeDate: (d: Date) => void;
@@ -432,10 +598,15 @@ function Step2Details({
   agentPhone: string; setAgentPhone: (v: string) => void;
   agentEmail: string; setAgentEmail: (v: string) => void;
   sendReport: boolean; setSendReport: (v: boolean) => void;
-  errors: { agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string };
-  setErrors: React.Dispatch<React.SetStateAction<{ agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string }>>;
+  errors: { agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string; agentPhone?: string };
+  setErrors: React.Dispatch<React.SetStateAction<{ agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string; agentPhone?: string }>>;
+  phoneInputRef: React.RefObject<PhoneInput | null>;
+  countryCodeISO: string;
+  setCountryCodeISO: (v: string) => void;
+  callingCode: string;
+  setCallingCode: (v: string) => void;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, theme } = useAppTheme();
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
   const [pickerOpen, setPickerOpen] = useState<PickerType>(null);
@@ -543,10 +714,87 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>AGENT PHONE</Text>
-              <View style={styles.inputWrap}>
-                <TextInput style={styles.input} value={agentPhone} onChangeText={setAgentPhone} placeholder="(555) 000-0000" placeholderTextColor="#9CA3AF" />
-              </View>
+              <Text style={styles.fieldLabel}>AGENT PHONE *</Text>
+              <PhoneInput
+                ref={phoneInputRef}
+                defaultValue={agentPhone}
+                defaultCode={countryCodeISO as any}
+                layout="first"
+                onChangeText={(text) => {
+                  const cleaned = text.replace(/[^0-9]/g, '').slice(0, 15);
+                  setAgentPhone(cleaned);
+                  if (errors.agentPhone) {
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.agentPhone;
+                      return next;
+                    });
+                  }
+                }}
+                onChangeFormattedText={(_text) => {
+                  const code = phoneInputRef.current?.getCallingCode();
+                  if (code) {
+                    setCallingCode(`+${code}`);
+                  }
+                }}
+                containerStyle={[
+                  styles.phoneInputWrapper,
+                  !!errors.agentPhone && { borderColor: '#EF4444' }
+                ]}
+                textContainerStyle={styles.phoneTextContainer}
+                textInputStyle={styles.phoneTextInput}
+                codeTextStyle={styles.phoneCodeText}
+                flagButtonStyle={styles.phoneFlagButton}
+                placeholder="Phone Number"
+                withDarkTheme={theme === 'dark'}
+                textInputProps={{
+                  maxLength: 15,
+                  keyboardType: 'phone-pad',
+                  placeholderTextColor: theme === 'dark' ? '#94A3B8' : '#9CA3AF',
+                }}
+                countryPickerProps={{
+                  withFilter: true,
+                  withAlphaFilter: true,
+                  renderFlagButton: (props: any) => {
+                    const code = (props.countryCode || 'US').toUpperCase();
+                    const emoji = code.replace(/./g, (c: string) =>
+                      String.fromCodePoint(0x1F1A5 + c.charCodeAt(0))
+                    );
+                    return <Text style={{ fontSize: 20, lineHeight: 26 }}>{emoji}</Text>;
+                  },
+                  theme: theme === 'dark' ? {
+                    backgroundColor: '#000000',
+                    onBackgroundTextColor: '#FFFFFF',
+                    fontSize: 16,
+                    filterPlaceholderTextColor: '#94A3B8',
+                  } : {
+                    backgroundColor: '#FFFFFF',
+                    onBackgroundTextColor: '#0F172A',
+                    fontSize: 16,
+                    filterPlaceholderTextColor: '#64748B',
+                  },
+                  modalProps: {
+                    statusBarTranslucent: true,
+                  },
+                  closeButtonStyle: {
+                    marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
+                  },
+                  filterProps: {
+                    placeholderTextColor: theme === 'dark' ? '#94A3B8' : '#64748B',
+                    style: {
+                      marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
+                      color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                      fontSize: 16,
+                      flex: 1,
+                    }
+                  }
+                }}
+              />
+              {errors.agentPhone && (
+                <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>
+                  {errors.agentPhone}
+                </Text>
+              )}
             </View>
 
             <View style={styles.fieldSingle}>
@@ -590,7 +838,7 @@ function Step2Details({
               <View style={styles.pickerHandle} />
               <Text style={styles.pickerSheetTitle}>{pickerTitle}</Text>
               {pickerOpen != null && (
-                <DateTimePicker value={tempValue} mode={isDatePicker ? 'date' : 'time'} display="spinner" onChange={onPickerChange} minimumDate={isDatePicker ? new Date() : undefined} style={styles.pickerSpinner} textColor="#0B2D3E" />
+                <DateTimePicker value={tempValue} mode={isDatePicker ? 'date' : 'time'} display="spinner" onChange={onPickerChange} minimumDate={isDatePicker ? new Date() : undefined} style={styles.pickerSpinner} textColor={colors.textPrimary} />
               )}
               <Pressable style={styles.pickerDoneButton} onPress={confirmPicker}>
                 <Text style={styles.pickerDoneText}>Done</Text>
@@ -741,7 +989,10 @@ function Step4Customization({
                 ))}
                 <Pressable style={styles.addColorBtn} onPress={() => setColorPickerVisible(true)}><Text style={styles.addColorBtnText}>+</Text></Pressable>
               </View>
-              <Text style={styles.selectedColorText}>Current accent: <Text style={{ fontWeight: '800', color: currentAccent }}>{currentAccent}</Text></Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+                <Text style={[styles.selectedColorText, { marginBottom: 0 }]}>Current accent: <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{currentAccent}</Text></Text>
+                <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: currentAccent, borderWidth: 1.5, borderColor: colors.cardBorder }} />
+              </View>
 
               <Text style={styles.sectionHeaderLabelSmall}>LOGO PRESENTATION</Text>
               <View style={styles.segmentedControl}>
@@ -930,39 +1181,75 @@ function Step4Customization({
 
 function Step5SheetReady({
   createdId,
+  propertyAddress,
+  propertyId,
   onGoToDashboard,
 }: {
   createdId?: string | number;
+  propertyAddress: string;
+  propertyId: string;
   onGoToDashboard: () => void;
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalTitle, setModalTitle] = useState('');
-  const [modalDescription, setModalDescription] = useState('');
-  const [modalIcon, setModalIcon] = useState('bullhorn-outline');
-  const [modalColor, setModalColor] = useState('#0D9488');
-
-  const showFeatureModal = (title: string, desc: string, icon: string, color: string) => {
-    setModalTitle(title);
-    setModalDescription(desc);
-    setModalIcon(icon);
-    setModalColor(color);
-    setModalVisible(true);
-  };
+  const router = useRouter();
+  const qrRef = useRef<any>(null);
 
   const handleCopyLink = () => {
-    const linkId = createdId || '27';
-    const link = `https://staging.zien.ai/open-house/check-in/${linkId}`;
+    const addressToUse = propertyAddress || '5703 Rhetta Lane, Spring TX 77389';
+    const link = `https://staging.zien.ai/open-house/check-in/${encodeURIComponent(addressToUse)}`;
     Clipboard.setString(link);
     Alert.alert(
-      'Link Copied',
-      `The check-in portfolio link has been copied to your clipboard:\n\n${link}`
+      'Copied Successfully',
+      `The digital share link has been copied to your clipboard:\n\n${link}`
     );
+  };
+
+  const handleDownloadQR = () => {
+    if (!qrRef.current) {
+      Alert.alert('Not Ready', 'QR code is not ready yet. Please try again.');
+      return;
+    }
+    qrRef.current.toDataURL(async (data: string) => {
+      try {
+        const filePath = `${FileSystem.documentDirectory}qrcode-${createdId || 'temp'}.png`;
+        await FileSystem.writeAsStringAsync(filePath, data, { encoding: FileSystem.EncodingType.Base64 });
+        await Sharing.shareAsync(filePath, { mimeType: 'image/png', UTI: 'public.png', dialogTitle: 'Save QR Code' });
+      } catch (e) {
+        Alert.alert('Error', 'Failed to download QR code.');
+      }
+    });
+  };
+
+  const handleLaunchCampaign = () => {
+    const addressToUse = propertyAddress || '5703 Rhetta Lane, Spring TX 77389';
+    router.push({
+      pathname: '/(main)/crm/campaigns',
+      params: {
+        openAiModal: 'true',
+        aiPrompt: `Write a persuasive email campaign promoting my new listing at ${addressToUse}. Include a strong call to action for the recipient to click the link to view the property photos and RSVP.`
+      }
+    });
+  };
+
+  const handlePostToSocial = () => {
+    router.push({
+      pathname: '/(main)/social-hub/create-post',
+      params: { propertyId }
+    });
   };
 
   return (
     <View style={styles.stepContent}>
+      <View style={{ position: 'absolute', opacity: 0, left: -1000, top: -1000 }}>
+        <QRCode
+          value={`https://staging.zien.ai/open-house/check-in/${encodeURIComponent(propertyAddress || '5703 Rhetta Lane, Spring TX 77389')}`}
+          size={200}
+          color="#0B2D3E"
+          backgroundColor="#FFFFFF"
+          {...({ getRef: (ref: any) => { qrRef.current = ref; } } as any)}
+        />
+      </View>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.readyMobileScrollContent}
@@ -977,14 +1264,6 @@ function Step5SheetReady({
         <View style={styles.readyMobileGrid}>
           <Pressable
             style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-            onPress={() => showFeatureModal('PDF Dossier Preparation', "We are finalising Zien's PDF document generation engine. Soon you will be able to export rich property flyers directly to your phone!", 'file-pdf-box', '#EF4444')}
-          >
-            <MaterialCommunityIcons name="file-document-outline" size={32} color="#EF4444" />
-            <Text style={styles.readyMobileCardLabel}>Download PDF</Text>
-            <Text style={styles.readyMobileCardSubLabel}>PROPERTY DOSSIER</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
             onPress={handleCopyLink}
           >
             <MaterialCommunityIcons name="link-variant" size={32} color={colors.accentTeal} />
@@ -993,19 +1272,27 @@ function Step5SheetReady({
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-            onPress={() => showFeatureModal('Campaign Syncing', "Match leads automatically with active campaigns. Complete bi-directional synchronization with your CRM dashboard will launch soon!", 'bullhorn-outline', '#4F46E5')}
+            onPress={handleDownloadQR}
           >
-            <MaterialCommunityIcons name="bullhorn-outline" size={32} color="#4F46E5" />
-            <Text style={styles.readyMobileCardLabel}>Add to campaigns</Text>
-            <Text style={styles.readyMobileCardSubLabel}>ADD TO CAMPAIGNS</Text>
+            <MaterialCommunityIcons name="qrcode" size={32} color="#0B2D3E" />
+            <Text style={styles.readyMobileCardLabel}>Download QR Code</Text>
+            <Text style={styles.readyMobileCardSubLabel}>PRINT FOR DESK</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-            onPress={() => showFeatureModal('Smart AI Follow-Ups', "Set up Zien's dynamic AI email responders for check-ins. Automated personalized visitor nurture workflows will be ready soon!", 'email-plus-outline', '#0D9488')}
+            onPress={handleLaunchCampaign}
           >
-            <MaterialCommunityIcons name="email-plus-outline" size={32} color="#0D9488" />
-            <Text style={styles.readyMobileCardLabel}>Email Automation</Text>
-            <Text style={styles.readyMobileCardSubLabel}>CREATE AI AUTOMATION</Text>
+            <MaterialCommunityIcons name="email-outline" size={32} color="#4F46E5" />
+            <Text style={styles.readyMobileCardLabel}>Launch Campaign</Text>
+            <Text style={styles.readyMobileCardSubLabel}>EMAIL & SMS</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+            onPress={handlePostToSocial}
+          >
+            <MaterialCommunityIcons name="share-variant" size={32} color="#8B5CF6" />
+            <Text style={styles.readyMobileCardLabel}>Post to Social</Text>
+            <Text style={styles.readyMobileCardSubLabel}>INSTAGRAM/FACEBOOK</Text>
           </Pressable>
         </View>
 
@@ -1015,48 +1302,6 @@ function Step5SheetReady({
           </Pressable>
         </View>
       </ScrollView>
-
-      {/* Premium Coming Soon Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setModalVisible(false)}
-        >
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <View style={[styles.modalIconBg, { backgroundColor: modalColor + '15' }]}>
-              <MaterialCommunityIcons name={modalIcon as any} size={42} color={modalColor} />
-            </View>
-
-            <Text style={styles.modalTitle}>{modalTitle}</Text>
-
-            <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: modalColor + '20' }]}>
-                <Text style={[styles.badgeText, { color: modalColor }]}>COMING SOON</Text>
-              </View>
-            </View>
-
-            <Text style={styles.modalDescription}>
-              {modalDescription}
-            </Text>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.modalCloseBtn,
-                { backgroundColor: modalColor },
-                pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }
-              ]}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.modalCloseBtnText}>Awesome, Got It!</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -1103,6 +1348,44 @@ function getStyles(colors: any) {
       minHeight: 48,
     },
     input: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.textPrimary, padding: 0 },
+    phoneInputWrapper: {
+      width: '100%',
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      height: 48,
+      overflow: 'hidden',
+    },
+    phoneTextContainer: {
+      backgroundColor: 'transparent',
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      height: '100%',
+    },
+    phoneTextInput: {
+      fontSize: 13,
+      marginLeft: 10,
+      color: colors.textPrimary,
+      fontWeight: '600',
+      backgroundColor: 'transparent',
+      padding: 0,
+    },
+    phoneCodeText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      paddingHorizontal: 10,
+    },
+    phoneFlagButton: {
+      width: 60,
+      height: 48,
+      backgroundColor: 'transparent',
+      borderRightWidth: 1.5,
+      borderRightColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     inputText: { flex: 1, minWidth: 0, fontSize: 14, fontWeight: '700', color: colors.textPrimary },
     toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 10 },
     toggleLabel: { flex: 1, fontSize: 11, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.2 },
@@ -1143,7 +1426,7 @@ function getStyles(colors: any) {
     sectionHeaderLabelSmall: { fontSize: 10, fontWeight: '800', color: colors.textSecondary, letterSpacing: 1, marginTop: 20, marginBottom: 12, textTransform: 'uppercase' },
     sectionHeaderLabelPreview: { fontSize: 10, fontWeight: '800', color: colors.textMuted, letterSpacing: 1, marginBottom: 16, textTransform: 'uppercase' },
 
-    customCard: { backgroundColor: '#F1F5F9', borderRadius: 16, padding: 24, marginBottom: 20 },
+    customCard: { backgroundColor: colors.cardBackground, borderRadius: 16, padding: 24, marginBottom: 20 },
     customCardGallery: { minHeight: 260 },
     customCardTitle: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, marginBottom: 16, letterSpacing: -0.5 },
     customCardSubLabelText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500', marginTop: -12, marginBottom: 16 },
@@ -1152,42 +1435,42 @@ function getStyles(colors: any) {
 
     swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 12 },
     colorSwatch: { width: 32, height: 32, borderRadius: 16 },
-    colorSwatchActive: { borderWidth: 2, borderColor: '#0F172A', transform: [{ scale: 1.1 }] },
-    addColorBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
-    addColorBtnText: { fontSize: 20, fontWeight: '700', color: '#94A3B8', lineHeight: 22 },
+    colorSwatchActive: { borderWidth: 2, borderColor: colors.textPrimary, transform: [{ scale: 1.1 }] },
+    addColorBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceSoft, borderWidth: 2, borderColor: colors.cardBorder, alignItems: 'center', justifyContent: 'center' },
+    addColorBtnText: { fontSize: 20, fontWeight: '700', color: colors.textSecondary, lineHeight: 22 },
     selectedColorText: { fontSize: 11, color: colors.textSecondary, fontWeight: '600', marginBottom: 8 },
 
-    segmentedControl: { flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 12, padding: 4, marginBottom: 16 },
+    segmentedControl: { flexDirection: 'row', backgroundColor: colors.surfaceSoft, borderRadius: 12, padding: 4, marginBottom: 16, borderWidth: 1.5, borderColor: colors.cardBorder },
     segmentBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
     segmentBtnActive: {
-      backgroundColor: '#FFFFFF',
-      ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 2 }, android: { elevation: 1 } }),
+      backgroundColor: colors.cardBackground,
+      ...Platform.select({ ios: { shadowColor: colors.cardShadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 2 }, android: { elevation: 1 } }),
     },
     segmentBtnText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
     segmentBtnTextActive: { fontSize: 12, fontWeight: '800', color: colors.textPrimary },
 
-    logoUploadContainer: { backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#00A7B5', borderStyle: 'dashed', borderRadius: 12, padding: 16, marginTop: 12 },
-    logoUploadBtn: { backgroundColor: '#FFFFFF', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, borderWidth: 1, borderColor: '#E2E8F0', flex: 1 },
-    logoUploadBtnText: { fontSize: 13, fontWeight: '800', color: '#0F172A' },
-    logoPreviewWrap: { width: 120, height: 120, borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', marginTop: 12 },
+    logoUploadContainer: { backgroundColor: colors.surfaceSoft, borderWidth: 1.5, borderColor: colors.accentTeal, borderStyle: 'dashed', borderRadius: 12, padding: 16, marginTop: 12 },
+    logoUploadBtn: { backgroundColor: colors.cardBackground, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, borderWidth: 1, borderColor: colors.cardBorder, flex: 1 },
+    logoUploadBtnText: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
+    logoPreviewWrap: { width: 120, height: 120, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.surfaceSoft, borderWidth: 1.5, borderColor: colors.cardBorder, marginTop: 12 },
     logoPreview: { width: '100%', height: '100%' },
 
     cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 },
     stylePillRow: { flexDirection: 'row', gap: 8 },
-    stylePill: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: '#0F172A', backgroundColor: 'transparent' },
-    stylePillActive: { backgroundColor: '#0F172A' },
-    stylePillText: { fontSize: 11, fontWeight: '700', color: '#0F172A' },
-    stylePillTextActive: { color: '#FFFFFF' },
+    stylePill: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, borderWidth: 1.5, borderColor: colors.cardBorder, backgroundColor: 'transparent' },
+    stylePillActive: { backgroundColor: colors.accentTeal, borderColor: colors.accentTeal },
+    stylePillText: { fontSize: 11, fontWeight: '700', color: colors.textSecondary },
+    stylePillTextActive: { color: colors.cardBackground },
 
-    aiInput: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', padding: 16, fontSize: 13, color: colors.textSecondary, height: 120, textAlignVertical: 'top', lineHeight: 20 },
+    aiInput: { backgroundColor: colors.surfaceSoft, borderRadius: 12, borderWidth: 1.5, borderColor: colors.cardBorder, padding: 16, fontSize: 13, color: colors.textPrimary, height: 120, textAlignVertical: 'top', lineHeight: 20 },
     regenerateBtnFull: { backgroundColor: '#00A7B5', borderRadius: 12, paddingVertical: 14, marginTop: 16, alignItems: 'center', justifyContent: 'center' },
     regenerateBtnText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
 
-    galleryImageItem: { width: 140, height: 140, borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', position: 'relative' },
+    galleryImageItem: { width: 140, height: 140, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.surfaceSoft, borderWidth: 1.5, borderColor: colors.cardBorder, position: 'relative' },
     galleryImageThumb: { width: '100%', height: '100%' },
-    deleteImageBtn: { position: 'absolute', top: 6, right: 6, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 0, zIndex: 10 },
-    galleryAddBoxSmall: { width: 140, height: 140, backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#00A7B5', borderStyle: 'dashed', borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 4 },
-    galleryAddTextSmall: { fontSize: 10, fontWeight: '800', color: '#00A7B5' },
+    deleteImageBtn: { position: 'absolute', top: 6, right: 6, backgroundColor: colors.surfaceLight, borderRadius: 12, padding: 0, zIndex: 10 },
+    galleryAddBoxSmall: { width: 140, height: 140, backgroundColor: colors.surfaceSoft, borderWidth: 1.5, borderColor: colors.accentTeal, borderStyle: 'dashed', borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 4 },
+    galleryAddTextSmall: { fontSize: 10, fontWeight: '800', color: colors.accentTeal },
 
     // Phone Mockup
     phoneMockup: {

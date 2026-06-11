@@ -333,6 +333,14 @@ export default function CreatePostScreen() {
     if (isEditMode && hasPrefilledRef.current) return; // Don't override edit prefill
     if (!isLoadingProperties) {
       if (properties.length > 0) {
+        if (propertyId) {
+          const found = properties.find((p: any) => String(p.id) === String(propertyId));
+          if (found) {
+            setTargetContent(`${found.address} (Property)`);
+            setCaption(`JUST LISTED: ${found.address}\n\nExperience luxury living at its finest. This stunning property is now available for private tours.\n\nDM for details! #Zien #RealEstate #JustListed`);
+            return;
+          }
+        }
         if (targetContent === 'Custom Post / Market Update') {
           setTargetContent(`${properties[0].address} (Property)`);
         }
@@ -340,7 +348,7 @@ export default function CreatePostScreen() {
         setTargetContent('Custom Post / Market Update');
       }
     }
-  }, [isLoadingProperties, properties]);
+  }, [isLoadingProperties, properties, propertyId]);
 
   const selectedProperty = useMemo(() => {
     return properties.find((p: any) => `${p.address} (Property)` === targetContent);

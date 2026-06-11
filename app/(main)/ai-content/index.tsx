@@ -7,7 +7,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -27,43 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-const CONTENT_TOOLS = [
-  {
-    id: 'property-description',
-    title: 'Property Description',
-    description: 'Generate high-converting listing copy automatically.',
-    icon: 'home-variant-outline',
-    color: '#0a2341',
-  },
-  {
-    id: 'social-media',
-    title: 'Social Media Posts',
-    description: 'Adapt listings for Instagram, LinkedIn, and Facebook.',
-    icon: 'cellphone-text',
-    color: '#3B82F6',
-  },
-  {
-    id: 'email-templates',
-    title: 'Email Templates',
-    description: 'Craft follow-ups, newsletters, and just-listed alerts.',
-    icon: 'email-variant',
-    color: '#8B5CF6',
-  },
-  {
-    id: 'image-enhancer',
-    title: 'Image Enhancer',
-    description: 'AI-driven quality upscaling and lighting enhancement.',
-    icon: 'image-multiple-outline',
-    color: '#10B981',
-  },
-  {
-    id: 'presentation-builder',
-    title: 'Presentation Builder',
-    description: 'Dynamic listing presentations and CMA decks.',
-    icon: 'chart-pie',
-    color: '#EC4899',
-  },
-];
+
 
 
 
@@ -71,6 +35,43 @@ const CONTENT_TOOLS = [
 export default function AiContentScreen() {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  const contentTools = useMemo(() => [
+    {
+      id: 'property-description',
+      title: 'Property Description',
+      description: 'Generate high-converting listing copy automatically.',
+      icon: 'home-variant-outline',
+      color: colors.accentTeal,
+    },
+    {
+      id: 'social-media',
+      title: 'Social Media Posts',
+      description: 'Adapt listings for Instagram, LinkedIn, and Facebook.',
+      icon: 'cellphone-text',
+      color: '#3B82F6',
+    },
+    {
+      id: 'email-templates',
+      title: 'Email Templates',
+      description: 'Craft follow-ups, newsletters, and just-listed alerts.',
+      icon: 'email-variant',
+      color: '#8B5CF6',
+    },
+    {
+      id: 'image-enhancer',
+      title: 'Image Enhancer',
+      description: 'AI-driven quality upscaling and lighting enhancement.',
+      icon: 'image-multiple-outline',
+      color: '#10B981',
+    },
+    {
+      id: 'presentation-builder',
+      title: 'Presentation Builder',
+      description: 'Dynamic listing presentations and CMA decks.',
+      icon: 'chart-pie',
+      color: '#EC4899',
+    },
+  ], [colors.accentTeal]);
   const { accessToken } = useAuth();
 
   const insets = useSafeAreaInsets();
@@ -90,6 +91,11 @@ export default function AiContentScreen() {
   const [selectedItem, setSelectedItem] = useState<AiContentItem | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  // Delete Custom Modal States
+  const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
+  const [deleteItemAddress, setDeleteItemAddress] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Fetch AI content helper
   const fetchLibrary = useCallback(async (isRefresh = false) => {
@@ -133,31 +139,10 @@ export default function AiContentScreen() {
   }, [fetchLibrary]);
 
   // Handle Delete
-  const handleDelete = (id: string) => {
-    Alert.alert(
-      'Delete Content',
-      'Are you sure you want to delete this item? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            // Optimistic update
-            setEntries((prev) => prev.filter((item) => item.id.toString() !== id));
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-            if (accessToken) {
-              try {
-                await deleteAiContent(id, accessToken);
-              } catch (err) {
-                console.warn('[AiContentScreen] Network deletion failed, removed locally only:', err);
-              }
-            }
-          },
-        },
-      ]
-    );
+  const handleDelete = (id: string, address?: string) => {
+    setDeleteItemId(id);
+    setDeleteItemAddress(address || null);
+    setShowDeleteModal(true);
   };
 
   // Handle Copy Content
@@ -165,6 +150,7 @@ export default function AiContentScreen() {
     await Clipboard.setStringAsync(item.content);
     setCopiedId(item.id);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Copied', 'Content copied to clipboard successfully.');
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -195,8 +181,8 @@ export default function AiContentScreen() {
         return {
           label: 'Property Description',
           icon: 'home-variant-outline',
-          color: '#0a2341',
-          bg: '#0a234115',
+          color: colors.accentTeal,
+          bg: colors.accentTeal + '15',
         };
       case 'social-media':
         return {
@@ -306,7 +292,7 @@ export default function AiContentScreen() {
     if (item.type === 'property-description') {
       router.push({
         pathname: '/(main)/ai-content/property-description',
-        params: { prefill, content }
+        params: { prefill, content, address: item.metadata?.address || '' }
       });
     } else if (item.type === 'social-media') {
       router.push({
@@ -421,7 +407,7 @@ export default function AiContentScreen() {
           {/* Strategic Content Engines Section */}
           <Text style={styles.sectionTitle}>Strategic Content Engines</Text>
           <View style={styles.toolsGrid}>
-            {CONTENT_TOOLS.map((tool) => (
+            {contentTools.map((tool) => (
               <Pressable
                 key={tool.id}
                 style={styles.toolCard}
@@ -504,59 +490,105 @@ export default function AiContentScreen() {
                 return (
                   <Pressable
                     key={item.id}
-                    style={[styles.contentCard, { borderLeftWidth: 4, borderLeftColor: details.color }]}
+                    style={({ pressed }) => [
+                      styles.contentCard,
+                      { borderLeftWidth: 4, borderLeftColor: details.color },
+                      pressed && { opacity: 0.95, transform: [{ scale: 0.99 }] }
+                    ]}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setSelectedItem(item);
                       setShowModal(true);
                     }}
                   >
-                    {/* Content Preview */}
-                    <Text style={styles.cardContentPreview} numberOfLines={2}>
-                      {formatCardPreview(item.content)}
-                    </Text>
+                    {/* Card Header: Address & Type Badge */}
+                    <View style={styles.cardHeader}>
+                      <View style={styles.cardTitleBlock}>
+                        <View style={styles.addressRow}>
+                          <MaterialCommunityIcons name="map-marker" size={14} color={colors.textMuted} style={{ marginRight: 6 }} />
+                          <Text style={styles.cardTitleText} numberOfLines={1}>
+                            {item.metadata?.address ? item.metadata.address.split(',')[0] : 'Market Announcement'}
+                          </Text>
+                        </View>
+                        {item.metadata?.address && (
+                          <Text style={styles.cardSubtitleText} numberOfLines={1}>
+                            {item.metadata.address.split(',').slice(1).join(',').trim()}
+                          </Text>
+                        )}
+                        <View style={styles.headerBadgeRow}>
+                          <View style={[styles.typeBadge, { backgroundColor: details.bg }]}>
+                            <MaterialCommunityIcons name={details.icon as any} size={11} color={details.color} style={{ marginRight: 6 }} />
+                            <Text style={[styles.typeBadgeText, { color: details.color }]}>{details.label.toUpperCase()}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
 
-                    {/* Property Context Row */}
-                    <View style={styles.cardMetaRow}>
-                      <Text style={styles.cardMetaLabel}>Property Context:</Text>
-                      <Text style={styles.cardMetaValue} numberOfLines={1}>
-                        {item.metadata?.input_details || 'Generic Property'}
+                    {/* Card Body: Content Preview inside frame */}
+                    <View style={styles.cardBodyContainer}>
+                      <Text style={styles.cardContentPreview} numberOfLines={3}>
+                        {formatCardPreview(item.content)}
                       </Text>
                     </View>
 
-                    {/* Type Badge & Date Modified */}
-                    <View style={styles.cardMetadata}>
-                      <View style={[styles.typeBadge, { backgroundColor: details.bg }]}>
-                        <MaterialCommunityIcons name={details.icon as any} size={11} color={details.color} style={{ marginRight: 4 }} />
-                        <Text style={[styles.typeBadgeText, { color: details.color }]}>{details.label.toUpperCase()}</Text>
+                    {/* Card Footer: Metadata & Actions */}
+                    <View style={styles.cardFooter}>
+                      <View style={styles.footerLeft}>
+                        <View style={styles.dateBlock}>
+                          <MaterialCommunityIcons name="clock-outline" size={12} color={colors.textMuted} />
+                          <Text style={styles.cardDate} numberOfLines={1} ellipsizeMode="tail">{formatRelativeDate(item.created_at)}</Text>
+                        </View>
+                        {item.metadata?.template_type && (
+                          <View style={styles.templateTypeBadge}>
+                            <Text style={styles.templateTypeText} numberOfLines={1} ellipsizeMode="tail">{item.metadata.template_type.toUpperCase()}</Text>
+                          </View>
+                        )}
                       </View>
-                      <Text style={styles.cardDate}>{formatDateDMY(item.created_at)}</Text>
-                    </View>
 
-                    {/* Actions Row */}
-                    <View style={styles.cardActionsRow}>
-                      <Pressable
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setSelectedItem(item);
-                          setShowModal(true);
-                        }}
-                        style={[styles.iconActionBtn, { backgroundColor: `${colors.accentTeal}10`, borderColor: `${colors.accentTeal}20` }]}
-                      >
-                        <MaterialCommunityIcons name="eye-outline" size={16} color={colors.accentTeal} />
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleEditItem(item)}
-                        style={[styles.iconActionBtn, { backgroundColor: '#3B82F610', borderColor: '#3B82F625' }]}
-                      >
-                        <MaterialCommunityIcons name="pencil-outline" size={16} color="#3B82F6" />
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleDelete(item.id.toString())}
-                        style={[styles.iconActionBtn, { backgroundColor: '#EF444410', borderColor: '#EF444425' }]}
-                      >
-                        <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
-                      </Pressable>
+                      <View style={styles.cardActionsRow}>
+                        {/* Eye Button */}
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setSelectedItem(item);
+                            setShowModal(true);
+                          }}
+                          style={styles.iconActionBtn}
+                        >
+                          <MaterialCommunityIcons name="eye-outline" size={16} color={colors.textSecondary} />
+                        </Pressable>
+
+                        {/* Copy Button */}
+                        <Pressable
+                          onPress={() => handleCopyContent(item)}
+                          style={[
+                            styles.iconActionBtn,
+                            copiedId === item.id && { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name={copiedId === item.id ? "check" : "content-copy"}
+                            size={14}
+                            color={copiedId === item.id ? '#10B981' : colors.textSecondary}
+                          />
+                        </Pressable>
+
+                        {/* Edit Button */}
+                        <Pressable
+                          onPress={() => handleEditItem(item)}
+                          style={styles.iconActionBtn}
+                        >
+                          <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.textSecondary} />
+                        </Pressable>
+
+                        {/* Delete Button */}
+                        <Pressable
+                          onPress={() => handleDelete(item.id.toString(), item.metadata?.address)}
+                          style={[styles.iconActionBtn, styles.deleteActionBtn]}
+                        >
+                          <MaterialCommunityIcons name="trash-can-outline" size={15} color="#EF4444" />
+                        </Pressable>
+                      </View>
                     </View>
                   </Pressable>
                 );
@@ -564,40 +596,97 @@ export default function AiContentScreen() {
             )}
           </View>
         </ScrollView>
-      </LinearGradient>      {/* Premium Preview Modal / Sheet */}
+      </LinearGradient>
+      {/* Premium Preview Modal / Sheet */}
       {selectedItem && (
         <Modal
-          animationType="fade"
-          transparent={true}
+          animationType="slide"
+          transparent={false}
           visible={showModal}
           onRequestClose={() => setShowModal(false)}
         >
+          <View style={[styles.modalFullScreen, { paddingTop: insets.top, backgroundColor: colors.cardBackground }]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleColumn}>
+                <Text style={styles.modalTitle}>Content Preview</Text>
+                <Text style={styles.modalSubtitle} numberOfLines={2} ellipsizeMode="tail">
+                  {selectedItem.metadata?.address || 'Generic Property'}
+                </Text>
+              </View>
+              <Pressable onPress={() => setShowModal(false)} style={styles.modalCloseBtn}>
+                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.modalBody}>
+              <ScrollView
+                style={styles.modalTextBox}
+                contentContainerStyle={styles.modalTextBoxContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={styles.modalContentText}>{selectedItem.content}</Text>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteModal && deleteItemId && (
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={showDeleteModal}
+          onRequestClose={() => setShowDeleteModal(false)}
+        >
           <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => setShowModal(false)}>
+            <TouchableWithoutFeedback onPress={() => setShowDeleteModal(false)}>
               <View style={styles.modalOverlayBg} />
             </TouchableWithoutFeedback>
 
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <View style={styles.modalTitleColumn}>
-                  <Text style={styles.modalTitle}>Content Preview</Text>
-                  <Text style={styles.modalSubtitle} numberOfLines={1}>
-                    {selectedItem.metadata?.input_details || 'Generic Property'}
-                  </Text>
-                </View>
-                <Pressable onPress={() => setShowModal(false)} style={styles.modalCloseBtn}>
-                  <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
-                </Pressable>
+            <View style={styles.deleteModalContent}>
+              <View style={styles.deleteIconCircle}>
+                <MaterialCommunityIcons name="alert-outline" size={28} color="#EF4444" />
               </View>
 
-              <View style={styles.modalBody}>
-                <ScrollView
-                  style={styles.modalTextBox}
-                  contentContainerStyle={styles.modalTextBoxContent}
-                  showsVerticalScrollIndicator={false}
+              <Text style={styles.deleteModalTitle}>Confirm Deletion</Text>
+              
+              <Text style={styles.deleteModalText}>
+                Are you sure you want to delete this architectural narrative for{' '}
+                <Text style={styles.deleteModalTextBold}>
+                  {deleteItemAddress || 'this property'}
+                </Text>
+                ? This action cannot be undone.
+              </Text>
+
+              <View style={styles.deleteModalButtons}>
+                <Pressable
+                  style={styles.deleteCancelBtn}
+                  onPress={() => setShowDeleteModal(false)}
                 >
-                  <Text style={styles.modalContentText}>{selectedItem.content}</Text>
-                </ScrollView>
+                  <Text style={styles.deleteCancelBtnText}>Cancel</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.deleteConfirmBtn}
+                  onPress={async () => {
+                    const id = deleteItemId;
+                    setShowDeleteModal(false);
+                    // Optimistic update
+                    setEntries((prev) => prev.filter((item) => item.id.toString() !== id));
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+                    if (accessToken) {
+                      try {
+                        await deleteAiContent(id, accessToken);
+                      } catch (err) {
+                        console.warn('[AiContentScreen] Network deletion failed, removed locally only:', err);
+                      }
+                    }
+                  }}
+                >
+                  <Text style={styles.deleteConfirmBtnText}>Delete Asset</Text>
+                </Pressable>
               </View>
             </View>
           </View>
@@ -807,33 +896,101 @@ function getStyles(colors: any) {
       borderWidth: 1,
       borderColor: colors.cardBorder,
     },
-    cardMetaRow: {
+    cardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    cardTitleBlock: {
+      flex: 1,
+      marginRight: 12,
+    },
+    addressRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginTop: 8,
-      marginBottom: 8,
+      marginBottom: 2,
     },
-    cardMetaLabel: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.textMuted,
-      marginRight: 6,
-    },
-    cardMetaValue: {
+    cardTitleText: {
       flex: 1,
-      fontSize: 12,
+      fontSize: 14,
       fontWeight: '800',
       color: colors.textPrimary,
+    },
+    cardSubtitleText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginLeft: 20,
+    },
+    headerBadgeRow: {
+      flexDirection: 'row',
+      marginTop: 6,
+      marginLeft: 20,
+    },
+    typeBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      flexShrink: 0,
+    },
+    typeBadgeText: {
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 0.3,
+    },
+    cardBodyContainer: {
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 12,
+      padding: 12,
+      marginVertical: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    cardContentPreview: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      lineHeight: 18,
+      fontWeight: '500',
+    },
+    cardFooter: {
+      flexDirection: 'column',
+      gap: 12,
+    },
+    footerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    dateBlock: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    cardDate: {
+      fontSize: 11,
+      color: colors.textMuted,
+      fontWeight: '700',
+    },
+    templateTypeBadge: {
+      backgroundColor: colors.surfaceSoft,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      flexShrink: 1,
+    },
+    templateTypeText: {
+      color: colors.textSecondary,
+      fontSize: 9,
+      fontWeight: '800',
     },
     cardActionsRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'flex-end',
-      marginTop: 12,
-      gap: 10,
-      borderTopWidth: 1,
-      borderTopColor: colors.cardBorder,
-      paddingTop: 12,
+      gap: 8,
     },
     iconActionBtn: {
       width: 34,
@@ -845,39 +1002,9 @@ function getStyles(colors: any) {
       borderWidth: 1,
       borderColor: colors.cardBorder,
     },
-    cardContentPreview: {
-      fontSize: 13,
-      color: colors.textSecondary,
-      lineHeight: 18,
-      fontWeight: '500',
-    },
-    cardMetadata: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginTop: 4,
-    },
-    typeBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
-    typeBadgeText: {
-      fontSize: 10,
-      fontWeight: '900',
-      letterSpacing: 0.3,
-    },
-    cardDate: {
-      fontSize: 11,
-      color: colors.textMuted,
-      fontWeight: '700',
-    },
-    cardHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+    deleteActionBtn: {
+      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+      borderColor: 'rgba(239, 68, 68, 0.2)',
     },
 
     // Skeleton loaders
@@ -1015,29 +1142,9 @@ function getStyles(colors: any) {
     },
 
     // Preview Modal Bottom Sheet styles
-    modalOverlay: {
+    modalFullScreen: {
       flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-    },
-    modalOverlayBg: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(11, 22, 33, 0.45)',
-    },
-    modalContent: {
-      backgroundColor: colors.cardBackground,
-      borderRadius: 28,
-      width: '100%',
-      maxHeight: '80%',
-      paddingVertical: 24,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      shadowColor: '#000',
-      shadowOpacity: 0.15,
-      shadowOffset: { width: 0, height: 10 },
-      shadowRadius: 20,
-      elevation: 10,
+      paddingBottom: 24,
     },
     modalHeader: {
       flexDirection: 'row',
@@ -1070,8 +1177,6 @@ function getStyles(colors: any) {
       backgroundColor: colors.surfaceSoft,
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
     },
     modalBody: {
       paddingHorizontal: 24,
@@ -1094,6 +1199,91 @@ function getStyles(colors: any) {
       color: colors.textPrimary,
       lineHeight: 24,
       fontWeight: '500',
+    },
+    modalOverlay: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+    },
+    modalOverlayBg: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(11, 22, 33, 0.45)',
+    },
+    deleteModalContent: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      width: '100%',
+      maxWidth: 340,
+      padding: 24,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowOffset: { width: 0, height: 10 },
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    deleteIconCircle: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 16,
+    },
+    deleteModalTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+    deleteModalText: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: 24,
+    },
+    deleteModalTextBold: {
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    deleteModalButtons: {
+      flexDirection: 'row',
+      gap: 12,
+      width: '100%',
+    },
+    deleteCancelBtn: {
+      flex: 1,
+      height: 48,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    deleteCancelBtnText: {
+      fontWeight: '700',
+      color: colors.textPrimary,
+      fontSize: 14,
+    },
+    deleteConfirmBtn: {
+      flex: 1,
+      height: 48,
+      borderRadius: 12,
+      backgroundColor: '#EF4444',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    deleteConfirmBtnText: {
+      fontWeight: '700',
+      color: '#FFFFFF',
+      fontSize: 14,
     },
   });
 }

@@ -902,7 +902,7 @@ export default function CampaignsScreen() {
                     mode={showDatePicker ? 'date' : 'time'}
                     display="spinner"
                     onChange={onDateTimeChange}
-                    textColor="#0B2341"
+                    textColor={colors.textPrimary}
                   />
                 </View>
               </View>

@@ -27,6 +27,14 @@ export interface OpenHouseEvent {
   send_report?: boolean;
   feedback_rating?: number;
   enquiries?: any[];
+  settings?: {
+    requireEmail: boolean;
+    requirePhone: boolean;
+    enableCheckIn: boolean;
+    hotLeadAlerts: boolean;
+    emailSummaries: boolean;
+    realtimeAlerts: boolean;
+  };
   property: {
     id: number;
     address: string;

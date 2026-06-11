@@ -1,6 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { createOpenHouse } from '@/services/openHouseService';
+import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
 import { getProperties, RawPropertyItem, uploadPropertyImage } from '@/services/propertyService';
 import { generateAiText } from '@/services/aiContentService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,7 +10,11 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
+import PhoneInput from 'react-native-phone-number-input';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import QRCode from 'react-native-qrcode-svg';
 import {
   ActivityIndicator,
   Alert,
@@ -60,6 +64,149 @@ const EXTENDED_BRAND_COLORS = ['#0B2D3E', '#0D9488', '#F97316', '#8B5CF6', '#10B
 
 // Static properties removed, now using dynamic data from API
 
+// Simple mapping for common country codes to ISO
+const COUNTRY_CODE_TO_ISO: Record<string, string> = {
+  '+1': 'US',
+  '+1-CA': 'CA',
+  '+7': 'RU',
+  '+20': 'EG',
+  '+27': 'ZA',
+  '+30': 'GR',
+  '+31': 'NL',
+  '+32': 'BE',
+  '+33': 'FR',
+  '+34': 'ES',
+  '+36': 'HU',
+  '+39': 'IT',
+  '+40': 'RO',
+  '+41': 'CH',
+  '+43': 'AT',
+  '+44': 'GB',
+  '+45': 'DK',
+  '+46': 'SE',
+  '+47': 'NO',
+  '+48': 'PL',
+  '+49': 'DE',
+  '+51': 'PE',
+  '+52': 'MX',
+  '+53': 'CU',
+  '+54': 'AR',
+  '+55': 'BR',
+  '+56': 'CL',
+  '+57': 'CO',
+  '+58': 'VE',
+  '+60': 'MY',
+  '+61': 'AU',
+  '+62': 'ID',
+  '+63': 'PH',
+  '+64': 'NZ',
+  '+65': 'SG',
+  '+66': 'TH',
+  '+81': 'JP',
+  '+82': 'KR',
+  '+84': 'VN',
+  '+86': 'CN',
+  '+90': 'TR',
+  '+91': 'IN',
+  '+92': 'PK',
+  '+93': 'AF',
+  '+94': 'LK',
+  '+95': 'MM',
+  '+98': 'IR',
+  '+212': 'MA',
+  '+213': 'DZ',
+  '+216': 'TN',
+  '+218': 'LY',
+  '+220': 'GM',
+  '+221': 'SN',
+  '+225': 'CI',
+  '+234': 'NG',
+  '+254': 'KE',
+  '+255': 'TZ',
+  '+256': 'UG',
+  '+260': 'ZM',
+  '+263': 'ZW',
+  '+351': 'PT',
+  '+353': 'IE',
+  '+355': 'AL',
+  '+358': 'FI',
+  '+359': 'BG',
+  '+372': 'EE',
+  '+373': 'MD',
+  '+374': 'AM',
+  '+375': 'BY',
+  '+380': 'UA',
+  '+381': 'RS',
+  '+385': 'HR',
+  '+386': 'SI',
+  '+387': 'BA',
+  '+420': 'CZ',
+  '+421': 'SK',
+  '+502': 'GT',
+  '+503': 'SV',
+  '+504': 'HN',
+  '+505': 'NI',
+  '+506': 'CR',
+  '+507': 'PA',
+  '+591': 'BO',
+  '+593': 'EC',
+  '+595': 'PY',
+  '+598': 'UY',
+  '+852': 'HK',
+  '+886': 'TW',
+  '+961': 'LB',
+  '+962': 'JO',
+  '+963': 'SY',
+  '+964': 'IQ',
+  '+965': 'KW',
+  '+966': 'SA',
+  '+968': 'OM',
+  '+971': 'AE',
+  '+972': 'IL',
+  '+973': 'BH',
+  '+974': 'QA',
+  '+977': 'NP',
+};
+
+const getIsoCode = (code: string | null) => {
+  if (!code) return 'US';
+  return COUNTRY_CODE_TO_ISO[code] || 'US';
+};
+
+const getCallingCodeForISO = (iso: string) => {
+  const entry = Object.entries(COUNTRY_CODE_TO_ISO).find(([code, val]) => val === iso);
+  return entry ? entry[0].replace('+', '') : '1';
+};
+
+const parseRawPhone = (rawPhone: string) => {
+  if (!rawPhone) return { countryCodeISO: 'US', nationalNumber: '' };
+  
+  const cleaned = rawPhone.trim();
+  if (!cleaned.startsWith('+')) {
+    return { countryCodeISO: 'US', nationalNumber: cleaned };
+  }
+  
+  let matchedKey = '';
+  for (const key of Object.keys(COUNTRY_CODE_TO_ISO)) {
+    if (cleaned.startsWith(key)) {
+      if (key.length > matchedKey.length) {
+        matchedKey = key;
+      }
+    }
+  }
+  
+  if (matchedKey) {
+    const national = cleaned.slice(matchedKey.length).replace(/[^0-9]/g, '');
+    return {
+      countryCodeISO: COUNTRY_CODE_TO_ISO[matchedKey],
+      nationalNumber: national
+    };
+  }
+  
+  return { countryCodeISO: 'US', nationalNumber: cleaned.replace(/[^0-9]/g, '') };
+};
+
+
 
 export default function OpenHouseCreateScreen() {
   const { colors } = useAppTheme();
@@ -75,10 +222,28 @@ export default function OpenHouseCreateScreen() {
     enabled: !!accessToken,
   });
 
+  const { data: openHousesData } = useQuery({
+    queryKey: ['open-houses'],
+    queryFn: () => getOpenHouses(accessToken || ''),
+    enabled: !!accessToken,
+  });
+
+  const activePropertyIds = useMemo(() => {
+    if (!openHousesData) return new Set<number>();
+    const activeEvents = openHousesData.filter(
+      (oh) => oh.status === 'live' || oh.status === 'upcoming'
+    );
+    return new Set<number>(activeEvents.map((oh) => oh.property_id));
+  }, [openHousesData]);
+
   const [activeStep, setActiveStep] = useState(0);
   const [isFinalized, setIsFinalized] = useState(false);
   const [createdOpenHouseId, setCreatedOpenHouseId] = useState<string | number>('');
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const selectedProperty = useMemo(() => {
+    if (!selectedPropertyId || !propertiesData?.properties) return null;
+    return propertiesData.properties.find((p: any) => p.id.toString() === selectedPropertyId);
+  }, [selectedPropertyId, propertiesData?.properties]);
   const [eventDate, setEventDate] = useState<Date | null>(null);
   const [startTimeDate, setStartTimeDate] = useState<Date | null>(null);
   const [endTimeDate, setEndTimeDate] = useState<Date | null>(null);
@@ -87,6 +252,9 @@ export default function OpenHouseCreateScreen() {
   const [brokerageName, setBrokerageName] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [agentPhone, setAgentPhone] = useState('');
+  const [countryCodeISO, setCountryCodeISO] = useState('US');
+  const [callingCode, setCallingCode] = useState('+1');
+  const phoneInputRef = useRef<PhoneInput>(null);
   const [agentEmail, setAgentEmail] = useState('');
   const [sendReport, setSendReport] = useState(true);
 
@@ -101,10 +269,10 @@ export default function OpenHouseCreateScreen() {
     };
   }, []);
 
-  const [errors, setErrors] = useState<{ agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string }>({});
+  const [errors, setErrors] = useState<{ agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string; agentPhone?: string }>({});
 
   const validateStep2 = () => {
-    const newErrors: { agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string } = {};
+    const newErrors: { agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string; agentPhone?: string } = {};
     if (!eventDate) {
       newErrors.eventDate = 'Date is required';
     }
@@ -122,6 +290,11 @@ export default function OpenHouseCreateScreen() {
       newErrors.agentEmail = 'Agent Email is required';
     } else if (!emailRegex.test(agentEmail.trim())) {
       newErrors.agentEmail = 'Please enter a valid email address';
+    }
+    if (!agentPhone.trim()) {
+      newErrors.agentPhone = 'Agent Phone is required';
+    } else if (phoneInputRef.current && !phoneInputRef.current.isValidNumber(agentPhone)) {
+      newErrors.agentPhone = `Invalid number for ${phoneInputRef.current.getCountryCode() || 'selected country'}`;
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -200,7 +373,7 @@ export default function OpenHouseCreateScreen() {
           brokerage: brokerageName,
           license: licenseNumber,
           email: agentEmail,
-          phone: agentPhone
+          phone: agentPhone ? `${callingCode}${agentPhone}` : ''
         },
         ai_description: description,
         brand_color: brandColors[accentIndex],
@@ -277,6 +450,7 @@ export default function OpenHouseCreateScreen() {
                 properties={propertiesData?.properties || []}
                 isLoading={isLoadingProperties}
                 selectedPropertyId={selectedPropertyId}
+                activePropertyIds={activePropertyIds}
                 onSelectProperty={(id) => {
                   setSelectedPropertyId(id);
                 }}
@@ -304,6 +478,11 @@ export default function OpenHouseCreateScreen() {
                 setSendReport={setSendReport}
                 errors={errors}
                 setErrors={setErrors}
+                phoneInputRef={phoneInputRef}
+                countryCodeISO={countryCodeISO}
+                setCountryCodeISO={setCountryCodeISO}
+                callingCode={callingCode}
+                setCallingCode={setCallingCode}
               />
             </ProgressStep>
             <ProgressStep label="CUSTOMIZATION" removeBtnRow>
@@ -335,11 +514,25 @@ export default function OpenHouseCreateScreen() {
               ) : (
                 <Step5SheetReady
                   createdId={createdOpenHouseId}
+                  propertyAddress={selectedProperty?.address || ''}
+                  propertyId={selectedProperty?.id?.toString() || ''}
                   onGoToDashboard={() => router.back()}
                   onCreateAnother={() => {
                     setIsFinalized(false);
                     setActiveStep(0);
                     setCreatedOpenHouseId('');
+                    setSelectedPropertyId(null);
+                    setEventDate(null);
+                    setStartTimeDate(null);
+                    setEndTimeDate(null);
+                    setDescription('');
+                    setGalleryImages([]);
+                    setAgencyLogoUri(null);
+                    setAgentName('');
+                    setBrokerageName('');
+                    setLicenseNumber('');
+                    setAgentPhone('');
+                    setAgentEmail('');
                   }}
                 />
               )}
@@ -407,11 +600,13 @@ function Step1SelectProperty({
   properties,
   isLoading,
   selectedPropertyId,
+  activePropertyIds,
   onSelectProperty,
 }: {
   properties: RawPropertyItem[];
   isLoading: boolean;
   selectedPropertyId: string | null;
+  activePropertyIds?: Set<number>;
   onSelectProperty: (id: string) => void;
 }) {
   const { colors } = useAppTheme();
@@ -444,13 +639,14 @@ function Step1SelectProperty({
           </View>
         ) : (
           properties.map((property) => {
+            const isScheduled = activePropertyIds?.has(property.id) || false;
             const isSelected = selectedPropertyId === property.id.toString();
             // Use user_images first, then media from bridgedata if available
             const imageUrl = property.data?.user_images?.[0] ||
               property.data?.Media?.[0]?.MediaURL ||
               PLACEHOLDER_1;
 
-            const status = property.status === 1 ? 'READY' : 'REVIEW';
+            const status = isScheduled ? 'SCHEDULED' : (property.status === 1 ? 'READY' : 'REVIEW');
             const price = property.data?.ListPrice ? `$${Number(property.data.ListPrice).toLocaleString()}` : 'Price N/A';
             const beds = property.data?.BedroomsTotal || property.data?.beds || '0';
             const baths = property.data?.BathroomsFull || property.data?.baths || '0';
@@ -458,8 +654,22 @@ function Step1SelectProperty({
             return (
               <Pressable
                 key={property.id}
-                style={[styles.propertyRow, isSelected && styles.propertyRowSelected]}
-                onPress={() => onSelectProperty(property.id.toString())}>
+                style={[
+                  styles.propertyRow,
+                  isSelected && styles.propertyRowSelected,
+                  isScheduled && { opacity: 0.6 }
+                ]}
+                onPress={() => {
+                  if (isScheduled) {
+                    Alert.alert(
+                      'Already Scheduled',
+                      'This property already has an active open house scheduled.'
+                    );
+                    return;
+                  }
+                  onSelectProperty(property.id.toString());
+                }}
+              >
                 <View style={styles.propertyRowImageWrap}>
                   <Image
                     source={{ uri: imageUrl }}
@@ -478,9 +688,11 @@ function Step1SelectProperty({
                     <Text style={styles.propertyRowPrice}>{price}</Text>
                     <View style={[
                       styles.statusPill,
-                      status === 'REVIEW' ? styles.statusPillReview : styles.statusPillReady
+                      isScheduled ? styles.statusPillScheduled : (status === 'REVIEW' ? styles.statusPillReview : styles.statusPillReady)
                     ]}>
-                      <Text style={styles.statusPillText}>{status}</Text>
+                      <Text style={
+                        isScheduled ? styles.statusPillTextScheduled : (status === 'REVIEW' ? styles.statusPillTextReview : styles.statusPillTextReady)
+                      }>{status}</Text>
                     </View>
                   </View>
 
@@ -536,6 +748,11 @@ function Step2Details({
   setSendReport,
   errors,
   setErrors,
+  phoneInputRef,
+  countryCodeISO,
+  setCountryCodeISO,
+  callingCode,
+  setCallingCode,
 }: {
   eventDate: Date | null;
   setEventDate: (d: Date | null) => void;
@@ -555,10 +772,15 @@ function Step2Details({
   setAgentEmail: (v: string) => void;
   sendReport: boolean;
   setSendReport: (v: boolean) => void;
-  errors: { agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string };
-  setErrors: React.Dispatch<React.SetStateAction<{ agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string }>>;
+  errors: { agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string; agentPhone?: string };
+  setErrors: React.Dispatch<React.SetStateAction<{ agentName?: string; agentEmail?: string; eventDate?: string; startTimeDate?: string; endTimeDate?: string; agentPhone?: string }>>;
+  phoneInputRef: React.RefObject<PhoneInput | null>;
+  countryCodeISO: string;
+  setCountryCodeISO: (v: string) => void;
+  callingCode: string;
+  setCallingCode: (v: string) => void;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, theme } = useAppTheme();
   const styles = getStyles(colors);
 
   const insets = useSafeAreaInsets();
@@ -723,16 +945,87 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>AGENT PHONE</Text>
-              <View style={styles.inputWrap}>
-                <TextInput
-                  style={styles.input}
-                  value={agentPhone}
-                  onChangeText={setAgentPhone}
-                  placeholder="(555) 000-0000"
-                  placeholderTextColor="#9CA3AF"
-                />
-              </View>
+              <Text style={styles.fieldLabel}>AGENT PHONE *</Text>
+              <PhoneInput
+                ref={phoneInputRef}
+                defaultValue={agentPhone}
+                defaultCode={countryCodeISO as any}
+                layout="first"
+                onChangeText={(text) => {
+                  const cleaned = text.replace(/[^0-9]/g, '').slice(0, 15);
+                  setAgentPhone(cleaned);
+                  if (errors.agentPhone) {
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.agentPhone;
+                      return next;
+                    });
+                  }
+                }}
+                onChangeFormattedText={(_text) => {
+                  const code = phoneInputRef.current?.getCallingCode();
+                  if (code) {
+                    setCallingCode(`+${code}`);
+                  }
+                }}
+                containerStyle={[
+                  styles.phoneInputWrapper,
+                  !!errors.agentPhone && { borderColor: '#EF4444' }
+                ]}
+                textContainerStyle={styles.phoneTextContainer}
+                textInputStyle={styles.phoneTextInput}
+                codeTextStyle={styles.phoneCodeText}
+                flagButtonStyle={styles.phoneFlagButton}
+                placeholder="Phone Number"
+                withDarkTheme={theme === 'dark'}
+                textInputProps={{
+                  maxLength: 15,
+                  keyboardType: 'phone-pad',
+                  placeholderTextColor: theme === 'dark' ? '#94A3B8' : '#9CA3AF',
+                }}
+                countryPickerProps={{
+                  withFilter: true,
+                  withAlphaFilter: true,
+                  renderFlagButton: (props: any) => {
+                    const code = (props.countryCode || 'US').toUpperCase();
+                    const emoji = code.replace(/./g, (c: string) =>
+                      String.fromCodePoint(0x1F1A5 + c.charCodeAt(0))
+                    );
+                    return <Text style={{ fontSize: 20, lineHeight: 26 }}>{emoji}</Text>;
+                  },
+                  theme: theme === 'dark' ? {
+                    backgroundColor: '#000000',
+                    onBackgroundTextColor: '#FFFFFF',
+                    fontSize: 16,
+                    filterPlaceholderTextColor: '#94A3B8',
+                  } : {
+                    backgroundColor: '#FFFFFF',
+                    onBackgroundTextColor: '#0F172A',
+                    fontSize: 16,
+                    filterPlaceholderTextColor: '#64748B',
+                  },
+                  modalProps: {
+                    statusBarTranslucent: true,
+                  },
+                  closeButtonStyle: {
+                    marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
+                  },
+                  filterProps: {
+                    placeholderTextColor: theme === 'dark' ? '#94A3B8' : '#64748B',
+                    style: {
+                      marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
+                      color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                      fontSize: 16,
+                      flex: 1,
+                    }
+                  }
+                }}
+              />
+              {errors.agentPhone && (
+                <Text style={{ color: '#EF4444', fontSize: 11, marginTop: 4, fontWeight: '600' }}>
+                  {errors.agentPhone}
+                </Text>
+              )}
             </View>
 
             <View style={styles.fieldSingle}>
@@ -787,7 +1080,7 @@ function Step2Details({
                     onChange={onPickerChange}
                     minimumDate={isDatePicker ? new Date() : undefined}
                     style={styles.pickerSpinner}
-                    textColor="#0B2D3E"
+                    textColor={colors.textPrimary}
                   />
                 )}
                 <Pressable style={styles.pickerDoneButton} onPress={confirmPicker}>
@@ -1037,7 +1330,10 @@ function Step4Customization({
                   <Text style={styles.addColorBtnText}>+</Text>
                 </Pressable>
               </View>
-              <Text style={styles.selectedColorText}>Current accent: <Text style={{ fontWeight: '800', color: currentAccent }}>{currentAccent}</Text></Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+                <Text style={[styles.selectedColorText, { marginBottom: 0 }]}>Current accent: <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{currentAccent}</Text></Text>
+                <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: currentAccent, borderWidth: 1.5, borderColor: colors.cardBorder }} />
+              </View>
 
               <Text style={styles.sectionHeaderLabelSmall}>LOGO PRESENTATION</Text>
               <View style={styles.segmentedControl}>
@@ -1262,41 +1558,76 @@ function Step4Customization({
 
 function Step5SheetReady({
   createdId,
+  propertyAddress,
+  propertyId,
   onGoToDashboard,
   onCreateAnother,
 }: {
   createdId?: string | number;
+  propertyAddress: string;
+  propertyId: string;
   onGoToDashboard: () => void;
   onCreateAnother: () => void;
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalTitle, setModalTitle] = useState('');
-  const [modalDescription, setModalDescription] = useState('');
-  const [modalIcon, setModalIcon] = useState('bullhorn-outline');
-  const [modalColor, setModalColor] = useState('#0D9488');
-
-  const showFeatureModal = (title: string, desc: string, icon: string, color: string) => {
-    setModalTitle(title);
-    setModalDescription(desc);
-    setModalIcon(icon);
-    setModalColor(color);
-    setModalVisible(true);
-  };
+  const qrRef = useRef<any>(null);
 
   const handleCopyLink = () => {
-    const linkId = createdId || '27';
-    const link = `https://staging.zien.ai/open-house/check-in/${linkId}`;
+    const addressToUse = propertyAddress || '5703 Rhetta Lane, Spring TX 77389';
+    const link = `https://staging.zien.ai/open-house/check-in/${encodeURIComponent(addressToUse)}`;
     Clipboard.setString(link);
     Alert.alert(
-      'Link Copied',
-      `The check-in portfolio link has been copied to your clipboard:\n\n${link}`
+      'Copied Successfully',
+      `The digital share link has been copied to your clipboard:\n\n${link}`
     );
+  };
+
+  const handleDownloadQR = () => {
+    if (!qrRef.current) {
+      Alert.alert('Not Ready', 'QR code is not ready yet. Please try again.');
+      return;
+    }
+    qrRef.current.toDataURL(async (data: string) => {
+      try {
+        const filePath = `${FileSystem.documentDirectory}qrcode-${createdId || 'temp'}.png`;
+        await FileSystem.writeAsStringAsync(filePath, data, { encoding: FileSystem.EncodingType.Base64 });
+        await Sharing.shareAsync(filePath, { mimeType: 'image/png', UTI: 'public.png', dialogTitle: 'Save QR Code' });
+      } catch (e) {
+        Alert.alert('Error', 'Failed to download QR code.');
+      }
+    });
+  };
+
+  const handleLaunchCampaign = () => {
+    const addressToUse = propertyAddress || '5703 Rhetta Lane, Spring TX 77389';
+    router.push({
+      pathname: '/(main)/crm/campaigns',
+      params: {
+        openAiModal: 'true',
+        aiPrompt: `Write a persuasive email campaign promoting my new listing at ${addressToUse}. Include a strong call to action for the recipient to click the link to view the property photos and RSVP.`
+      }
+    });
+  };
+
+  const handlePostToSocial = () => {
+    router.push({
+      pathname: '/(main)/social-hub/create-post',
+      params: { propertyId }
+    });
   };
 
   return (
     <View style={styles.stepContent}>
+      <View style={{ position: 'absolute', opacity: 0, left: -1000, top: -1000 }}>
+        <QRCode
+          value={`https://staging.zien.ai/open-house/check-in/${encodeURIComponent(propertyAddress || '5703 Rhetta Lane, Spring TX 77389')}`}
+          size={200}
+          color="#0B2D3E"
+          backgroundColor="#FFFFFF"
+          {...({ getRef: (ref: any) => { qrRef.current = ref; } } as any)}
+        />
+      </View>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.readyMobileScrollContent}
@@ -1311,14 +1642,6 @@ function Step5SheetReady({
         <View style={styles.readyMobileGrid}>
           <Pressable
             style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-            onPress={() => showFeatureModal('PDF Dossier Preparation', "We are finalising Zien's PDF document generation engine. Soon you will be able to export rich property flyers directly to your phone!", 'file-pdf-box', '#EF4444')}
-          >
-            <MaterialCommunityIcons name="file-document-outline" size={32} color="#EF4444" />
-            <Text style={styles.readyMobileCardLabel}>Download PDF</Text>
-            <Text style={styles.readyMobileCardSubLabel}>PROPERTY DOSSIER</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
             onPress={handleCopyLink}
           >
             <MaterialCommunityIcons name="link-variant" size={32} color={colors.accentTeal} />
@@ -1327,19 +1650,27 @@ function Step5SheetReady({
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-            onPress={() => showFeatureModal('Campaign Syncing', "Match leads automatically with active campaigns. Complete bi-directional synchronization with your CRM dashboard will launch soon!", 'bullhorn-outline', '#4F46E5')}
+            onPress={handleDownloadQR}
           >
-            <MaterialCommunityIcons name="bullhorn-outline" size={32} color="#4F46E5" />
-            <Text style={styles.readyMobileCardLabel}>Add to campaigns</Text>
-            <Text style={styles.readyMobileCardSubLabel}>ADD TO CAMPAIGNS</Text>
+            <MaterialCommunityIcons name="qrcode" size={32} color="#0B2D3E" />
+            <Text style={styles.readyMobileCardLabel}>Download QR Code</Text>
+            <Text style={styles.readyMobileCardSubLabel}>PRINT FOR DESK</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-            onPress={() => showFeatureModal('Smart AI Follow-Ups', "Set up Zien's dynamic AI email responders for check-ins. Automated personalized visitor nurture workflows will be ready soon!", 'email-plus-outline', '#0D9488')}
+            onPress={handleLaunchCampaign}
           >
-            <MaterialCommunityIcons name="email-plus-outline" size={32} color="#0D9488" />
-            <Text style={styles.readyMobileCardLabel}>Email Automation</Text>
-            <Text style={styles.readyMobileCardSubLabel}>CREATE AI AUTOMATION</Text>
+            <MaterialCommunityIcons name="email-outline" size={32} color="#4F46E5" />
+            <Text style={styles.readyMobileCardLabel}>Launch Campaign</Text>
+            <Text style={styles.readyMobileCardSubLabel}>EMAIL & SMS</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+            onPress={handlePostToSocial}
+          >
+            <MaterialCommunityIcons name="share-variant" size={32} color="#8B5CF6" />
+            <Text style={styles.readyMobileCardLabel}>Post to Social</Text>
+            <Text style={styles.readyMobileCardSubLabel}>INSTAGRAM/FACEBOOK</Text>
           </Pressable>
         </View>
 
@@ -1352,48 +1683,6 @@ function Step5SheetReady({
           </Pressable>
         </View>
       </ScrollView>
-
-      {/* Premium Coming Soon Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setModalVisible(false)}
-        >
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <View style={[styles.modalIconBg, { backgroundColor: modalColor + '15' }]}>
-              <MaterialCommunityIcons name={modalIcon as any} size={42} color={modalColor} />
-            </View>
-
-            <Text style={styles.modalTitle}>{modalTitle}</Text>
-
-            <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: modalColor + '20' }]}>
-                <Text style={[styles.badgeText, { color: modalColor }]}>COMING SOON</Text>
-              </View>
-            </View>
-
-            <Text style={styles.modalDescription}>
-              {modalDescription}
-            </Text>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.modalCloseBtn,
-                { backgroundColor: modalColor },
-                pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }
-              ]}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.modalCloseBtnText}>Awesome, Got It!</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -1586,16 +1875,31 @@ function getStyles(colors: any) {
       borderRadius: 6,
     },
     statusPillReady: {
-      backgroundColor: '#DCFCE7',
+      backgroundColor: 'rgba(16, 185, 129, 0.15)',
     },
     statusPillReview: {
-      backgroundColor: '#FEE2E2',
+      backgroundColor: colors.dangerBg,
     },
-    statusPillText: {
+    statusPillScheduled: {
+      backgroundColor: 'rgba(249, 115, 22, 0.15)',
+    },
+    statusPillTextReady: {
       fontSize: 8,
       fontWeight: '800',
       letterSpacing: 0.5,
-      color: colors.textPrimary,
+      color: '#10B981',
+    },
+    statusPillTextReview: {
+      fontSize: 8,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      color: colors.danger,
+    },
+    statusPillTextScheduled: {
+      fontSize: 8,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      color: '#F97316',
     },
     propertyRowAddress: {
       fontSize: 13,
@@ -2197,6 +2501,44 @@ function getStyles(colors: any) {
       color: colors.textPrimary,
       padding: 0,
     },
+    phoneInputWrapper: {
+      width: '100%',
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      height: 48,
+      overflow: 'hidden',
+    },
+    phoneTextContainer: {
+      backgroundColor: 'transparent',
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      height: '100%',
+    },
+    phoneTextInput: {
+      fontSize: 13,
+      marginLeft: 10,
+      color: colors.textPrimary,
+      fontWeight: '600',
+      backgroundColor: 'transparent',
+      padding: 0,
+    },
+    phoneCodeText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      paddingHorizontal: 10,
+    },
+    phoneFlagButton: {
+      width: 60,
+      height: 48,
+      backgroundColor: 'transparent',
+      borderRightWidth: 1.5,
+      borderRightColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     uploadArea: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2634,10 +2976,12 @@ function getStyles(colors: any) {
     },
     segmentedControl: {
       flexDirection: 'row',
-      backgroundColor: '#E2E8F0',
+      backgroundColor: colors.surfaceSoft,
       borderRadius: 12,
       padding: 4,
       marginBottom: 16,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
     },
     segmentBtn: {
       flex: 1,
@@ -2646,9 +2990,9 @@ function getStyles(colors: any) {
       borderRadius: 8,
     },
     segmentBtnActive: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.cardBackground,
       ...Platform.select({
-        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 2 },
+        ios: { shadowColor: colors.cardShadowColor, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 2 },
         android: { elevation: 1 },
       }),
     },
@@ -2705,23 +3049,23 @@ function getStyles(colors: any) {
     },
     colorSwatchActive: {
       borderWidth: 2,
-      borderColor: '#0F172A',
+      borderColor: colors.textPrimary,
       transform: [{ scale: 1.1 }],
     },
     addColorBtn: {
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surfaceSoft,
       borderWidth: 2,
-      borderColor: '#E2E8F0',
+      borderColor: colors.cardBorder,
       alignItems: 'center',
       justifyContent: 'center',
     },
     addColorBtnText: {
       fontSize: 20,
       fontWeight: '700',
-      color: '#94A3B8',
+      color: colors.textSecondary,
       lineHeight: 22,
     },
     selectedColorText: {
@@ -2746,29 +3090,30 @@ function getStyles(colors: any) {
       paddingHorizontal: 12,
       paddingVertical: 4,
       borderRadius: 20,
-      borderWidth: 1,
-      borderColor: '#0F172A',
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
       backgroundColor: 'transparent',
     },
     stylePillActive: {
-      backgroundColor: '#0F172A',
+      backgroundColor: colors.accentTeal,
+      borderColor: colors.accentTeal,
     },
     stylePillText: {
       fontSize: 11,
       fontWeight: '700',
-      color: '#0F172A',
+      color: colors.textSecondary,
     },
     stylePillTextActive: {
-      color: '#FFFFFF',
+      color: colors.cardBackground,
     },
     aiInput: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surfaceSoft,
       borderRadius: 12,
-      borderWidth: 1,
-      borderColor: '#E2E8F0',
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
       padding: 16,
       fontSize: 13,
-      color: colors.textSecondary,
+      color: colors.textPrimary,
       height: 120,
       textAlignVertical: 'top',
       lineHeight: 20,
@@ -2787,9 +3132,9 @@ function getStyles(colors: any) {
       color: '#FFFFFF',
     },
     galleryUploadBox: {
-      backgroundColor: '#F8FAFC',
+      backgroundColor: colors.surfaceSoft,
       borderWidth: 2,
-      borderColor: '#00A7B5',
+      borderColor: colors.accentTeal,
       borderStyle: 'dashed',
       borderRadius: 12,
       height: 160,
@@ -2802,7 +3147,7 @@ function getStyles(colors: any) {
     galleryUploadText: {
       fontSize: 11,
       fontWeight: '800',
-      color: '#00A7B5',
+      color: colors.accentTeal,
       letterSpacing: 0.5,
     },
     galleryImageItem: {
@@ -2810,9 +3155,9 @@ function getStyles(colors: any) {
       height: 140,
       borderRadius: 12,
       overflow: 'hidden',
-      backgroundColor: '#FFFFFF',
-      borderWidth: 1,
-      borderColor: '#E2E8F0',
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
       position: 'relative',
     },
     galleryImageThumb: {
@@ -2823,7 +3168,7 @@ function getStyles(colors: any) {
       position: 'absolute',
       top: 6,
       right: 6,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surfaceLight,
       borderRadius: 12,
       padding: 0,
       zIndex: 10,
@@ -2831,9 +3176,9 @@ function getStyles(colors: any) {
     galleryAddBoxSmall: {
       width: 140,
       height: 140,
-      backgroundColor: '#F8FAFC',
+      backgroundColor: colors.surfaceSoft,
       borderWidth: 1.5,
-      borderColor: '#00A7B5',
+      borderColor: colors.accentTeal,
       borderStyle: 'dashed',
       borderRadius: 12,
       alignItems: 'center',
@@ -2843,19 +3188,19 @@ function getStyles(colors: any) {
     galleryAddTextSmall: {
       fontSize: 10,
       fontWeight: '800',
-      color: '#00A7B5',
+      color: colors.accentTeal,
     },
     logoUploadContainer: {
-      backgroundColor: '#F8FAFC',
+      backgroundColor: colors.surfaceSoft,
       borderWidth: 1.5,
-      borderColor: '#00A7B5',
+      borderColor: colors.accentTeal,
       borderStyle: 'dashed',
       borderRadius: 12,
       padding: 16,
       marginTop: 12,
     },
     logoUploadBtn: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.cardBackground,
       borderRadius: 10,
       paddingVertical: 12,
       paddingHorizontal: 16,
@@ -2864,22 +3209,22 @@ function getStyles(colors: any) {
       justifyContent: 'center',
       gap: 12,
       borderWidth: 1,
-      borderColor: '#E2E8F0',
+      borderColor: colors.cardBorder,
       flex: 1,
     },
     logoUploadBtnText: {
       fontSize: 13,
       fontWeight: '800',
-      color: '#0F172A',
+      color: colors.textPrimary,
     },
     logoPreviewWrap: {
       width: 120,
       height: 120,
       borderRadius: 12,
       overflow: 'hidden',
-      backgroundColor: '#FFFFFF',
-      borderWidth: 1,
-      borderColor: '#E2E8F0',
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
       marginTop: 12,
     },
     logoPreview: {
