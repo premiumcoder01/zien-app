@@ -256,6 +256,9 @@ export default function CRM_TemplatesScreen() {
         mutationFn: (id: string) => deleteCRMTemplate(accessToken || '', id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['crmTemplates'] });
+            setConfirmDeleteVisible(false);
+            setTemplateToDelete(null);
+            Alert.alert('Success', 'Template deleted successfully.');
         },
         onError: (error) => {
             Alert.alert('Error', 'Failed to delete template. Please try again.');
@@ -271,8 +274,6 @@ export default function CRM_TemplatesScreen() {
     const handleConfirmDelete = () => {
         if (templateToDelete) {
             deleteMutation.mutate(templateToDelete);
-            setConfirmDeleteVisible(false);
-            setTemplateToDelete(null);
         }
     };
 
@@ -741,11 +742,15 @@ export default function CRM_TemplatesScreen() {
                             This template will be permanently removed and cannot be recovered.
                         </Text>
                         <View style={styles.modalBtnRow}>
-                            <Pressable style={styles.ghostBtn} onPress={() => setConfirmDeleteVisible(false)}>
+                            <Pressable style={styles.ghostBtn} onPress={() => setConfirmDeleteVisible(false)} disabled={deleteMutation.isPending}>
                                 <Text style={styles.ghostBtnText}>Cancel</Text>
                             </Pressable>
-                            <Pressable style={styles.dangerBtn} onPress={handleConfirmDelete}>
-                                <Text style={styles.dangerBtnText}>Delete</Text>
+                            <Pressable style={styles.dangerBtn} onPress={handleConfirmDelete} disabled={deleteMutation.isPending}>
+                                {deleteMutation.isPending ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <Text style={styles.dangerBtnText}>Delete</Text>
+                                )}
                             </Pressable>
                         </View>
                     </View>

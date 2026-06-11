@@ -939,13 +939,15 @@ export const updateCRMTag = async (accessToken: string, tagId: number, name: str
         clearTimeout(timeoutId);
     }
 };
-
-export const getCRMFollowUps = async (accessToken: string): Promise<CRMFollowUp[]> => {
+export const getCRMFollowUps = async (accessToken: string, tab?: string): Promise<CRMFollowUp[]> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/follow-ups`, {
+        const url = tab
+            ? `${CRM_API_BASE_URL}/solo/crm/follow-ups?tab=${tab}`
+            : `${CRM_API_BASE_URL}/solo/crm/follow-ups`;
+        const response = await fetch(url, {
             method: 'GET',
             signal: controller.signal,
             headers: {
@@ -1415,6 +1417,58 @@ export const deleteCRMCampaign = async (accessToken: string, campaignId: string)
         const CAMPAIGN_API_URL = `${CRM_API_BASE_URL}/solo/crm/campaigns/${campaignId}`;
         const response = await fetch(CAMPAIGN_API_URL, {
             method: 'DELETE',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export interface CRMCampaignROIStreamItem {
+    name: string;
+    action: string;
+    channel: string;
+    time: string;
+    score: string;
+}
+
+export interface CRMCampaignROI {
+    id: string;
+    name: string;
+    delivered: string;
+    open_rate: string;
+    click_rate: string;
+    reply_rate: string;
+    conversion_rate: string;
+    stream: CRMCampaignROIStreamItem[];
+}
+
+export const getCRMCampaignROI = async (accessToken: string, campaignId: string): Promise<CRMCampaignROI> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+        const CAMPAIGN_ROI_API_URL = `${CRM_API_BASE_URL}/solo/crm/campaigns/${campaignId}/roi`;
+        const response = await fetch(CAMPAIGN_ROI_API_URL, {
+            method: 'GET',
             signal: controller.signal,
             headers: {
                 Accept: 'application/json',

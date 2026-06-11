@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import PhoneInput from "react-native-phone-number-input";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AILeadImportModal } from './components/modals/AILeadImportModal';
@@ -62,18 +62,6 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
           </View>
           <Text style={styles.leadCardSub} numberOfLines={1}>{lead.email || 'No email provided'}</Text>
         </View>
-
-        <View style={{ alignItems: 'flex-end', gap: 8 }}>
-          <View style={[styles.statusBadge, { backgroundColor: `${badgeColor}15` }]}>
-            <Text style={[styles.statusLabel, { color: badgeColor }]}>{badgeLabel}</Text>
-          </View>
-          <View style={styles.scoreContainer}>
-            <Text style={styles.scoreTitle}>AI SCORE</Text>
-            <Text style={[styles.scoreValue, isHigh ? { color: colors.accentTeal } : isLow ? { color: colors.danger || '#E11D48' } : { color: colors.textPrimary }]}>
-              {lead.score}
-            </Text>
-          </View>
-        </View>
       </View>
 
       <View style={styles.divider} />
@@ -94,6 +82,26 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
       </View>
 
       <View style={styles.tagsRow}>
+        {/* 1. Status Badge */}
+        <View style={[styles.statusBadgeInline, { backgroundColor: `${badgeColor}15` }]}>
+          <View style={[styles.statusDotSmall, { backgroundColor: badgeColor }]} />
+          <Text style={[styles.statusLabelInline, { color: badgeColor }]}>{badgeLabel}</Text>
+        </View>
+
+        {/* 2. AI Score Badge */}
+        <View style={styles.aiScoreBadge}>
+          <MaterialCommunityIcons
+            name="brain"
+            size={12}
+            color={isHigh ? colors.accentTeal : isLow ? (colors.danger || '#E11D48') : colors.textSecondary}
+          />
+          <Text style={styles.aiScoreTitle}>AI SCORE </Text>
+          <Text style={[styles.aiScoreValue, isHigh ? { color: colors.accentTeal } : isLow ? { color: colors.danger || '#E11D48' } : { color: colors.textPrimary }]}>
+            {lead.score}
+          </Text>
+        </View>
+
+        {/* 3. Custom Tag Badge */}
         {lead.tag && (
           <View style={[styles.tagBadge, { backgroundColor: `${lead.tag.tag_color}15`, borderColor: `${lead.tag.tag_color}30` }]}>
             <View style={[styles.tagDot, { backgroundColor: lead.tag.tag_color }]} />
@@ -620,9 +628,9 @@ export default function LeadsScreen() {
             <View style={styles.modalDeleteIconCircle}>
               <MaterialCommunityIcons name="alert-outline" size={32} color={colors.danger || "#EF4444"} />
             </View>
-            <Text style={styles.modalDeleteTitle}>Erase Opportunity?</Text>
+            <Text style={styles.modalDeleteTitle}>Delete Lead?</Text>
             <Text style={styles.modalDeleteSubtitle}>
-              This lead and its AI scoring history will be{'\n'}deleted. This action cannot be undone.
+              This lead will be deleted. This action cannot be undone.
             </Text>
             <View style={styles.modalDeleteActions}>
               <Pressable style={styles.modalCancelBtn} onPress={() => setLeadToDelete(null)} disabled={isDeleting}>
@@ -657,252 +665,257 @@ export default function LeadsScreen() {
             </Pressable>
           </View>
 
-          <ScrollView style={styles.fullScreenModalContent} contentContainerStyle={{ paddingBottom: 200 }} key={leadToEdit ? leadToEdit.id : 'new_lead'}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ flex: 1 }}
+          >
+            <ScrollView style={styles.fullScreenModalContent} contentContainerStyle={{ paddingBottom: 60 }} key={leadToEdit ? leadToEdit.id : 'new_lead'}>
 
-            <View style={styles.convertCol}>
-              <Text style={styles.convertLabel}>First Name <Text style={{ color: '#E11D48' }}>*</Text></Text>
-              <TextInput
-                style={[styles.convertInput, errors.firstName && styles.inputError]}
-                value={firstName}
-                onChangeText={(t) => { setFirstName(t); if (errors.firstName) setErrors(prev => ({ ...prev, firstName: '' })); }}
-                placeholder="John"
-                placeholderTextColor={colors.textMuted || "#8DA4B5"}
-              />
-              {errors.firstName ? <Text style={styles.inlineError}>{errors.firstName}</Text> : null}
-            </View>
-            <View style={styles.convertCol}>
-              <Text style={styles.convertLabel}>Last Name <Text style={{ color: '#E11D48' }}>*</Text></Text>
-              <TextInput
-                style={[styles.convertInput, errors.lastName && styles.inputError]}
-                value={lastName}
-                onChangeText={(t) => { setLastName(t); if (errors.lastName) setErrors(prev => ({ ...prev, lastName: '' })); }}
-                placeholder="Doe"
-                placeholderTextColor={colors.textMuted || "#8DA4B5"}
-              />
-              {errors.lastName ? <Text style={styles.inlineError}>{errors.lastName}</Text> : null}
-            </View>
-            <View style={styles.convertCol}>
-              <Text style={styles.convertLabel}>Email <Text style={{ color: '#E11D48' }}>*</Text></Text>
-              <TextInput
-                style={[styles.convertInput, errors.email && styles.inputError]}
-                value={email}
-                onChangeText={(t) => { setEmail(t); if (errors.email) setErrors(prev => ({ ...prev, email: '' })); }}
-                placeholder="john@example.com"
-                placeholderTextColor={colors.textMuted || "#8DA4B5"}
-              />
-              {errors.email ? <Text style={styles.inlineError}>{errors.email}</Text> : null}
-            </View>
-            <View style={styles.convertCol}>
-              <Text style={styles.convertLabel}>Phone</Text>
-              <PhoneInput
-                ref={phoneInput}
-                defaultValue={phone}
-                defaultCode={countryCode as any}
-                layout="second"
-                containerStyle={[styles.phoneInputWrapper, errors.phone && styles.inputError]}
-                textContainerStyle={styles.phoneTextContainer}
-                textInputStyle={styles.phoneTextInput}
-                codeTextStyle={styles.phoneCodeText}
-                flagButtonStyle={styles.phoneFlagButton}
-                onChangeText={(text) => { setPhone(text); if (errors.phone) setErrors(prev => ({ ...prev, phone: '' })); }}
-                onChangeFormattedText={(text) => setFormattedPhone(text)}
-                onChangeCountry={(country) => setCountryCode(country.cca2 as any)}
-                withDarkTheme={theme === 'dark'}
-                countryPickerProps={{
-                  withFilter: true,
-                  withAlphaFilter: true,
-                  renderFlagButton: (props: any) => {
-                    const code = (props.countryCode || 'US').toUpperCase();
-                    const emoji = code.replace(/./g, (c: string) =>
-                      String.fromCodePoint(0x1F1A5 + c.charCodeAt(0))
-                    );
-                    return <Text style={{ fontSize: 22, lineHeight: 30, marginLeft: 10 }}>{emoji}</Text>;
-                  },
-                  theme: theme === 'dark' ? {
-                    backgroundColor: '#000000',
-                    onBackgroundTextColor: '#FFFFFF',
-                    fontSize: 15,
-                    filterPlaceholderTextColor: '#94A3B8',
-                  } : {
-                    backgroundColor: '#FFFFFF',
-                    onBackgroundTextColor: '#0F172A',
-                    fontSize: 15,
-                    filterPlaceholderTextColor: '#64748B',
-                  },
-                  modalProps: {
-                    statusBarTranslucent: true,
-                  },
-                  closeButtonStyle: {
-                    marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
-                  },
-                  filterProps: {
-                    placeholderTextColor: theme === 'dark' ? '#94A3B8' : '#64748B',
-                    style: {
-                      color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+              <View style={styles.convertCol}>
+                <Text style={styles.convertLabel}>First Name <Text style={{ color: '#E11D48' }}>*</Text></Text>
+                <TextInput
+                  style={[styles.convertInput, errors.firstName && styles.inputError]}
+                  value={firstName}
+                  onChangeText={(t) => { setFirstName(t); if (errors.firstName) setErrors(prev => ({ ...prev, firstName: '' })); }}
+                  placeholder="John"
+                  placeholderTextColor={colors.textMuted || "#8DA4B5"}
+                />
+                {errors.firstName ? <Text style={styles.inlineError}>{errors.firstName}</Text> : null}
+              </View>
+              <View style={styles.convertCol}>
+                <Text style={styles.convertLabel}>Last Name <Text style={{ color: '#E11D48' }}>*</Text></Text>
+                <TextInput
+                  style={[styles.convertInput, errors.lastName && styles.inputError]}
+                  value={lastName}
+                  onChangeText={(t) => { setLastName(t); if (errors.lastName) setErrors(prev => ({ ...prev, lastName: '' })); }}
+                  placeholder="Doe"
+                  placeholderTextColor={colors.textMuted || "#8DA4B5"}
+                />
+                {errors.lastName ? <Text style={styles.inlineError}>{errors.lastName}</Text> : null}
+              </View>
+              <View style={styles.convertCol}>
+                <Text style={styles.convertLabel}>Email <Text style={{ color: '#E11D48' }}>*</Text></Text>
+                <TextInput
+                  style={[styles.convertInput, errors.email && styles.inputError]}
+                  value={email}
+                  onChangeText={(t) => { setEmail(t); if (errors.email) setErrors(prev => ({ ...prev, email: '' })); }}
+                  placeholder="john@example.com"
+                  placeholderTextColor={colors.textMuted || "#8DA4B5"}
+                />
+                {errors.email ? <Text style={styles.inlineError}>{errors.email}</Text> : null}
+              </View>
+              <View style={styles.convertCol}>
+                <Text style={styles.convertLabel}>Phone</Text>
+                <PhoneInput
+                  ref={phoneInput}
+                  defaultValue={phone}
+                  defaultCode={countryCode as any}
+                  layout="second"
+                  containerStyle={[styles.phoneInputWrapper, errors.phone && styles.inputError]}
+                  textContainerStyle={styles.phoneTextContainer}
+                  textInputStyle={styles.phoneTextInput}
+                  codeTextStyle={styles.phoneCodeText}
+                  flagButtonStyle={styles.phoneFlagButton}
+                  onChangeText={(text) => { setPhone(text); if (errors.phone) setErrors(prev => ({ ...prev, phone: '' })); }}
+                  onChangeFormattedText={(text) => setFormattedPhone(text)}
+                  onChangeCountry={(country) => setCountryCode(country.cca2 as any)}
+                  withDarkTheme={theme === 'dark'}
+                  countryPickerProps={{
+                    withFilter: true,
+                    withAlphaFilter: true,
+                    renderFlagButton: (props: any) => {
+                      const code = (props.countryCode || 'US').toUpperCase();
+                      const emoji = code.replace(/./g, (c: string) =>
+                        String.fromCodePoint(0x1F1A5 + c.charCodeAt(0))
+                      );
+                      return <Text style={{ fontSize: 22, lineHeight: 30, marginLeft: 10 }}>{emoji}</Text>;
+                    },
+                    theme: theme === 'dark' ? {
+                      backgroundColor: '#000000',
+                      onBackgroundTextColor: '#FFFFFF',
                       fontSize: 15,
-                      flex: 1,
+                      filterPlaceholderTextColor: '#94A3B8',
+                    } : {
+                      backgroundColor: '#FFFFFF',
+                      onBackgroundTextColor: '#0F172A',
+                      fontSize: 15,
+                      filterPlaceholderTextColor: '#64748B',
+                    },
+                    modalProps: {
+                      statusBarTranslucent: true,
+                    },
+                    closeButtonStyle: {
                       marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
+                    },
+                    filterProps: {
+                      placeholderTextColor: theme === 'dark' ? '#94A3B8' : '#64748B',
+                      style: {
+                        color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                        fontSize: 15,
+                        flex: 1,
+                        marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
+                      }
                     }
-                  }
-                }}
-              />
-              {errors.phone ? <Text style={styles.inlineError}>{errors.phone}</Text> : null}
-            </View>
-
-
-            <View style={{ zIndex: 12 }}>
-              <View style={[styles.convertCol, { marginBottom: 16 }]}>
-                <Text style={styles.convertLabel}>Source</Text>
-                <Pressable
-                  style={styles.convertDropdown}
-                  onPress={() => {
-                    openSelection('Select Source', ['Manual Entry', 'Website', 'Referral', 'Social Media', 'Open House', 'Zillow'], (opt) => setEditSource(opt));
                   }}
-                >
-                  <Text style={styles.convertDropdownText}>{editSource}</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={{ zIndex: 11 }}>
-              <View style={[styles.convertCol, { marginBottom: 16 }]}>
-                <Text style={styles.convertLabel}>Status</Text>
-                <Pressable
-                  style={styles.convertDropdown}
-                  onPress={() => {
-                    openSelection('Select Status', ['Active', 'Inactive'], (opt) => setEditStatus(opt));
-                  }}
-                >
-                  <Text style={styles.convertDropdownText}>{editStatus}</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={[styles.convertRow, { zIndex: 10 }]}>
-              <View style={styles.convertCol}>
-                <Text style={styles.convertLabel}>Group <Text style={{ color: '#E11D48' }}>*</Text></Text>
-                <Pressable
-                  style={[styles.convertDropdown, errors.group && styles.inputError]}
-                  onPress={() => {
-                    openSelection(
-                      'Select Group',
-                      ([...(crmMeta?.groups.map(g => g.name) || []), 'Custom Group...']),
-                      (opt) => {
-                        setEditGroup(opt);
-                        if (errors.group) setErrors(prev => ({ ...prev, group: '' }));
-                        if (opt !== 'Custom Group...') {
-                          setCustomGroup('');
-                          const matched = crmMeta?.groups.find(g => g.name === opt);
-                          if (matched) setSelectedGroupId(matched.id);
-                        } else {
-                          setSelectedGroupId(null);
-                        }
-                      }
-                    );
-                  }}
-                >
-                  <Text style={[styles.convertDropdownText, editGroup === 'Select Group' && { color: colors.textMuted }]}>{editGroup}</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                </Pressable>
-                {errors.group ? <Text style={styles.inlineError}>{errors.group}</Text> : null}
-              </View>
-            </View>
-
-            {editGroup === 'Custom Group...' && (
-              <View style={[styles.convertCol, { marginBottom: 20 }]}>
-                <Text style={styles.convertLabel}>Custom Group Name</Text>
-                <TextInput
-                  style={styles.convertInput}
-                  placeholder="Enter custom group"
-                  placeholderTextColor={colors.textMuted || "#8DA4B5"}
-                  value={customGroup}
-                  onChangeText={setCustomGroup}
                 />
+                {errors.phone ? <Text style={styles.inlineError}>{errors.phone}</Text> : null}
               </View>
-            )}
 
-            <View style={[styles.convertRow, { zIndex: 9 }]}>
-              <View style={styles.convertCol}>
-                <Text style={styles.convertLabel}>Tag <Text style={{ color: '#E11D48' }}>*</Text></Text>
-                <Pressable
-                  style={[styles.convertDropdown, errors.tag && styles.inputError]}
-                  onPress={() => {
-                    openSelection(
-                      'Select Tag',
-                      ([...(crmMeta?.tags.map(t => t.name) || []), 'Custom Tag...']),
-                      (opt) => {
-                        setEditTag(opt);
-                        if (errors.tag) setErrors(prev => ({ ...prev, tag: '' }));
-                        if (opt !== 'Custom Tag...') {
-                          setCustomTag('');
-                          const matched = crmMeta?.tags.find(t => t.name === opt);
-                          if (matched) setSelectedTagId(matched.id);
-                        } else {
-                          setSelectedTagId(null);
-                        }
-                      }
-                    );
-                  }}
-                >
-                  <Text style={[styles.convertDropdownText, editTag === 'Select Tag' && { color: colors.textMuted }]}>{editTag}</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                </Pressable>
-                {errors.tag ? <Text style={styles.inlineError}>{errors.tag}</Text> : null}
-              </View>
-            </View>
 
-            {editTag === 'Custom Tag...' && (
-              <View style={[styles.convertCol, { marginBottom: 20 }]}>
-                <Text style={styles.convertLabel}>Custom Tag Name</Text>
-                <TextInput
-                  style={styles.convertInput}
-                  placeholder="Enter custom tag"
-                  placeholderTextColor={colors.textMuted || "#8DA4B5"}
-                  value={customTag}
-                  onChangeText={setCustomTag}
-                />
-              </View>
-            )}
-            {editTag === 'Custom Tag...' && (
-              <View style={[styles.convertCol, { marginBottom: 32 }]}>
-                <Text style={styles.convertLabel}>Tag Color Theme</Text>
-                <View style={styles.tagColorRow}>
-                  {['#0a2341', '#FF6B00', '#0B2D3E', '#6366F1', '#10B981', '#64748B', '#E11D48', '#9333EA'].map((color) => {
-                    const isActive = editColor === color;
-                    return (
-                      <Pressable
-                        key={color}
-                        onPress={() => setEditColor(color)}
-                        style={isActive ? [styles.tagColorCircleOuter, { borderColor: color === '#FF6B00' ? '#FF8A00' : color }] : undefined}
-                      >
-                        <View style={[styles.tagColorCircle, { backgroundColor: color }]} />
-                      </Pressable>
-                    );
-                  })}
+              <View style={{ zIndex: 12 }}>
+                <View style={[styles.convertCol, { marginBottom: 16 }]}>
+                  <Text style={styles.convertLabel}>Source</Text>
+                  <Pressable
+                    style={styles.convertDropdown}
+                    onPress={() => {
+                      openSelection('Select Source', ['Manual Entry', 'Website', 'Referral', 'Social Media', 'Open House', 'Zillow'], (opt) => setEditSource(opt));
+                    }}
+                  >
+                    <Text style={styles.convertDropdownText}>{editSource}</Text>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                  </Pressable>
                 </View>
               </View>
-            )}
-          </ScrollView>
 
-          {/* Fixed Bottom Actions */}
-          <View style={[styles.convertActions, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <Pressable style={styles.convertCancelBtn} onPress={() => { setIsEditModalVisible(false); setLeadToEdit(null); }}>
-              <Text style={styles.convertCancelBtnText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.convertConfirmBtn, isSavingLead && { opacity: 0.7 }]}
-              onPress={handleSaveLead}
-              disabled={isSavingLead}
-            >
-              {isSavingLead ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.convertConfirmBtnText}>Save</Text>
+              <View style={{ zIndex: 11 }}>
+                <View style={[styles.convertCol, { marginBottom: 16 }]}>
+                  <Text style={styles.convertLabel}>Status</Text>
+                  <Pressable
+                    style={styles.convertDropdown}
+                    onPress={() => {
+                      openSelection('Select Status', ['Active', 'Inactive'], (opt) => setEditStatus(opt));
+                    }}
+                  >
+                    <Text style={styles.convertDropdownText}>{editStatus}</Text>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={[styles.convertRow, { zIndex: 10 }]}>
+                <View style={styles.convertCol}>
+                  <Text style={styles.convertLabel}>Group <Text style={{ color: '#E11D48' }}>*</Text></Text>
+                  <Pressable
+                    style={[styles.convertDropdown, errors.group && styles.inputError]}
+                    onPress={() => {
+                      openSelection(
+                        'Select Group',
+                        ([...(crmMeta?.groups.map(g => g.name) || []), 'Custom Group...']),
+                        (opt) => {
+                          setEditGroup(opt);
+                          if (errors.group) setErrors(prev => ({ ...prev, group: '' }));
+                          if (opt !== 'Custom Group...') {
+                            setCustomGroup('');
+                            const matched = crmMeta?.groups.find(g => g.name === opt);
+                            if (matched) setSelectedGroupId(matched.id);
+                          } else {
+                            setSelectedGroupId(null);
+                          }
+                        }
+                      );
+                    }}
+                  >
+                    <Text style={[styles.convertDropdownText, editGroup === 'Select Group' && { color: colors.textMuted }]}>{editGroup}</Text>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                  </Pressable>
+                  {errors.group ? <Text style={styles.inlineError}>{errors.group}</Text> : null}
+                </View>
+              </View>
+
+              {editGroup === 'Custom Group...' && (
+                <View style={[styles.convertCol, { marginBottom: 20 }]}>
+                  <Text style={styles.convertLabel}>Custom Group Name</Text>
+                  <TextInput
+                    style={styles.convertInput}
+                    placeholder="Enter custom group"
+                    placeholderTextColor={colors.textMuted || "#8DA4B5"}
+                    value={customGroup}
+                    onChangeText={setCustomGroup}
+                  />
+                </View>
               )}
-            </Pressable>
-          </View>
+
+              <View style={[styles.convertRow, { zIndex: 9 }]}>
+                <View style={styles.convertCol}>
+                  <Text style={styles.convertLabel}>Tag <Text style={{ color: '#E11D48' }}>*</Text></Text>
+                  <Pressable
+                    style={[styles.convertDropdown, errors.tag && styles.inputError]}
+                    onPress={() => {
+                      openSelection(
+                        'Select Tag',
+                        ([...(crmMeta?.tags.map(t => t.name) || []), 'Custom Tag...']),
+                        (opt) => {
+                          setEditTag(opt);
+                          if (errors.tag) setErrors(prev => ({ ...prev, tag: '' }));
+                          if (opt !== 'Custom Tag...') {
+                            setCustomTag('');
+                            const matched = crmMeta?.tags.find(t => t.name === opt);
+                            if (matched) setSelectedTagId(matched.id);
+                          } else {
+                            setSelectedTagId(null);
+                          }
+                        }
+                      );
+                    }}
+                  >
+                    <Text style={[styles.convertDropdownText, editTag === 'Select Tag' && { color: colors.textMuted }]}>{editTag}</Text>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                  </Pressable>
+                  {errors.tag ? <Text style={styles.inlineError}>{errors.tag}</Text> : null}
+                </View>
+              </View>
+
+              {editTag === 'Custom Tag...' && (
+                <View style={[styles.convertCol, { marginBottom: 20 }]}>
+                  <Text style={styles.convertLabel}>Custom Tag Name</Text>
+                  <TextInput
+                    style={styles.convertInput}
+                    placeholder="Enter custom tag"
+                    placeholderTextColor={colors.textMuted || "#8DA4B5"}
+                    value={customTag}
+                    onChangeText={setCustomTag}
+                  />
+                </View>
+              )}
+              {editTag === 'Custom Tag...' && (
+                <View style={[styles.convertCol, { marginBottom: 32 }]}>
+                  <Text style={styles.convertLabel}>Tag Color Theme</Text>
+                  <View style={styles.tagColorRow}>
+                    {['#0a2341', '#FF6B00', '#0B2D3E', '#6366F1', '#10B981', '#64748B', '#E11D48', '#9333EA'].map((color) => {
+                      const isActive = editColor === color;
+                      return (
+                        <Pressable
+                          key={color}
+                          onPress={() => setEditColor(color)}
+                          style={isActive ? [styles.tagColorCircleOuter, { borderColor: color === '#FF6B00' ? '#FF8A00' : color }] : undefined}
+                        >
+                          <View style={[styles.tagColorCircle, { backgroundColor: color }]} />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Fixed Bottom Actions */}
+            <View style={[styles.convertActions, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+              <Pressable style={styles.convertCancelBtn} onPress={() => { setIsEditModalVisible(false); setLeadToEdit(null); }}>
+                <Text style={styles.convertCancelBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.convertConfirmBtn, isSavingLead && { opacity: 0.7 }]}
+                onPress={handleSaveLead}
+                disabled={isSavingLead}
+              >
+                {isSavingLead ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.convertConfirmBtnText}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
 
           <Modal
             visible={isSelectionModalVisible}
@@ -1342,6 +1355,7 @@ function getStyles(colors: any, theme?: string) {
     tagsRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexWrap: 'wrap',
       gap: 8,
       marginBottom: 20,
     },
@@ -1362,6 +1376,47 @@ function getStyles(colors: any, theme?: string) {
     tagLabel: {
       fontSize: 12,
       fontWeight: '700',
+    },
+    statusBadgeInline: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 30,
+      height: 24,
+    },
+    statusDotSmall: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    statusLabelInline: {
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 0.3,
+    },
+    aiScoreBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 30,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      height: 24,
+    },
+    aiScoreTitle: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: colors.textMuted,
+      letterSpacing: 0.5,
+    },
+    aiScoreValue: {
+      fontSize: 9,
+      fontWeight: '900',
     },
     statusBadge: {
       backgroundColor: colors.surfaceSoft,

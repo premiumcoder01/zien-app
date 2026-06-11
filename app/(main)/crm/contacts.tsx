@@ -29,6 +29,13 @@ import { QuickFilterModal } from './components/modals/QuickFilterModal';
 const STATUS_OPTIONS = ['All status', 'Active', 'Inactive (archived)'];
 const TYPE_OPTIONS = ['Buyer', 'Seller', 'Investor'] as const;
 
+const getBadgeBgColor = (color: string) => {
+  if (color && color.startsWith('#') && color.length === 7) {
+    return `${color}15`;
+  }
+  return 'rgba(100, 116, 139, 0.08)';
+};
+
 export default function ContactsScreen() {
   const { colors, theme } = useAppTheme();
   const styles = getStyles(colors, theme);
@@ -211,6 +218,8 @@ export default function ContactsScreen() {
       await deleteCRMContact(accessToken!, id);
       queryClient.invalidateQueries({ queryKey: ['crm-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['crm-overview'] });
+      setDeleteContactId(null);
+      Alert.alert('Success', 'Contact deleted successfully.');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to delete contact');
     } finally {
@@ -286,7 +295,12 @@ export default function ContactsScreen() {
             </View>
           </View>
 
-          <View style={styles.dropdownRowThree}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.dropdownRowThreeScroll}
+            contentContainerStyle={styles.dropdownRowThree}
+          >
             <Pressable style={[styles.filterBtn, selectedGroup !== 'All groups' && styles.filterBtnActive]} onPress={() => toggleDropdown('group')}>
               <MaterialCommunityIcons name="filter-outline" size={14} color={selectedGroup !== 'All groups' ? colors.textPrimary : '#64748B'} />
               <Text style={[styles.filterBtnText, selectedGroup !== 'All groups' && styles.filterBtnTextActive]} numberOfLines={1}>{selectedGroup}</Text>
@@ -304,7 +318,7 @@ export default function ContactsScreen() {
               <Text style={[styles.filterBtnText, selectedTag !== 'All tags' && styles.filterBtnTextActive]} numberOfLines={1}>{selectedTag}</Text>
               <MaterialCommunityIcons name="chevron-down" size={14} color={selectedTag !== 'All tags' ? colors.textPrimary : '#64748B'} />
             </Pressable>
-          </View>
+          </ScrollView>
           <View style={styles.resultsHeader}>
             <Text style={styles.resultsCount}>Showing <Text style={{ fontWeight: '900', color: colors.textPrimary }}>{contactsList.length}</Text> intelligent matches</Text>
             {filtersActive && (
@@ -393,11 +407,11 @@ export default function ContactsScreen() {
                     <MaterialCommunityIcons name="account-group-outline" size={12} color={colors.textSecondary} />
                     <Text style={styles.dataBadgeText}>{groupName}</Text>
                   </View>
-                  <View style={[styles.dataBadge, { borderColor: tagColor, borderWidth: 0.5 }]}>
+                  <View style={[styles.dataBadge, { backgroundColor: getBadgeBgColor(tagColor) }]}>
                     <Text style={[styles.dataBadgeText, { color: tagColor }]}>{tagName}</Text>
                   </View>
                   {contact.pipeline_stage && (
-                    <View style={[styles.dataBadge, { backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.12)' : '#F0F9FA' }]}>
+                    <View style={[styles.dataBadge, { backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.15)' : '#F0F9FA' }]}>
                       <Text style={[styles.dataBadgeText, { color: theme === 'dark' ? '#00a7b5' : '#0a2341' }]}>{contact.pipeline_stage}</Text>
                     </View>
                   )}
@@ -556,6 +570,7 @@ export default function ContactsScreen() {
               <Pressable
                 style={[styles.alertBtn, styles.alertBtnCancel]}
                 onPress={() => setDeleteContactId(null)}
+                disabled={isUpdating}
               >
                 <Text style={styles.alertBtnTextCancel}>Cancel</Text>
               </Pressable>
@@ -565,10 +580,14 @@ export default function ContactsScreen() {
                   if (deleteContactId) {
                     handleDeleteContact(deleteContactId);
                   }
-                  setDeleteContactId(null);
                 }}
+                disabled={isUpdating}
               >
-                <Text style={styles.alertBtnTextConfirm}>Delete</Text>
+                {isUpdating ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.alertBtnTextConfirm}>Delete</Text>
+                )}
               </Pressable>
             </View>
           </View>
@@ -619,19 +638,20 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     borderColor: colors.borderLight,
   },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 15, color: colors.textPrimary, fontWeight: '600' },
+  dropdownRowThreeScroll: {
+    marginBottom: 12,
+  },
   dropdownRowThree: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
   },
   filterBtn: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.cardBackground,
-    paddingHorizontal: 6,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 10,
     gap: 4,
@@ -639,7 +659,11 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     borderColor: colors.borderLight,
   },
   filterBtnActive: { borderColor: colors.accent, backgroundColor: colors.accent + '08' },
-  filterBtnText: { fontSize: 11.5, fontWeight: '700', color: colors.textSecondary },
+  filterBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
   filterBtnTextActive: { color: colors.accent },
   resultsHeader: {
     flexDirection: 'row',
@@ -710,39 +734,48 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     gap: 4,
   },
   heatValue: { fontSize: 16, fontWeight: '900' },
-  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 16,
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-    gap: 6,
+    justifyContent: 'center',
+    height: 24,
+    paddingHorizontal: 10,
+    borderRadius: 30,
+    gap: 4,
   },
   statusDotSmall: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statusText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   dataBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    height: 24,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-    gap: 6,
+    borderRadius: 30,
+    gap: 4,
     backgroundColor: 'rgba(100, 116, 139, 0.08)',
   },
   dataBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.textSecondary,
     textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   insightsGrid: {
     flexDirection: 'row',

@@ -113,6 +113,16 @@ const parseRobustJSON = (jsonString: string): any[] => {
   }
 };
 
+const isStatusActive = (aiStatus: string) => {
+  const s = (aiStatus || '').toLowerCase().trim();
+  return s !== 'inactive' && s !== 'archived';
+};
+
+const isStatusConverted = (aiStatus: string) => {
+  const s = (aiStatus || '').toLowerCase().trim();
+  return s === 'converted';
+};
+
 export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
   visible,
   onClose,
@@ -393,9 +403,9 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
           group_id: findGroupId(contact.group || 'Buyer'),
           tag_id: findTagId(contact.tag || 'Lead'),
           source: contact.source || 'AI Import',
-          status: contact.status === 'Qualified' ? 1 : 0,
+          status: isStatusActive(contact.status) ? 1 : 0,
           score: contact.score || 75,
-          lead_date_label: contact.date || 'Today',
+          lead_date_label: isStatusConverted(contact.status) ? 'Converted' : (contact.date || 'Today'),
         };
       });
 
@@ -712,9 +722,23 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                         {/* COLUMN 4: STATUS */}
                         <View style={{ minWidth: 60, flex: 1, alignItems: 'center' }}>
                           <Text style={styles.reviewCardLabel}>STATUS</Text>
-                          <View style={{ backgroundColor: contact.status === 'Qualified' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, marginTop: 4 }}>
-                            <Text style={{ fontSize: 10, fontWeight: '900', color: contact.status === 'Qualified' ? '#10B981' : '#EF4444' }}>{(contact.status || 'New').toUpperCase()}</Text>
-                          </View>
+                          {(() => {
+                            const rawStatus = (contact.status || 'New').trim();
+                            const statusLower = rawStatus.toLowerCase();
+                            const isInactive = statusLower === 'inactive' || statusLower === 'archived';
+                            const isConverted = statusLower === 'converted';
+                            const badgeBg = isConverted 
+                              ? 'rgba(37, 99, 235, 0.12)' 
+                              : (isInactive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)');
+                            const badgeText = isConverted 
+                              ? '#2563EB' 
+                              : (isInactive ? '#EF4444' : '#10B981');
+                            return (
+                              <View style={{ backgroundColor: badgeBg, borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, marginTop: 4 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '900', color: badgeText }}>{rawStatus.toUpperCase()}</Text>
+                              </View>
+                            );
+                          })()}
                         </View>
 
                         {/* COLUMN 5: CATEGORY */}
@@ -885,45 +909,38 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
         </View>
       </Modal>
 
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setShowSuccessModal(false);
-          onImportSuccess();
-          onClose();
-        }}
-      >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successModalIconContainer}>
-              <MaterialCommunityIcons name="check-circle-outline" size={48} color={colors.accent || '#00a7b5'} />
-            </View>
-            <Text style={styles.successModalTitle}>Synchronization Success</Text>
-            <Text style={styles.successModalMessage}>
-              Successfully integrated all {parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length} leads into your Zien CRM.
-            </Text>
-            <Pressable
-              style={styles.successModalButton}
-              onPress={() => {
-                setShowSuccessModal(false);
-                onImportSuccess();
-                onClose();
-              }}
-            >
-              <LinearGradient
-                colors={['#0a2341', '#00a7b5']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.successModalGradient}
+      {showSuccessModal && (
+        <View style={StyleSheet.absoluteFill}>
+          <View style={styles.successModalOverlay}>
+            <View style={styles.successModalContent}>
+              <View style={styles.successModalIconContainer}>
+                <MaterialCommunityIcons name="check-circle-outline" size={48} color={colors.accent || '#00a7b5'} />
+              </View>
+              <Text style={styles.successModalTitle}>Synchronization Success</Text>
+              <Text style={styles.successModalMessage}>
+                Successfully integrated all {parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length} leads into your Zien CRM.
+              </Text>
+              <Pressable
+                style={styles.successModalButton}
+                onPress={() => {
+                  setShowSuccessModal(false);
+                  onImportSuccess();
+                  onClose();
+                }}
               >
-                <Text style={styles.successModalButtonText}>Done</Text>
-              </LinearGradient>
-            </Pressable>
+                <LinearGradient
+                  colors={['#0a2341', '#00a7b5']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.successModalGradient}
+                >
+                  <Text style={styles.successModalButtonText}>Done</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
           </View>
         </View>
-      </Modal>
+      )}
     </Modal>
   );
 };
@@ -931,7 +948,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
 const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.cardBackground,
   },
   modalContent: {
     flex: 1,

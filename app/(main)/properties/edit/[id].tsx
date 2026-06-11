@@ -2,15 +2,17 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { finalizeProperty, getPropertyDetails, uploadPropertyImage } from '@/services/propertyService';
+import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Modal,
   Pressable,
@@ -18,6 +20,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -309,32 +312,202 @@ function StepReview({ mlsPhotos, userPhotos, formData }: any) {
 function StepSuccess({ propertyId, address }: { propertyId: string, address: string }) {
   const { colors } = useAppTheme();
   const router = useRouter();
+  const { accessToken } = useAuth();
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
 
-  const cards = [
-    { id: 'inventory', title: 'Property Inventory', subtitle: 'Return to your vault and manage all listings.', icon: 'bank', route: '/(main)/properties' },
-    { id: 'openhouse', title: 'Schedule Open House', subtitle: 'Activate digital check-in and visitor tracking.', icon: 'calendar-clock-outline', route: '/(main)/open-house' },
-    { id: 'social', title: 'Add to Social Media', subtitle: 'Broadcast this listing to Instagram and LinkedIn.', icon: 'share-variant-outline', route: '/(main)/social-hub/create-post' },
-    { id: 'campaign', title: 'Add to Campaign', subtitle: 'Connect to active marketing and drip flows.', icon: 'bullhorn-outline', route: '/(main)/crm/campaigns' },
-  ];
+  const cards = useMemo(() => {
+    if (isMobile) {
+      return [
+        {
+          id: 'inventory',
+          title: 'Property Inventory',
+          subtitle: 'Return to your vault and manage all listings.',
+          icon: 'bank',
+        },
+        {
+          id: 'openhouse',
+          title: 'Schedule Open House',
+          subtitle: 'Activate digital check-in and visitor tracking.',
+          icon: 'calendar-clock-outline',
+        },
+        {
+          id: 'social',
+          title: 'Add to Social Media',
+          subtitle: 'Broadcast this listing to Instagram and LinkedIn.',
+          icon: 'share-variant-outline',
+        },
+        {
+          id: 'campaign',
+          title: 'Add to Campaign',
+          subtitle: 'Connect to active marketing and drip flows.',
+          icon: 'bullhorn-outline',
+        },
+      ];
+    } else {
+      return [
+        {
+          id: 'inventory',
+          title: 'Property Inventory',
+          subtitle: 'Return to your vault and manage all listings.',
+          icon: 'bank',
+        },
+        {
+          id: 'hub',
+          title: 'View Property Hub',
+          subtitle: 'Access detailed analytics, media, and connected workflows.',
+          icon: 'cube-outline',
+        },
+        {
+          id: 'openhouse_live',
+          title: 'Live to Open House',
+          subtitle: 'Generate an AI-powered Open House registration page.',
+          icon: 'calendar-check-outline',
+        },
+        {
+          id: 'campaign_web',
+          title: 'Email/SMS Campaign',
+          subtitle: 'Launch an email and SMS campaign for this listing.',
+          icon: 'bullhorn-outline',
+        },
+        {
+          id: 'social_web',
+          title: 'Post to Social Media',
+          subtitle: 'Instantly create and share an AI-generated post.',
+          icon: 'share-variant-outline',
+        },
+      ];
+    }
+  }, [isMobile]);
 
   return (
     <View style={{ alignItems: 'center', paddingTop: 20 }}>
-      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.surfaceIcon, justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+      {/* Icon Circle */}
+      <View style={{
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: colors.surfaceIcon,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 20
+      }}>
         <MaterialCommunityIcons name="check-bold" size={32} color={colors.accentTeal} />
       </View>
-      <Text style={{ fontSize: 28, fontWeight: '900', color: colors.textPrimary, marginBottom: 8 }}>Updates Saved!</Text>
-      <Text style={{ fontSize: 15, color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 40 }}>
-        Your property at <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{address}</Text> has been successfully updated.
+
+      <Text style={{ fontSize: 28, fontWeight: '900', color: colors.textPrimary, marginBottom: 8 }}>
+        {isMobile ? "Updates Saved!" : "Property Added"}
       </Text>
+      <Text style={{ fontSize: 15, color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 40, lineHeight: 22 }}>
+        {isMobile ? (
+          <>Your property at <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{address}</Text> has been successfully updated.</>
+        ) : (
+          <>Your property at <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{address.toLowerCase().includes('usa') ? address : `${address}, USA`}</Text> has been successfully optimized and broadcasted.</>
+        )}
+      </Text>
+
       <View style={{ width: '100%', marginTop: 40 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-          <Text style={{ fontSize: 10, fontWeight: '900', color: colors.textMuted }}>NEXT PHASE</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <Text style={{ fontSize: 10, fontWeight: '900', color: colors.textMuted, letterSpacing: 1 }}>
+            {isMobile ? "NEXT PHASE" : "PROPERTY ADDED: CHOOSE NEXT PHASE"}
+          </Text>
           <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textMuted }}>ID: {propertyId}</Text>
         </View>
+
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
           {cards.map(card => (
-            <TouchableOpacity key={card.id} style={{ width: (SCREEN_WIDTH - 44) / 2, backgroundColor: colors.cardBackground, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: colors.cardBorder, minHeight: 140 }} onPress={() => router.push(card.route as any)}>
-              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.surfaceSoft, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+            <TouchableOpacity
+              key={card.id}
+              style={{
+                width: isMobile ? (SCREEN_WIDTH - 44) / 2 : '31%',
+                backgroundColor: colors.cardBackground,
+                borderRadius: 20,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: colors.cardBorder,
+                minHeight: 140
+              }}
+              onPress={async () => {
+                if (card.id === 'inventory') {
+                  router.push('/(main)/properties');
+                } else if (card.id === 'openhouse') {
+                  router.push('/(main)/open-house');
+                } else if (card.id === 'social' || card.id === 'social_web') {
+                  router.push({
+                    pathname: '/(main)/social-hub/create-post',
+                    params: { propertyId }
+                  } as any);
+                } else if (card.id === 'campaign' || card.id === 'campaign_web') {
+                  const cleanAddress = address;
+                  const fullAddress = cleanAddress.toLowerCase().includes('usa') ? cleanAddress : `${cleanAddress}, USA`;
+                  router.push({
+                    pathname: '/(main)/crm/campaigns',
+                    params: {
+                      openAiModal: 'true',
+                      aiPrompt: `Write a persuasive email campaign promoting my new listing at ${fullAddress}. Include a strong call to action for the recipient to click the link to view the property photos and RSVP.`
+                    }
+                  } as any);
+                } else if (card.id === 'hub') {
+                  router.push({
+                    pathname: '/(main)/properties/[id]',
+                    params: { id: propertyId }
+                  } as any);
+                } else if (card.id === 'openhouse_live') {
+                  try {
+                    const events = await getOpenHouses(accessToken || '');
+                    const existingEvent = events.find(e => e.property_id === Number(propertyId));
+                    if (existingEvent) {
+                      router.push(`/(main)/open-house/edit/${existingEvent.id}` as any);
+                    } else {
+                      const defaultDate = new Date();
+                      defaultDate.setDate(defaultDate.getDate() + 7);
+                      const dateStr = defaultDate.toISOString().split('T')[0];
+
+                      const payload = {
+                        property_id: Number(propertyId),
+                        date: dateStr,
+                        start_time: "10:00",
+                        end_time: "12:00",
+                        agent_details: {
+                          name: "sweta",
+                          brokerage: "zien",
+                          license: "23243654765",
+                          email: "sweta.isynbus@gmail.com",
+                          phone: "+91 93196-14264"
+                        },
+                        ai_description: "Breathtaking Luxury estate featuring rare architectural details, bespoke imported finishes, and a seamless connection to private, manicured grounds. This residence offers an unparalleled lifestyle for those who demand excellence in every square inch.",
+                        brand_color: "#0B2D3E",
+                        gallery_images: [],
+                        logo_text: "sweta",
+                        ai_tone: "Luxury",
+                        visitor_registration: true,
+                        send_report: true,
+                      };
+
+                      const res = await createOpenHouse(accessToken || '', payload);
+                      const newEventId = res?.data?.id || res?.id;
+                      if (newEventId) {
+                        router.push(`/(main)/open-house/edit/${newEventId}` as any);
+                      } else {
+                        Alert.alert('Error', 'Failed to create open house event.');
+                      }
+                    }
+                  } catch (err) {
+                    console.error(err);
+                    Alert.alert('Error', 'An error occurred while routing to the open house page.');
+                  }
+                }
+              }}
+            >
+              <View style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                backgroundColor: colors.surfaceSoft,
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginBottom: 12
+              }}>
                 <MaterialCommunityIcons name={card.icon as any} size={20} color={colors.textPrimary} />
               </View>
               <Text style={{ fontSize: 13, fontWeight: '800', color: colors.textPrimary, marginBottom: 6 }}>{card.title}</Text>

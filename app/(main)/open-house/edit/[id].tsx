@@ -1,8 +1,11 @@
+import ColorPickerModal from '@/components/ui/ColorPickerModal';
+import GradientButton from '@/components/ui/GradientButton';
+import OutlineButton from '@/components/ui/OutlineButton';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { generateAiText } from '@/services/aiContentService';
 import { getOpenHouseById, updateOpenHouse } from '@/services/openHouseService';
 import { RawPropertyItem, uploadPropertyImage } from '@/services/propertyService';
-import { generateAiText } from '@/services/aiContentService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,6 +17,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Clipboard,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -23,16 +29,10 @@ import {
   Text,
   TextInput,
   useWindowDimensions,
-  View,
-  KeyboardAvoidingView,
-  Keyboard,
-  Clipboard
+  View
 } from 'react-native';
 import { ProgressStep, ProgressSteps } from 'react-native-progress-steps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import GradientButton from '@/components/ui/GradientButton';
-import OutlineButton from '@/components/ui/OutlineButton';
-import ColorPickerModal from '@/components/ui/ColorPickerModal';
 
 function formatDisplayDate(d: Date): string {
   const day = String(d.getDate()).padStart(2, '0');
@@ -264,148 +264,154 @@ export default function OpenHouseEditScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
 
-      <Modal transparent visible={isUpdating} animationType="fade">
-        <View style={styles.loaderOverlay}>
-          <View style={styles.loaderCard}>
-            <ActivityIndicator size="large" color="#00A7B5" />
-            <Text style={styles.loaderText}>Updating your Open House...</Text>
-            <Text style={styles.loaderSubtext}>Saving changes and uploading assets.</Text>
+        <Modal transparent visible={isUpdating} animationType="fade">
+          <View style={styles.loaderOverlay}>
+            <View style={styles.loaderCard}>
+              <ActivityIndicator size="large" color="#00A7B5" />
+              <Text style={styles.loaderText}>Updating your Open House...</Text>
+              <Text style={styles.loaderSubtext}>Saving changes and uploading assets.</Text>
+            </View>
           </View>
+        </Modal>
+
+        <View style={[styles.header, { flexDirection: 'row', alignItems: 'center', gap: 16 }]}>
+          <Pressable style={styles.backBtnWrapper} onPress={() => router.back()} hitSlop={12}>
+            <MaterialCommunityIcons name="arrow-left" size={20} color={colors.accentTeal} />
+
+          </Pressable>
+          {openHouseData?.property?.address && (
+            <View style={{ flex: 1, flexDirection: 'column', gap: 2 }}>
+              <Text style={{ fontSize: 18, fontWeight: '900', color: '#0A2341' }}>Edit Open House Details</Text>
+              <Text style={{ fontSize: 11, fontWeight: '500', color: colors.textSecondary }}>Managing: {openHouseData.property.address}</Text>
+            </View>
+          )}
         </View>
-      </Modal>
 
-      <View style={styles.header}>
-        <Pressable style={styles.backBtnWrapper} onPress={() => router.back()} hitSlop={12}>
-          <MaterialCommunityIcons name="arrow-left" size={20} color={colors.accentTeal} />
-          <Text style={styles.backBtnText}>Back</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.stepsWrapper}>
-        <ProgressSteps
-          activeStep={activeStep}
-          topOffset={0}
-          marginBottom={16}
-          progressBarColor={colors.cardBorder}
-          completedProgressBarColor={colors.accentTeal}
-          activeStepIconColor={colors.accentTeal}
-          activeStepIconBorderColor={colors.accentTeal}
-          completedStepIconColor={colors.accentTeal}
-          disabledStepIconColor={colors.cardBorder}
-          labelColor={colors.textMuted}
-          activeLabelColor={colors.accentTeal}
-          completedLabelColor={colors.accentTeal}
-          activeStepNumColor={colors.cardBackground}
-          completedStepNumColor={colors.cardBackground}
-          disabledStepNumColor={colors.textSecondary}
-          completedCheckColor={colors.cardBackground}
-          labelFontSize={10}
-          activeLabelFontSize={10}
-        >
-          <ProgressStep label="DETAILS" removeBtnRow>
-            <Step2Details
-              eventDate={eventDate}
-              setEventDate={setEventDate}
-              startTimeDate={startTimeDate}
-              setStartTimeDate={setStartTimeDate}
-              endTimeDate={endTimeDate}
-              setEndTimeDate={setEndTimeDate}
-              agentName={agentName}
-              setAgentName={setAgentName}
-              brokerageName={brokerageName}
-              setBrokerageName={setBrokerageName}
-              licenseNumber={licenseNumber}
-              setLicenseNumber={setLicenseNumber}
-              agentPhone={agentPhone}
-              setAgentPhone={setAgentPhone}
-              agentEmail={agentEmail}
-              setAgentEmail={setAgentEmail}
-              sendReport={sendReport}
-              setSendReport={setSendReport}
-              errors={errors}
-              setErrors={setErrors}
-            />
-          </ProgressStep>
-          <ProgressStep label="CUSTOMIZATION" removeBtnRow>
-            {!isFinalized ? (
-              <Step4Customization
-                selectedPropertyId={selectedPropertyId}
-                properties={openHouseData?.property ? [openHouseData.property as any] : []}
-                agentName={agentName}
+        <View style={styles.stepsWrapper}>
+          <ProgressSteps
+            activeStep={activeStep}
+            topOffset={0}
+            marginBottom={16}
+            progressBarColor={colors.cardBorder}
+            completedProgressBarColor={colors.accentTeal}
+            activeStepIconColor={colors.accentTeal}
+            activeStepIconBorderColor={colors.accentTeal}
+            completedStepIconColor={colors.accentTeal}
+            disabledStepIconColor={colors.cardBorder}
+            labelColor={colors.textMuted}
+            activeLabelColor={colors.accentTeal}
+            completedLabelColor={colors.accentTeal}
+            activeStepNumColor={colors.cardBackground}
+            completedStepNumColor={colors.cardBackground}
+            disabledStepNumColor={colors.textSecondary}
+            completedCheckColor={colors.cardBackground}
+            labelFontSize={10}
+            activeLabelFontSize={10}
+          >
+            <ProgressStep label="EVENT DETAILS" removeBtnRow>
+              <Step2Details
                 eventDate={eventDate}
+                setEventDate={setEventDate}
                 startTimeDate={startTimeDate}
+                setStartTimeDate={setStartTimeDate}
                 endTimeDate={endTimeDate}
-                accentIndex={accentIndex}
-                setAccentIndex={setAccentIndex}
-                brandColors={brandColors}
-                setBrandColors={setBrandColors}
-                description={description}
-                setDescription={setDescription}
-                descStyle={descStyle}
-                setDescStyle={setDescStyle}
-                galleryImages={galleryImages}
-                setGalleryImages={setGalleryImages}
-                enableVisitorReg={enableVisitorReg}
-                setEnableVisitorReg={setEnableVisitorReg}
-                logoMode={logoMode}
-                setLogoMode={setLogoMode}
-                agencyLogoUri={agencyLogoUri}
-                setAgencyLogoUri={setAgencyLogoUri}
+                setEndTimeDate={setEndTimeDate}
+                agentName={agentName}
+                setAgentName={setAgentName}
+                brokerageName={brokerageName}
+                setBrokerageName={setBrokerageName}
+                licenseNumber={licenseNumber}
+                setLicenseNumber={setLicenseNumber}
+                agentPhone={agentPhone}
+                setAgentPhone={setAgentPhone}
+                agentEmail={agentEmail}
+                setAgentEmail={setAgentEmail}
+                sendReport={sendReport}
+                setSendReport={setSendReport}
+                errors={errors}
+                setErrors={setErrors}
               />
-            ) : (
-              <Step5SheetReady
-                createdId={id as string}
-                onGoToDashboard={() => router.push('/(main)/open-house' as any)}
-              />
-            )}
-          </ProgressStep>
-        </ProgressSteps>
-      </View>
-
-      {/* Global Fixed Bottom Bar */}
-      {!isFinalized && !isKeyboardVisible && (
-        <View style={[styles.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          {activeStep === 0 && (
-            <View style={styles.fixedBtnRow}>
-              <OutlineButton
-                title="Back"
-                onPress={() => router.back()}
-                style={styles.fixedSecondaryBtn}
-                textStyle={styles.fixedBtnText}
-              />
-              <GradientButton
-                title="Continue to Customization"
-                onPress={() => {
-                  if (validateStep2()) {
-                    setActiveStep(1);
-                  }
-                }}
-                style={styles.fixedPrimaryBtnHalf}
-                textStyle={styles.fixedBtnText}
-              />
-            </View>
-          )}
-          {activeStep === 1 && (
-            <View style={styles.fixedBtnRow}>
-              <OutlineButton
-                title="Back"
-                onPress={() => setActiveStep(0)}
-                style={styles.fixedSecondaryBtn}
-                textStyle={styles.fixedBtnText}
-              />
-              <GradientButton
-                title="Save Changes"
-                isLoading={updateMutation.isPending || isUpdating}
-                onPress={handleUpdate}
-                style={styles.fixedPrimaryBtnHalf}
-                textStyle={styles.fixedBtnText}
-              />
-            </View>
-          )}
+            </ProgressStep>
+            <ProgressStep label="CUSTOMIZATION" removeBtnRow>
+              {!isFinalized ? (
+                <Step4Customization
+                  selectedPropertyId={selectedPropertyId}
+                  properties={openHouseData?.property ? [openHouseData.property as any] : []}
+                  agentName={agentName}
+                  eventDate={eventDate}
+                  startTimeDate={startTimeDate}
+                  endTimeDate={endTimeDate}
+                  accentIndex={accentIndex}
+                  setAccentIndex={setAccentIndex}
+                  brandColors={brandColors}
+                  setBrandColors={setBrandColors}
+                  description={description}
+                  setDescription={setDescription}
+                  descStyle={descStyle}
+                  setDescStyle={setDescStyle}
+                  galleryImages={galleryImages}
+                  setGalleryImages={setGalleryImages}
+                  enableVisitorReg={enableVisitorReg}
+                  setEnableVisitorReg={setEnableVisitorReg}
+                  logoMode={logoMode}
+                  setLogoMode={setLogoMode}
+                  agencyLogoUri={agencyLogoUri}
+                  setAgencyLogoUri={setAgencyLogoUri}
+                />
+              ) : (
+                <Step5SheetReady
+                  createdId={id as string}
+                  onGoToDashboard={() => router.push('/(main)/open-house' as any)}
+                />
+              )}
+            </ProgressStep>
+          </ProgressSteps>
         </View>
-      )}
-    </KeyboardAvoidingView>
-  </LinearGradient>
+
+        {/* Global Fixed Bottom Bar */}
+        {!isFinalized && !isKeyboardVisible && (
+          <View style={[styles.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            {activeStep === 0 && (
+              <View style={styles.fixedBtnRow}>
+                <OutlineButton
+                  title="Back"
+                  onPress={() => router.back()}
+                  style={styles.fixedSecondaryBtn}
+                  textStyle={styles.fixedBtnText}
+                />
+                <GradientButton
+                  title="Continue to Customization"
+                  onPress={() => {
+                    if (validateStep2()) {
+                      setActiveStep(1);
+                    }
+                  }}
+                  style={styles.fixedPrimaryBtnHalf}
+                  textStyle={styles.fixedBtnText}
+                />
+              </View>
+            )}
+            {activeStep === 1 && (
+              <View style={styles.fixedBtnRow}>
+                <OutlineButton
+                  title="Back"
+                  onPress={() => setActiveStep(0)}
+                  style={styles.fixedSecondaryBtn}
+                  textStyle={styles.fixedBtnText}
+                />
+                <GradientButton
+                  title="Save Changes"
+                  isLoading={updateMutation.isPending || isUpdating}
+                  onPress={handleUpdate}
+                  style={styles.fixedPrimaryBtnHalf}
+                  textStyle={styles.fixedBtnText}
+                />
+              </View>
+            )}
+          </View>
+        )}
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
@@ -768,21 +774,21 @@ function Step4Customization({
             <View style={styles.customCard}>
               <Text style={styles.customCardTitle}>AI Property Narrative</Text>
               <Text style={styles.customCardSubLabelText}>Type your custom instructions below to generate highly personalized copy.</Text>
-              
+
               <Text style={styles.aiFieldLabel}>YOUR PROMPT / CUSTOM TEXT</Text>
-              <TextInput 
-                style={styles.aiInput} 
-                multiline 
-                value={aiPrompt} 
-                onChangeText={setAiPrompt} 
-                placeholder="Write instructions, features, or details for the AI..." 
+              <TextInput
+                style={styles.aiInput}
+                multiline
+                value={aiPrompt}
+                onChangeText={setAiPrompt}
+                placeholder="Write instructions, features, or details for the AI..."
                 placeholderTextColor="#94A3B8"
-                textAlignVertical="top" 
+                textAlignVertical="top"
               />
-              
-              <Pressable 
+
+              <Pressable
                 style={({ pressed }) => [
-                  styles.regenerateBtnFull, 
+                  styles.regenerateBtnFull,
                   pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
                   isGenerating && { opacity: 0.7 }
                 ]}
@@ -807,12 +813,12 @@ function Step4Customization({
                 </View>
               </View>
 
-              <TextInput 
-                style={[styles.aiInput, { height: 160 }]} 
-                multiline 
-                value={description} 
-                onChangeText={setDescription} 
-                textAlignVertical="top" 
+              <TextInput
+                style={[styles.aiInput, { height: 160 }]}
+                multiline
+                value={description}
+                onChangeText={setDescription}
+                textAlignVertical="top"
               />
             </View>
 

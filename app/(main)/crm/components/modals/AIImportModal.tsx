@@ -883,45 +883,38 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
         </View>
       </Modal>
 
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setShowSuccessModal(false);
-          onImportSuccess();
-          onClose();
-        }}
-      >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalContent}>
-            <View style={styles.successModalIconContainer}>
-              <MaterialCommunityIcons name="check-circle-outline" size={48} color={colors.accent || '#00a7b5'} />
-            </View>
-            <Text style={styles.successModalTitle}>Synchronization Success</Text>
-            <Text style={styles.successModalMessage}>
-              Successfully integrated all {parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length} contacts into your Zien CRM.
-            </Text>
-            <Pressable
-              style={styles.successModalButton}
-              onPress={() => {
-                setShowSuccessModal(false);
-                onImportSuccess();
-                onClose();
-              }}
-            >
-              <LinearGradient
-                colors={['#0a2341', '#00a7b5']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.successModalGradient}
+      {showSuccessModal && (
+        <View style={StyleSheet.absoluteFill}>
+          <View style={styles.successModalOverlay}>
+            <View style={styles.successModalContent}>
+              <View style={styles.successModalIconContainer}>
+                <MaterialCommunityIcons name="check-circle-outline" size={48} color={colors.accent || '#00a7b5'} />
+              </View>
+              <Text style={styles.successModalTitle}>Synchronization Success</Text>
+              <Text style={styles.successModalMessage}>
+                Successfully integrated all {parsedContacts.filter((_, idx) => !!selectedContactIndices[idx]).length} contacts into your Zien CRM.
+              </Text>
+              <Pressable
+                style={styles.successModalButton}
+                onPress={() => {
+                  setShowSuccessModal(false);
+                  onImportSuccess();
+                  onClose();
+                }}
               >
-                <Text style={styles.successModalButtonText}>Done</Text>
-              </LinearGradient>
-            </Pressable>
+                <LinearGradient
+                  colors={['#0a2341', '#00a7b5']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.successModalGradient}
+                >
+                  <Text style={styles.successModalButtonText}>Done</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
           </View>
         </View>
-      </Modal>
+      )}
     </Modal>
   );
 };
@@ -929,7 +922,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
 const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.cardBackground,
   },
   modalContent: {
     flex: 1,

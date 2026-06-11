@@ -137,9 +137,9 @@ export const ManageMetaModal: React.FC<ManageMetaModalProps> = ({ visible, onClo
           <ScrollView
             style={styles.premiumModalBody}
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode='on-drag'
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 40 }}>
+            contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 20) + 50 }}>
 
             {/* Management Tabs */}
             <View style={styles.managementTabContainer}>
@@ -316,7 +316,7 @@ export const ManageMetaModal: React.FC<ManageMetaModalProps> = ({ visible, onClo
 const getStyles = (colors: any) => StyleSheet.create({
   fullPageModal: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.cardBackground,
   },
   modalContent: {
     flex: 1,
@@ -328,25 +328,25 @@ const getStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 24,
+    paddingBottom: 20,
     backgroundColor: colors.cardBackground,
   },
   premiumModalTitle: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '900',
     color: colors.textPrimary,
-    letterSpacing: -0.8,
+    letterSpacing: -0.5,
   },
   premiumModalSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#64748B',
     fontWeight: '600',
     marginTop: 4,
   },
   premiumCloseBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -360,7 +360,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
     padding: 6,
     borderRadius: 16,
-    marginBottom: 32,
+    marginBottom: 24,
   },
   managementTab: {
     flex: 1,
@@ -368,7 +368,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: 12,
   },
   managementTabActive: {
@@ -380,7 +380,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     elevation: 4,
   },
   managementTabText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#64748B',
   },
@@ -394,22 +394,22 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 28,
+    marginBottom: 20,
   },
   managementInput: {
     flex: 1,
     backgroundColor: colors.cardBackground,
     borderWidth: 1.5,
     borderColor: colors.cardBorder,
-    borderRadius: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    fontSize: 16,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
     color: colors.textPrimary,
     fontWeight: '600',
   },
   managementAddBtn: {
-    borderRadius: 18,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#0a2341',
     shadowOffset: { width: 0, height: 4 },
@@ -418,8 +418,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     elevation: 4,
   },
   managementAddBtnGradient: {
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -428,20 +428,20 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   managementAddBtnText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
   },
   colorPreviewContainer: {
     padding: 6,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: colors.cardBorder,
     backgroundColor: colors.cardBackground,
   },
   colorPreviewBox: {
-    width: 40,
-    height: 32,
-    borderRadius: 10,
+    width: 36,
+    height: 28,
+    borderRadius: 8,
   },
   managementList: {
     gap: 14,
@@ -451,14 +451,14 @@ const getStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
   managementItemText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     color: colors.textPrimary,
     letterSpacing: -0.3,

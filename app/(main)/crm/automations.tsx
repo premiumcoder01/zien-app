@@ -7,7 +7,11 @@ import {
   deleteCRMAutomation,
   generateCRMAutomationWithAI,
   getCRMAutomations,
+  getCRMContacts,
+  getCRMFollowUps,
+  getCRMLeads,
   getCRMMeta,
+  getCRMOverview,
   getCRMTemplates,
   updateCRMAutomation,
   updateCRMAutomationStatus
@@ -20,7 +24,9 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -58,6 +64,7 @@ export default function CRM_AutomationsScreen() {
   const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
   const [aiAssistantVisible, setAiAssistantVisible] = useState(false);
   const [ruleIdentity, setRuleIdentity] = useState('');
+  const [aiPrompt, setAiPrompt] = useState('');
   const [targetSegment, setTargetSegment] = useState('All Leads');
   const [targetSegmentId, setTargetSegmentId] = useState<string | number | null>(null);
   const [targetSegmentType, setTargetSegmentType] = useState<'all' | 'group' | 'tag'>('all');
@@ -111,6 +118,7 @@ export default function CRM_AutomationsScreen() {
       setAiAssistantVisible(false);
       // Reset form
       setRuleIdentity('');
+      setAiPrompt('');
     },
     onError: (error: any) => {
       Alert.alert('Error', error.message || 'Failed to create automation');
@@ -129,9 +137,43 @@ export default function CRM_AutomationsScreen() {
     enabled: !!accessToken,
   });
 
+  // Fetch Leads
+  const { data: crmLeads = [], refetch: refetchLeads } = useQuery({
+    queryKey: ['crm-leads'],
+    queryFn: () => getCRMLeads(accessToken!),
+    enabled: !!accessToken,
+  });
+
+  // Fetch Follow-Ups (Completed only, matching the exact API web layout uses)
+  const { data: followUps = [], refetch: refetchFollowUps } = useQuery({
+    queryKey: ['crm-followups-completed'],
+    queryFn: () => getCRMFollowUps(accessToken!, 'Completed'),
+    enabled: !!accessToken,
+  });
+
+  // Fetch Contacts
+  const { data: crmContacts = [], refetch: refetchContacts } = useQuery({
+    queryKey: ['crm-contacts'],
+    queryFn: () => getCRMContacts(accessToken!),
+    enabled: !!accessToken,
+  });
+
+  // Fetch Overview Stats
+  const { data: crmOverview, refetch: refetchOverview } = useQuery({
+    queryKey: ['crm-overview'],
+    queryFn: () => getCRMOverview(accessToken!),
+    enabled: !!accessToken,
+  });
+
   const handleRefresh = async () => {
     setManualRefreshing(true);
-    await refetch();
+    await Promise.all([
+      refetch(),
+      refetchLeads(),
+      refetchFollowUps(),
+      refetchContacts(),
+      refetchOverview(),
+    ]).catch((err) => console.log('Refresh error:', err));
     setManualRefreshing(false);
   };
 
@@ -176,6 +218,7 @@ export default function CRM_AutomationsScreen() {
       queryClient.invalidateQueries({ queryKey: ['crm-automations'] });
       setConfirmDeleteVisible(false);
       setRuleToDelete(null);
+      Alert.alert('Success', 'Automation rule deleted successfully.');
     },
     onError: (error: any) => {
       Alert.alert('Error', error.message || 'Failed to delete automation');
@@ -260,9 +303,38 @@ export default function CRM_AutomationsScreen() {
     toggleStatusMutation.mutate({ id, status: currentStatus });
   };
 
+  // Dynamic stats calculation for Autonomous Impact Card
+  const activeRulesCount = useMemo(() => {
+    return automations.filter((r: any) => r.status === 1).length;
+  }, [automations]);
+
+  const efficiencyScore = useMemo(() => {
+    return activeRulesCount > 0 ? Math.min(95 + activeRulesCount, 99) : 90;
+  }, [activeRulesCount]);
+
+  const completedFollowUpsCount = useMemo(() => {
+    return followUps.length;
+  }, [followUps]);
+
+  const leadsScoredCount = useMemo(() => {
+    return crmLeads.filter((l: any) => typeof l.score === 'number').length;
+  }, [crmLeads]);
+
+  const savedHours = useMemo(() => {
+    return activeRulesCount > 0 ? (activeRulesCount * 1.7).toFixed(1) : '0';
+  }, [activeRulesCount]);
+
+  const formatStatValue = (val: number) => {
+    if (val >= 1000) {
+      return `${(val / 1000).toFixed(1)}k`;
+    }
+    return val.toString();
+  };
+
   const handleFlowPress = (flow: IntelligentFlow) => {
     setSelectedFlow(flow);
-    setRuleIdentity("Generate a workflow for: " + flow.title);
+    setRuleIdentity(flow.title);
+    setAiPrompt("Generate a workflow for: " + flow.title);
     setTargetSegment("Cold Database");
     // Dynamically set based on flow type if needed, or keep these common AI defaults
     setProposedName(flow.title);
@@ -275,31 +347,35 @@ export default function CRM_AutomationsScreen() {
 
   const handleGenerate = async () => {
     if (!ruleIdentity.trim()) {
-      Alert.alert('Error', 'Please provide a rule identity (name or objective)');
+      Alert.alert('Error', 'Please provide a rule identity (name)');
+      return;
+    }
+    if (!aiPrompt.trim()) {
+      Alert.alert('Error', 'Please provide prompt/instructions');
       return;
     }
 
     setIsGenerating(true);
     try {
-      const systemInstruction = `You are an expert CRM Automation Architect. \nThe user wants to create an automation rule targeting "${targetSegment}".\nTheir instruction is: "${ruleIdentity}".\n\nValid Triggers: 'New Lead Captured', 'Status Changed', 'Inactivity Threshold Met', 'Score > 80', 'Deal Stage Updated'.\nValid Actions: 'Send Follow-up SMS', 'Send Email from Template', 'Send WhatsApp from Template', 'Update Lead Score', 'Assign Agent Task'.\nValid Executions: 'Immediate', 'Wait 1 Hour', 'Wait 24 Hours', 'Wait 3 Days'.\n\nBased on the prompt, generate a JSON object with EXACTLY the following fields:\n1. "name": A catchy name for this rule (max 40 chars).\n2. "trigger": One of the valid triggers that best fits.\n3. "action": One of the valid actions that best fits.\n4. "target": The exact string "${targetSegment}".\n5. "execution": One of the valid execution times.\n6. "reasoning": A 1-2 sentence explanation of why this automation logic is effective.`;
+      const systemInstruction = `You are an expert CRM Automation Architect. \nThe user wants to create an automation rule named "${ruleIdentity}" targeting "${targetSegment}".\nTheir instruction is: "${aiPrompt}".\n\nValid Triggers: 'New Lead Captured', 'Status Changed', 'Inactivity Threshold Met', 'Score > 80', 'Deal Stage Updated'.\nValid Actions: 'Send Follow-up SMS', 'Send Email from Template', 'Send WhatsApp from Template', 'Update Lead Score', 'Assign Agent Task'.\nValid Executions: 'Immediate', 'Wait 1 Hour', 'Wait 24 Hours', 'Wait 3 Days'.\n\nBased on the prompt, generate a JSON object with EXACTLY the following fields:\n1. "name": A catchy name for this rule (max 40 chars).\n2. "trigger": One of the valid triggers that best fits.\n3. "action": One of the valid actions that best fits.\n4. "target": The exact string "${targetSegment}".\n5. "execution": One of the valid execution times.\n6. "reasoning": A 1-2 sentence explanation of why this automation logic is effective.`;
 
-      const response = await generateCRMAutomationWithAI(accessToken!, ruleIdentity, systemInstruction);
-      
+      const response = await generateCRMAutomationWithAI(accessToken!, aiPrompt, systemInstruction);
+
       let cleanResult = response.result.trim();
       if (cleanResult.startsWith('```')) {
         cleanResult = cleanResult.replace(/^```(json)?/, '');
         cleanResult = cleanResult.replace(/```$/, '');
         cleanResult = cleanResult.trim();
       }
-      
+
       const parsed = JSON.parse(cleanResult);
-      
+
       setProposedName(parsed.name || ruleIdentity);
       setProposedTrigger(parsed.trigger || 'New Lead Captured');
       setProposedAction(parsed.action || 'Send Follow-up SMS');
       setProposedReasoning(parsed.reasoning || '');
       setProposedExecution(parsed.execution || 'Immediate');
-      
+
       if (parsed.target) {
         setTargetSegment(parsed.target);
       }
@@ -382,7 +458,7 @@ export default function CRM_AutomationsScreen() {
 
     return (
       <View key={rule.id} style={styles.horizontalCard}>
-        {/* TOP ROW: Icon + Rule Name + ACTIVE/PAUSED Badge */}
+        {/* TOP ROW: Icon + Rule Name */}
         <View style={styles.horizontalCardTopRow}>
           {/* Left: Peach Square Icon Box */}
           <View style={styles.horizontalCardIconBox}>
@@ -391,31 +467,10 @@ export default function CRM_AutomationsScreen() {
 
           {/* Middle: Title/Identity */}
           <View style={styles.horizontalCardInfo}>
-            <Text style={styles.horizontalCardTitle} numberOfLines={1}>
+            <Text style={styles.horizontalCardTitle} numberOfLines={2}>
               {rule.name}
             </Text>
           </View>
-
-          {/* Right: Badge (Interactive Toggle) */}
-          <Pressable
-            style={[
-              styles.horizontalCardBadge,
-              {
-                backgroundColor: isActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.08)',
-                borderColor: isActive ? 'rgba(16, 185, 129, 0.25)' : 'rgba(148, 163, 184, 0.15)',
-              }
-            ]}
-            onPress={() => toggleRuleStatus(rule.id, rule.status)}
-            disabled={toggleStatusMutation.isPending && toggleStatusMutation.variables?.id === rule.id}
-          >
-            {toggleStatusMutation.isPending && toggleStatusMutation.variables?.id === rule.id ? (
-              <ActivityIndicator size="small" color={isActive ? '#10B981' : '#94A3B8'} style={{ scaleX: 0.8, scaleY: 0.8 }} />
-            ) : (
-              <Text style={[styles.horizontalCardBadgeText, { color: isActive ? '#10B981' : '#94A3B8' }]}>
-                {isActive ? 'ACTIVE' : 'PAUSED'}
-              </Text>
-            )}
-          </Pressable>
         </View>
 
         {/* MIDDLE ROW: Timing & Segment Badge Pills */}
@@ -436,6 +491,30 @@ export default function CRM_AutomationsScreen() {
             </Text>
           </View>
         </View>
+
+        {/* STATUS BADGE ROW */}
+        <Pressable
+          style={[
+            styles.horizontalCardStatusRow,
+            {
+              backgroundColor: isActive ? 'rgba(16, 185, 129, 0.08)' : 'rgba(148, 163, 184, 0.06)',
+              borderColor: isActive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(148, 163, 184, 0.12)',
+            }
+          ]}
+          onPress={() => toggleRuleStatus(rule.id, rule.status)}
+          disabled={toggleStatusMutation.isPending && toggleStatusMutation.variables?.id === rule.id}
+        >
+          {toggleStatusMutation.isPending && toggleStatusMutation.variables?.id === rule.id ? (
+            <ActivityIndicator size="small" color={isActive ? '#10B981' : '#94A3B8'} />
+          ) : (
+            <>
+              <View style={[styles.horizontalCardStatusDot, { backgroundColor: isActive ? '#10B981' : '#94A3B8' }]} />
+              <Text style={[styles.horizontalCardStatusText, { color: isActive ? '#10B981' : '#94A3B8' }]}>
+                {isActive ? 'ACTIVE' : 'PAUSED'}
+              </Text>
+            </>
+          )}
+        </Pressable>
 
         {/* BOTTOM ROW: Dynamic Actions Row */}
         <View style={styles.horizontalCardActionsRow}>
@@ -577,7 +656,6 @@ export default function CRM_AutomationsScreen() {
             </View>
           ) : filteredRules.length === 0 ? (
             <View style={styles.centerContainer}>
-              <MaterialCommunityIcons name="robot-off-outline" size={48} color={colors.textSecondary} />
               <Text style={styles.emptyText}>No automation rules found</Text>
               <Text style={styles.emptySubtext}>Create one or use Zien Assistant to get started.</Text>
             </View>
@@ -589,22 +667,22 @@ export default function CRM_AutomationsScreen() {
         {/* Autonomous Impact Card */}
         <View style={styles.impactCard}>
           <Text style={[styles.impactTitle, { color: '#FFFFFF' }]}>Autonomous Impact</Text>
-          <Text style={styles.impactScore}>Efficiency score: 94%</Text>
+          <Text style={styles.impactScore}>Efficiency score: {efficiencyScore}%</Text>
 
           <View style={styles.impactStatsRow}>
             <View style={styles.impactStatBox}>
-              <Text style={styles.impactStatValue}>1.2k</Text>
+              <Text style={styles.impactStatValue}>{formatStatValue(completedFollowUpsCount)}</Text>
               <Text style={styles.impactStatLabel}>FOLLOW-UPS SENT</Text>
             </View>
             <View style={styles.impactStatBox}>
-              <Text style={styles.impactStatValue}>420</Text>
+              <Text style={styles.impactStatValue}>{formatStatValue(leadsScoredCount)}</Text>
               <Text style={styles.impactStatLabel}>LEADS SCORED</Text>
             </View>
           </View>
 
           <View style={styles.aiInsightBox}>
             <Text style={styles.aiInsightText}>
-              <Text style={{ fontWeight: '900' }}>AI Insight:</Text> Your "New Lead Welcome" rule is saving 3.4 hrs/week.
+              <Text style={{ fontWeight: '900' }}>AI Insight:</Text> Your active rules are saving {savedHours} hrs/week.
             </Text>
           </View>
         </View>
@@ -644,125 +722,151 @@ export default function CRM_AutomationsScreen() {
           end={{ x: 0.9, y: 1 }}
           style={[styles.fullModalContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
         >
-          <View style={styles.assistantModalContent}>
-            {/* Top Form Section - Flexible */}
-            <View style={{ flex: 1 }}>
-              <View style={styles.assistantHeader}>
-                <View>
-                  <Text style={styles.assistantTitle}>Zien Assistant</Text>
-                  <Text style={styles.assistantSubtitle}>Define your business objective via neural core.</Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.assistantModalContent}>
+              {/* Top Form Section - Flexible */}
+              <View style={{ flex: 1 }}>
+                <View style={styles.assistantHeader}>
+                  <View style={{ flex: 1, marginRight: 16 }}>
+                    <Text style={styles.assistantTitle}>Zien Assistant</Text>
+                    <Text style={styles.assistantSubtitle}>Define your business objective via neural core.</Text>
+                  </View>
+                  <Pressable
+                    style={styles.closeBtnSmall}
+                    onPress={() => setAiAssistantVisible(false)}
+                  >
+                    <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                  </Pressable>
                 </View>
-                <Pressable
-                  style={styles.closeBtnSmall}
-                  onPress={() => setAiAssistantVisible(false)}
+
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  bounces={true}
+                  contentContainerStyle={{ paddingBottom: 40 }}
                 >
-                  <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-                </Pressable>
-              </View>
+                  <View style={styles.assistantField}>
+                    <Text style={styles.fieldLabel}>RULE IDENTITY <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                    <View style={styles.inputContainer}>
+                      <TextInput
+                        style={styles.fieldInput}
+                        placeholder="e.g. VIP Concierge Follow-up"
+                        placeholderTextColor="#94A3B8"
+                        value={ruleIdentity}
+                        onChangeText={setRuleIdentity}
+                      />
+                    </View>
+                  </View>
 
-              <View style={styles.assistantField}>
-                <Text style={styles.fieldLabel}>RULE IDENTITY <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    style={styles.fieldInput}
-                    placeholder="e.g. VIP Concierge Follow-up"
-                    placeholderTextColor="#94A3B8"
-                    value={ruleIdentity}
-                    onChangeText={setRuleIdentity}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.assistantField}>
-                <Text style={styles.fieldLabel}>TARGET SEGMENT</Text>
-                <Pressable
-                  style={styles.segmentPickerTrigger}
-                  onPress={() => { setSegmentPickerVisible(true); setAssistantSegmentSearch(''); }}
-                >
-                  <Text style={styles.segmentValue}>{targetSegment}</Text>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={20}
-                    color={colors.textPrimary}
-                  />
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Bottom Footer - Fixed */}
-            <View style={styles.modalFooter}>
-              <Pressable
-                style={[
-                  styles.generateBtn,
-                  { opacity: (isGenerating || !ruleIdentity.trim()) ? 0.5 : 1 }
-                ]}
-                onPress={handleGenerate}
-                disabled={isGenerating || !ruleIdentity.trim()}
-              >
-                <LinearGradient
-                  colors={['#475569', '#1E293B']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={styles.generateBtnGradient}
-                >
-                  {isGenerating ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.generateBtnText}>Generate</Text>
-                  )}
-                </LinearGradient>
-              </Pressable>
-            </View>
-
-            {/* Segment Picker Overlay for Zien Assistant */}
-            {segmentPickerVisible && (
-              <View style={styles.pickerOverlayAbsolute}>
-                <Pressable style={StyleSheet.absoluteFill} onPress={() => setSegmentPickerVisible(false)} />
-                
-                <View style={styles.selectionModalContainer}>
-                  <View style={styles.selectionModalHeader}>
-                    <Text style={styles.selectionModalTitle}>Select Target Segment</Text>
-                    <Pressable onPress={() => setSegmentPickerVisible(false)}>
-                      <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                  <View style={styles.assistantField}>
+                    <Text style={styles.fieldLabel}>TARGET SEGMENT</Text>
+                    <Pressable
+                      style={styles.segmentPickerTrigger}
+                      onPress={() => { setSegmentPickerVisible(true); setAssistantSegmentSearch(''); }}
+                    >
+                      <Text style={styles.segmentValue}>{targetSegment}</Text>
+                      <MaterialCommunityIcons
+                        name="chevron-down"
+                        size={20}
+                        color={colors.textPrimary}
+                      />
                     </Pressable>
                   </View>
-                  <View style={styles.pickerSearchBoxSmall}>
-                    <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                    <TextInput
-                      style={styles.pickerSearchInputSmall}
-                      placeholder="Search segment..."
-                      placeholderTextColor={colors.textMuted}
-                      value={assistantSegmentSearch}
-                      onChangeText={setAssistantSegmentSearch}
-                    />
+
+                  <View style={styles.assistantField}>
+                    <Text style={styles.fieldLabel}>PROMPT / INSTRUCTIONS <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                    <View style={styles.textareaContainer}>
+                      <TextInput
+                        style={styles.textarea}
+                        placeholder="e.g. Send a personalized SMS to new leads within 5 minutes, wait 2 days, and if they don't respond, send an email template."
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        numberOfLines={4}
+                        value={aiPrompt}
+                        onChangeText={setAiPrompt}
+                      />
+                    </View>
                   </View>
-                  <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                    {SEGMENTS.filter(opt => opt.toLowerCase().includes(assistantSegmentSearch.toLowerCase())).map(segment => {
-                      const isActive = targetSegment === segment;
-                      return (
-                        <Pressable
-                          key={segment}
-                          style={[styles.selectionModalItem, isActive && styles.selectionModalItemActive]}
-                          onPress={() => {
-                            setTargetSegment(segment);
-                            setSegmentPickerVisible(false);
-                            setAssistantSegmentSearch('');
-                          }}
-                        >
-                          <Text style={[styles.selectionModalItemText, isActive && styles.selectionModalItemTextActive]}>
-                            {segment}
-                          </Text>
-                          {isActive && (
-                            <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />
-                          )}
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
+                </ScrollView>
               </View>
-            )}
-          </View>
+
+              {/* Bottom Footer - Fixed */}
+              <View style={styles.modalFooter}>
+                <Pressable
+                  style={[
+                    styles.generateBtn,
+                    { opacity: (isGenerating || !ruleIdentity.trim() || !aiPrompt.trim()) ? 0.5 : 1 }
+                  ]}
+                  onPress={handleGenerate}
+                  disabled={isGenerating || !ruleIdentity.trim() || !aiPrompt.trim()}
+                >
+                  <LinearGradient
+                    colors={['#475569', '#1E293B']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={styles.generateBtnGradient}
+                  >
+                    {isGenerating ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.generateBtnText}>Generate</Text>
+                    )}
+                  </LinearGradient>
+                </Pressable>
+              </View>
+
+              {/* Segment Picker Overlay for Zien Assistant */}
+              {segmentPickerVisible && (
+                <View style={styles.pickerOverlayAbsolute}>
+                  <Pressable style={StyleSheet.absoluteFill} onPress={() => setSegmentPickerVisible(false)} />
+
+                  <View style={styles.selectionModalContainer}>
+                    <View style={styles.selectionModalHeader}>
+                      <Text style={styles.selectionModalTitle}>Select Target Segment</Text>
+                      <Pressable onPress={() => setSegmentPickerVisible(false)}>
+                        <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                      </Pressable>
+                    </View>
+                    <View style={styles.pickerSearchBoxSmall}>
+                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                      <TextInput
+                        style={styles.pickerSearchInputSmall}
+                        placeholder="Search segment..."
+                        placeholderTextColor={colors.textMuted}
+                        value={assistantSegmentSearch}
+                        onChangeText={setAssistantSegmentSearch}
+                      />
+                    </View>
+                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                      {SEGMENTS.filter(opt => opt.toLowerCase().includes(assistantSegmentSearch.toLowerCase())).map(segment => {
+                        const isActive = targetSegment === segment;
+                        return (
+                          <Pressable
+                            key={segment}
+                            style={[styles.selectionModalItem, isActive && styles.selectionModalItemActive]}
+                            onPress={() => {
+                              setTargetSegment(segment);
+                              setSegmentPickerVisible(false);
+                              setAssistantSegmentSearch('');
+                            }}
+                          >
+                            <Text style={[styles.selectionModalItemText, isActive && styles.selectionModalItemTextActive]}>
+                              {segment}
+                            </Text>
+                            {isActive && (
+                              <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                </View>
+              )}
+            </View>
+          </KeyboardAvoidingView>
         </LinearGradient>
       </Modal>
 
@@ -779,11 +883,15 @@ export default function CRM_AutomationsScreen() {
           end={{ x: 0.9, y: 1 }}
           style={[styles.fullModalContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
         >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
           <View style={styles.assistantModalContent}>
             {/* Top Section - Form */}
             <View style={{ flex: 1 }}>
               <View style={styles.assistantHeader}>
-                <View>
+                <View style={{ flex: 1, marginRight: 16 }}>
                   <Text style={styles.assistantTitle}>Create Rules</Text>
                   <Text style={styles.assistantSubtitle}>Define your automation logic with precision.</Text>
                 </View>
@@ -816,7 +924,7 @@ export default function CRM_AutomationsScreen() {
 
                 {/* Trigger Logic */}
                 <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>TRIGGER LOGIC (IF)</Text>
+                  <Text style={styles.fieldLabel}>TRIGGER LOGIC (IF) <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <Pressable
                     style={styles.segmentPickerTrigger}
                     onPress={() => { setActivePicker('trigger'); setTriggerSearch(''); }}
@@ -828,7 +936,7 @@ export default function CRM_AutomationsScreen() {
 
                 {/* Execution Timing */}
                 <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>EXECUTION (WHEN)</Text>
+                  <Text style={styles.fieldLabel}>EXECUTION (WHEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <Pressable
                     style={styles.segmentPickerTrigger}
                     onPress={() => { setActivePicker('execution'); setExecutionSearch(''); }}
@@ -840,7 +948,7 @@ export default function CRM_AutomationsScreen() {
 
                 {/* Action */}
                 <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>AUTOMATED ACTION (THEN)</Text>
+                  <Text style={styles.fieldLabel}>AUTOMATED ACTION (THEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <Pressable
                     style={styles.segmentPickerTrigger}
                     onPress={() => { setActivePicker('action'); setActionSearch(''); }}
@@ -868,7 +976,7 @@ export default function CRM_AutomationsScreen() {
 
                 {/* Target Segment */}
                 <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>TARGET SEGMENT</Text>
+                  <Text style={styles.fieldLabel}>TARGET SEGMENT <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <Pressable
                     style={styles.segmentPickerTrigger}
                     onPress={() => { setActivePicker('segment'); setSegmentSearch(''); }}
@@ -904,7 +1012,7 @@ export default function CRM_AutomationsScreen() {
             {(activePicker !== null || templatePickerVisible) && (
               <View style={styles.pickerOverlayAbsolute}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={() => { setActivePicker(null); setTemplatePickerVisible(false); }} />
-                
+
                 {activePicker === 'trigger' && (
                   <View style={styles.selectionModalContainer}>
                     <View style={styles.selectionModalHeader}>
@@ -1033,6 +1141,7 @@ export default function CRM_AutomationsScreen() {
               </View>
             )}
           </View>
+        </KeyboardAvoidingView>
         </LinearGradient>
       </Modal>
 
@@ -1117,7 +1226,9 @@ export default function CRM_AutomationsScreen() {
                 style={styles.refineBtn}
                 onPress={() => {
                   setFlowModalVisible(false);
-                  setRuleIdentity("Generate a workflow for: " + (selectedFlow?.title || "Auto-assign Premium Leads to Senior Agents"));
+                  const ruleName = selectedFlow?.title || "Auto-assign Premium Leads to Senior Agents";
+                  setRuleIdentity(ruleName);
+                  setAiPrompt("Generate a workflow for: " + ruleName);
                   setTargetSegment("Cold Database");
                   setAiAssistantVisible(true);
                 }}
@@ -1146,16 +1257,20 @@ export default function CRM_AutomationsScreen() {
               This will permanently remove this automation rule. This action cannot be undone.
             </Text>
             <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setConfirmDeleteVisible(false)}>
+              <Pressable style={styles.cancelBtn} onPress={() => setConfirmDeleteVisible(false)} disabled={deleteMutation.isPending}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </Pressable>
-              <Pressable style={styles.deleteBtn} onPress={confirmDelete}>
-                <Text style={styles.deleteBtnText}>Delete</Text>
+              <Pressable style={styles.deleteBtn} onPress={confirmDelete} disabled={deleteMutation.isPending}>
+                {deleteMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.deleteBtnText}>Delete</Text>
+                )}
               </Pressable>
             </View>
           </View>
         </View>
-          </Modal>
+      </Modal>
 
       {/* ── VIEW / PREVIEW AUTOMATION MODAL ── */}
       <Modal
@@ -1295,10 +1410,14 @@ export default function CRM_AutomationsScreen() {
           end={{ x: 0.9, y: 1 }}
           style={[styles.fullModalContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
         >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
           <View style={styles.assistantModalContent}>
             {/* Header */}
             <View style={styles.assistantHeader}>
-              <View>
+              <View style={{ flex: 1, marginRight: 16 }}>
                 <Text style={styles.assistantTitle}>Modify Rule</Text>
                 <Text style={styles.assistantSubtitle}>Define your automation logic with precision.</Text>
               </View>
@@ -1442,7 +1561,7 @@ export default function CRM_AutomationsScreen() {
             {(editActivePicker !== null || editTemplatePickerVisible) && (
               <View style={styles.pickerOverlayAbsolute}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={() => { setEditActivePicker(null); setEditTemplatePickerVisible(false); }} />
-                
+
                 {editActivePicker === 'trigger' && (
                   <View style={styles.selectionModalContainer}>
                     <View style={styles.selectionModalHeader}>
@@ -1574,6 +1693,7 @@ export default function CRM_AutomationsScreen() {
               </View>
             )}
           </View>
+        </KeyboardAvoidingView>
         </LinearGradient>
       </Modal>
     </LinearGradient>
@@ -1939,7 +2059,7 @@ function getStyles(colors: any, theme?: string) {
       borderColor: colors.cardBorder,
     },
     assistantField: {
-      marginBottom: 24,
+      marginBottom: 18,
     },
     fieldLabel: {
       fontSize: 10,
@@ -1950,27 +2070,44 @@ function getStyles(colors: any, theme?: string) {
     },
     inputContainer: {
       backgroundColor: colors.surfaceSoft || 'rgba(100, 116, 139, 0.05)',
-      borderRadius: 16,
+      borderRadius: 14,
       paddingHorizontal: 16,
-      height: 56,
+      height: 50,
       justifyContent: 'center',
       borderWidth: 1,
       borderColor: colors.cardBorder || 'rgba(100, 116, 139, 0.1)',
     },
     fieldInput: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    textareaContainer: {
+      backgroundColor: colors.surfaceSoft || 'rgba(100, 116, 139, 0.05)',
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 12,
+      minHeight: 120,
+      borderWidth: 1,
+      borderColor: colors.cardBorder || 'rgba(100, 116, 139, 0.1)',
+    },
+    textarea: {
       fontSize: 16,
       fontWeight: '700',
       color: colors.textPrimary,
+      textAlignVertical: 'top',
+      flex: 1,
     },
     segmentPickerTrigger: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       backgroundColor: colors.surfaceSoft || 'rgba(100, 116, 139, 0.05)',
-      borderRadius: 18,
-      paddingHorizontal: 20,
-      height: 58,
-      borderWidth: 1.5,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      height: 50,
+      borderWidth: 1,
       borderColor: colors.cardBorder || 'rgba(100, 116, 139, 0.1)',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
@@ -1978,7 +2115,7 @@ function getStyles(colors: any, theme?: string) {
       shadowRadius: 4,
     },
     segmentValue: {
-      fontSize: 16,
+      fontSize: 14,
       fontWeight: '700',
       color: colors.textPrimary,
     },
@@ -2316,7 +2453,6 @@ function getStyles(colors: any, theme?: string) {
       fontWeight: '900',
       color: '#FFFFFF',
       letterSpacing: 1,
-      textTransform: 'uppercase',
     },
     splitFieldsRow: {
       flexDirection: 'row',
@@ -2358,10 +2494,11 @@ function getStyles(colors: any, theme?: string) {
       marginRight: 8,
     },
     horizontalCardTitle: {
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: '800',
       color: colors.textPrimary,
       letterSpacing: -0.3,
+      lineHeight: 20,
     },
     horizontalCardBadge: {
       borderRadius: 12,
@@ -2404,6 +2541,26 @@ function getStyles(colors: any, theme?: string) {
       flexDirection: 'row',
       width: '100%',
       gap: 8,
+    },
+    horizontalCardStatusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      height: 36,
+      borderRadius: 12,
+      borderWidth: 1,
+      marginBottom: 12,
+    },
+    horizontalCardStatusDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 3.5,
+    },
+    horizontalCardStatusText: {
+      fontSize: 11,
+      fontWeight: '900',
+      letterSpacing: 1,
     },
     horizontalCardActionBtn: {
       flex: 1,

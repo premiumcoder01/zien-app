@@ -68,12 +68,14 @@ export default function ProfileScreen() {
     const [noteContent, setNoteContent] = useState('');
     const [isNoteModalVisible, setIsNoteModalVisible] = useState(false);
     const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(null);
+    const noteInputRef = React.useRef<TextInput>(null);
 
     // Event State
     const [eventTitle, setEventTitle] = useState('');
     const [eventDate, setEventDate] = useState<Date | null>(null);
     const [isEventModalVisible, setIsEventModalVisible] = useState(false);
     const [editingEventIndex, setEditingEventIndex] = useState<number | null>(null);
+    const eventTitleInputRef = React.useRef<TextInput>(null);
 
     // Task State
     const [taskSubject, setTaskSubject] = useState('');
@@ -82,10 +84,12 @@ export default function ProfileScreen() {
     const [isTaskModalVisible, setIsTaskModalVisible] = useState(false);
     const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
     const [isPriorityDropdownVisible, setIsPriorityDropdownVisible] = useState(false);
+    const taskSubjectInputRef = React.useRef<TextInput>(null);
 
     // Heat Index State
     const [heatIndexInput, setHeatIndexInput] = useState('');
     const [isHeatModalVisible, setIsHeatModalVisible] = useState(false);
+    const heatIndexInputRef = React.useRef<TextInput>(null);
 
     // Inline Date Picker control (per-modal)
     const [showEventDatePicker, setShowEventDatePicker] = useState(false);
@@ -410,6 +414,7 @@ export default function ProfileScreen() {
 
     // Date Picker Triggers
     const openEventDatePicker = () => {
+        eventTitleInputRef.current?.blur();
         Keyboard.dismiss();
         if (Platform.OS === 'android') {
             setAndroidTaskPickerMode('date');
@@ -418,6 +423,7 @@ export default function ProfileScreen() {
     };
 
     const openTaskDatePicker = () => {
+        taskSubjectInputRef.current?.blur();
         Keyboard.dismiss();
         if (Platform.OS === 'android') {
             setAndroidTaskPickerMode('date');
@@ -727,11 +733,17 @@ export default function ProfileScreen() {
                                                     <Text style={styles.noteItemTitle}>{noteDateFormatted}</Text>
                                                 </View>
                                                 <View style={styles.itemActions}>
-                                                    <Pressable onPress={() => openEditNote(originalIdx)} hitSlop={8}>
-                                                        <MaterialCommunityIcons name="pencil-outline" size={14} color={colors.textMuted} />
+                                                    <Pressable
+                                                        onPress={() => openEditNote(originalIdx)}
+                                                        hitSlop={8}
+                                                        style={styles.editIconBtn}>
+                                                        <MaterialCommunityIcons name="pencil-outline" size={14} color="#0070F3" />
                                                     </Pressable>
-                                                    <Pressable onPress={() => handleDeleteNote(originalIdx)} hitSlop={8}>
-                                                        <MaterialCommunityIcons name="delete-outline" size={14} color={colors.textMuted} />
+                                                    <Pressable
+                                                        onPress={() => handleDeleteNote(originalIdx)}
+                                                        hitSlop={8}
+                                                        style={styles.deleteIconBtn}>
+                                                        <MaterialCommunityIcons name="delete-outline" size={14} color={colors.danger} />
                                                     </Pressable>
                                                 </View>
                                             </View>
@@ -779,11 +791,17 @@ export default function ProfileScreen() {
                                         </View>
                                     </View>
                                     <View style={styles.itemActions}>
-                                        <Pressable onPress={() => openEditEvent(idx)} hitSlop={8}>
-                                            <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textMuted} />
+                                        <Pressable
+                                            onPress={() => openEditEvent(idx)}
+                                            hitSlop={8}
+                                            style={styles.editIconBtn}>
+                                            <MaterialCommunityIcons name="pencil-outline" size={14} color="#0070F3" />
                                         </Pressable>
-                                        <Pressable onPress={() => handleDeleteEvent(idx)} hitSlop={8}>
-                                            <MaterialCommunityIcons name="delete-outline" size={16} color={colors.textMuted} />
+                                        <Pressable
+                                            onPress={() => handleDeleteEvent(idx)}
+                                            hitSlop={8}
+                                            style={styles.deleteIconBtn}>
+                                            <MaterialCommunityIcons name="delete-outline" size={14} color={colors.danger} />
                                         </Pressable>
                                     </View>
                                 </View>
@@ -874,199 +892,293 @@ export default function ProfileScreen() {
             {/* ─── Modals ─── */}
 
             {/* Note Add/Edit Modal */}
-            <Modal visible={isNoteModalVisible} transparent animationType="fade" onRequestClose={() => setIsNoteModalVisible(false)}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>{editingNoteIndex !== null ? 'Edit Internal Note' : 'Add Internal Note'}</Text>
-                        <TextInput
-                            style={styles.textArea}
-                            placeholder="Write a note about this lead..."
-                            placeholderTextColor={colors.textMuted}
-                            multiline
-                            autoFocus
-                            value={noteContent}
-                            onChangeText={setNoteContent}
-                        />
-                        <View style={styles.inputActions}>
-                            <Pressable onPress={() => setIsNoteModalVisible(false)}>
-                                <Text style={styles.cancelText}>Cancel</Text>
-                            </Pressable>
-                            <Pressable
-                                style={[styles.saveBtn, !noteContent.trim() && { opacity: 0.4 }]}
-                                onPress={handleSaveNote}
-                                disabled={!noteContent.trim()}>
-                                <Text style={styles.saveBtnText}>Save Note</Text>
+            <Modal
+                visible={isNoteModalVisible}
+                transparent={false}
+                statusBarTranslucent
+                animationType="slide"
+                onRequestClose={() => setIsNoteModalVisible(false)}>
+                <View style={styles.fullPageModal}>
+                    <View style={[styles.fullPageModalContent, { paddingTop: insets.top }]}>
+                        {/* Header */}
+                        <View style={styles.fullPageHeader}>
+                            <View style={styles.fullPageHeaderTitleRow}>
+                                <View style={[styles.modalIconWrap, { backgroundColor: isDark ? 'rgba(59,130,246,0.12)' : '#EFF6FF' }]}>
+                                    <MaterialCommunityIcons name="note-text-outline" size={20} color="#3B82F6" />
+                                </View>
+                                <Text style={styles.fullPageHeaderTitle}>{editingNoteIndex !== null ? 'Edit Note' : 'Add Note'}</Text>
+                            </View>
+                            <Pressable onPress={() => setIsNoteModalVisible(false)} style={styles.fullPageCloseBtn} hitSlop={12}>
+                                <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
                             </Pressable>
                         </View>
+
+                        {/* Body */}
+                        <KeyboardAvoidingView
+                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            style={{ flex: 1 }}>
+                            <ScrollView
+                                style={styles.fullPageScroll}
+                                contentContainerStyle={styles.fullPageScrollContent}
+                                keyboardShouldPersistTaps="handled">
+                                <TextInput
+                                    ref={noteInputRef}
+                                    style={styles.textArea}
+                                    placeholder="Write a note about this lead..."
+                                    placeholderTextColor={colors.textMuted}
+                                    multiline
+                                    autoFocus
+                                    value={noteContent}
+                                    onChangeText={setNoteContent}
+                                />
+                            </ScrollView>
+
+                            {/* Footer */}
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+                                <Pressable onPress={() => setIsNoteModalVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
+                                    <Text style={styles.cancelText}>Cancel</Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[styles.saveBtn, !noteContent.trim() && { opacity: 0.4 }]}
+                                    onPress={handleSaveNote}
+                                    disabled={!noteContent.trim()}>
+                                    <Text style={styles.saveBtnText}>Save Note</Text>
+                                </Pressable>
+                            </View>
+                        </KeyboardAvoidingView>
                     </View>
-                </KeyboardAvoidingView>
+                </View>
             </Modal>
 
             {/* Event Add/Edit Modal */}
-            <Modal visible={isEventModalVisible} transparent animationType="fade" onRequestClose={() => setIsEventModalVisible(false)}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>{editingEventIndex !== null ? 'Edit Important Event' : 'Add Important Event'}</Text>
-                        <TextInput
-                            style={styles.singleInput}
-                            placeholder="Event title (e.g. birthday, anniversary)"
-                            placeholderTextColor={colors.textMuted}
-                            autoFocus={!showEventDatePicker}
-                            value={eventTitle}
-                            onChangeText={setEventTitle}
-                        />
-
-                        {/* Date Trigger Button */}
-                        <Pressable style={styles.datePicker} onPress={openEventDatePicker}>
-                            <MaterialCommunityIcons name="calendar-outline" size={18} color={colors.textMuted} />
-                            <Text style={formattedEventDate ? styles.datePickerValue : styles.datePickerPlaceholder}>
-                                {formattedEventDate || 'Select date'}
-                            </Text>
-                        </Pressable>
-
-                        {/* iOS inline date picker */}
-                        {Platform.OS === 'ios' && showEventDatePicker && (
-                            <View style={styles.inlinePicker}>
-                                <View style={styles.inlinePickerHeader}>
-                                    <Text style={styles.inlinePickerTitle}>Select Date</Text>
-                                    <Pressable onPress={() => setShowEventDatePicker(false)}>
-                                        <Text style={styles.inlinePickerDone}>Done</Text>
-                                    </Pressable>
+            <Modal
+                visible={isEventModalVisible}
+                transparent={false}
+                statusBarTranslucent
+                animationType="slide"
+                onRequestClose={() => setIsEventModalVisible(false)}>
+                <View style={styles.fullPageModal}>
+                    <View style={[styles.fullPageModalContent, { paddingTop: insets.top }]}>
+                        {/* Header */}
+                        <View style={styles.fullPageHeader}>
+                            <View style={styles.fullPageHeaderTitleRow}>
+                                <View style={[styles.modalIconWrap, { backgroundColor: isDark ? 'rgba(139,92,246,0.12)' : '#F5F3FF' }]}>
+                                    <MaterialCommunityIcons name="calendar-star" size={20} color="#8B5CF6" />
                                 </View>
-                                <DateTimePicker
-                                    value={eventDate || new Date()}
-                                    mode="date"
-                                    display="inline"
-                                    onChange={(event, selectedDate) => {
-                                        if (selectedDate) setEventDate(selectedDate);
-                                    }}
-                                    themeVariant={isDark ? 'dark' : 'light'}
-                                    style={{ width: '100%' }}
-                                />
+                                <Text style={styles.fullPageHeaderTitle}>{editingEventIndex !== null ? 'Edit Event' : 'Add Event'}</Text>
                             </View>
-                        )}
-
-                        {/* Android date picker */}
-                        {Platform.OS === 'android' && showEventDatePicker && (
-                            <DateTimePicker
-                                value={eventDate || new Date()}
-                                mode="date"
-                                display="default"
-                                onChange={(event, selectedDate) => {
-                                    setShowEventDatePicker(false);
-                                    if (event.type === 'set' && selectedDate) {
-                                        setEventDate(selectedDate);
-                                    }
-                                }}
-                            />
-                        )}
-
-                        <View style={styles.inputActions}>
-                            <Pressable onPress={() => { setIsEventModalVisible(false); setShowEventDatePicker(false); }}>
-                                <Text style={styles.cancelText}>Cancel</Text>
-                            </Pressable>
-                            <Pressable
-                                style={[styles.saveBtn, (!eventTitle.trim() || !eventDate) && { opacity: 0.4 }]}
-                                onPress={handleSaveEvent}
-                                disabled={!eventTitle.trim() || !eventDate}>
-                                <Text style={styles.saveBtnText}>Save Event</Text>
+                            <Pressable onPress={() => { setIsEventModalVisible(false); setShowEventDatePicker(false); }} style={styles.fullPageCloseBtn} hitSlop={12}>
+                                <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
                             </Pressable>
                         </View>
+
+                        {/* Body */}
+                        <KeyboardAvoidingView
+                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            style={{ flex: 1 }}>
+                            <ScrollView
+                                style={styles.fullPageScroll}
+                                contentContainerStyle={styles.fullPageScrollContent}
+                                keyboardShouldPersistTaps="handled">
+                                <TextInput
+                                    ref={eventTitleInputRef}
+                                    style={styles.singleInput}
+                                    placeholder="Event title (e.g. birthday, anniversary)"
+                                    placeholderTextColor={colors.textMuted}
+                                    autoFocus={!showEventDatePicker}
+                                    value={eventTitle}
+                                    onChangeText={setEventTitle}
+                                />
+
+                                {/* Date Trigger Button */}
+                                <Pressable style={styles.datePicker} onPress={openEventDatePicker}>
+                                    <MaterialCommunityIcons name="calendar-outline" size={18} color={colors.textMuted} />
+                                    <Text style={formattedEventDate ? styles.datePickerValue : styles.datePickerPlaceholder}>
+                                        {formattedEventDate || 'Select date'}
+                                    </Text>
+                                </Pressable>
+
+                                {/* iOS inline date picker */}
+                                {Platform.OS === 'ios' && showEventDatePicker && (
+                                    <View style={styles.inlinePicker}>
+                                        <View style={styles.inlinePickerHeader}>
+                                            <Text style={styles.inlinePickerTitle}>Select Date</Text>
+                                            <Pressable onPress={() => setShowEventDatePicker(false)}>
+                                                <Text style={styles.inlinePickerDone}>Done</Text>
+                                            </Pressable>
+                                        </View>
+                                        <DateTimePicker
+                                            value={eventDate || new Date()}
+                                            mode="date"
+                                            display="inline"
+                                            onChange={(event, selectedDate) => {
+                                                if (selectedDate) setEventDate(selectedDate);
+                                            }}
+                                            themeVariant={isDark ? 'dark' : 'light'}
+                                            style={{ width: '100%' }}
+                                        />
+                                    </View>
+                                )}
+
+                                {/* Android date picker */}
+                                {Platform.OS === 'android' && showEventDatePicker && (
+                                    <DateTimePicker
+                                        value={eventDate || new Date()}
+                                        mode="date"
+                                        display="default"
+                                        onChange={(event, selectedDate) => {
+                                            setShowEventDatePicker(false);
+                                            if (event.type === 'set' && selectedDate) {
+                                                setEventDate(selectedDate);
+                                            }
+                                        }}
+                                    />
+                                )}
+                            </ScrollView>
+
+                            {/* Footer */}
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+                                <Pressable onPress={() => { setIsEventModalVisible(false); setShowEventDatePicker(false); }} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
+                                    <Text style={styles.cancelText}>Cancel</Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[styles.saveBtn, (!eventTitle.trim() || !eventDate) && { opacity: 0.4 }]}
+                                    onPress={handleSaveEvent}
+                                    disabled={!eventTitle.trim() || !eventDate}>
+                                    <Text style={styles.saveBtnText}>Save Event</Text>
+                                </Pressable>
+                            </View>
+                        </KeyboardAvoidingView>
                     </View>
-                </KeyboardAvoidingView>
+                </View>
             </Modal>
 
             {/* Task Add/Edit Modal */}
-            <Modal visible={isTaskModalVisible} transparent animationType="fade" onRequestClose={() => setIsTaskModalVisible(false)}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>{editingTaskId ? 'Edit Task' : 'Add Task'}</Text>
-                        <TextInput
-                            style={styles.singleInput}
-                            placeholder="Task subject (e.g. Call to discuss contract)"
-                            placeholderTextColor={colors.textMuted}
-                            autoFocus={!showTaskDatePicker}
-                            value={taskSubject}
-                            onChangeText={setTaskSubject}
-                        />
-
-                        <View style={styles.modalRow}>
-                            <Pressable style={[styles.datePicker, { flex: 1, marginBottom: 0 }]} onPress={openTaskDatePicker}>
-                                <Text style={taskDueDate ? styles.datePickerValue : styles.datePickerPlaceholder}>
-                                    {taskDueDate ? formatTaskDateModal(taskDueDate) : 'Select Date'}
-                                </Text>
-                                <MaterialCommunityIcons name="calendar-outline" size={18} color={colors.textMuted} style={{ marginLeft: 'auto' }} />
-                            </Pressable>
-
-                            <Pressable style={[styles.priorityTrigger, { flex: 1 }]} onPress={() => setIsPriorityDropdownVisible(true)}>
-                                <Text style={styles.priorityTriggerText}>{taskPriority} Priority</Text>
-                                <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textMuted} style={{ marginLeft: 'auto' }} />
+            <Modal
+                visible={isTaskModalVisible}
+                transparent={false}
+                statusBarTranslucent
+                animationType="slide"
+                onRequestClose={() => setIsTaskModalVisible(false)}>
+                <View style={styles.fullPageModal}>
+                    <View style={[styles.fullPageModalContent, { paddingTop: insets.top }]}>
+                        {/* Header */}
+                        <View style={styles.fullPageHeader}>
+                            <View style={styles.fullPageHeaderTitleRow}>
+                                <View style={[styles.modalIconWrap, { backgroundColor: isDark ? 'rgba(16,185,129,0.12)' : '#ECFDF5' }]}>
+                                    <MaterialCommunityIcons name="checkbox-marked-circle-outline" size={20} color="#10B981" />
+                                </View>
+                                <Text style={styles.fullPageHeaderTitle}>{editingTaskId ? 'Edit Task' : 'Add Task'}</Text>
+                            </View>
+                            <Pressable onPress={() => { setIsTaskModalVisible(false); setShowTaskDatePicker(false); }} style={styles.fullPageCloseBtn} hitSlop={12}>
+                                <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
                             </Pressable>
                         </View>
 
-                        {/* iOS inline datetime picker */}
-                        {Platform.OS === 'ios' && showTaskDatePicker && (
-                            <View style={styles.inlinePicker}>
-                                <View style={styles.inlinePickerHeader}>
-                                    <Text style={styles.inlinePickerTitle}>Select Date & Time</Text>
-                                    <Pressable onPress={() => setShowTaskDatePicker(false)}>
-                                        <Text style={styles.inlinePickerDone}>Done</Text>
+                        {/* Body */}
+                        <KeyboardAvoidingView
+                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            style={{ flex: 1 }}>
+                            <ScrollView
+                                style={styles.fullPageScroll}
+                                contentContainerStyle={styles.fullPageScrollContent}
+                                keyboardShouldPersistTaps="handled">
+                                <TextInput
+                                    ref={taskSubjectInputRef}
+                                    style={styles.singleInput}
+                                    placeholder="Task subject (e.g. Call to discuss contract)"
+                                    placeholderTextColor={colors.textMuted}
+                                    autoFocus={!showTaskDatePicker}
+                                    value={taskSubject}
+                                    onChangeText={setTaskSubject}
+                                />
+
+                                <View style={styles.modalRow}>
+                                    <Pressable style={[styles.datePicker, { flex: 1, marginBottom: 0 }]} onPress={openTaskDatePicker}>
+                                        <Text style={taskDueDate ? styles.datePickerValue : styles.datePickerPlaceholder}>
+                                            {taskDueDate ? formatTaskDateModal(taskDueDate) : 'Select Date'}
+                                        </Text>
+                                        <MaterialCommunityIcons name="calendar-outline" size={18} color={colors.textMuted} style={{ marginLeft: 'auto' }} />
+                                    </Pressable>
+
+                                    <Pressable
+                                        style={[styles.priorityTrigger, { flex: 1 }]}
+                                        onPress={() => {
+                                            taskSubjectInputRef.current?.blur();
+                                            Keyboard.dismiss();
+                                            setIsPriorityDropdownVisible(true);
+                                        }}>
+                                        <Text style={styles.priorityTriggerText}>{taskPriority} Priority</Text>
+                                        <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textMuted} style={{ marginLeft: 'auto' }} />
                                     </Pressable>
                                 </View>
-                                <DateTimePicker
-                                    value={taskDueDate || new Date()}
-                                    mode="datetime"
-                                    display="spinner"
-                                    onChange={(event, selectedDate) => {
-                                        if (selectedDate) setTaskDueDate(selectedDate);
-                                    }}
-                                    themeVariant={isDark ? 'dark' : 'light'}
-                                    style={{ width: '100%', height: 200 }}
-                                />
+
+                                {/* iOS inline datetime picker */}
+                                {Platform.OS === 'ios' && showTaskDatePicker && (
+                                    <View style={styles.inlinePicker}>
+                                        <View style={styles.inlinePickerHeader}>
+                                            <Text style={styles.inlinePickerTitle}>Select Date & Time</Text>
+                                            <Pressable onPress={() => setShowTaskDatePicker(false)}>
+                                                <Text style={styles.inlinePickerDone}>Done</Text>
+                                            </Pressable>
+                                        </View>
+                                        <DateTimePicker
+                                            value={taskDueDate || new Date()}
+                                            mode="datetime"
+                                            display="inline"
+                                            onChange={(event, selectedDate) => {
+                                                if (selectedDate) setTaskDueDate(selectedDate);
+                                            }}
+                                            themeVariant={isDark ? 'dark' : 'light'}
+                                            style={{ width: '100%' }}
+                                        />
+                                    </View>
+                                )}
+
+                                {/* Android datetime picker - two step (date then time) */}
+                                {Platform.OS === 'android' && showTaskDatePicker && (
+                                    <DateTimePicker
+                                        value={taskDueDate || new Date()}
+                                        mode={androidTaskPickerMode}
+                                        display="default"
+                                        onChange={(event, selectedDate) => {
+                                            if (event.type === 'set') {
+                                                const current = selectedDate || taskDueDate || new Date();
+                                                setTaskDueDate(current);
+                                                if (androidTaskPickerMode === 'date') {
+                                                    setAndroidTaskPickerMode('time');
+                                                } else {
+                                                    setShowTaskDatePicker(false);
+                                                }
+                                            } else {
+                                                setShowTaskDatePicker(false);
+                                            }
+                                        }}
+                                    />
+                                )}
+                            </ScrollView>
+
+                            {/* Footer */}
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+                                <Pressable onPress={() => { setIsTaskModalVisible(false); setShowTaskDatePicker(false); }} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
+                                    <Text style={styles.cancelText}>Cancel</Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[styles.saveBtn, (!taskSubject.trim() || !taskDueDate) && { opacity: 0.4 }]}
+                                    onPress={handleSaveTask}
+                                    disabled={!taskSubject.trim() || !taskDueDate}>
+                                    <Text style={styles.saveBtnText}>{editingTaskId ? 'Update task' : 'Add task'}</Text>
+                                </Pressable>
                             </View>
-                        )}
-
-                        {/* Android datetime picker - two step (date then time) */}
-                        {Platform.OS === 'android' && showTaskDatePicker && (
-                            <DateTimePicker
-                                value={taskDueDate || new Date()}
-                                mode={androidTaskPickerMode}
-                                display="default"
-                                onChange={(event, selectedDate) => {
-                                    if (event.type === 'set') {
-                                        const current = selectedDate || taskDueDate || new Date();
-                                        setTaskDueDate(current);
-                                        if (androidTaskPickerMode === 'date') {
-                                            setAndroidTaskPickerMode('time');
-                                        } else {
-                                            setShowTaskDatePicker(false);
-                                        }
-                                    } else {
-                                        setShowTaskDatePicker(false);
-                                    }
-                                }}
-                            />
-                        )}
-
-                        <View style={styles.inputActions}>
-                            <Pressable onPress={() => { setIsTaskModalVisible(false); setShowTaskDatePicker(false); }}>
-                                <Text style={styles.cancelText}>Cancel</Text>
-                            </Pressable>
-                            <Pressable
-                                style={[styles.saveBtn, (!taskSubject.trim() || !taskDueDate) && { opacity: 0.4 }]}
-                                onPress={handleSaveTask}
-                                disabled={!taskSubject.trim() || !taskDueDate}>
-                                <Text style={styles.saveBtnText}>{editingTaskId ? 'Update task' : 'Add task'}</Text>
-                            </Pressable>
-                        </View>
+                        </KeyboardAvoidingView>
                     </View>
-                </KeyboardAvoidingView>
+                </View>
             </Modal>
 
             {/* Priority Dropdown Modal - separate to avoid z-index issues inside modals */}
             <Modal visible={isPriorityDropdownVisible} transparent animationType="fade" onRequestClose={() => setIsPriorityDropdownVisible(false)}>
                 <Pressable style={styles.dropdownOverlay} onPress={() => setIsPriorityDropdownVisible(false)}>
-                    <View style={styles.dropdownModalContent}>
+                    <View style={[styles.dropdownModalContent, { paddingBottom: Math.max(insets.bottom + 16, 32) }]}>
                         <Text style={styles.dropdownModalTitle}>Select Priority</Text>
                         {['High', 'Medium', 'Low'].map((p) => {
                             const isSelected = p === taskPriority;
@@ -1089,95 +1201,113 @@ export default function ProfileScreen() {
             </Modal>
 
             {/* Heat Index Modal */}
-            <Modal visible={isHeatModalVisible} transparent animationType="fade" onRequestClose={() => setIsHeatModalVisible(false)}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-                    <Pressable style={styles.modalOverlay} onPress={() => setIsHeatModalVisible(false)}>
-                        <Pressable style={styles.heatModalContent} onPress={() => {}}>
-                            {/* Header */}
-                            <View style={styles.heatModalHeader}>
-                                <View style={styles.heatModalIconWrap}>
+            <Modal
+                visible={isHeatModalVisible}
+                transparent={false}
+                statusBarTranslucent
+                animationType="slide"
+                onRequestClose={() => setIsHeatModalVisible(false)}>
+                <View style={styles.fullPageModal}>
+                    <View style={[styles.fullPageModalContent, { paddingTop: insets.top }]}>
+                        {/* Header */}
+                        <View style={styles.fullPageHeader}>
+                            <View style={styles.fullPageHeaderTitleRow}>
+                                <View style={[styles.modalIconWrap, { backgroundColor: isDark ? 'rgba(245,124,0,0.12)' : '#FFF7ED' }]}>
                                     <MaterialCommunityIcons name="fire" size={20} color="#F57C00" />
                                 </View>
-                                <Text style={styles.modalTitle}>AI Heat Index</Text>
+                                <Text style={styles.fullPageHeaderTitle}>AI Heat Index</Text>
                             </View>
+                            <Pressable onPress={() => setIsHeatModalVisible(false)} style={styles.fullPageCloseBtn} hitSlop={12}>
+                                <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                            </Pressable>
+                        </View>
 
-                            {/* Live Score Display */}
-                            <View style={styles.heatModalScoreWrap}>
-                                <Text style={[
-                                    styles.heatModalScoreBig,
-                                    {
-                                        color: parseInt(heatIndexInput || '0') >= 70 ? '#EF4444' :
-                                            parseInt(heatIndexInput || '0') >= 40 ? '#F59E0B' : '#10B981'
-                                    }
-                                ]}>
-                                    {heatIndexInput || '0'}
-                                </Text>
-                                <Text style={styles.heatModalScoreSuffix}>/100</Text>
-                            </View>
+                        {/* Body */}
+                        <KeyboardAvoidingView
+                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            style={{ flex: 1 }}>
+                            <ScrollView
+                                style={styles.fullPageScroll}
+                                contentContainerStyle={styles.fullPageScrollContent}
+                                keyboardShouldPersistTaps="handled">
 
-                            {/* Gradient Progress Bar */}
-                            <View style={styles.heatModalProgressTrack}>
-                                <LinearGradient
-                                    colors={['#10B981', '#F59E0B', '#F57C00', '#EF4444'] as any}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={[styles.heatModalProgressFill, { width: `${Math.min(parseInt(heatIndexInput || '0'), 100)}%` }]}
-                                />
-                            </View>
-                            <View style={styles.heatModalLabelsRow}>
-                                <Text style={styles.heatModalLabel}>Cold</Text>
-                                <Text style={styles.heatModalLabel}>Warm</Text>
-                                <Text style={styles.heatModalLabel}>Hot</Text>
-                            </View>
-
-                            {/* Score Input */}
-                            <View style={styles.heatModalInputRow}>
-                                <Text style={styles.heatModalInputLabel}>Score</Text>
-                                <TextInput
-                                    style={styles.heatModalInput}
-                                    placeholder="0"
-                                    placeholderTextColor={colors.textMuted}
-                                    keyboardType="numeric"
-                                    autoFocus
-                                    maxLength={3}
-                                    value={heatIndexInput}
-                                    onChangeText={(text) => {
-                                        const numOnly = text.replace(/[^0-9]/g, '');
-                                        if (numOnly === '' || parseInt(numOnly) <= 100) {
-                                            setHeatIndexInput(numOnly);
+                                {/* Live Score Display */}
+                                <View style={styles.heatModalScoreWrap}>
+                                    <Text style={[
+                                        styles.heatModalScoreBig,
+                                        {
+                                            color: parseInt(heatIndexInput || '0') >= 70 ? '#EF4444' :
+                                                parseInt(heatIndexInput || '0') >= 40 ? '#F59E0B' : '#10B981'
                                         }
-                                    }}
-                                    selectTextOnFocus
-                                />
-                            </View>
+                                    ]}>
+                                        {heatIndexInput || '0'}
+                                    </Text>
+                                    <Text style={styles.heatModalScoreSuffix}>/100</Text>
+                                </View>
 
-                            {/* Actions */}
-                            <View style={styles.heatModalActions}>
-                                <Pressable
-                                    style={styles.heatModalCancelBtn}
-                                    onPress={() => setIsHeatModalVisible(false)}>
-                                    <Text style={styles.heatModalCancelText}>Cancel</Text>
+                                {/* Gradient Progress Bar */}
+                                <View style={styles.heatModalProgressTrack}>
+                                    <LinearGradient
+                                        colors={['#10B981', '#F59E0B', '#F57C00', '#EF4444'] as any}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={[styles.heatModalProgressFill, { width: `${Math.min(parseInt(heatIndexInput || '0'), 100)}%` }]}
+                                    />
+                                </View>
+                                <View style={styles.heatModalLabelsRow}>
+                                    <Text style={styles.heatModalLabel}>Cold</Text>
+                                    <Text style={styles.heatModalLabel}>Warm</Text>
+                                    <Text style={styles.heatModalLabel}>Hot</Text>
+                                </View>
+
+                                {/* Score Input */}
+                                <View style={styles.heatModalInputRow}>
+                                    <Text style={styles.heatModalInputLabel}>Score</Text>
+                                    <TextInput
+                                        ref={heatIndexInputRef}
+                                        style={styles.heatModalInput}
+                                        placeholder="0"
+                                        placeholderTextColor={colors.textMuted}
+                                        keyboardType="numeric"
+                                        autoFocus
+                                        maxLength={3}
+                                        value={heatIndexInput}
+                                        onChangeText={(text) => {
+                                            const numOnly = text.replace(/[^0-9]/g, '');
+                                            if (numOnly === '' || parseInt(numOnly) <= 100) {
+                                                setHeatIndexInput(numOnly);
+                                            }
+                                        }}
+                                        selectTextOnFocus
+                                    />
+                                </View>
+                            </ScrollView>
+
+                            {/* Footer */}
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+                                <Pressable onPress={() => setIsHeatModalVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
+                                    <Text style={styles.cancelText}>Cancel</Text>
                                 </Pressable>
                                 <Pressable
-                                    style={[styles.heatModalSaveBtn, !heatIndexInput.trim() && { opacity: 0.4 }]}
+                                    style={[styles.saveBtn, !heatIndexInput.trim() && { opacity: 0.4 }]}
                                     onPress={handleSaveHeat}
                                     disabled={!heatIndexInput.trim()}>
                                     {updateContactMutation.isPending ? (
                                         <ActivityIndicator color="#FFFFFF" size="small" />
                                     ) : (
-                                        <Text style={styles.heatModalSaveText}>Update Score</Text>
+                                        <Text style={styles.saveBtnText}>Update Score</Text>
                                     )}
                                 </Pressable>
                             </View>
-                        </Pressable>
-                    </Pressable>
-                </KeyboardAvoidingView>
+                        </KeyboardAvoidingView>
+                    </View>
+                </View>
             </Modal>
 
             {/* Pipeline Stage Dropdown Modal */}
             <Modal visible={isStageDropdownVisible} transparent animationType="fade" onRequestClose={() => setIsStageDropdownVisible(false)}>
                 <Pressable style={styles.dropdownOverlay} onPress={() => setIsStageDropdownVisible(false)}>
-                    <View style={styles.dropdownModalContent}>
+                    <View style={[styles.dropdownModalContent, { paddingBottom: Math.max(insets.bottom + 16, 32) }]}>
                         <Text style={styles.dropdownModalTitle}>Select Stage</Text>
                         {stages.map((stage) => {
                             const isSelected = stage === currentStageName;
@@ -1869,7 +1999,7 @@ function getStyles(colors: any, isDark: boolean) {
             flex: 1,
             backgroundColor: 'rgba(0, 0, 0, 0.4)',
             justifyContent: 'center',
-            padding: 24,
+            paddingHorizontal: 24,
         },
         modalContent: {
             backgroundColor: colors.cardBackground,
@@ -1883,11 +2013,79 @@ function getStyles(colors: any, isDark: boolean) {
             shadowRadius: 20,
             elevation: 10,
         },
+        modalHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 20,
+        },
+        modalIconWrap: {
+            width: 36,
+            height: 36,
+            borderRadius: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
         modalTitle: {
             fontSize: 18,
             fontWeight: '800',
             color: colors.textPrimary,
-            marginBottom: 16,
+        },
+        // Full Page Modals
+        fullPageModal: {
+            flex: 1,
+            backgroundColor: colors.cardBackground,
+        },
+        fullPageModalContent: {
+            flex: 1,
+            backgroundColor: colors.cardBackground,
+        },
+        fullPageHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 24,
+            paddingTop: 16,
+            paddingBottom: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.borderLight,
+        },
+        fullPageHeaderTitleRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+        },
+        fullPageHeaderTitle: {
+            fontSize: 20,
+            fontWeight: '900',
+            color: colors.textPrimary,
+            letterSpacing: -0.5,
+        },
+        fullPageCloseBtn: {
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: colors.surfaceSoft,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        fullPageScroll: {
+            flex: 1,
+        },
+        fullPageScrollContent: {
+            paddingHorizontal: 24,
+            paddingTop: 24,
+        },
+        fullPageFooter: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            paddingHorizontal: 24,
+            paddingTop: 16,
+            gap: 16,
+            backgroundColor: colors.cardBackground,
+            borderTopWidth: 1,
+            borderTopColor: colors.borderLight,
         },
         textArea: {
             fontSize: 15,
@@ -2116,20 +2314,6 @@ function getStyles(colors: any, isDark: boolean) {
             shadowOpacity: 0.15,
             shadowRadius: 24,
             elevation: 12,
-        },
-        heatModalHeader: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 10,
-            marginBottom: 20,
-        },
-        heatModalIconWrap: {
-            width: 36,
-            height: 36,
-            borderRadius: 12,
-            backgroundColor: isDark ? 'rgba(245,124,0,0.12)' : '#FFF7ED',
-            alignItems: 'center',
-            justifyContent: 'center',
         },
         heatModalScoreWrap: {
             flexDirection: 'row',

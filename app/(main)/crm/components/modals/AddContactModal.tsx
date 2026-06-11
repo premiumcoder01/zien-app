@@ -163,6 +163,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   const [activePicker, setActivePicker] = useState<'group' | 'tag' | null>(null);
   const [pickerSearch, setPickerSearch] = useState('');
   const [modalOpenKey, setModalOpenKey] = useState(0);
+  const hasInitializedRef = React.useRef(false);
 
   console.log(initialData)
 
@@ -178,34 +179,39 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
 
   useEffect(() => {
     if (visible) {
-      setModalOpenKey(prev => prev + 1);
-      setErrors({});
-      if (initialData) {
-        setFirstName(initialData.firstName || '');
-        setLastName(initialData.lastName || '');
-        setEmail(initialData.email || '');
+      if (!hasInitializedRef.current) {
+        setModalOpenKey(prev => prev + 1);
+        setErrors({});
+        if (initialData) {
+          setFirstName(initialData.firstName || '');
+          setLastName(initialData.lastName || '');
+          setEmail(initialData.email || '');
 
-        // Correctly prefill the phone number by stripping the country prefix if it's there
-        const rawPhone = initialData.phone || '';
-        const callingCode = (initialData.countryCode || '').replace('+', '');
-        if (callingCode && rawPhone.startsWith(callingCode)) {
-          setPhone(rawPhone.slice(callingCode.length));
+          // Correctly prefill the phone number by stripping the country prefix if it's there
+          const rawPhone = initialData.phone || '';
+          const callingCode = (initialData.countryCode || '').replace('+', '');
+          if (callingCode && rawPhone.startsWith(callingCode)) {
+            setPhone(rawPhone.slice(callingCode.length));
+          } else {
+            setPhone(rawPhone);
+          }
+
+          setGroup(initialData.group || '');
+          setTag(initialData.tag || '');
+          setCountryCodeISO(getIsoCode(initialData.countryCode));
         } else {
-          setPhone(rawPhone);
+          setFirstName('');
+          setLastName('');
+          setEmail('');
+          setPhone('');
+          setGroup('');
+          setTag('');
+          setCountryCodeISO('US');
         }
-
-        setGroup(initialData.group || '');
-        setTag(initialData.tag || '');
-        setCountryCodeISO(getIsoCode(initialData.countryCode));
-      } else {
-        setFirstName('');
-        setLastName('');
-        setEmail('');
-        setPhone('');
-        setGroup('');
-        setTag('');
-        setCountryCodeISO('US');
+        hasInitializedRef.current = true;
       }
+    } else {
+      hasInitializedRef.current = false;
     }
   }, [visible, initialData]);
 
@@ -467,7 +473,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               <View style={styles.pickerHeader}>
                 <Text style={styles.pickerTitle}>Select {activePicker === 'group' ? 'Group' : 'Tag'}</Text>
                 <Pressable onPress={() => setActivePicker(null)} style={styles.pickerCloseBtn}>
-                  <MaterialCommunityIcons name="close" size={22} color={colors.textPrimary} />
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
                 </Pressable>
               </View>
 
@@ -528,16 +534,16 @@ const getStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
   headerTitle: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '900',
     color: colors.textPrimary,
-    letterSpacing: -0.6,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
     fontWeight: '600',
     marginTop: 4,
@@ -556,20 +562,20 @@ const getStyles = (colors: any) => StyleSheet.create({
   formRow: {
     flexDirection: 'row',
     gap: 16,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   formCol: {
     flex: 1,
-    marginBottom: 24
+    marginBottom: 20
   },
   fullWidthCol: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: colors.textPrimary,
-    marginBottom: 10,
+    marginBottom: 8,
     textTransform: 'capitalize',
   },
   required: {
@@ -579,10 +585,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderWidth: 1.5,
     borderColor: colors.cardBorder,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
+    paddingVertical: 12,
+    fontSize: 14,
     color: colors.textPrimary,
     fontWeight: '600',
   },
@@ -598,10 +604,10 @@ const getStyles = (colors: any) => StyleSheet.create({
   phoneInputWrapper: {
     width: '100%',
     backgroundColor: colors.cardBackground,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: colors.cardBorder,
-    height: 54,
+    height: 48,
     overflow: 'hidden',
   },
   phoneTextContainer: {
@@ -610,20 +616,20 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 0,
   },
   phoneTextInput: {
-    fontSize: 16,
+    fontSize: 14,
     marginLeft: 10,
     color: colors.textPrimary,
     fontWeight: '600',
     backgroundColor: 'transparent',
   },
   phoneCodeText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.textPrimary,
     marginLeft: 4,
   },
   phoneFlagButton: {
-    width: 100,
+    width: 90,
     backgroundColor: colors.surfaceIcon,
     borderRightWidth: 1.5,
     borderRightColor: colors.cardBorder,
@@ -635,12 +641,12 @@ const getStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.cardBackground,
     borderWidth: 1.5,
     borderColor: colors.cardBorder,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
   selectText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textPrimary,
     fontWeight: '600',
   },
@@ -655,8 +661,8 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   pickerContent: {
     backgroundColor: colors.cardBackground,
-    borderRadius: 24,
-    height: 520,
+    borderRadius: 20,
+    height: 480,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 20 },
@@ -668,19 +674,19 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 24,
+    padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.rowBorder,
   },
   pickerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
     color: colors.textPrimary,
   },
   pickerCloseBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.surfaceIcon,
     alignItems: 'center',
     justifyContent: 'center',
@@ -689,28 +695,28 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceIcon,
-    margin: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    margin: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 14,
   },
   pickerSearchInput: {
     flex: 1,
     marginLeft: 10,
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textPrimary,
     fontWeight: '600',
   },
   pickerList: {
-    maxHeight: 400,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    maxHeight: 360,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   pickerItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 14,
     marginBottom: 8,
@@ -719,7 +725,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surfaceIcon,
   },
   pickerItemText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.textSecondary,
   },
@@ -730,7 +736,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   noResults: {
     textAlign: 'center',
     marginVertical: 40,
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textMuted,
     fontWeight: '600',
   },
@@ -739,25 +745,25 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingHorizontal: 24,
-    paddingTop: 20,
-    gap: 20,
+    paddingTop: 16,
+    gap: 16,
     backgroundColor: colors.cardBackground,
     borderTopWidth: 1,
     borderTopColor: colors.rowBorder,
   },
   cancelBtn: {
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 8,
   },
   cancelText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.textSecondary,
   },
   saveBtn: {
     backgroundColor: '#0B2D3E', // Keep dark accent button for premium feel
-    paddingHorizontal: 32,
-    paddingVertical: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     borderRadius: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -767,7 +773,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   saveText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
   },
 });

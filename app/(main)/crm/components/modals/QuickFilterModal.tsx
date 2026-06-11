@@ -96,7 +96,7 @@ export const QuickFilterModal: React.FC<QuickFilterModalProps> = ({
                 <MaterialCommunityIcons name="magnify" size={22} color="#94A3B8" />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder={`Search ${type || ''}...`}
+                  placeholder={`Search ${type || ''}`}
                   placeholderTextColor="#94A3B8"
                   value={search}
                   onChangeText={setSearch}
@@ -150,7 +150,7 @@ export const QuickFilterModal: React.FC<QuickFilterModalProps> = ({
                         {isSelected && (
                           <MaterialCommunityIcons
                             name="check-circle"
-                            size={24}
+                            size={20}
                             color="#0a2341"
                           />
                         )}
@@ -170,7 +170,7 @@ export const QuickFilterModal: React.FC<QuickFilterModalProps> = ({
 const getStyles = (colors: any) => StyleSheet.create({
   fullPageModal: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.cardBackground,
   },
   modalContent: {
     flex: 1,
@@ -182,24 +182,24 @@ const getStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
   premiumTitle: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '900',
     color: colors.textPrimary,
-    letterSpacing: -0.8,
+    letterSpacing: -0.5,
   },
   premiumSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#64748B',
     fontWeight: '600',
     marginTop: 4,
   },
   premiumCloseBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -209,39 +209,39 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   searchSection: {
     paddingHorizontal: 24,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceSoft,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderWidth: 1.5,
     borderColor: colors.cardBorder,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.textPrimary,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   scroll: {
     flex: 1,
   },
   list: {
     paddingHorizontal: 24,
-    gap: 12,
+    gap: 10,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1.5,
     borderColor: 'transparent',
@@ -251,7 +251,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.textPrimary,
   },
   itemText: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.textSecondary,
   },

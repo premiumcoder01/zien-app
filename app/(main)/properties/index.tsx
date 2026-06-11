@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { deleteProperty, getProperties, PropertyStats, RawPropertyItem } from '@/services/propertyService';
+import { getOpenHouses, createOpenHouse } from '@/services/openHouseService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Modal,
   Pressable,
@@ -184,7 +186,6 @@ function DeleteConfirmModal({
           {/* Body */}
           <Text style={styles.modalBody}>
             {'Are you sure you want to delete '}
-            <Text style={styles.modalBodyBold}>{property?.id}</Text>
             {'?\nThis action cannot be undone.'}
           </Text>
 
@@ -230,6 +231,8 @@ function PropertyRowCard({
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  const router = useRouter();
+  const { accessToken } = useAuth();
 
   return (
     <View style={styles.propertyCard}>
@@ -268,35 +271,112 @@ function PropertyRowCard({
         </View>
       </View>
 
-      {/* Row 3: Sync badge + action icons */}
-      <View style={styles.row3}>
+      {/* Row 2.5: Sync Status */}
+      <View style={styles.syncRow}>
         <View style={styles.syncBadge}>
           <MaterialCommunityIcons name="cloud-check" size={11} color={colors.textSecondary} />
           <Text style={styles.syncText}>{property.syncStatus}</Text>
         </View>
-        <View style={styles.actionIcons}>
-          <Pressable
-            onPress={() => onManage(property)}
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
-            hitSlop={6}
-          >
-            <MaterialCommunityIcons name="eye-outline" size={20} color={colors.accentTeal} />
-          </Pressable>
-          <Pressable
-            onPress={() => onEdit(property)}
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
-            hitSlop={6}
-          >
-            <MaterialCommunityIcons name="square-edit-outline" size={20} color={colors.textPrimary} />
-          </Pressable>
-          <Pressable
-            onPress={() => onDeletePress(property)}
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
-            hitSlop={6}
-          >
-            <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
-          </Pressable>
-        </View>
+      </View>
+
+      {/* Row 3: Full-width Action Icons */}
+      <View style={styles.bottomActionBar}>
+        <Pressable
+          onPress={() => onManage(property)}
+          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
+          hitSlop={6}
+        >
+          <MaterialCommunityIcons name="eye-outline" size={20} color={colors.accentTeal} />
+        </Pressable>
+        <Pressable
+          onPress={() => onEdit(property)}
+          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
+          hitSlop={6}
+        >
+          <MaterialCommunityIcons name="square-edit-outline" size={20} color={colors.textPrimary} />
+        </Pressable>
+        <Pressable
+          onPress={async () => {
+            try {
+              const events = await getOpenHouses(accessToken || '');
+              const existingEvent = events.find(e => e.property_id === Number(property.id));
+              if (existingEvent) {
+                router.push(`/(main)/open-house/edit/${existingEvent.id}` as any);
+              } else {
+                const defaultDate = new Date();
+                defaultDate.setDate(defaultDate.getDate() + 7);
+                const dateStr = defaultDate.toISOString().split('T')[0];
+
+                const payload = {
+                  property_id: Number(property.id),
+                  date: dateStr,
+                  start_time: "10:00",
+                  end_time: "12:00",
+                  agent_details: {
+                    name: "sweta",
+                    brokerage: "zien",
+                    license: "23243654765",
+                    email: "sweta.isynbus@gmail.com",
+                    phone: "+91 93196-14264"
+                  },
+                  ai_description: "Breathtaking Luxury estate featuring rare architectural details, bespoke imported finishes, and a seamless connection to private, manicured grounds. This residence offers an unparalleled lifestyle for those who demand excellence in every square inch.",
+                  brand_color: "#0B2D3E",
+                  gallery_images: [],
+                  logo_text: "sweta",
+                  ai_tone: "Luxury",
+                  visitor_registration: true,
+                  send_report: true,
+                };
+
+                const res = await createOpenHouse(accessToken || '', payload);
+                const newEventId = res?.data?.id || res?.id;
+                if (newEventId) {
+                  router.push(`/(main)/open-house/edit/${newEventId}` as any);
+                } else {
+                  Alert.alert('Error', 'Failed to create open house event.');
+                }
+              }
+            } catch (err) {
+              console.error(err);
+              Alert.alert('Error', 'An error occurred while routing to the open house page.');
+            }
+          }}
+          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
+          hitSlop={6}
+        >
+          <MaterialCommunityIcons name="calendar-blank-outline" size={20} color={colors.accentTeal} />
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            const cleanAddress = [property.address, property.cityState].filter(Boolean).join(', ');
+            const fullAddress = cleanAddress.toLowerCase().includes('usa') ? cleanAddress : `${cleanAddress}, USA`;
+            router.push({
+              pathname: '/(main)/crm/campaigns',
+              params: {
+                openAiModal: 'true',
+                aiPrompt: `Write a persuasive email campaign promoting my new listing at ${fullAddress}. Include a strong call to action for the recipient to click the link to view the property photos and RSVP.`
+              }
+            });
+          }}
+          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
+          hitSlop={6}
+        >
+          <MaterialCommunityIcons name="bullhorn-outline" size={20} color={colors.textPrimary} />
+        </Pressable>
+        <Pressable
+          onPress={() => router.push('/(main)/social-hub/create-post')}
+          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
+          hitSlop={6}
+        >
+          <MaterialCommunityIcons name="share-variant-outline" size={20} color="#EA580C" />
+        </Pressable>
+        <Pressable
+          onPress={() => onDeletePress(property)}
+          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
+          hitSlop={6}
+        >
+          <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
+        </Pressable>
       </View>
     </View>
   );
@@ -803,11 +883,11 @@ function getStyles(colors: any) {
       borderRadius: 3,
     },
 
-    // Row 3
-    row3: {
+    // Row 3 / Bottom Action Bar
+    syncRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      marginBottom: 12,
     },
     syncBadge: {
       flexDirection: 'row',
@@ -820,9 +900,9 @@ function getStyles(colors: any) {
       fontWeight: '600',
       letterSpacing: 0.5,
     },
-    actionIcons: {
+    bottomActionBar: {
       flexDirection: 'row',
-      gap: 6,
+      justifyContent: 'space-between',
       alignItems: 'center',
     },
     iconBtn: {

@@ -501,13 +501,13 @@ export default function FollowUpsScreen() {
         </View>
 
         <View style={styles.filterSection}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll} keyboardDismissMode='on-drag' keyboardShouldPersistTaps="always">
+          <View style={styles.filtersRow}>
             <Pressable
               style={[styles.filterBtn, groupFilter !== 'All Groups' && styles.filterBtnActive]}
               onPress={() => setActiveDropdown('group')}
             >
               <MaterialCommunityIcons name="folder-outline" size={18} color={groupFilter !== 'All Groups' ? colors.accentTeal : colors.textSecondary} />
-              <Text style={[styles.filterBtnText, groupFilter !== 'All Groups' && styles.filterBtnTextActive]}>{groupFilter}</Text>
+              <Text style={[styles.filterBtnText, groupFilter !== 'All Groups' && styles.filterBtnTextActive]} numberOfLines={1}>{groupFilter}</Text>
               <MaterialCommunityIcons name="chevron-down" size={16} color={groupFilter !== 'All Groups' ? colors.textPrimary : colors.textMuted || '#64748B'} />
             </Pressable>
 
@@ -516,10 +516,10 @@ export default function FollowUpsScreen() {
               onPress={() => setActiveDropdown('tag')}
             >
               <MaterialCommunityIcons name="tag-outline" size={18} color={tagFilter !== 'All Tags' ? colors.accentTeal : colors.textSecondary} />
-              <Text style={[styles.filterBtnText, tagFilter !== 'All Tags' && styles.filterBtnTextActive]}>{tagFilter}</Text>
+              <Text style={[styles.filterBtnText, tagFilter !== 'All Tags' && styles.filterBtnTextActive]} numberOfLines={1}>{tagFilter}</Text>
               <MaterialCommunityIcons name="chevron-down" size={16} color={tagFilter !== 'All Tags' ? colors.textPrimary : colors.textMuted || '#64748B'} />
             </Pressable>
-          </ScrollView>
+          </View>
         </View>
 
         <View style={styles.tabsContainer}>
@@ -645,7 +645,7 @@ export default function FollowUpsScreen() {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} style={styles.modalContent} contentContainerStyle={{ paddingBottom: 120 }}>
+          <ScrollView showsVerticalScrollIndicator={false} style={styles.modalContent} contentContainerStyle={{ paddingBottom: 120 }} keyboardDismissMode='on-drag'>
             <View style={styles.modalBody}>
               <View style={styles.modalFieldGroup}>
                 <Text style={styles.modalLabel}>
@@ -707,13 +707,6 @@ export default function FollowUpsScreen() {
                     </View>
 
                     <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-                      <Pressable
-                        style={[styles.selectionModalItem, modalContactId === null && styles.selectionModalItemActive]}
-                        onPress={() => { setModalContactId(null); setModalContactDropdownOpen(false); }}
-                      >
-                        <Text style={[styles.selectionModalItemText, modalContactId === null && styles.selectionModalItemTextActive]}>Manual Task (No Contact)</Text>
-                        {modalContactId === null && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />}
-                      </Pressable>
                       {filteredContacts.map((c) => (
                         <Pressable
                           key={c.id}
@@ -723,12 +716,9 @@ export default function FollowUpsScreen() {
                           ]}
                           onPress={() => { setModalContactId(c.id); setModalContactDropdownOpen(false); }}
                         >
-                          <View>
-                            <Text style={[styles.selectionModalItemText, modalContactId === c.id && styles.selectionModalItemTextActive]}>
-                              {c.first_name} {c.last_name || ''}
-                            </Text>
-                            <Text style={{ fontSize: 11, color: colors.textSecondary }}>{c.phone || c.email || 'No details'}</Text>
-                          </View>
+                          <Text style={[styles.selectionModalItemText, modalContactId === c.id && styles.selectionModalItemTextActive]}>
+                            {c.first_name} {c.last_name || ''}
+                          </Text>
                           {modalContactId === c.id && (
                             <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />
                           )}
@@ -813,7 +803,11 @@ export default function FollowUpsScreen() {
                             styles.selectionModalItem,
                             index === arr.length - 1 && styles.selectionModalItemLast
                           ]}
-                          onPress={() => { setModalGroupId(g.id); setModalGroupDropdownOpen(false); }}
+                          onPress={() => {
+                            setModalGroupId(g.id);
+                            setModalGroupDropdownOpen(false);
+                            if (errors.group) setErrors(prev => ({ ...prev, group: '' }));
+                          }}
                         >
                           <Text style={[styles.selectionModalItemText, modalGroupId === g.id && styles.selectionModalItemTextActive]}>{g.name}</Text>
                           {modalGroupId === g.id && (
@@ -877,7 +871,11 @@ export default function FollowUpsScreen() {
                             styles.selectionModalItem,
                             index === arr.length - 1 && styles.selectionModalItemLast
                           ]}
-                          onPress={() => { setModalTagId(t.id); setModalTagDropdownOpen(false); }}
+                          onPress={() => {
+                            setModalTagId(t.id);
+                            setModalTagDropdownOpen(false);
+                            if (errors.tag) setErrors(prev => ({ ...prev, tag: '' }));
+                          }}
                         >
                           <Text style={[styles.selectionModalItemText, modalTagId === t.id && styles.selectionModalItemTextActive]}>{t.name}</Text>
                           {modalTagId === t.id && (
@@ -1145,7 +1143,7 @@ function getStyles(colors: any) {
     container: { flex: 1, backgroundColor: colors.cardBackground },
     topTabsContainer: { marginBottom: 16 },
 
-    searchBarContainer: { paddingHorizontal: 0, marginBottom: 16 },
+    searchBarContainer: { paddingHorizontal: 0, marginBottom: 0 },
     searchInputWrapper: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1198,7 +1196,6 @@ function getStyles(colors: any) {
     selectionModalItemActive: {
       backgroundColor: 'rgba(11, 160, 178, 0.05)',
       borderRadius: 12,
-      paddingHorizontal: 8,
     },
     selectionModalItemLast: {
       borderBottomWidth: 0,
@@ -1215,8 +1212,9 @@ function getStyles(colors: any) {
     searchInput: { flex: 1, marginLeft: 8, fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
 
     filterSection: { marginBottom: 16 },
-    filtersScroll: { paddingHorizontal: 0, gap: 10 },
+    filtersRow: { flexDirection: 'row', gap: 10 },
     filterBtn: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.surfaceSoft,
@@ -1228,7 +1226,13 @@ function getStyles(colors: any) {
       borderColor: colors.cardBorder,
     },
     filterBtnActive: { borderColor: colors.accentTeal, backgroundColor: colors.accentTeal + '10' },
-    filterBtnText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+    filterBtnText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      flex: 1,
+      textAlign: 'center',
+    },
     filterBtnTextActive: { color: colors.accentTeal },
 
     dropdownOption: {

@@ -55,9 +55,9 @@ function PropertyStatItem({
   isPill?: boolean;
 }) {
   const { colors } = useAppTheme();
-  
+
   const hasArrayValue = Array.isArray(value) && value.length > 0;
-  
+
   const displayValue = useMemo(() => {
     if (Array.isArray(value)) {
       return value.join(', ');
@@ -209,7 +209,7 @@ export default function PropertyDetailScreen() {
   const visibleTabs = useMemo(() => {
     if (!property) return [];
     const tabs = [];
-    
+
     // Check Structural
     if (hasValue(property.type) || hasValue(property.year) || hasValue(property.stories) || hasValue(property.sqft) || hasValue(property.lotSizeSqft) || hasValue(property.roof) || hasValue(property.foundation)) {
       tabs.push('Structural');
@@ -238,7 +238,7 @@ export default function PropertyDetailScreen() {
     if ((property.userImages && property.userImages.length > 0) || (property.mlsImages && property.mlsImages.length > 0)) {
       tabs.push('Media');
     }
-    
+
     return tabs;
   }, [property]);
 

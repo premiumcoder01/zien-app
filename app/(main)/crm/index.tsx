@@ -575,6 +575,23 @@ export default function CRMScreen() {
                 />
               </View>
               <Text style={styles.sectionLabel}>{section.label}</Text>
+              {(() => {
+                const count = section.id === 'contacts'
+                  ? crmData?.stats?.totalContacts?.value
+                  : section.id === 'leads'
+                    ? crmData?.stats?.totalLeads?.value
+                    : section.id === 'follow-ups'
+                      ? crmData?.stats?.pendingFollowUps?.value
+                      : null;
+                if (count !== undefined && count !== null) {
+                  return (
+                    <View style={styles.sectionBadge}>
+                      <Text style={styles.sectionBadgeText}>{count}</Text>
+                    </View>
+                  );
+                }
+                return null;
+              })()}
               {section.route ? (
                 <MaterialCommunityIcons name="chevron-right" size={20} color="#9CA3AF" />
               ) : (
@@ -1107,7 +1124,21 @@ function getStyles(colors: any, theme: string) {
       backgroundColor: colors.accentTeal,
     },
     sectionLabel: { flex: 1, fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-    sectionBadge: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginRight: 4 },
+     sectionBadge: {
+      backgroundColor: colors.surfaceSoft,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 10,
+      minWidth: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 6,
+    },
+    sectionBadgeText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.textSecondary,
+    },
     currentBadge: {
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       paddingHorizontal: 10,

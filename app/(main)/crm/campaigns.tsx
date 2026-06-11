@@ -1,13 +1,13 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { createCRMCampaign, CRMCampaign, deleteCRMCampaign, getCRMCampaigns, getCRMTemplates, patchCRMCampaignStatus, updateCRMCampaign, extractContactsWithAI, addCRMTemplate } from '@/services/crmService';
+import { createCRMCampaign, CRMCampaign, deleteCRMCampaign, getCRMCampaigns, getCRMTemplates, patchCRMCampaignStatus, updateCRMCampaign, extractContactsWithAI, addCRMTemplate, getCRMCampaignROI } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -32,6 +32,7 @@ export default function CRMCampaignsScreen() {
   const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ openAiModal?: string; aiPrompt?: string }>();
   const { accessToken } = useAuth();
 
   const { data: campaignList, isLoading, refetch } = useQuery({
@@ -220,6 +221,19 @@ export default function CRMCampaignsScreen() {
   const [intelligenceVisible, setIntelligenceVisible] = useState(false);
   const [selectedCampaignForIntelligence, setSelectedCampaignForIntelligence] = useState<Campaign | null>(null);
 
+  const { data: campaignRoiData, isLoading: isLoadingRoi } = useQuery({
+    queryKey: ['campaignRoi', selectedCampaignForIntelligence?.id],
+    queryFn: () => getCRMCampaignROI(accessToken || '', selectedCampaignForIntelligence?.id || ''),
+    enabled: !!accessToken && !!selectedCampaignForIntelligence?.id && intelligenceVisible
+  });
+
+  const getPercentWidth = (pctString?: string): any => {
+    if (!pctString) return '0%';
+    const num = parseFloat(pctString.replace(/[^0-9.]/g, ''));
+    if (isNaN(num)) return '0%';
+    return `${Math.min(100, Math.max(0, num))}%`;
+  };
+
   const handleOpenIntelligence = (campaign: Campaign) => {
     setSelectedCampaignForIntelligence(campaign);
     setIntelligenceVisible(true);
@@ -233,6 +247,14 @@ export default function CRMCampaignsScreen() {
   const [aiSegmentDropdown, setAiSegmentDropdown] = useState(false);
   const [aiTemplateDropdown, setAiTemplateDropdown] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+
+  useEffect(() => {
+    if (params.openAiModal === 'true' && params.aiPrompt) {
+      setAiDescription(params.aiPrompt);
+      setAiCampaignVisible(true);
+      router.setParams({ openAiModal: undefined, aiPrompt: undefined });
+    }
+  }, [params.openAiModal, params.aiPrompt]);
 
   const handleGenerateAICampaign = async () => {
     if (!aiTemplateId) {
@@ -336,6 +358,7 @@ Based on this, generate a JSON object with exactly the following fields:
             try {
               await deleteCRMCampaign(accessToken || '', id);
               refetch();
+              Alert.alert("Success", "Campaign deleted successfully.");
             } catch (error) {
               Alert.alert("Error", "Failed to delete campaign.");
             }
@@ -393,19 +416,19 @@ Based on this, generate a JSON object with exactly the following fields:
         <View style={styles.modernCardContent}>
           <View style={styles.modernHeader}>
             <View style={styles.modernTitleGroup}>
-              <Text style={styles.modernCampaignName} numberOfLines={1}>{campaign.name}</Text>
+              <Text style={styles.modernCampaignName}>{campaign.name}</Text>
               <View style={styles.modernMetaRow}>
                 <MaterialCommunityIcons name={getChannelIcon(campaign.channel)} size={14} color={channelColor} />
                 <Text style={[styles.modernChannelLabel, { color: channelColor }]}>{campaign.channel.toUpperCase()}</Text>
                 <View style={styles.modernDot} />
                 <Text style={styles.modernDateLabel}>{formatDate(campaign.sent_at || campaign.created_at)}</Text>
+                <View style={styles.modernDot} />
+                {/* Minimalist Status Badge */}
+                <View style={[styles.statusMinimalistBadgeInline, { backgroundColor: `${statusInfo.text}10`, borderColor: `${statusInfo.text}30` }]}>
+                  <View style={[styles.statusIndicatorDot, { backgroundColor: statusInfo.text }]} />
+                  <Text style={[styles.statusMinimalistText, { color: statusInfo.text }]}>{statusInfo.label}</Text>
+                </View>
               </View>
-            </View>
-
-            {/* Minimalist Status Badge */}
-            <View style={[styles.statusMinimalistBadge, { backgroundColor: `${statusInfo.text}10`, borderColor: `${statusInfo.text}30` }]}>
-              <View style={[styles.statusIndicatorDot, { backgroundColor: statusInfo.text }]} />
-              <Text style={[styles.statusMinimalistText, { color: statusInfo.text }]}>{statusInfo.label}</Text>
             </View>
           </View>
 
@@ -530,6 +553,7 @@ Based on this, generate a JSON object with exactly the following fields:
         style={styles.content}
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         showsVerticalScrollIndicator={false}
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -598,6 +622,7 @@ Based on this, generate a JSON object with exactly the following fields:
               style={styles.modalScroll}
               contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
               showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
             >
               {/* Campaign Configuration */}
               <View style={styles.formCard}>
@@ -1154,7 +1179,7 @@ Based on this, generate a JSON object with exactly the following fields:
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderTitleBox}>
               <Text style={styles.modalTitle}>Campaign Intelligence</Text>
-              <Text style={styles.modalSubtitle}>ROI & Conversion Attribution for {selectedCampaignForIntelligence?.id.substring(0, 8)}</Text>
+              <Text style={styles.modalSubtitle}>ROI & Conversion Attribution for {campaignRoiData?.name || selectedCampaignForIntelligence?.name || selectedCampaignForIntelligence?.id.substring(0, 8)}</Text>
             </View>
             <Pressable
               onPress={() => setIntelligenceVisible(false)}
@@ -1169,160 +1194,175 @@ Based on this, generate a JSON object with exactly the following fields:
             contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}
           >
-            {/* Top Stats Grid */}
-            <View style={styles.intelStatsGrid}>
-              <View style={styles.intelStatCard}>
-                <View style={styles.intelStatHeader}>
-                  <MaterialCommunityIcons name="email-outline" size={16} color="#64748B" />
-                  <View style={[styles.intelBadge, { backgroundColor: '#ECFDF5' }]}>
-                    <Text style={[styles.intelBadgeText, { color: '#10B981' }]}>99.8%</Text>
-                  </View>
-                </View>
-                <Text style={styles.intelStatLabel}>DELIVERED</Text>
-                <Text style={styles.intelStatLargeValue}>12,482</Text>
+            {isLoadingRoi ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 300, paddingTop: 100 }}>
+                <ActivityIndicator size="large" color={colors.accentTeal} />
+                <Text style={{ marginTop: 16, color: colors.textSecondary, fontSize: 14, fontWeight: '500' }}>Loading Campaign Intelligence...</Text>
               </View>
-
-              <View style={styles.intelStatCard}>
-                <View style={styles.intelStatHeader}>
-                  <MaterialCommunityIcons name="near-me" size={16} color="#64748B" />
-                  <View style={[styles.intelBadge, { backgroundColor: colors.surfaceSoft }]}>
-                    <Text style={[styles.intelBadgeText, { color: '#0D9488' }]}>+14%</Text>
-                  </View>
-                </View>
-                <Text style={styles.intelStatLabel}>OPEN RATE</Text>
-                <Text style={styles.intelStatLargeValue}>42.4%</Text>
-              </View>
-
-              <View style={styles.intelStatCard}>
-                <View style={styles.intelStatHeader}>
-                  <MaterialCommunityIcons name="lightning-bolt-outline" size={16} color="#64748B" />
-                  <View style={[styles.intelBadge, { backgroundColor: '#F0F9FF' }]}>
-                    <Text style={[styles.intelBadgeText, { color: '#0284C7' }]}>High</Text>
-                  </View>
-                </View>
-                <Text style={styles.intelStatLabel}>CLICK-TO-CONV</Text>
-                <Text style={styles.intelStatLargeValue}>8.2%</Text>
-              </View>
-
-              <View style={styles.intelStatCard}>
-                <View style={styles.intelStatHeader}>
-                  <MaterialCommunityIcons name="target" size={16} color="#64748B" />
-                  <View style={[styles.intelBadge, { backgroundColor: '#F5F3FF' }]}>
-                    <Text style={[styles.intelBadgeText, { color: '#7C3AED' }]}>+8%</Text>
-                  </View>
-                </View>
-                <Text style={styles.intelStatLabel}>MARKET DEPTH</Text>
-                <Text style={styles.intelStatLargeValue}>92%</Text>
-              </View>
-            </View>
-
-            {/* Live Attribution Stream */}
-            <View style={styles.streamCard}>
-              <View style={styles.streamHeader}>
-                <Text style={styles.streamTitle}>Live Attribution Stream</Text>
-                <View style={styles.liveIndicator}>
-                  <View style={styles.liveDot} />
-                  <Text style={styles.liveText}>LIVE PIPELINE</Text>
-                </View>
-              </View>
-
-              <View style={styles.streamTable}>
-                {/* Column Headers */}
-                <View style={styles.streamTableHead}>
-                  <Text style={[styles.streamHeadText, { flex: 2 }]}>LEAD CONTACT</Text>
-                  <Text style={[styles.streamHeadText, { flex: 1.5 }]}>ACTIVITY</Text>
-                  <Text style={[styles.streamHeadText, { flex: 1 }]}>SCORE</Text>
-                </View>
-
-                {/* Rows */}
-                {[
-                  { name: 'Jessica Miller', action: 'CLICKED LINK', score: '+15', color: '#10B981' },
-                  { name: 'Michael Chen', action: 'REPLIED', score: '+45', color: '#0a2341' },
-                  { name: 'Sarah Johnson', action: 'OPENED', score: '+5', color: '#F59E0B' },
-                  { name: 'David Wilson', action: 'CLICKED LINK', score: '+12', color: '#3B82F6' },
-                ].map((row, idx) => (
-                  <View key={idx} style={styles.streamRow}>
-                    <View style={{ flex: 2 }}>
-                      <Text style={styles.rowName}>{row.name}</Text>
-                      <Text style={styles.rowSub}>2 mins ago • WhatsApp</Text>
-                    </View>
-                    <View style={{ flex: 1.5, alignItems: 'flex-start' }}>
-                      <View style={[styles.actionBadge, { backgroundColor: colors.surfaceSoft }]}>
-                        <Text style={styles.actionBadgeText}>{row.action}</Text>
+            ) : (
+              <>
+                {/* Top Stats Grid */}
+                <View style={styles.intelStatsGrid}>
+                  <View style={styles.intelStatCard}>
+                    <View style={styles.intelStatHeader}>
+                      <MaterialCommunityIcons name="email-outline" size={16} color="#64748B" />
+                      <View style={[styles.intelBadge, { backgroundColor: '#ECFDF5' }]}>
+                        <Text style={[styles.intelBadgeText, { color: '#10B981' }]}>Actual</Text>
                       </View>
                     </View>
-                    <Text style={[styles.rowScore, { flex: 1, color: row.color }]}>{row.score}</Text>
+                    <Text style={styles.intelStatLabel}>DELIVERED</Text>
+                    <Text style={styles.intelStatLargeValue}>{campaignRoiData?.delivered || '0%'}</Text>
                   </View>
-                ))}
-              </View>
-            </View>
 
-            {/* Pipeline Engagement */}
-            <View style={styles.engagementCard}>
-              <Text style={styles.cardTitle}>Pipeline Engagement</Text>
+                  <View style={styles.intelStatCard}>
+                    <View style={styles.intelStatHeader}>
+                      <MaterialCommunityIcons name="near-me" size={16} color="#64748B" />
+                      <View style={[styles.intelBadge, { backgroundColor: '#ECFDF5' }]}>
+                        <Text style={[styles.intelBadgeText, { color: '#10B981' }]}>Actual</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.intelStatLabel}>OPEN RATE</Text>
+                    <Text style={styles.intelStatLargeValue}>{campaignRoiData?.open_rate || '0.00%'}</Text>
+                  </View>
 
-              <View style={styles.progressItem}>
-                <View style={styles.progressLabelRow}>
-                  <Text style={styles.progressLabel}>Click Through Rate</Text>
-                  <Text style={styles.progressValue}>12.8%</Text>
-                </View>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: '12.8%', backgroundColor: colors.accentTeal }]} />
-                </View>
-              </View>
+                  <View style={styles.intelStatCard}>
+                    <View style={styles.intelStatHeader}>
+                      <MaterialCommunityIcons name="lightning-bolt-outline" size={16} color="#64748B" />
+                      <View style={[styles.intelBadge, { backgroundColor: '#ECFDF5' }]}>
+                        <Text style={[styles.intelBadgeText, { color: '#10B981' }]}>Actual</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.intelStatLabel}>REPLY RATE</Text>
+                    <Text style={styles.intelStatLargeValue}>{campaignRoiData?.reply_rate || '0.00%'}</Text>
+                  </View>
 
-              <View style={styles.progressItem}>
-                <View style={styles.progressLabelRow}>
-                  <Text style={styles.progressLabel}>Reply Velocity</Text>
-                  <Text style={styles.progressValue}>Fast</Text>
+                  <View style={styles.intelStatCard}>
+                    <View style={styles.intelStatHeader}>
+                      <MaterialCommunityIcons name="target" size={16} color="#64748B" />
+                      <View style={[styles.intelBadge, { backgroundColor: '#ECFDF5' }]}>
+                        <Text style={[styles.intelBadgeText, { color: '#10B981' }]}>Actual</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.intelStatLabel}>CONVERSION</Text>
+                    <Text style={styles.intelStatLargeValue}>{campaignRoiData?.conversion_rate || '0.00%'}</Text>
+                  </View>
                 </View>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: '85%', backgroundColor: '#2DD4BF' }]} />
-                </View>
-              </View>
 
-              <View style={styles.progressItem}>
-                <View style={styles.progressLabelRow}>
-                  <Text style={styles.progressLabel}>Direct Conversion</Text>
-                  <Text style={styles.progressValue}>4.2%</Text>
-                </View>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: '40%', backgroundColor: '#F97316' }]} />
-                </View>
-              </View>
+                {/* Live Attribution Stream */}
+                <View style={styles.streamCard}>
+                  <View style={styles.streamHeader}>
+                    <Text style={styles.streamTitle}>Live Attribution Stream</Text>
+                    <View style={styles.liveIndicator}>
+                      <View style={styles.liveDot} />
+                      <Text style={styles.liveText}>LIVE PIPELINE</Text>
+                    </View>
+                  </View>
 
-              <View style={styles.progressItem}>
-                <View style={styles.progressLabelRow}>
-                  <Text style={styles.progressLabel}>Unsubscribe Rate</Text>
-                  <Text style={styles.progressValue}>0.04%</Text>
-                </View>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: '5%', backgroundColor: '#10B981' }]} />
-                </View>
-              </View>
+                  <View style={styles.streamTable}>
+                    {/* Column Headers */}
+                    <View style={styles.streamTableHead}>
+                      <Text style={[styles.streamHeadText, { flex: 2 }]}>LEAD CONTACT</Text>
+                      <Text style={[styles.streamHeadText, { flex: 1.5 }]}>ACTIVITY</Text>
+                      <Text style={[styles.streamHeadText, { flex: 1 }]}>SCORE</Text>
+                    </View>
 
-              <View style={styles.optimizedWindowBox}>
-                <Text style={styles.windowLabel}>NEXT OPTIMIZED SEND WINDOW</Text>
-                <View style={styles.windowTimeRow}>
-                  <MaterialCommunityIcons name="clock-outline" size={20} color="#FFFFFF" />
-                  <Text style={styles.windowTime}>Friday @ 09:15 EST</Text>
-                </View>
-                <Text style={styles.windowSub}>Based on past engagement patterns.</Text>
-              </View>
-            </View>
+                    {/* Rows */}
+                    {(campaignRoiData?.stream || []).map((row, idx) => {
+                      const isPositive = row.score.startsWith('+') || parseFloat(row.score) > 0;
+                      const scoreColor = isPositive ? '#10B981' : colors.textPrimary;
+                      return (
+                        <View key={idx} style={styles.streamRow}>
+                          <View style={{ flex: 2 }}>
+                            <Text style={styles.rowName}>{row.name}</Text>
+                            <Text style={styles.rowSub}>
+                              {row.time} • {row.channel.charAt(0).toUpperCase() + row.channel.slice(1).toLowerCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1.5, alignItems: 'flex-start' }}>
+                            <View style={[styles.actionBadge, { backgroundColor: colors.surfaceSoft }]}>
+                              <Text style={styles.actionBadgeText}>{row.action.toUpperCase()}</Text>
+                            </View>
+                          </View>
+                          <Text style={[styles.rowScore, { flex: 1, color: scoreColor }]}>{row.score}</Text>
+                        </View>
+                      );
+                    })}
 
-            {/* A/B Testing Outcome */}
-            <View style={styles.abOutcomeCard}>
-              <Text style={styles.cardTitle}>A/B testing Outcome</Text>
-              <View style={styles.winnerBox}>
-                <View style={styles.winnerHeader}>
-                  <Text style={styles.winnerTopic}>Subject Line "Malibu..."</Text>
-                  <Text style={styles.winnerLabel}>WINNER</Text>
+                    {(!campaignRoiData?.stream || campaignRoiData.stream.length === 0) && (
+                      <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '500' }}>No activity recorded yet.</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
-                <Text style={styles.winnerStat}>+45% Open Rate</Text>
-              </View>
-            </View>
 
+                {/* Pipeline Engagement */}
+                <View style={styles.engagementCard}>
+                  <Text style={styles.cardTitle}>Pipeline Engagement</Text>
+
+                  <View style={styles.progressItem}>
+                    <View style={styles.progressLabelRow}>
+                      <Text style={styles.progressLabel}>Click Through Rate</Text>
+                      <Text style={styles.progressValue}>{campaignRoiData?.click_rate || '0.00%'}</Text>
+                    </View>
+                    <View style={styles.progressBarBg}>
+                      <View style={[styles.progressBarFill, { width: getPercentWidth(campaignRoiData?.click_rate), backgroundColor: colors.accentTeal }]} />
+                    </View>
+                  </View>
+
+                  <View style={styles.progressItem}>
+                    <View style={styles.progressLabelRow}>
+                      <Text style={styles.progressLabel}>Reply Velocity</Text>
+                      <Text style={styles.progressValue}>Fast</Text>
+                    </View>
+                    <View style={styles.progressBarBg}>
+                      <View style={[styles.progressBarFill, { width: '85%', backgroundColor: '#2DD4BF' }]} />
+                    </View>
+                  </View>
+
+                  <View style={styles.progressItem}>
+                    <View style={styles.progressLabelRow}>
+                      <Text style={styles.progressLabel}>Direct Conversion</Text>
+                      <Text style={styles.progressValue}>{campaignRoiData?.conversion_rate || '0.00%'}</Text>
+                    </View>
+                    <View style={styles.progressBarBg}>
+                      <View style={[styles.progressBarFill, { width: getPercentWidth(campaignRoiData?.conversion_rate), backgroundColor: '#F97316' }]} />
+                    </View>
+                  </View>
+
+                  <View style={styles.progressItem}>
+                    <View style={styles.progressLabelRow}>
+                      <Text style={styles.progressLabel}>Unsubscribe Rate</Text>
+                      <Text style={styles.progressValue}>0.04%</Text>
+                    </View>
+                    <View style={styles.progressBarBg}>
+                      <View style={[styles.progressBarFill, { width: '5%', backgroundColor: '#10B981' }]} />
+                    </View>
+                  </View>
+
+                  <View style={styles.optimizedWindowBox}>
+                    <Text style={styles.windowLabel}>NEXT OPTIMIZED SEND WINDOW</Text>
+                    <View style={styles.windowTimeRow}>
+                      <MaterialCommunityIcons name="clock-outline" size={20} color="#FFFFFF" />
+                      <Text style={styles.windowTime}>Friday @ 09:15 EST</Text>
+                    </View>
+                    <Text style={styles.windowSub}>Based on past engagement patterns.</Text>
+                  </View>
+                </View>
+
+                {/* A/B Testing Outcome */}
+                <View style={styles.abOutcomeCard}>
+                  <Text style={styles.cardTitle}>A/B testing Outcome</Text>
+                  <View style={styles.winnerBox}>
+                    <View style={styles.winnerHeader}>
+                      <Text style={styles.winnerTopic}>Subject Line "Malibu..."</Text>
+                      <Text style={styles.winnerLabel}>WINNER</Text>
+                    </View>
+                    <Text style={styles.winnerStat}>+45% Open Rate</Text>
+                  </View>
+                </View>
+              </>
+            )}
           </ScrollView>
         </LinearGradient>
       </Modal>
@@ -1390,15 +1430,14 @@ Based on this, generate a JSON object with exactly the following fields:
               </Pressable>
             </View>
 
-            {/* Selector Row */}
+            {/* Selector Column */}
             <View style={{
-              flexDirection: 'row',
               gap: 16,
               marginBottom: 20,
               zIndex: 3000
             }}>
               {/* Target Segment */}
-              <View style={{ flex: 1, position: 'relative' }}>
+              <View style={{ position: 'relative', zIndex: aiSegmentDropdown ? 2 : 1 }}>
                 <Text style={{
                   fontSize: 11,
                   fontWeight: '800',
@@ -1434,40 +1473,63 @@ Based on this, generate a JSON object with exactly the following fields:
                     top: 68,
                     left: 0,
                     right: 0,
-                    backgroundColor: '#4A4A4A',
+                    backgroundColor: '#FFFFFF',
                     borderRadius: 12,
-                    paddingVertical: 8,
+                    borderWidth: 1,
+                    borderColor: '#CBD5E1',
+                    paddingVertical: 4,
                     zIndex: 4000,
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.15,
-                    shadowRadius: 8,
-                    elevation: 5
+                    shadowOffset: { width: 0, height: 10 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 12,
+                    elevation: 5,
+                    maxHeight: 200
                   }}>
-                    {['All Contacts', 'Hot Leads', 'New Leads', 'Past Clients', 'Investor Group'].map(opt => (
-                      <Pressable
-                        key={opt}
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          paddingVertical: 10,
-                          paddingHorizontal: 12
-                        }}
-                        onPress={() => { setAiSegment(opt); setAiSegmentDropdown(false); }}
-                      >
-                        <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600' }}>{opt}</Text>
-                        {aiSegment === opt && (
-                          <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />
-                        )}
-                      </Pressable>
-                    ))}
+                    <ScrollView
+                      nestedScrollEnabled={true}
+                      showsVerticalScrollIndicator={true}
+                    >
+                      {['All Contacts', 'Hot Leads', 'New Leads', 'Past Clients', 'Investor Group'].map(opt => {
+                        const isSelected = aiSegment === opt;
+                        return (
+                          <Pressable
+                            key={opt}
+                            style={({ pressed }) => ({
+                              flexDirection: 'row',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              paddingVertical: 10,
+                              paddingHorizontal: 16,
+                              backgroundColor: isSelected
+                                ? 'rgba(59, 130, 246, 0.08)'
+                                : pressed
+                                  ? '#F1F5F9'
+                                  : 'transparent',
+                              borderRadius: 8,
+                              marginHorizontal: 4,
+                              marginVertical: 2
+                            })}
+                            onPress={() => { setAiSegment(opt); setAiSegmentDropdown(false); }}
+                          >
+                            <Text style={{
+                              color: isSelected ? '#3B82F6' : '#1E293B',
+                              fontSize: 13,
+                              fontWeight: isSelected ? '700' : '600'
+                            }}>{opt}</Text>
+                            {isSelected && (
+                              <MaterialCommunityIcons name="check" size={16} color="#3B82F6" />
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
                   </View>
                 )}
               </View>
 
               {/* Brand Template */}
-              <View style={{ flex: 1, position: 'relative' }}>
+              <View style={{ position: 'relative', zIndex: aiTemplateDropdown ? 2 : 1 }}>
                 <Text style={{
                   fontSize: 11,
                   fontWeight: '800',
@@ -1503,39 +1565,66 @@ Based on this, generate a JSON object with exactly the following fields:
                     top: 68,
                     left: 0,
                     right: 0,
-                    backgroundColor: '#4A4A4A',
+                    backgroundColor: '#FFFFFF',
                     borderRadius: 12,
-                    paddingVertical: 8,
+                    borderWidth: 1,
+                    borderColor: '#CBD5E1',
+                    paddingVertical: 4,
                     zIndex: 4000,
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.15,
-                    shadowRadius: 8,
-                    elevation: 5
+                    shadowOffset: { width: 0, height: 10 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 12,
+                    elevation: 5,
+                    maxHeight: 200
                   }}>
-                    {(templateList || []).map(opt => (
-                      <Pressable
-                        key={opt.id}
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          paddingVertical: 10,
-                          paddingHorizontal: 12
-                        }}
-                        onPress={() => { setAiTemplateId(opt.id); setAiTemplateDropdown(false); }}
-                      >
-                        <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600' }}>{opt.name}</Text>
-                        {aiTemplateId === opt.id && (
-                          <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />
-                        )}
-                      </Pressable>
-                    ))}
-                    {(templateList || []).length === 0 && (
-                      <View style={{ padding: 10 }}>
-                        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>No templates found</Text>
-                      </View>
-                    )}
+                    <ScrollView
+                      nestedScrollEnabled={true}
+                      showsVerticalScrollIndicator={true}
+                    >
+                      {(templateList || [])
+                        .filter(t => t.template_type.toLowerCase() === 'email')
+                        .map(opt => {
+                          const isSelected = aiTemplateId === opt.id;
+                          return (
+                            <Pressable
+                              key={opt.id}
+                              style={({ pressed }) => ({
+                                flexDirection: 'row',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                paddingVertical: 10,
+                                paddingHorizontal: 16,
+                                backgroundColor: isSelected
+                                  ? 'rgba(59, 130, 246, 0.08)'
+                                  : pressed
+                                    ? '#F1F5F9'
+                                    : 'transparent',
+                                borderRadius: 8,
+                                marginHorizontal: 4,
+                                marginVertical: 2
+                              })}
+                              onPress={() => { setAiTemplateId(opt.id); setAiTemplateDropdown(false); }}
+                            >
+                              <Text style={{
+                                color: isSelected ? '#3B82F6' : '#1E293B',
+                                fontSize: 13,
+                                fontWeight: isSelected ? '700' : '600',
+                                flex: 1,
+                                marginRight: 8
+                              }} numberOfLines={1}>{opt.name}</Text>
+                              {isSelected && (
+                                <MaterialCommunityIcons name="check" size={16} color="#3B82F6" />
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      {((templateList || []).filter(t => t.template_type.toLowerCase() === 'email').length === 0) && (
+                        <View style={{ padding: 12, alignItems: 'center' }}>
+                          <Text style={{ color: '#94A3B8', fontSize: 12, fontWeight: '600' }}>No templates found</Text>
+                        </View>
+                      )}
+                    </ScrollView>
                   </View>
                 )}
               </View>
@@ -2452,17 +2541,14 @@ function getStyles(colors: any, theme?: string) {
       paddingBottom: 16,
     },
     modernHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
       marginBottom: 16,
     },
     modernTitleGroup: {
       flex: 1,
     },
     modernCampaignName: {
-      fontSize: 20,
-      fontWeight: '900',
+      fontSize: 16,
+      fontWeight: '800',
       color: colors.textPrimary,
       marginBottom: 6,
       letterSpacing: -0.5,
@@ -2470,6 +2556,8 @@ function getStyles(colors: any, theme?: string) {
     modernMetaRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 4,
     },
     modernChannelLabel: {
       fontSize: 11,
@@ -2481,7 +2569,7 @@ function getStyles(colors: any, theme?: string) {
       height: 3,
       borderRadius: 1.5,
       backgroundColor: colors.textSecondary,
-      marginHorizontal: 8,
+      marginHorizontal: 6,
       opacity: 0.5,
     },
     modernDateLabel: {
@@ -2497,6 +2585,15 @@ function getStyles(colors: any, theme?: string) {
       borderRadius: 30,
       borderWidth: 1,
       gap: 6,
+    },
+    statusMinimalistBadgeInline: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 20,
+      borderWidth: 1,
+      gap: 4,
     },
     statusIndicatorDot: {
       width: 6,
