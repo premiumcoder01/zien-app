@@ -155,15 +155,19 @@ export default function CRMScreen() {
 
   const displaySourceAttribution = useMemo(() => {
     if (!crmData?.sourceAttribution) return [];
-    return crmData.sourceAttribution.map((item, index) => ({
-      id: `source-${index}`,
-      source: item.source,
-      dotColor: item.color || '#0a2341',
-      leads: item.leads,
-      convRate: item.conversion,
-      roi: item.roi,
-      roiHigh: item.roi.toLowerCase() === 'high' || item.roi.toLowerCase() === 'medium',
-    }));
+    return crmData.sourceAttribution.map((item, index) => {
+      const roiValue = item.roi || 'N/A';
+      const roiLower = typeof roiValue === 'string' ? roiValue.toLowerCase() : '';
+      return {
+        id: `source-${index}`,
+        source: item.source,
+        dotColor: item.color || '#0a2341',
+        leads: item.leads,
+        convRate: item.conversion,
+        roi: roiValue,
+        roiHigh: roiLower === 'high' || roiLower === 'medium',
+      };
+    });
   }, [crmData]);
 
   const displayConversionFunnel = useMemo(() => {
@@ -472,18 +476,16 @@ export default function CRMScreen() {
                     </View>
                   </View>
 
-                  <View style={styles.leadSourceMetrics}>
-                    <View style={styles.leadSourceMetricBox}>
-                      <Text style={styles.leadSourceLabelSmall}>CONV. RATE</Text>
-                      <Text style={styles.leadSourceConv}>{item.convRate}</Text>
+                  {item.roi && item.roi.toUpperCase() !== 'N/A' && (
+                    <View style={styles.leadSourceMetrics}>
+                      <View style={styles.leadSourceMetricBox}>
+                        <Text style={styles.leadSourceLabelSmall}>EST. ROI</Text>
+                        <Text style={[styles.leadSourceRoi, item.roiHigh ? styles.leadSourceRoiGreen : styles.leadSourceRoiRed]}>
+                          {item.roi}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={[styles.leadSourceMetricBox, { alignItems: 'flex-end' }]}>
-                      <Text style={styles.leadSourceLabelSmall}>EST. ROI</Text>
-                      <Text style={[styles.leadSourceRoi, item.roiHigh ? styles.leadSourceRoiGreen : styles.leadSourceRoiRed]}>
-                        {item.roi}
-                      </Text>
-                    </View>
-                  </View>
+                  )}
                 </View>
               ))
             )}

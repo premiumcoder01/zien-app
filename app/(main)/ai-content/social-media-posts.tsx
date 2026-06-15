@@ -1,12 +1,17 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { generateAiText, saveAiContent } from '@/services/aiContentService';
+import { getProperties, RawPropertyItem } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
-    Clipboard,
+    Alert,
     Dimensions,
     Image,
     Keyboard,
@@ -55,7 +60,7 @@ const PLATFORM_OPTIONS: PlatformOption[] = [
     },
 ];
 
-const STYLE_OPTIONS = ['Viral Hook', 'Emoji Optimized', 'AI Visual', 'One-Click Post'];
+const STYLE_OPTIONS = ['Viral Hook', 'Emoji Optimized', 'Short & Punchy', 'Professional Tone'];
 
 const MOCK_CAPTION = `🏠 JUST LISTED: A masterpiece of modern architecture. 
 
@@ -73,56 +78,152 @@ export default function SocialPostLabScreen() {
 
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { prefill, content } = useLocalSearchParams<{ prefill?: string; content?: string }>();
+    const { accessToken } = useAuth();
+    const { prefill, content, address } = useLocalSearchParams<{ prefill?: string; content?: string; address?: string }>();
 
     const [selectedPlatform, setSelectedPlatform] = useState('instagram');
     const [campaignContext, setCampaignContext] = useState(prefill || '');
-    const [selectedStyle, setSelectedStyle] = useState('Viral Hook');
+    const [selectedStyle, setSelectedStyle] = useState('Emoji Optimized');
     const [isGenerating, setIsGenerating] = useState(false);
     const [outputCaption, setOutputCaption] = useState(content || '');
     const [hasGenerated, setHasGenerated] = useState(!!content);
+    const [isSaving, setIsSaving] = useState(false);
+    const [copied, setCopied] = useState(false);
+
+    // Properties list states
+    const [properties, setProperties] = useState<RawPropertyItem[]>([]);
+    const [propertiesLoading, setPropertiesLoading] = useState(true);
+    const [selectedPropertyId, setSelectedPropertyId] = useState<string | number>('custom');
+
+
+
+    // Fetch properties helper
+    const fetchProperties = useCallback(async () => {
+        if (!accessToken) return;
+        setPropertiesLoading(true);
+        try {
+            const response = await getProperties(accessToken);
+            if (response.success && Array.isArray(response.properties)) {
+                setProperties(response.properties);
+            }
+        } catch (err) {
+            console.error('[SocialPostLab] Error fetching properties:', err);
+        } finally {
+            setPropertiesLoading(false);
+        }
+    }, [accessToken]);
 
     useEffect(() => {
-        if (prefill) {
-            setCampaignContext(prefill);
+        fetchProperties();
+    }, [fetchProperties]);
+
+    // Auto-select property when editing / mounting with address parameter
+    useEffect(() => {
+        if (properties.length > 0 && address) {
+            const matched = properties.find(
+                (p) => p.address.toLowerCase().includes(address.toLowerCase())
+            );
+            if (matched) {
+                setSelectedPropertyId(matched.id);
+            }
         }
+    }, [properties, address]);
+
+    useEffect(() => {
+        if (prefill) setCampaignContext(prefill);
         if (content) {
             setOutputCaption(content);
             setHasGenerated(true);
         }
     }, [prefill, content]);
 
-    const handleGenerate = () => {
-        if (!campaignContext.trim()) return;
-
+    const handleGenerate = async () => {
+        if (!campaignContext.trim() || !accessToken) return;
         Keyboard.dismiss();
+
         setIsGenerating(true);
         setHasGenerated(false);
         setOutputCaption('');
 
-        // Simulate thinking & generating
-        setTimeout(() => {
-            setIsGenerating(false);
-            setHasGenerated(true);
-
-            // Start typing animation for caption
-            let index = 0;
-            const textToType = MOCK_CAPTION;
-            const speed = 15;
-
-            const timer = setInterval(() => {
-                if (index < textToType.length) {
-                    setOutputCaption((prev) => prev + textToType.charAt(index));
-                    index++;
-                } else {
-                    clearInterval(timer);
+        try {
+            let promptFeatures = campaignContext.trim();
+            if (selectedPropertyId !== 'custom') {
+                const prop = properties.find((p) => p.id === selectedPropertyId);
+                if (prop) {
+                    const remarks = prop.data?.publicRemarks || prop.data?.privateRemarks || '';
+                    promptFeatures = `Property: ${prop.address}\nPrice: ${prop.data?.price || prop.data?.ListPrice || ''}\nBeds/Baths: ${prop.data?.beds || prop.data?.BedroomsTotal || ''}/${prop.data?.bathsFull || prop.data?.BathroomsFull || ''}\nSqft: ${prop.data?.sqft || prop.data?.LivingArea || ''}\nRemarks: ${remarks}\nUser Context: ${campaignContext.trim()}`;
                 }
-            }, speed);
-        }, 1500);
+            }
+
+            const platformLabel = selectedPlatform === 'instagram' ? 'Instagram' : selectedPlatform === 'facebook' ? 'Facebook' : selectedPlatform === 'linkedin' ? 'LinkedIn' : 'TikTok';
+            const prompt = `Write a highly engaging real estate social media post for ${platformLabel}. Details to include: ${promptFeatures}. Format it properly for ${platformLabel} (use appropriate emojis, tone, and spacing). Include relevant trending hashtags at the end. Make it sound professional yet captivating. DO NOT use any markdown formatting like asterisks (**) for bolding. Important stylistic rules to apply: ${selectedStyle}.`;
+            const response = await generateAiText(prompt, accessToken, 'complex');
+
+            if (response.result) {
+                setOutputCaption(response.result);
+                setHasGenerated(true);
+            } else {
+                throw new Error('No result received from AI.');
+            }
+        } catch (err: any) {
+            console.error('[SocialPostLab] Generation failed:', err);
+            setHasGenerated(false);
+            Alert.alert('Generation Failed', err?.message || 'Could not generate social post. Please try again.');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
-    const copyToClipboard = () => {
-        Clipboard.setString(outputCaption);
+    const copyToClipboard = async () => {
+        if (!outputCaption) return;
+        await Clipboard.setStringAsync(outputCaption);
+        setCopied(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleExportNarrative = async () => {
+        if (!outputCaption || !accessToken) return;
+        setIsSaving(true);
+        try {
+            const prop = selectedPropertyId !== 'custom' ? properties.find((p) => p.id === selectedPropertyId) : null;
+            const activeImage = prop ? (prop.data?.Media?.[0]?.MediaURL || prop.data?.user_images?.[0]) : MOCK_IMAGE;
+            const platformLabel = selectedPlatform === 'instagram' ? 'Instagram' : selectedPlatform === 'facebook' ? 'Facebook' : selectedPlatform === 'linkedin' ? 'LinkedIn' : 'TikTok';
+
+            await saveAiContent(
+                {
+                    type: 'social-posts',
+                    content: outputCaption,
+                    metadata: {
+                        platform: platformLabel,
+                        input_details: campaignContext || '',
+                        image: activeImage || '',
+                        address: prop ? prop.address : '',
+                    },
+                },
+                accessToken
+            );
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert(
+                'Success',
+                'Narrative saved successfully to your library.',
+                [
+                    {
+                        text: 'OK',
+                        onPress: () => {
+                            setTimeout(() => {
+                                router.replace('/(main)/ai-content');
+                            }, 100);
+                        }
+                    }
+                ]
+            );
+        } catch (err: any) {
+            console.error('[SocialPostLab] Export failed:', err);
+            Alert.alert('Export Failed', err?.message || 'Could not save the social post. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -176,6 +277,74 @@ export default function SocialPostLabScreen() {
                         ))}
                     </ScrollView>
 
+                    {/* Horizontal Property Selector */}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.propertySelectorScroll}
+                        contentContainerStyle={styles.propertySelectorContent}
+                    >
+                        {/* CUSTOM INPUT Card */}
+                        <Pressable
+                            style={[
+                                styles.selectorCard,
+                                selectedPropertyId === 'custom' && styles.selectorCardActive
+                            ]}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setSelectedPropertyId('custom');
+                                setCampaignContext(prefill || '');
+                            }}
+                        >
+                            <View style={styles.selectorCardIconContainer}>
+                                <MaterialCommunityIcons name="cube-outline" size={20} color={colors.accentTeal} />
+                            </View>
+                            <View style={styles.selectorCardTextContainer}>
+                                <Text style={styles.selectorCardTitle} numberOfLines={1}>CUSTOM INPUT</Text>
+                                <Text style={styles.selectorCardSubtitle}>Manual Entry</Text>
+                            </View>
+                        </Pressable>
+
+                        {/* Property Cards */}
+                        {properties.map((prop) => {
+                            const isSelected = selectedPropertyId === prop.id;
+                            const firstImage = prop.data?.Media?.[0]?.MediaURL || prop.data?.user_images?.[0];
+                            const propTitle = prop.address.split(',')[0];
+
+                            return (
+                                <Pressable
+                                    key={prop.id}
+                                    style={[
+                                        styles.selectorCard,
+                                        isSelected && styles.selectorCardActive
+                                    ]}
+                                    onPress={() => {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                        setSelectedPropertyId(prop.id);
+                                        // Auto-populate the campaign context with remarks/details
+                                        const remarks = prop.data?.publicRemarks || prop.data?.privateRemarks || '';
+                                        const details = `Property details for ${prop.address}:\nPrice: ${prop.data?.price || prop.data?.ListPrice || 'N/A'}\nBeds/Baths: ${prop.data?.beds || prop.data?.BedroomsTotal || 'N/A'}/${prop.data?.bathsFull || prop.data?.BathroomsFull || 'N/A'}\nSqft: ${prop.data?.sqft || prop.data?.LivingArea || 'N/A'}\nRemarks: ${remarks}`;
+                                        setCampaignContext(remarks || details);
+                                    }}
+                                >
+                                    {firstImage ? (
+                                        <Image source={{ uri: firstImage }} style={styles.selectorCardImage} />
+                                    ) : (
+                                        <View style={styles.selectorCardIconContainer}>
+                                            <MaterialCommunityIcons name="home-outline" size={20} color={colors.textSecondary} />
+                                        </View>
+                                    )}
+                                    <View style={styles.selectorCardTextContainer}>
+                                        <Text style={styles.selectorCardTitle} numberOfLines={1}>{propTitle}</Text>
+                                        <Text style={styles.selectorCardSubtitle} numberOfLines={1}>
+                                            Active Property
+                                        </Text>
+                                    </View>
+                                </Pressable>
+                            );
+                        })}
+                    </ScrollView>
+
                     {/* Campaign Context Card */}
                     <View style={styles.inputCard}>
                         <Text style={styles.cardHeading}>Campaign Context</Text>
@@ -208,23 +377,29 @@ export default function SocialPostLabScreen() {
                         </View>
 
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.styleList} scrollEnabled={false}>
-                            {STYLE_OPTIONS.map((style) => (
-                                <Pressable
-                                    key={style}
-                                    onPress={() => setSelectedStyle(style)}
-                                    style={[
-                                        styles.stylePill,
-                                        selectedStyle === style && styles.stylePillActive,
-                                    ]}
-                                >
-                                    <Text style={[
-                                        styles.stylePillText,
-                                        selectedStyle === style && styles.stylePillTextActive,
-                                    ]}>
-                                        {style}
-                                    </Text>
-                                </Pressable>
-                            ))}
+                            {STYLE_OPTIONS.map((style) => {
+                                const isActive = selectedStyle === style;
+                                return (
+                                    <Pressable
+                                        key={style}
+                                        onPress={() => {
+                                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                            setSelectedStyle(style);
+                                        }}
+                                        style={[
+                                            styles.stylePill,
+                                            isActive ? styles.stylePillActive : styles.stylePillInactive,
+                                        ]}
+                                    >
+                                        <Text style={[
+                                            styles.stylePillText,
+                                            isActive ? styles.stylePillTextActive : styles.stylePillTextInactive,
+                                        ]}>
+                                            {style}
+                                        </Text>
+                                    </Pressable>
+                                );
+                            })}
                         </ScrollView>
                     </View>
 
@@ -237,12 +412,30 @@ export default function SocialPostLabScreen() {
                             </View>
                             {hasGenerated && (
                                 <View style={styles.outputActions}>
-                                    <Pressable style={styles.iconAction} onPress={copyToClipboard}>
-                                        <MaterialCommunityIcons name="content-copy" size={18} color="#94A3B8" />
+                                    <Pressable
+                                        style={[styles.iconAction, !outputCaption && styles.btnDisabledDark]}
+                                        onPress={copyToClipboard}
+                                        disabled={!outputCaption}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name={copied ? "check-all" : "content-copy"}
+                                            size={18}
+                                            color={outputCaption ? "#94A3B8" : "#334155"}
+                                        />
                                     </Pressable>
-                                    <Pressable style={styles.exportBtn}>
-                                        <MaterialCommunityIcons name="share-variant-outline" size={18} color="#FFFFFF" />
-                                        <Text style={styles.exportBtnText}>EXPORT POST</Text>
+                                    <Pressable
+                                        style={[styles.exportBtn, (!outputCaption || isSaving) && styles.btnDisabledExport]}
+                                        onPress={handleExportNarrative}
+                                        disabled={!outputCaption || isSaving}
+                                    >
+                                        {isSaving ? (
+                                            <ActivityIndicator size="small" color="#FFFFFF" />
+                                        ) : (
+                                            <>
+                                                <MaterialCommunityIcons name="content-save-outline" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                                                <Text style={styles.exportBtnText}>SAVE TO LIBRARY</Text>
+                                            </>
+                                        )}
                                     </Pressable>
                                 </View>
                             )}
@@ -250,7 +443,12 @@ export default function SocialPostLabScreen() {
 
                         <View style={styles.outputContent}>
                             <View style={styles.imagePreviewContainer}>
-                                <Image source={{ uri: MOCK_IMAGE }} style={styles.previewImage} />
+                                {(() => {
+                                    const prop = selectedPropertyId !== 'custom' ? properties.find((p) => p.id === selectedPropertyId) : null;
+                                    const firstImage = prop ? (prop.data?.Media?.[0]?.MediaURL || prop.data?.user_images?.[0]) : null;
+                                    const activeImage = firstImage || MOCK_IMAGE;
+                                    return <Image source={{ uri: activeImage }} style={styles.previewImage} />;
+                                })()}
                             </View>
 
                             {isGenerating ? (
@@ -376,26 +574,37 @@ function getStyles(colors: any) {
             fontSize: 14,
             fontWeight: '800',
         },
-        styleList: { marginTop: 10 },
+        styleList: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 8,
+            marginTop: 16,
+        },
         stylePill: {
-            paddingHorizontal: 8,
-            paddingVertical: 5,
-            borderRadius: 8,
-            backgroundColor: colors.surfaceSoft,
-            marginRight: 8,
-            height: 32,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 20,
+            alignItems: 'center',
             justifyContent: 'center',
+            marginRight: 8,
         },
         stylePillActive: {
-            backgroundColor: colors.surfaceMuted,
+            backgroundColor: '#0D9488',
+        },
+        stylePillInactive: {
+            backgroundColor: colors.surfaceSoft,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
         },
         stylePillText: {
-            fontSize: 8,
-            color: colors.textSecondary,
+            fontSize: 12,
             fontWeight: '700',
         },
         stylePillTextActive: {
-            color: colors.textPrimary,
+            color: '#FFFFFF',
+        },
+        stylePillTextInactive: {
+            color: colors.textSecondary,
         },
 
         // Output Card
@@ -519,6 +728,65 @@ function getStyles(colors: any) {
             fontWeight: '700',
             color: colors.textSecondary,
             marginTop: 12,
+        },
+        btnDisabledDark: {
+            opacity: 0.4,
+        },
+        btnDisabledExport: {
+            opacity: 0.5,
+        },
+        // Property Selector Scroll Row
+        propertySelectorScroll: {
+            marginBottom: 20,
+            marginTop: 4,
+        },
+        propertySelectorContent: {
+            gap: 12,
+            paddingRight: 20,
+        },
+        selectorCard: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: colors.cardBackground,
+            borderRadius: 16,
+            borderWidth: 2,
+            borderColor: colors.cardBorder,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            width: 200,
+            height: 60,
+            gap: 10,
+        },
+        selectorCardActive: {
+            borderColor: colors.accentTeal,
+        },
+        selectorCardImage: {
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            resizeMode: 'cover',
+        },
+        selectorCardIconContainer: {
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            backgroundColor: colors.surfaceSoft,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        selectorCardTextContainer: {
+            flex: 1,
+            justifyContent: 'center',
+        },
+        selectorCardTitle: {
+            fontSize: 11,
+            fontWeight: '800',
+            color: colors.textPrimary,
+        },
+        selectorCardSubtitle: {
+            fontSize: 9,
+            color: colors.textSecondary,
+            marginTop: 2,
         },
     });
 }

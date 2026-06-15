@@ -130,7 +130,8 @@
           "remindersPermission": "Zien needs access to reminders to help you track follow-ups and task deadlines."
         }
       ],
-      "expo-speech-recognition"
+      "expo-speech-recognition",
+      "./with-pods-fix"
     ],
     "experiments": {
       "typedRoutes": true,

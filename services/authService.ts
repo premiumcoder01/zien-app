@@ -210,6 +210,9 @@ export interface UpdateProfileRequest {
   website?: string;
   description?: string;
   image?: string | null;
+  license_number?: string;
+  address?: string;
+  country_code?: string;
 }
 
 export const updateProfile = async (
@@ -397,6 +400,83 @@ export const checkUserExists = async (payload: CheckExistsRequest): Promise<Chec
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Check exists request timed out. Please check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+export interface SendOtpRequest {
+  type: 'email' | 'phone';
+  target: string;
+}
+
+export interface VerifyOtpRequest {
+  type: 'email' | 'phone';
+  otp: string;
+  target: string;
+}
+
+export const sendOtp = async (accessToken: string, payload: SendOtpRequest): Promise<any> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/teams/settings/send-otp`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to send OTP');
+    }
+
+    return data;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Send OTP request timed out. Please check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+export const verifyOtp = async (accessToken: string, payload: VerifyOtpRequest): Promise<any> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/teams/settings/verify-otp`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Incorrect OTP.');
+    }
+
+    return data;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Verify OTP request timed out. Please check your connection and try again.');
     }
     throw error;
   } finally {

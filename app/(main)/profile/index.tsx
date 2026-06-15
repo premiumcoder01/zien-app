@@ -1,24 +1,21 @@
 import {
   AccountStatusCard,
-  DangerZoneCard,
   ProfileCard,
   ProfileTabs,
-  type ProfileTabKey,
-  type StatusItem,
+  type ProfileTabKey
 } from '@/components/profile';
 import { PageHeader } from '@/components/ui';
 import LabeledInput from '@/components/ui/labeled-input';
-import { Theme } from '@/constants/theme';
-import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/context/AuthContext';
-import { updateProfile } from '@/services/authService';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAppTheme } from '@/context/ThemeContext';
+import { useProfile } from '@/hooks/useProfile';
+import { sendOtp, updateProfile, verifyOtp } from '@/services/authService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -31,54 +28,21 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// ─────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────
-const ACCOUNT_STATUS_ITEMS: StatusItem[] = [
-  { label: 'Email Verified', verified: true },
-  { label: 'License Active', verified: true },
-  { label: 'Enterprise Linked', verified: true },
-];
 
-const DEFAULT_SPECIALIZATIONS = [
-  'Luxury Homes',
-  'Commercial Retail',
-  'Urban Lofts',
-  'New Construction',
-];
 
 const LANGUAGE_OPTIONS = [
   'English (US)', 'English (UK)', 'Spanish', 'French',
   'German', 'Mandarin', 'Hindi', 'Arabic', 'Portuguese', 'Other',
 ];
 
-const AVAILABLE_SPECIALIZATION_OPTIONS = [
-  'Luxury Homes', 'Commercial Retail', 'Urban Lofts', 'New Construction',
-  'Coastal Properties', 'Investment Properties', 'First-Time Buyers',
-  'Land & Development', 'Rental Management', 'International',
-];
 
-const INTERFACE_COLORS = [
-  { label: 'Midnight', hex: '#1A1A1B' },
-  { label: 'Teal', hex: '#0a2341' },
-  { label: 'Navy', hex: '#1B5E9A' },
-  { label: 'Ember', hex: '#EA580C' },
-  { label: 'Forest', hex: '#16A34A' },
-  { label: 'Slate', hex: '#475569' },
-];
 
-const MAX_YEARS_EXPERIENCE = 50;
 
-function formatLicenseExpiry(date: Date): string {
-  const d = date.getDate();
-  const m = date.getMonth() + 1;
-  const y = date.getFullYear();
-  return `${d.toString().padStart(2, '0')}/${m.toString().padStart(2, '0')}/${y}`;
-}
+
 
 // ─────────────────────────────────────────────────────
 // Branding Upload Card
@@ -100,6 +64,8 @@ function BrandingUploadCard({
   icon, iconColor, iconBg, title, subtitle,
   previewUri, previewLabel, onUpload, onRemove, uploadLabel = 'Upload',
 }: BrandingUploadCardProps) {
+  const { colors } = useAppTheme();
+  const bStyles = getBStyles(colors);
   return (
     <View style={bStyles.card}>
       {/* Preview box */}
@@ -123,7 +89,7 @@ function BrandingUploadCard({
             style={({ pressed }) => [bStyles.uploadBtn, pressed && { opacity: 0.75 }]}
             onPress={onUpload}
           >
-            <MaterialCommunityIcons name="upload-outline" size={14} color={Theme.accentTeal} />
+            <MaterialCommunityIcons name="upload-outline" size={14} color={colors.accentTeal} />
             <Text style={bStyles.uploadBtnText}>{uploadLabel}</Text>
           </Pressable>
           {onRemove && previewUri && (
@@ -137,73 +103,75 @@ function BrandingUploadCard({
   );
 }
 
-const bStyles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    backgroundColor: Theme.surfaceIcon,
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Theme.cardBorder,
-  },
-  preview: {
-    width: 72,
-    height: 72,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    flexShrink: 0,
-  },
-  previewImg: {
-    width: '100%',
-    height: '100%',
-  },
-  info: {
-    flex: 1,
-    gap: 4,
-  },
-  cardTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: Theme.textPrimary,
-  },
-  cardSub: {
-    fontSize: 12,
-    color: Theme.textSecondary,
-    lineHeight: 17,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 8,
-  },
-  uploadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: Theme.accentTeal,
-    backgroundColor: `${Theme.accentTeal}10`,
-  },
-  uploadBtnText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: Theme.accentTeal,
-  },
-  removeText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#EF4444',
-  },
-});
+function getBStyles(colors: any) {
+  return StyleSheet.create({
+    card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+      backgroundColor: colors.surfaceIcon,
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    preview: {
+      width: 72,
+      height: 72,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      flexShrink: 0,
+    },
+    previewImg: {
+      width: '100%',
+      height: '100%',
+    },
+    info: {
+      flex: 1,
+      gap: 4,
+    },
+    cardTitle: {
+      fontSize: 14.5,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    cardSub: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      lineHeight: 17,
+    },
+    actions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginTop: 8,
+    },
+    uploadBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 7,
+      paddingHorizontal: 13,
+      borderRadius: 999,
+      borderWidth: 1.5,
+      borderColor: colors.accentTeal,
+      backgroundColor: `${colors.accentTeal}10`,
+    },
+    uploadBtnText: {
+      fontSize: 12.5,
+      fontWeight: '800',
+      color: colors.accentTeal,
+    },
+    removeText: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: '#EF4444',
+    },
+  });
+}
 
 // ─────────────────────────────────────────────────────
 // Main Screen
@@ -211,52 +179,166 @@ const bStyles = StyleSheet.create({
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors, theme } = useAppTheme();
+  const styles = getStyles(colors, theme);
 
   const { data: profile } = useProfile();
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<ProfileTabKey>('identity');
-  const [specializations, setSpecializations] = useState<string[]>([]);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
-  // Identity fields
-  const [fullName, setFullName] = useState('');
+  // Personal Info fields
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [mobilePhone, setMobilePhone] = useState('');
   const [professionalEmail, setProfessionalEmail] = useState('');
-  const [personalWebsite, setPersonalWebsite] = useState('');
-  const [professionalBio, setProfessionalBio] = useState('');
+
+  // Phone input country calling code state
+  const [countryCallingCode, setCountryCallingCode] = useState('91');
+
+  // Verification states
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+
+  // OTP Verification Modal states
+  const [otpModalVisible, setOtpModalVisible] = useState(false);
+  const [otpType, setOtpType] = useState<'email' | 'phone'>('email');
+  const [otpTarget, setOtpTarget] = useState('');
+  const [otpCode, setOtpCode] = useState<string[]>(['', '', '', '']);
+  const [otpError, setOtpError] = useState('');
+  const [isOtpSending, setIsOtpSending] = useState(false);
+  const [isOtpVerifying, setIsOtpVerifying] = useState(false);
+
+  // Refs for OTP TextInput fields to manage focus
+  const otpRef0 = useRef<TextInput>(null);
+  const otpRef1 = useRef<TextInput>(null);
+  const otpRef2 = useRef<TextInput>(null);
+  const otpRef3 = useRef<TextInput>(null);
+  const otpRefs = [otpRef0, otpRef1, otpRef2, otpRef3];
+
+  const handleSendOtp = async (type: 'email' | 'phone') => {
+    let target = '';
+    if (type === 'email') {
+      target = professionalEmail;
+      if (!target) {
+        Alert.alert('Error', 'Please enter a valid email address first.');
+        return;
+      }
+    } else {
+      target = '+' + countryCallingCode + mobilePhone.replace(/[^\d]/g, '');
+      if (!mobilePhone) {
+        Alert.alert('Error', 'Please enter a valid mobile number first.');
+        return;
+      }
+    }
+
+    setIsOtpSending(true);
+    setOtpError('');
+    try {
+      await sendOtp(accessToken!, { type, target });
+      setOtpType(type);
+      setOtpTarget(target);
+      setOtpCode(['', '', '', '']);
+      setIsOtpSending(false);
+      setOtpModalVisible(true);
+      setTimeout(() => {
+        otpRef0.current?.focus();
+      }, 250);
+    } catch (error: any) {
+      setIsOtpSending(false);
+      Alert.alert('Error', error.message || 'Failed to send OTP. Please try again.');
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const otp = otpCode.join('');
+    if (otp.length < 4) {
+      setOtpError('Please enter the full 4-digit code.');
+      return;
+    }
+
+    setIsOtpVerifying(true);
+    setOtpError('');
+    try {
+      await verifyOtp(accessToken!, {
+        type: otpType,
+        otp,
+        target: otpTarget,
+      });
+      setIsOtpVerifying(false);
+      setOtpModalVisible(false);
+
+      if (otpType === 'email') {
+        setIsEmailVerified(true);
+        Alert.alert('Success', 'Email verified successfully!');
+      } else {
+        setIsPhoneVerified(true);
+        Alert.alert('Success', 'Phone number verified successfully!');
+      }
+    } catch (error: any) {
+      setIsOtpVerifying(false);
+      setOtpError(error.message || 'Incorrect OTP.');
+    }
+  };
 
   // Professional fields
-  const [licenseId, setLicenseId] = useState('');
-  const [licenseExpiry, setLicenseExpiry] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [yearsExperience, setYearsExperience] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [primaryMarket, setPrimaryMarket] = useState('');
   const [preferredLanguage, setPreferredLanguage] = useState('English (US)');
   const [showLanguageModal, setShowLanguageModal] = useState(false);
-  const [showSpecializationModal, setShowSpecializationModal] = useState(false);
 
   // Branding fields
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [signatureUri, setSignatureUri] = useState<string | null>(null);
-  const [interfaceColor, setInterfaceColor] = useState(INTERFACE_COLORS[0].hex);
+
+  // Security fields
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     if (profile) {
-      setFullName(`${profile.first_name || ''} ${profile.last_name || ''}`.trim());
+      setFirstName(profile.first_name || '');
+      setLastName(profile.last_name || '');
       setProfessionalEmail(profile.email || '');
 
-      const phoneStr = profile.phone
-        ? `${profile.country_code ? '+' + profile.country_code + ' ' : ''}${profile.phone}`
-        : '';
-      setMobilePhone(phoneStr);
+      // Use profile.country_code if present, otherwise parse from phone number
+      let phoneStr = profile.phone || '';
+      let detectedCallingCode = '91';
 
-      setLicenseId(profile.license_number || '');
+      if (profile.country_code) {
+        detectedCallingCode = profile.country_code.replace('+', '');
+      } else {
+        if (phoneStr.startsWith('+')) {
+          if (phoneStr.startsWith('+91')) {
+            detectedCallingCode = '91';
+            phoneStr = phoneStr.substring(3);
+          } else {
+            // If it starts with + but is not India, try stripping +
+            phoneStr = phoneStr.substring(1);
+          }
+        } else if (phoneStr.startsWith('91') && phoneStr.length > 10) {
+          detectedCallingCode = '91';
+          phoneStr = phoneStr.substring(2);
+        }
+      }
+
+      setMobilePhone(phoneStr);
+      setCountryCallingCode(detectedCallingCode);
+
+      setLicenseNumber(profile.license_number || '');
+      setPrimaryMarket(profile.address || '');
       setAvatarUri(profile.image || null);
-      setPersonalWebsite(profile.website || '');
-      setProfessionalBio(profile.description || '');
     }
   }, [profile]);
+
+  const accountStatusItems = useMemo(() => [
+    { label: 'Email Verified', verified: isEmailVerified },
+    { label: 'Phone Verified', verified: isPhoneVerified },
+  ], [isEmailVerified, isPhoneVerified]);
 
   const saveMutation = useMutation({
     mutationFn: (payload: Parameters<typeof updateProfile>[1]) =>
@@ -271,28 +353,16 @@ export default function ProfileScreen() {
   });
 
   const handleSave = useCallback(() => {
-    const names = fullName.trim().split(' ');
-    const firstName = names[0] || '';
-    const lastName = names.slice(1).join(' ') || '';
-
     saveMutation.mutate({
       first_name: firstName,
       last_name: lastName,
       phone: mobilePhone.replace(/[^\d]/g, ''),
-      website: personalWebsite,
-      description: professionalBio,
+      country_code: '+' + countryCallingCode,
+      license_number: licenseNumber,
+      address: primaryMarket,
       image: avatarUri,
     });
-  }, [fullName, mobilePhone, personalWebsite, professionalBio, avatarUri, saveMutation]);
-
-  const handleYearsChange = useCallback((text: string) => {
-    const digits = text.replace(/\D/g, '');
-    if (digits === '') { setYearsExperience(''); return; }
-    const num = parseInt(digits, 10);
-    setYearsExperience(num > MAX_YEARS_EXPERIENCE ? String(MAX_YEARS_EXPERIENCE) : digits);
-  }, []);
-
-  const removeSkill = (index: number) => setSpecializations(prev => prev.filter((_, i) => i !== index));
+  }, [firstName, lastName, mobilePhone, countryCallingCode, licenseNumber, primaryMarket, avatarUri, saveMutation]);
 
   const pickImage = useCallback(async (): Promise<string | null> => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -324,26 +394,47 @@ export default function ProfileScreen() {
   }, [pickImage]);
 
   const userInitials = useMemo(() => {
-    const names = fullName.trim().split(' ');
-    if (names.length >= 2) {
-      return (names[0][0] + names[names.length - 1][0]).toUpperCase();
-    } else if (names.length === 1 && names[0].length > 0) {
-      return names[0].substring(0, 2).toUpperCase();
+    const fn = firstName.trim();
+    const ln = lastName.trim();
+    if (fn && ln) {
+      return (fn[0] + ln[0]).toUpperCase();
+    } else if (fn) {
+      return fn.substring(0, 2).toUpperCase();
+    } else if (ln) {
+      return ln.substring(0, 2).toUpperCase();
     }
     return '--';
-  }, [fullName]);
+  }, [firstName, lastName]);
+
+  const handleChangePassword = () => {
+    if (!newPassword || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in both password fields.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      Alert.alert('Error', 'Password must be at least 8 characters long.');
+      return;
+    }
+    Alert.alert('Success', 'Password changed successfully.');
+    setNewPassword('');
+    setConfirmPassword('');
+  };
 
   const tabContent = useMemo(() => {
     switch (activeTab) {
 
-      // ── Identity ──────────────────────────────────
+      // ── Personal Info ─────────────────────────────
       case 'identity':
         return (
           <ProfileCard style={styles.mainCard}>
             {/* Avatar hero */}
             <View style={styles.avatarHero}>
               <Pressable style={styles.avatarWrap} onPress={showAvatarOptions}>
-                <LinearGradient colors={['#0D2F45', '#0a2341']} style={styles.avatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                <LinearGradient colors={colors.brandGradient as any} style={styles.avatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                   {avatarUri
                     ? <Image source={{ uri: avatarUri }} style={styles.avatarImage} resizeMode="cover" />
                     : <Text style={styles.avatarText}>{userInitials}</Text>
@@ -358,8 +449,8 @@ export default function ProfileScreen() {
                 <Text style={styles.cardSubtitle}>Your public profile photo is visible to clients and team members.</Text>
                 <View style={styles.avatarActions}>
                   <Pressable style={styles.avatarActionBtn} onPress={showAvatarOptions}>
-                    <MaterialCommunityIcons name="upload-outline" size={14} color={Theme.accentTeal} />
-                    <Text style={styles.avatarActionText}>Replace</Text>
+                    <MaterialCommunityIcons name="upload-outline" size={14} color={colors.accentTeal} />
+                    <Text style={styles.avatarActionText}>Replace Avatar</Text>
                   </Pressable>
                   <Pressable onPress={() => setAvatarUri(null)}>
                     <Text style={styles.removeText}>Remove</Text>
@@ -371,98 +462,139 @@ export default function ProfileScreen() {
             <View style={styles.divider} />
 
             <View style={styles.fieldGroup}>
-              <LabeledInput label="Full Legal Name" value={fullName} onChangeText={setFullName} placeholder="Full legal name"
-                rightInputElement={<MaterialCommunityIcons name="account" size={18} color={Theme.iconMuted} />} />
-              <LabeledInput label="Mobile Phone" value={mobilePhone} onChangeText={setMobilePhone} placeholder="+1 (555) 000-0000"
-                keyboardType="phone-pad"
-                rightInputElement={<MaterialCommunityIcons name="phone" size={18} color={Theme.iconMuted} />} />
-              <LabeledInput label="Professional Email" value={professionalEmail} onChangeText={setProfessionalEmail}
-                placeholder="email@example.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false}
-                rightInputElement={<MaterialCommunityIcons name="email-outline" size={18} color={Theme.iconMuted} />} />
-              <LabeledInput label="Personal Website" value={personalWebsite} onChangeText={setPersonalWebsite}
-                placeholder="www.example.com" keyboardType="url" autoCapitalize="none" autoCorrect={false}
-                rightInputElement={<MaterialCommunityIcons name="web" size={18} color={Theme.iconMuted} />} />
-            </View>
+              {/* First Name & Last Name in Row */}
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <LabeledInput
+                    label="First Name"
+                    required
+                    value={firstName}
+                    onChangeText={setFirstName}
+                    placeholder="First name"
+                    leftInputElement={
+                      <MaterialCommunityIcons name="account-outline" size={20} color={colors.textSecondary} />
+                    }
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <LabeledInput
+                    label="Last Name"
+                    required
+                    value={lastName}
+                    onChangeText={setLastName}
+                    placeholder="Last name"
+                    leftInputElement={
+                      <MaterialCommunityIcons name="account-outline" size={20} color={colors.textSecondary} />
+                    }
+                  />
+                </View>
+              </View>
 
-            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Professional Biography</Text>
-            <TextInput
-              style={styles.bioInput}
-              placeholder="Tell clients about your experience..."
-              placeholderTextColor={Theme.inputPlaceholder}
-              value={professionalBio}
-              onChangeText={setProfessionalBio}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
+              {/* Email with Verify Button */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <LabeledInput
+                    label="Email"
+                    required
+                    value={professionalEmail}
+                    onChangeText={setProfessionalEmail}
+                    placeholder="email@example.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={false}
+                    inputRowStyle={{ opacity: 0.7 }}
+                    leftInputElement={
+                      <MaterialCommunityIcons name="email-outline" size={20} color={colors.textSecondary} />
+                    }
+                  />
+                </View>
+                <Pressable
+                  style={[styles.verifyBtn, isEmailVerified && styles.verifiedBtn]}
+                  onPress={() => handleSendOtp('email')}
+                  disabled={isEmailVerified || isOtpSending}
+                >
+                  {isOtpSending && otpType === 'email' ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.verifyBtnText}>{isEmailVerified ? 'Verified' : 'Verify'}</Text>
+                  )}
+                </Pressable>
+              </View>
+
+              {/* Mobile Phone with flag, country code and Verify Button */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.phoneInputContainer}>
+                    <Text style={styles.phoneLabel}>
+                      Mobile Phone <Text style={{ color: '#ef4444' }}>*</Text>
+                    </Text>
+                    <View style={styles.phoneInputRow}>
+                      <View style={styles.flagContainer}>
+                        <Text style={styles.flagEmoji}>
+                          {countryCallingCode === '1' ? '🇺🇸' : countryCallingCode === '44' ? '🇬🇧' : '🇮🇳'}
+                        </Text>
+                        <Text style={styles.countryCodeText}>+{countryCallingCode}</Text>
+                        <MaterialCommunityIcons name="chevron-down" size={14} color={colors.textSecondary} />
+                      </View>
+                      <TextInput
+                        style={styles.phoneTextInput}
+                        value={mobilePhone}
+                        editable={false}
+                        placeholder="Mobile Phone"
+                        placeholderTextColor={colors.inputPlaceholder}
+                      />
+                    </View>
+                  </View>
+                </View>
+                <Pressable
+                  style={[styles.verifyBtn, isPhoneVerified && styles.verifiedBtn]}
+                  onPress={() => handleSendOtp('phone')}
+                  disabled={isPhoneVerified || isOtpSending}
+                >
+                  {isOtpSending && otpType === 'phone' ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.verifyBtnText}>{isPhoneVerified ? 'Verified' : 'Verify'}</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
           </ProfileCard>
         );
 
-      // ── Professional ──────────────────────────────
+      // ── Professional Info ─────────────────────────
       case 'professional':
         return (
           <ProfileCard style={styles.mainCard}>
-            <Text style={styles.sectionTitle}>Licensing & Accreditation</Text>
+            <Text style={styles.sectionTitle}>Professional Info</Text>
             <View style={styles.fieldGroup}>
-              <LabeledInput label="Real Estate License ID" value={licenseId} onChangeText={setLicenseId} placeholder="e.g. CA-BROKER-98210" />
+              <LabeledInput
+                label="License Number"
+                required
+                value={licenseNumber}
+                onChangeText={setLicenseNumber}
+                placeholder="e.g. 123456"
+              />
 
-              <View>
-                <Text style={styles.fieldLabel}>License Expiry</Text>
-                <Pressable style={styles.pickerRow} onPress={() => setShowDatePicker(true)}>
-                  <Text style={styles.pickerText}>{formatLicenseExpiry(licenseExpiry)}</Text>
-                  <MaterialCommunityIcons name="calendar" size={18} color={Theme.iconMuted} />
-                </Pressable>
-              </View>
+              <LabeledInput
+                label="Primary Market"
+                required
+                value={primaryMarket}
+                onChangeText={setPrimaryMarket}
+                placeholder="e.g. Los Angeles, CA"
+              />
 
-              <LabeledInput label={`Years of Experience (max ${MAX_YEARS_EXPERIENCE})`} value={yearsExperience}
-                onChangeText={handleYearsChange} placeholder="0" keyboardType="number-pad" maxLength={2} />
-
-              <View>
-                <Text style={styles.fieldLabel}>Preferred Language</Text>
+              <View style={styles.labeledInputContainer}>
+                <Text style={styles.inputLabel}>
+                  Preferred Language <Text style={{ color: '#ef4444' }}>*</Text>
+                </Text>
                 <Pressable style={styles.pickerRow} onPress={() => setShowLanguageModal(true)}>
                   <Text style={styles.pickerText}>{preferredLanguage}</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={Theme.iconMuted} />
+                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.iconMuted} />
                 </Pressable>
               </View>
             </View>
-
-            {/* Specializations */}
-            <Text style={[styles.fieldLabel, { marginTop: 18 }]}>Specializations</Text>
-            <Text style={styles.hintText}>Tap × to remove · "Add" to select more</Text>
-            <View style={styles.chipsWrap}>
-              {specializations.map((label, idx) => (
-                <View key={`${label}-${idx}`} style={styles.chip}>
-                  <Text style={styles.chipText}>{label}</Text>
-                  <Pressable hitSlop={8} onPress={() => removeSkill(idx)}>
-                    <MaterialCommunityIcons name="close" size={13} color={Theme.textSecondary} />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-            <Pressable style={styles.addChipBtn} onPress={() => setShowSpecializationModal(true)}>
-              <MaterialCommunityIcons name="plus" size={18} color={Theme.accentTeal} />
-              <Text style={styles.addChipText}>Add specialization</Text>
-            </Pressable>
-
-            {/* Date picker modal */}
-            <Modal visible={showDatePicker} transparent animationType="slide">
-              <View style={styles.modalBackdrop}>
-                <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowDatePicker(false)} />
-                <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
-                  <View style={styles.sheetHandle} />
-                  <View style={styles.sheetHeaderRow}>
-                    <Text style={styles.sheetTitle}>License Expiry</Text>
-                    <Pressable onPress={() => setShowDatePicker(false)} style={styles.sheetDoneBtn}>
-                      <Text style={styles.sheetDoneText}>Done</Text>
-                    </Pressable>
-                  </View>
-                  <DateTimePicker value={licenseExpiry} mode="date" display="spinner"
-                    onChange={(_, d) => { if (d) setLicenseExpiry(d); }}
-                    minimumDate={new Date()}
-                    style={Platform.OS === 'ios' ? { height: 200 } : undefined} />
-                </View>
-              </View>
-            </Modal>
 
             {/* Language modal */}
             <Modal visible={showLanguageModal} transparent animationType="slide">
@@ -475,31 +607,9 @@ export default function ProfileScreen() {
                     {LANGUAGE_OPTIONS.map(lang => (
                       <Pressable key={lang} style={styles.modalOption} onPress={() => { setPreferredLanguage(lang); setShowLanguageModal(false); }}>
                         <Text style={styles.modalOptionText}>{lang}</Text>
-                        {preferredLanguage === lang && <MaterialCommunityIcons name="check" size={20} color={Theme.accentTeal} />}
+                        {preferredLanguage === lang && <MaterialCommunityIcons name="check" size={20} color={colors.accentTeal} />}
                       </Pressable>
                     ))}
-                  </ScrollView>
-                </View>
-              </View>
-            </Modal>
-
-            {/* Specialization modal */}
-            <Modal visible={showSpecializationModal} transparent animationType="slide">
-              <View style={styles.modalBackdrop}>
-                <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowSpecializationModal(false)} />
-                <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
-                  <View style={styles.sheetHandle} />
-                  <Text style={styles.sheetTitle}>Add Specialization</Text>
-                  <Text style={styles.hintText}>Choose one to add to your list.</Text>
-                  <ScrollView style={{ maxHeight: 320, marginTop: 12 }} keyboardShouldPersistTaps="handled">
-                    {AVAILABLE_SPECIALIZATION_OPTIONS.filter(s => !specializations.includes(s)).map(opt => (
-                      <Pressable key={opt} style={styles.modalOption} onPress={() => { setSpecializations(p => [...p, opt]); setShowSpecializationModal(false); }}>
-                        <Text style={styles.modalOptionText}>{opt}</Text>
-                        <MaterialCommunityIcons name="plus" size={18} color={Theme.accentTeal} />
-                      </Pressable>
-                    ))}
-                    {AVAILABLE_SPECIALIZATION_OPTIONS.filter(s => !specializations.includes(s)).length === 0 &&
-                      <Text style={styles.hintText}>All specializations added.</Text>}
                   </ScrollView>
                 </View>
               </View>
@@ -511,31 +621,19 @@ export default function ProfileScreen() {
       case 'branding':
         return (
           <ProfileCard style={styles.mainCard}>
-            {/* Header */}
-            <View style={styles.brandingHeader}>
-              <LinearGradient colors={['#0a2341', '#1B5E9A']} style={styles.brandingIconWrap} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                <MaterialCommunityIcons name="palette-outline" size={18} color="#fff" />
-              </LinearGradient>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Branding</Text>
-                <Text style={styles.cardSubtitle}>Manage your visual identity and signature protocols.</Text>
-              </View>
-            </View>
-
-            <View style={styles.divider} />
-
+            <Text style={styles.sectionTitle}>Branding</Text>
             {/* Logo upload */}
             <Text style={styles.fieldLabel}>Logo</Text>
             <BrandingUploadCard
               icon="image-outline"
-              iconColor={Theme.accentTeal}
-              iconBg={`${Theme.accentTeal}12`}
-              title="Brand Logo"
-              subtitle="SVG or PNG, max 2MB. Used in documents and reports."
+              iconColor={colors.accentTeal}
+              iconBg={`${colors.accentTeal}12`}
+              title="Logo"
+              subtitle="SVG or PNG, max 2MB."
               previewUri={logoUri}
               onUpload={async () => { const uri = await pickImage(); if (uri) setLogoUri(uri); }}
               onRemove={() => setLogoUri(null)}
-
+              uploadLabel="Upload Logo"
             />
 
             {/* Signature upload */}
@@ -544,108 +642,57 @@ export default function ProfileScreen() {
               icon="draw-pen"
               iconColor="#7C3AED"
               iconBg="#7C3AED12"
-              title="Digital Signature"
-              subtitle="Used for document signing and high-priority communications."
+              title="Email Signature"
+              subtitle="Used for document signing and high-priority internal communications."
               previewUri={signatureUri}
               onUpload={async () => { const uri = await pickImage(); if (uri) setSignatureUri(uri); }}
               onRemove={() => setSignatureUri(null)}
-
+              uploadLabel="Upload Signature"
             />
-
-            {/* Interface color */}
-            <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Interface Color</Text>
-            <View style={styles.colorRow}>
-              {INTERFACE_COLORS.map(c => {
-                const isSelected = interfaceColor === c.hex;
-                return (
-                  <Pressable
-                    key={c.hex}
-                    onPress={() => setInterfaceColor(c.hex)}
-                    style={[styles.colorSwatch, { backgroundColor: c.hex }, isSelected && styles.colorSwatchActive]}
-                  >
-                    {isSelected && <MaterialCommunityIcons name="check" size={16} color="#fff" />}
-                  </Pressable>
-                );
-              })}
-            </View>
-            <View style={styles.colorPreviewRow}>
-              <View style={[styles.colorPreviewDot, { backgroundColor: interfaceColor }]} />
-              <Text style={styles.colorHexText}>{interfaceColor.toUpperCase()}</Text>
-              <Text style={styles.colorNameText}>
-                {INTERFACE_COLORS.find(c => c.hex === interfaceColor)?.label}
-              </Text>
-            </View>
           </ProfileCard>
         );
 
       // ── Security ──────────────────────────────────
       case 'security':
         return (
-          <>
-            <ProfileCard style={styles.mainCard}>
-              <View style={styles.securityHeader}>
-                <View style={styles.securityIconWrap}>
-                  <MaterialCommunityIcons name="key-variant" size={20} color={Theme.accentTeal} />
-                </View>
-                <Text style={styles.sectionTitle}>Password Architecture</Text>
-              </View>
-              <View style={[styles.fieldGroup, { marginTop: 4 }]}>
-                <LabeledInput label="Current Security Key" placeholder="••••••••" secureTextEntry />
-                <LabeledInput label="New Security Key" placeholder="Min. 12 characters" secureTextEntry />
-              </View>
-            </ProfileCard>
-
-            <ProfileCard style={styles.mainCard}>
-              <View style={styles.mfaRow}>
-                <LinearGradient colors={['#0a2341', '#1B5E9A']} style={styles.mfaIcon} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                  <MaterialCommunityIcons name="shield-check" size={22} color="#fff" />
-                </LinearGradient>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionTitle}>Two-Factor Authentication</Text>
-                  <Text style={styles.cardSubtitle}>Add an extra layer of protection to your brokerage account.</Text>
-                  <Pressable style={styles.outlineButton}>
-                    <MaterialCommunityIcons name="cellphone-key" size={16} color={Theme.accentTeal} />
-                    <Text style={styles.outlineButtonText}>Configure MFA</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </ProfileCard>
-          </>
-        );
-
-      // ── Organization ──────────────────────────────
-      case 'organization':
-        return (
           <ProfileCard style={styles.mainCard}>
-            <LinearGradient colors={['#0D2F45', '#0a2341']} style={styles.orgBanner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-              <View style={styles.orgIconWrap}>
-                <MaterialCommunityIcons name="office-building" size={22} color="#fff" />
+            <View style={styles.securityHeader}>
+              <View style={styles.securityIconWrap}>
+                <MaterialCommunityIcons name="key-variant" size={20} color={colors.accentTeal} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.orgTitle}>ZIEN Global Enterprise</Text>
-                <Text style={styles.orgSubtitle}>Enterprise License · zien.ai/internal-ops</Text>
-              </View>
-              <View style={styles.orgBadge}>
-                <Text style={styles.orgBadgeText}>Active</Text>
-              </View>
-            </LinearGradient>
-
-            <View style={[styles.fieldGroup, { marginTop: 16 }]}>
-              <View>
-                <Text style={styles.fieldLabel}>Associated Brokerage</Text>
-                <View style={styles.valueBox}>
-                  <MaterialCommunityIcons name="office-building-outline" size={16} color={Theme.textMuted} />
-                  <Text style={styles.valueBoxText}>Zien Real Estate Group Inc.</Text>
-                </View>
-              </View>
-              <View>
-                <Text style={styles.fieldLabel}>Account Manager</Text>
-                <View style={styles.valueBox}>
-                  <MaterialCommunityIcons name="account-tie-outline" size={16} color={Theme.textMuted} />
-                  <Text style={styles.valueBoxText}>Sarah Thompson</Text>
-                </View>
-              </View>
+              <Text style={styles.sectionTitle}>Password Architecture</Text>
             </View>
+            <View style={[styles.fieldGroup, { marginTop: 4, marginBottom: 16 }]}>
+              <LabeledInput
+                label="New Password"
+                required
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showNewPassword}
+                rightInputElement={
+                  <Pressable onPress={() => setShowNewPassword(!showNewPassword)}>
+                    <MaterialCommunityIcons name={showNewPassword ? "eye" : "eye-off"} size={20} color={colors.iconMuted} />
+                  </Pressable>
+                }
+              />
+              <LabeledInput
+                label="Confirm Password"
+                required
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showConfirmPassword}
+                rightInputElement={
+                  <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                    <MaterialCommunityIcons name={showConfirmPassword ? "eye" : "eye-off"} size={20} color={colors.iconMuted} />
+                  </Pressable>
+                }
+              />
+            </View>
+            <Pressable style={styles.changePasswordBtn} onPress={handleChangePassword}>
+              <Text style={styles.changePasswordBtnText}>Change Password</Text>
+            </Pressable>
           </ProfileCard>
         );
 
@@ -653,28 +700,27 @@ export default function ProfileScreen() {
         return null;
     }
   }, [
-    activeTab, specializations, avatarUri, showAvatarOptions,
-    fullName, mobilePhone, professionalEmail, personalWebsite, professionalBio,
-    licenseId, licenseExpiry, showDatePicker, yearsExperience, preferredLanguage,
-    showLanguageModal, showSpecializationModal, handleYearsChange, insets.bottom,
-    logoUri, signatureUri, interfaceColor, pickImage, userInitials
+    activeTab, avatarUri, showAvatarOptions,
+    firstName, lastName, mobilePhone, professionalEmail,
+    licenseNumber, primaryMarket, preferredLanguage,
+    showLanguageModal, logoUri, signatureUri, pickImage, userInitials, colors,
+    isEmailVerified, isPhoneVerified, newPassword, confirmPassword, showNewPassword, showConfirmPassword
   ]);
 
   const bottomBarHeight = 56 + insets.bottom + 16;
 
   return (
     <LinearGradient
-      colors={Theme.backgroundGradient as any}
+      colors={colors.backgroundGradient as any}
       start={{ x: 0.1, y: 0 }}
       end={{ x: 0.9, y: 1 }}
       style={[styles.bg, { paddingTop: insets.top }]}
     >
       {/* ── Page Header ── */}
       <PageHeader
-        title="Professional Profile"
-        subtitle="Manage your digital identity and brokerage credentials."
+        title="Profile"
+        subtitle="Manage your digital identity, security protocols, and brokerage credentials."
         onBack={() => router.back()}
-
       />
 
       <KeyboardAvoidingView
@@ -693,8 +739,7 @@ export default function ProfileScreen() {
           {tabContent}
 
           <View style={styles.sideCards}>
-            <AccountStatusCard profileStrengthPercent={92} items={ACCOUNT_STATUS_ITEMS} />
-            <DangerZoneCard onButtonPress={() => { }} />
+            <AccountStatusCard items={accountStatusItems} />
           </View>
         </ScrollView>
 
@@ -705,18 +750,107 @@ export default function ProfileScreen() {
             onPress={handleSave}
             disabled={saveMutation.isPending}
           >
-            <LinearGradient colors={['#0D2F45', '#0B3B50']} style={styles.saveBtnGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+            <LinearGradient colors={colors.brandGradient as any} style={styles.saveBtnGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
               {saveMutation.isPending ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
                   <Text style={styles.saveBtnText}>Save Changes</Text>
-                  <MaterialCommunityIcons name="content-save-outline" size={20} color="#fff" />
                 </>
               )}
             </LinearGradient>
           </Pressable>
         </View>
+
+        {/* ── OTP Verification Modal ── */}
+        <Modal
+          visible={otpModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setOtpModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>
+                {otpType === 'email' ? 'Verify Email' : 'Verify Phone'}
+              </Text>
+              <Text style={styles.modalMessage}>
+                {otpType === 'email'
+                  ? 'Enter the 4-digit code sent to your email address.'
+                  : 'Enter the 4-digit code sent to your mobile phone.'}
+              </Text>
+
+              <View style={styles.otpInputContainer}>
+                {otpCode.map((digit, index) => (
+                  <TextInput
+                    key={index}
+                    ref={otpRefs[index]}
+                    style={[
+                      styles.otpBox,
+                      otpError ? { borderColor: '#ef4444' } : null
+                    ]}
+                    value={digit}
+                    onChangeText={(text) => {
+                      const val = text.replace(/[^\d]/g, '').substring(text.length - 1);
+                      const newCode = [...otpCode];
+                      newCode[index] = val;
+                      setOtpCode(newCode);
+
+                      if (val && index < 3) {
+                        otpRefs[index + 1].current?.focus();
+                      }
+                      if (otpError) setOtpError('');
+                    }}
+                    onKeyPress={({ nativeEvent }) => {
+                      if (nativeEvent.key === 'Backspace' && !digit && index > 0) {
+                        const newCode = [...otpCode];
+                        newCode[index - 1] = '';
+                        setOtpCode(newCode);
+                        otpRefs[index - 1].current?.focus();
+                      }
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={1}
+                    selectTextOnFocus
+                  />
+                ))}
+              </View>
+
+              {otpError ? (
+                <Text style={styles.otpErrorText}>{otpError}</Text>
+              ) : null}
+
+              <View style={styles.modalActionRow}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.modalConfirmBtn,
+                    pressed && { opacity: 0.85 },
+                    isOtpVerifying && { opacity: 0.7 }
+                  ]}
+                  onPress={handleVerifyOtp}
+                  disabled={isOtpVerifying}
+                >
+                  {isOtpVerifying ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.modalConfirmText}>Verify & Confirm</Text>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.modalCancelBtn,
+                    pressed && { opacity: 0.85 }
+                  ]}
+                  onPress={() => setOtpModalVisible(false)}
+                  disabled={isOtpVerifying}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </LinearGradient>
   );
@@ -725,174 +859,350 @@ export default function ProfileScreen() {
 // ─────────────────────────────────────────────────────
 // Styles
 // ─────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  bg: { flex: 1 },
-  scrollContent: { paddingHorizontal: 18, gap: 16, paddingTop: 4 },
+function getStyles(colors: any, theme: string) {
+  return StyleSheet.create({
+    bg: { flex: 1 },
+    scrollContent: { paddingHorizontal: 18, gap: 16, paddingTop: 4 },
 
-  // Save bar
-  fixedBottom: {
-    position: 'absolute', left: 0, right: 0, bottom: 0,
-    paddingHorizontal: 18, paddingTop: 12,
-    backgroundColor: 'rgba(244,247,251,0.97)',
-    borderTopWidth: 1, borderTopColor: Theme.cardBorder,
-  },
-  saveBtn: { borderRadius: 16, overflow: 'hidden' },
-  saveBtnGradient: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, paddingVertical: 15,
-  },
-  saveBtnText: { fontSize: 15.5, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
+    // Save bar
+    fixedBottom: {
+      position: 'absolute', left: 0, right: 0, bottom: 0,
+      paddingHorizontal: 18, paddingTop: 12,
+      backgroundColor: colors.cardBackground,
+      borderTopWidth: 1, borderTopColor: colors.cardBorder,
+    },
+    saveBtn: { borderRadius: 16, overflow: 'hidden' },
+    saveBtnGradient: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 10, paddingVertical: 15,
+    },
+    saveBtnText: { fontSize: 15.5, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
 
-  // Main card
-  mainCard: { marginBottom: 0 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: Theme.textPrimary, marginBottom: 4 },
-  cardSubtitle: { fontSize: 13, color: Theme.textSecondary, lineHeight: 18, marginBottom: 10 },
-  fieldLabel: { fontSize: 13, fontWeight: '700', color: Theme.textPrimary, marginBottom: 8 },
-  hintText: { fontSize: 12, color: Theme.textSecondary, marginTop: 2, marginBottom: 10 },
-  divider: { height: 1, backgroundColor: Theme.cardBorder, marginVertical: 16 },
-  fieldGroup: { gap: 14 },
-  sideCards: { gap: 16 },
+    // Main card
+    mainCard: { marginBottom: 0 },
+    sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.textPrimary, marginBottom: 4 },
+    cardSubtitle: { fontSize: 13, color: colors.textSecondary, lineHeight: 18, marginBottom: 10 },
+    fieldLabel: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 8 },
+    hintText: { fontSize: 12, color: colors.textSecondary, marginTop: 2, marginBottom: 10 },
+    divider: { height: 1, backgroundColor: colors.cardBorder, marginVertical: 16 },
+    fieldGroup: { gap: 14 },
+    sideCards: { gap: 16 },
 
-  // Identity avatar
-  avatarHero: { flexDirection: 'row', gap: 16, alignItems: 'flex-start', marginBottom: 4 },
-  avatarWrap: { position: 'relative' },
-  avatar: {
-    width: 76, height: 76, borderRadius: 20,
-    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    shadowColor: '#0a2341', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 5,
-  },
-  avatarImage: { width: '100%', height: '100%' },
-  avatarText: { fontSize: 24, fontWeight: '800', color: '#fff' },
-  avatarCameraBtn: {
-    position: 'absolute', right: -4, bottom: -4, width: 26, height: 26,
-    borderRadius: 9, backgroundColor: Theme.accentTeal,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff',
-  },
-  avatarMeta: { flex: 1 },
-  avatarActions: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8 },
-  avatarActionBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999,
-    borderWidth: 1.5, borderColor: Theme.accentTeal, backgroundColor: `${Theme.accentTeal}10`,
-  },
-  avatarActionText: { fontSize: 12.5, fontWeight: '800', color: Theme.accentTeal },
-  removeText: { fontSize: 12.5, fontWeight: '700', color: '#EF4444' },
+    // Identity avatar
+    avatarHero: { flexDirection: 'row', gap: 16, alignItems: 'flex-start', marginBottom: 4 },
+    avatarWrap: { position: 'relative' },
+    avatar: {
+      width: 76, height: 76, borderRadius: 20,
+      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+      shadowColor: colors.accentTeal, shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 5,
+    },
+    avatarImage: { width: '100%', height: '100%' },
+    avatarText: { fontSize: 24, fontWeight: '800', color: '#fff' },
+    avatarCameraBtn: {
+      position: 'absolute', right: -4, bottom: -4, width: 26, height: 26,
+      borderRadius: 9, backgroundColor: colors.accentTeal,
+      alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.cardBackground,
+    },
+    avatarMeta: { flex: 1 },
+    avatarActions: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8 },
+    avatarActionBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999,
+      borderWidth: 1.5, borderColor: colors.accentTeal, backgroundColor: `${colors.accentTeal}10`,
+    },
+    avatarActionText: { fontSize: 12.5, fontWeight: '800', color: colors.accentTeal },
+    removeText: { fontSize: 12.5, fontWeight: '700', color: '#EF4444' },
 
-  // Bio
-  bioInput: {
-    backgroundColor: Theme.inputBackground, borderRadius: 14,
-    borderWidth: 1, borderColor: Theme.borderInput,
-    paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 14, color: Theme.textPrimary, minHeight: 100,
-  },
+    // Bio
+    bioInput: {
+      backgroundColor: colors.inputBackground, borderRadius: 14,
+      borderWidth: 1, borderColor: colors.borderInput,
+      paddingHorizontal: 14, paddingVertical: 12,
+      fontSize: 14, color: colors.textPrimary, minHeight: 100,
+    },
 
-  // Picker rows
-  pickerRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Theme.inputBackground, borderRadius: 14,
-    borderWidth: 1, borderColor: Theme.borderInput,
-    paddingHorizontal: 14, paddingVertical: 13,
-  },
-  pickerText: { fontSize: 15, color: Theme.textPrimary, fontWeight: '500' },
+    // Picker rows
+    pickerRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: colors.inputBackground, borderRadius: 14,
+      borderWidth: 1, borderColor: colors.borderInput,
+      paddingHorizontal: 14, paddingVertical: 13,
+    },
+    pickerText: { fontSize: 15, color: colors.textPrimary, fontWeight: '500' },
 
-  // Chips
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Theme.surfaceIcon, borderRadius: 999,
-    paddingVertical: 8, paddingLeft: 14, paddingRight: 10,
-    borderWidth: 1, borderColor: Theme.cardBorder,
-  },
-  chipText: { fontSize: 13, fontWeight: '600', color: Theme.textPrimary, maxWidth: 140 },
-  addChipBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 12, borderRadius: 14,
-    borderWidth: 1.5, borderColor: Theme.accentTeal, borderStyle: 'dashed',
-  },
-  addChipText: { fontSize: 13.5, fontWeight: '700', color: Theme.accentTeal },
+    // Chips
+    chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+    chip: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: colors.surfaceIcon, borderRadius: 999,
+      paddingVertical: 8, paddingLeft: 14, paddingRight: 10,
+      borderWidth: 1, borderColor: colors.cardBorder,
+    },
+    chipText: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, maxWidth: 140 },
+    addChipBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      paddingVertical: 12, borderRadius: 14,
+      borderWidth: 1.5, borderColor: colors.accentTeal, borderStyle: 'dashed',
+    },
+    addChipText: { fontSize: 13.5, fontWeight: '700', color: colors.accentTeal },
 
-  // Branding
-  brandingHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  brandingIconWrap: {
-    width: 40, height: 40, borderRadius: 13,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#0a2341', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3,
-  },
-  colorRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 12 },
-  colorSwatch: {
-    width: 40, height: 40, borderRadius: 13,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 2,
-  },
-  colorSwatchActive: {
-    shadowOpacity: 0.3, shadowRadius: 10,
-    borderWidth: 2.5, borderColor: '#fff',
-  },
-  colorPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  colorPreviewDot: { width: 20, height: 20, borderRadius: 6 },
-  colorHexText: { fontSize: 13, fontWeight: '800', color: Theme.textPrimary },
-  colorNameText: { fontSize: 12.5, fontWeight: '600', color: Theme.textSecondary },
+    // Branding
+    brandingHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+    brandingIconWrap: {
+      width: 40, height: 40, borderRadius: 13,
+      alignItems: 'center', justifyContent: 'center',
+      shadowColor: colors.accentTeal, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3,
+    },
+    colorRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 12 },
+    colorSwatch: {
+      width: 40, height: 40, borderRadius: 13,
+      alignItems: 'center', justifyContent: 'center',
+      shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+    },
+    colorSwatchActive: {
+      shadowOpacity: 0.3, shadowRadius: 10,
+      borderWidth: 2.5, borderColor: '#fff',
+    },
+    colorPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    colorPreviewDot: { width: 20, height: 20, borderRadius: 6 },
+    colorHexText: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
+    colorNameText: { fontSize: 12.5, fontWeight: '600', color: colors.textSecondary },
 
-  // Security
-  securityHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  securityIconWrap: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: `${Theme.accentTeal}12`, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: `${Theme.accentTeal}25`,
-  },
-  mfaRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
-  mfaIcon: {
-    width: 48, height: 48, borderRadius: 15,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    shadowColor: '#0a2341', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3,
-  },
-  outlineButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 16,
-    borderRadius: 12, borderWidth: 1.5, borderColor: Theme.accentTeal,
-    backgroundColor: `${Theme.accentTeal}10`, marginTop: 10,
-  },
-  outlineButtonText: { fontSize: 13.5, fontWeight: '700', color: Theme.accentTeal },
+    // Security
+    securityHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+    securityIconWrap: {
+      width: 38, height: 38, borderRadius: 12,
+      backgroundColor: `${colors.accentTeal}12`, alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1, borderColor: `${colors.accentTeal}25`,
+    },
+    mfaRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
+    mfaIcon: {
+      width: 48, height: 48, borderRadius: 15,
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      shadowColor: colors.accentTeal, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3,
+    },
+    outlineButton: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 16,
+      borderRadius: 12, borderWidth: 1.5, borderColor: colors.accentTeal,
+      backgroundColor: `${colors.accentTeal}10`, marginTop: 10,
+    },
+    outlineButtonText: { fontSize: 13.5, fontWeight: '700', color: colors.accentTeal },
 
-  // Organization
-  orgBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderRadius: 16, padding: 16, marginBottom: 4,
-  },
-  orgIconWrap: {
-    width: 44, height: 44, borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center',
-  },
-  orgTitle: { fontSize: 15, fontWeight: '800', color: '#fff' },
-  orgSubtitle: { fontSize: 11.5, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
-  orgBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 999,
-    paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
-  },
-  orgBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
-  valueBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Theme.surfaceIcon, borderRadius: 14,
-    borderWidth: 1, borderColor: Theme.cardBorder,
-    paddingVertical: 13, paddingHorizontal: 14,
-  },
-  valueBoxText: { fontSize: 14, fontWeight: '600', color: Theme.textPrimary },
+    // Organization
+    orgBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      borderRadius: 16, padding: 16, marginBottom: 4,
+    },
+    orgIconWrap: {
+      width: 44, height: 44, borderRadius: 13,
+      backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center',
+    },
+    orgTitle: { fontSize: 15, fontWeight: '800', color: '#fff' },
+    orgSubtitle: { fontSize: 11.5, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
+    orgBadge: {
+      backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 999,
+      paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
+    },
+    orgBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
+    valueBox: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: colors.surfaceIcon, borderRadius: 14,
+      borderWidth: 1, borderColor: colors.cardBorder,
+      paddingVertical: 13, paddingHorizontal: 14,
+    },
+    valueBoxText: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
 
-  // Bottom sheet modals
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  bottomSheet: {
-    backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 20, paddingTop: 12,
-  },
-  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#D1D9E0', alignSelf: 'center', marginBottom: 18 },
-  sheetHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  sheetTitle: { fontSize: 17, fontWeight: '800', color: Theme.textPrimary },
-  sheetDoneBtn: { paddingVertical: 6, paddingHorizontal: 14 },
-  sheetDoneText: { fontSize: 15, fontWeight: '700', color: Theme.accentTeal },
-  modalOption: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 14, paddingHorizontal: 4,
-    borderBottomWidth: 1, borderBottomColor: Theme.rowBorder,
-  },
-  modalOptionText: { fontSize: 15, fontWeight: '600', color: Theme.textPrimary },
-});
+    // Bottom sheet modals
+    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+    bottomSheet: {
+      backgroundColor: colors.cardBackground, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      paddingHorizontal: 20, paddingTop: 12,
+    },
+    sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: theme === 'dark' ? '#324256' : '#D1D9E0', alignSelf: 'center', marginBottom: 18 },
+    sheetHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+    sheetTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary },
+    sheetDoneBtn: { paddingVertical: 6, paddingHorizontal: 14 },
+    sheetDoneText: { fontSize: 15, fontWeight: '700', color: colors.accentTeal },
+    modalOption: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingVertical: 14, paddingHorizontal: 4,
+      borderBottomWidth: 1, borderBottomColor: colors.rowBorder,
+    },
+    modalOptionText: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+
+    // Web layouts extra styling
+    verifyBtn: {
+      height: 50,
+      backgroundColor: colors.accentTeal,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+    },
+    verifyBtnText: {
+      color: '#ffffff',
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    verifiedBtn: {
+      backgroundColor: colors.accentGreen || '#16A34A',
+    },
+    phoneInputContainer: {
+      gap: 8,
+    },
+    phoneLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    phoneInputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.inputBackground,
+      borderRadius: colors.inputBorderRadius || 12,
+      borderWidth: 1,
+      borderColor: colors.borderInput,
+      paddingHorizontal: 14,
+      height: 50,
+      opacity: 0.7,
+    },
+    flagContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginRight: 10,
+      borderRightWidth: 1,
+      borderRightColor: colors.cardBorder,
+      paddingRight: 10,
+    },
+    flagEmoji: {
+      fontSize: 16,
+    },
+    countryCodeText: {
+      fontSize: 15,
+      color: colors.textPrimary,
+      fontWeight: '600',
+    },
+    phoneTextInput: {
+      flex: 1,
+      fontSize: 15,
+      color: colors.textSecondary,
+    },
+    labeledInputContainer: {
+      gap: 8,
+    },
+    inputLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    changePasswordBtn: {
+      backgroundColor: colors.accentTeal,
+      borderRadius: 10,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      alignSelf: 'flex-start',
+    },
+    changePasswordBtnText: {
+      color: '#ffffff',
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    modalContent: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 24,
+      width: '100%',
+      maxWidth: 340,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 5,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    modalMessage: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: 24,
+      lineHeight: 20,
+    },
+    otpInputContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      width: '100%',
+      gap: 10,
+      marginBottom: 16,
+    },
+    otpBox: {
+      flex: 1,
+      height: 55,
+      borderWidth: 1,
+      borderColor: colors.borderInput,
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      textAlign: 'center',
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    otpErrorText: {
+      color: '#ef4444',
+      fontSize: 13,
+      fontWeight: '600',
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    modalActionRow: {
+      flexDirection: 'row',
+      gap: 12,
+      width: '100%',
+    },
+    modalConfirmBtn: {
+      flex: 1,
+      height: 48,
+      backgroundColor: colors.accentTeal || '#00a7b5',
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalConfirmText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    modalCancelBtn: {
+      flex: 1,
+      height: 48,
+      backgroundColor: colors.cardBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalCancelText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+  });
+}

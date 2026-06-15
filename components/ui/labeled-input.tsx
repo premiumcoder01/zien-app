@@ -11,6 +11,7 @@ type LabeledInputProps = TextInputProps & {
   rightLabel?: string;
   onRightLabelPress?: () => void;
   rightInputElement?: React.ReactNode;
+  leftInputElement?: React.ReactNode;
   error?: string;
   required?: boolean;
 };
@@ -24,6 +25,7 @@ export default function LabeledInput({
   rightLabel,
   onRightLabelPress,
   rightInputElement,
+  leftInputElement,
   error,
   required,
   ...inputProps
@@ -50,6 +52,7 @@ export default function LabeledInput({
         </View>
       ) : null}
       <View style={[styles.inputRow, inputRowStyle, !!error && { borderColor: '#ef4444' }]}>
+        {leftInputElement ? <View style={styles.inputLeft}>{leftInputElement}</View> : null}
         <TextInput
           {...inputProps}
           style={[styles.input, inputStyle]}
@@ -96,6 +99,9 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
     color: colors.textPrimary,
+  },
+  inputLeft: {
+    paddingRight: 10,
   },
   inputRight: {
     paddingLeft: 6,

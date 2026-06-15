@@ -6,7 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -133,10 +133,12 @@ export default function AiContentScreen() {
     }
   }, [accessToken]);
 
-  // Initial load
-  useEffect(() => {
-    fetchLibrary();
-  }, [fetchLibrary]);
+  // Refetch library whenever screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchLibrary();
+    }, [fetchLibrary])
+  );
 
   // Handle Delete
   const handleDelete = (id: string, address?: string) => {
@@ -185,6 +187,7 @@ export default function AiContentScreen() {
           bg: colors.accentTeal + '15',
         };
       case 'social-media':
+      case 'social-posts':
         return {
           label: 'Social Post',
           icon: 'cellphone-text',
@@ -294,15 +297,15 @@ export default function AiContentScreen() {
         pathname: '/(main)/ai-content/property-description',
         params: { prefill, content, address: item.metadata?.address || '' }
       });
-    } else if (item.type === 'social-media') {
+    } else if (item.type === 'social-media' || item.type === 'social-posts') {
       router.push({
         pathname: '/(main)/ai-content/social-media-posts',
-        params: { prefill, content }
+        params: { prefill, content, address: item.metadata?.address || '' }
       });
     } else if (item.type === 'email-templates') {
       router.push({
         pathname: '/(main)/ai-content/email-templates',
-        params: { prefill, content }
+        params: { prefill, content, address: item.metadata?.address || '' }
       });
     } else if (item.type === 'image-enhancer') {
       router.push({
@@ -312,7 +315,7 @@ export default function AiContentScreen() {
     } else if (item.type === 'presentation-builder') {
       router.push({
         pathname: '/(main)/ai-content/presentation-builder',
-        params: { prefill, content }
+        params: { prefill, content, address: item.metadata?.address || '' }
       });
     } else {
       // Default fallback: show view modal

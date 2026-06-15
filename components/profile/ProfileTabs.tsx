@@ -4,14 +4,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { memo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
-export type ProfileTabKey = 'identity' | 'professional' | 'branding' | 'security' | 'organization';
+export type ProfileTabKey = 'identity' | 'professional' | 'branding' | 'security';
 
 const TABS: { key: ProfileTabKey; label: string; icon: string }[] = [
-  { key: 'identity', label: 'Identity', icon: 'account-outline' },
-  { key: 'professional', label: 'Professional', icon: 'briefcase-outline' },
+  { key: 'identity', label: 'Personal Info', icon: 'account-outline' },
+  { key: 'professional', label: 'Professional Info', icon: 'briefcase-outline' },
   { key: 'branding', label: 'Branding', icon: 'palette-outline' },
   { key: 'security', label: 'Security', icon: 'lock-outline' },
-  { key: 'organization', label: 'Organization', icon: 'office-building-outline' },
 ];
 
 type ProfileTabsProps = {
@@ -77,9 +76,9 @@ function getStyles(colors: any) {
       paddingVertical: 10,
       paddingHorizontal: 14,
       borderRadius: 999,
-      backgroundColor: 'rgba(255,255,255,0.85)',
+      backgroundColor: colors.cardBackgroundSemi,
       borderWidth: 1,
-      borderColor: 'rgba(225,232,242,0.9)',
+      borderColor: colors.cardBorder,
       shadowColor: '#0A2F48',
       shadowOpacity: 0.04,
       shadowRadius: 6,
@@ -88,7 +87,7 @@ function getStyles(colors: any) {
     },
     tabActive: {
       borderColor: `${colors.accentTeal}50`,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.cardBackgroundSoft,
       shadowOpacity: 0.08,
       shadowRadius: 10,
     },

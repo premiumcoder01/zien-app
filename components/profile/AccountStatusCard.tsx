@@ -14,7 +14,6 @@ type AccountStatusCardProps = {
 };
 
 function AccountStatusCardComponent({
-  profileStrengthPercent = 92,
   items,
 }: AccountStatusCardProps) {
   const { colors } = useAppTheme();
@@ -22,22 +21,13 @@ function AccountStatusCardComponent({
   return (
     <View style={styles.card}>
       <Text style={styles.title}>ACCOUNT STATUS</Text>
-      <View style={styles.strengthRow}>
-        <Text style={styles.strengthLabel}>Profile Strength</Text>
-        <Text style={styles.strengthValue}>{profileStrengthPercent}%</Text>
-      </View>
-      <View style={styles.progressTrack}>
-        <View
-          style={[styles.progressFill, { width: `${profileStrengthPercent}%` }]}
-        />
-      </View>
       <View style={styles.list}>
         {items.map((item) => (
           <View key={item.label} style={styles.listItem}>
             <MaterialCommunityIcons
-              name="check-circle"
+              name={item.verified ? "check-circle" : "circle-outline"}
               size={18}
-              color={colors.accentTeal}
+              color={item.verified ? (colors.accentTeal || '#00a7b5') : colors.textSecondary}
             />
             <Text style={styles.listLabel}>{item.label}</Text>
           </View>

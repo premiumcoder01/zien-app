@@ -1,13 +1,19 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { generateAiText, saveAiContent } from '@/services/aiContentService';
+import { getProperties, RawPropertyItem } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
-    Clipboard,
+    Alert,
     Dimensions,
+    Image,
     Keyboard,
     Pressable,
     ScrollView,
@@ -77,22 +83,60 @@ export default function EmailTemplatesScreen() {
 
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { prefill, content } = useLocalSearchParams<{ prefill?: string; content?: string }>();
+    const { accessToken } = useAuth();
+    const { prefill, content, address } = useLocalSearchParams<{ prefill?: string; content?: string; address?: string }>();
 
     const [selectedType, setSelectedType] = useState('just_listed');
     const [campaignContext, setCampaignContext] = useState(prefill || '');
-    const [selectedStyle, setSelectedStyle] = useState('Spam-Safe');
+    const [selectedStyle, setSelectedStyle] = useState('Conversion Tuned'); // Default to Conversion Tuned as in the screenshot
     const [isGenerating, setIsGenerating] = useState(false);
     const [outputEmail, setOutputEmail] = useState({
         subject: content ? content.split('\n')[0].replace(/^Subject:\s*/i, '') : '',
         body: content ? content.substring(content.indexOf('\n') + 1).trim() : ''
     });
     const [hasGenerated, setHasGenerated] = useState(!!content);
+    const [isSaving, setIsSaving] = useState(false);
+    const [copied, setCopied] = useState(false);
+
+    // Properties list states
+    const [properties, setProperties] = useState<RawPropertyItem[]>([]);
+    const [propertiesLoading, setPropertiesLoading] = useState(true);
+    const [selectedPropertyId, setSelectedPropertyId] = useState<string | number>('custom');
+
+    // Fetch properties helper
+    const fetchProperties = useCallback(async () => {
+        if (!accessToken) return;
+        setPropertiesLoading(true);
+        try {
+            const response = await getProperties(accessToken);
+            if (response.success && Array.isArray(response.properties)) {
+                setProperties(response.properties);
+            }
+        } catch (err) {
+            console.error('[EmailCampaign] Error fetching properties:', err);
+        } finally {
+            setPropertiesLoading(false);
+        }
+    }, [accessToken]);
 
     useEffect(() => {
-        if (prefill) {
-            setCampaignContext(prefill);
+        fetchProperties();
+    }, [fetchProperties]);
+
+    // Auto-select property when editing / mounting with address parameter
+    useEffect(() => {
+        if (properties.length > 0 && address) {
+            const matched = properties.find(
+                (p) => p.address.toLowerCase().includes(address.toLowerCase())
+            );
+            if (matched) {
+                setSelectedPropertyId(matched.id);
+            }
         }
+    }, [properties, address]);
+
+    useEffect(() => {
+        if (prefill) setCampaignContext(prefill);
         if (content) {
             const subject = content.split('\n')[0].replace(/^Subject:\s*/i, '');
             const body = content.substring(content.indexOf('\n') + 1).trim();
@@ -101,41 +145,97 @@ export default function EmailTemplatesScreen() {
         }
     }, [prefill, content]);
 
-    const handleGenerate = () => {
-        if (!campaignContext.trim()) return;
+    const handleGenerate = async () => {
+        if (!campaignContext.trim() || !accessToken) return;
 
         Keyboard.dismiss();
         setIsGenerating(true);
         setHasGenerated(false);
         setOutputEmail({ subject: '', body: '' });
 
-        // Simulate thinking & generating
-        setTimeout(() => {
+        try {
+            let promptFeatures = campaignContext.trim();
+            const prop = selectedPropertyId !== 'custom' ? properties.find((p) => p.id === selectedPropertyId) : null;
+            if (prop) {
+                const remarks = prop.data?.publicRemarks || prop.data?.privateRemarks || '';
+                promptFeatures = `Property: ${prop.address}\nPrice: ${prop.data?.price || prop.data?.ListPrice || ''}\nBeds/Baths: ${prop.data?.beds || prop.data?.BedroomsTotal || ''}/${prop.data?.bathsFull || prop.data?.BathroomsFull || ''}\nSqft: ${prop.data?.sqft || prop.data?.LivingArea || ''}\nRemarks: ${remarks}\nUser Context: ${campaignContext.trim()}`;
+            }
+
+            const emailTypeLabel = selectedType === 'just_listed' ? 'Just Listed' : selectedType === 'follow_up' ? 'Follow-up' : selectedType === 'newsletter' ? 'Newsletter' : 'Price Drop';
+            const propertyAddress = prop ? prop.address : 'N/A';
+
+            const prompt = `Write a highly professional real estate email for a "${emailTypeLabel}" campaign. \n            Details: ${promptFeatures}.\n            Property Address: ${propertyAddress}\n            \n            Structure the email properly with an engaging subject line, a professional greeting, clear body paragraphs, and a strong call-to-action at the end. DO NOT use any markdown formatting like asterisks (**) for bolding. Important rules: ${selectedStyle}.`;
+            const response = await generateAiText(prompt, accessToken, 'complex');
+
+            if (response.result) {
+                const rawResult = response.result;
+                const subject = rawResult.split('\n')[0].replace(/^Subject:\s*/i, '').trim();
+                const body = rawResult.substring(rawResult.indexOf('\n') + 1).trim();
+                setOutputEmail({ subject, body });
+                setHasGenerated(true);
+            } else {
+                throw new Error('No result received from AI.');
+            }
+        } catch (err: any) {
+            console.error('[EmailCampaign] Generation failed:', err);
+            setHasGenerated(false);
+            Alert.alert('Generation Failed', err?.message || 'Could not generate email. Please try again.');
+        } finally {
             setIsGenerating(false);
-            setHasGenerated(true);
-
-            // Typing animation
-            let subjectIndex = 0;
-            let bodyIndex = 0;
-            const fullSubject = MOCK_EMAIL.subject;
-            const fullBody = MOCK_EMAIL.body;
-
-            const timer = setInterval(() => {
-                if (subjectIndex < fullSubject.length) {
-                    setOutputEmail(prev => ({ ...prev, subject: prev.subject + fullSubject.charAt(subjectIndex) }));
-                    subjectIndex++;
-                } else if (bodyIndex < fullBody.length) {
-                    setOutputEmail(prev => ({ ...prev, body: prev.body + fullBody.charAt(bodyIndex) }));
-                    bodyIndex++;
-                } else {
-                    clearInterval(timer);
-                }
-            }, 10);
-        }, 1500);
+        }
     };
 
-    const copyToClipboard = () => {
-        Clipboard.setString(`Subject: ${outputEmail.subject}\n\n${outputEmail.body}`);
+    const copyToClipboard = async () => {
+        const fullText = `Subject: ${outputEmail.subject}\n\n${outputEmail.body}`;
+        if (!fullText.trim()) return;
+        await Clipboard.setStringAsync(fullText);
+        setCopied(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleExportNarrative = async () => {
+        const fullText = `Subject: ${outputEmail.subject}\n\n${outputEmail.body}`;
+        if (!fullText.trim() || !accessToken) return;
+        setIsSaving(true);
+        try {
+            const prop = selectedPropertyId !== 'custom' ? properties.find((p) => p.id === selectedPropertyId) : null;
+            const emailTypeLabel = selectedType === 'just_listed' ? 'Just Listed' : selectedType === 'follow_up' ? 'Follow-up' : selectedType === 'newsletter' ? 'Newsletter' : 'Price Drop';
+
+            await saveAiContent(
+                {
+                    type: 'email-templates',
+                    content: fullText,
+                    metadata: {
+                        template_type: emailTypeLabel,
+                        input_details: campaignContext || '',
+                        property_id: prop ? prop.id : null,
+                        address: prop ? prop.address : '',
+                    },
+                },
+                accessToken
+            );
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert(
+                'Success',
+                'Narrative saved successfully to your library.',
+                [
+                    {
+                        text: 'OK',
+                        onPress: () => {
+                            setTimeout(() => {
+                                router.replace('/(main)/ai-content');
+                            }, 100);
+                        }
+                    }
+                ]
+            );
+        } catch (err: any) {
+            console.error('[EmailCampaign] Export failed:', err);
+            Alert.alert('Export Failed', err?.message || 'Could not save the email templates. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -186,6 +286,74 @@ export default function EmailTemplatesScreen() {
                         ))}
                     </ScrollView>
 
+                    {/* Horizontal Property Selector */}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.propertySelectorScroll}
+                        contentContainerStyle={styles.propertySelectorContent}
+                    >
+                        {/* CUSTOM INPUT Card */}
+                        <Pressable
+                            style={[
+                                styles.selectorCard,
+                                selectedPropertyId === 'custom' && styles.selectorCardActive
+                            ]}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setSelectedPropertyId('custom');
+                                setCampaignContext(prefill || '');
+                            }}
+                        >
+                            <View style={styles.selectorCardIconContainer}>
+                                <MaterialCommunityIcons name="cube-outline" size={20} color={colors.accentTeal} />
+                            </View>
+                            <View style={styles.selectorCardTextContainer}>
+                                <Text style={styles.selectorCardTitle} numberOfLines={1}>CUSTOM INPUT</Text>
+                                <Text style={styles.selectorCardSubtitle}>Manual Entry</Text>
+                            </View>
+                        </Pressable>
+
+                        {/* Property Cards */}
+                        {properties.map((prop) => {
+                            const isSelected = selectedPropertyId === prop.id;
+                            const firstImage = prop.data?.Media?.[0]?.MediaURL || prop.data?.user_images?.[0];
+                            const propTitle = prop.address.split(',')[0];
+
+                            return (
+                                <Pressable
+                                    key={prop.id}
+                                    style={[
+                                        styles.selectorCard,
+                                        isSelected && styles.selectorCardActive
+                                    ]}
+                                    onPress={() => {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                        setSelectedPropertyId(prop.id);
+                                        // Auto-populate the campaign context with remarks/details
+                                        const remarks = prop.data?.publicRemarks || prop.data?.privateRemarks || '';
+                                        const details = `Property details for ${prop.address}:\nPrice: ${prop.data?.price || prop.data?.ListPrice || 'N/A'}\nBeds/Baths: ${prop.data?.beds || prop.data?.BedroomsTotal || 'N/A'}/${prop.data?.bathsFull || prop.data?.BathroomsFull || 'N/A'}\nSqft: ${prop.data?.sqft || prop.data?.LivingArea || 'N/A'}\nRemarks: ${remarks}`;
+                                        setCampaignContext(remarks || details);
+                                    }}
+                                >
+                                    {firstImage ? (
+                                        <Image source={{ uri: firstImage }} style={styles.selectorCardImage} />
+                                    ) : (
+                                        <View style={styles.selectorCardIconContainer}>
+                                            <MaterialCommunityIcons name="home-outline" size={20} color={colors.textSecondary} />
+                                        </View>
+                                    )}
+                                    <View style={styles.selectorCardTextContainer}>
+                                        <Text style={styles.selectorCardTitle} numberOfLines={1}>{propTitle}</Text>
+                                        <Text style={styles.selectorCardSubtitle} numberOfLines={1}>
+                                            Active Property
+                                        </Text>
+                                    </View>
+                                </Pressable>
+                            );
+                        })}
+                    </ScrollView>
+
                     {/* Campaign Context Card */}
                     <View style={styles.inputCard}>
                         <Text style={styles.cardHeading}>Campaign Context</Text>
@@ -221,7 +389,10 @@ export default function EmailTemplatesScreen() {
                             {STYLE_TAGS.map((tag) => (
                                 <Pressable
                                     key={tag}
-                                    onPress={() => setSelectedStyle(tag)}
+                                    onPress={() => {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                        setSelectedStyle(tag);
+                                    }}
                                     style={[
                                         styles.tagPill,
                                         selectedStyle === tag && styles.tagPillActive,
@@ -245,15 +416,38 @@ export default function EmailTemplatesScreen() {
                                 <View style={styles.statusDot} />
                                 <Text style={styles.outputTitle} numberOfLines={1}>AI EMAIL OUTPUT</Text>
                             </View>
-                            <View style={styles.outputActions}>
-                                <Pressable style={styles.iconAction} onPress={copyToClipboard}>
-                                    <MaterialCommunityIcons name="content-copy" size={18} color="#94A3B8" />
-                                </Pressable>
-                                <Pressable style={styles.exportBtn}>
-                                    <MaterialCommunityIcons name="file-document-outline" size={16} color="#FFFFFF" />
-                                    <Text style={styles.exportBtnText}>EXPORT</Text>
-                                </Pressable>
-                            </View>
+                            {(() => {
+                                const hasText = !!(outputEmail.subject.trim() || outputEmail.body.trim());
+                                return hasGenerated && (
+                                    <View style={styles.outputActions}>
+                                        <Pressable
+                                            style={[styles.iconAction, !hasText && styles.btnDisabledDark]}
+                                            onPress={copyToClipboard}
+                                            disabled={!hasText}
+                                        >
+                                            <MaterialCommunityIcons
+                                                name={copied ? "check-all" : "content-copy"}
+                                                size={18}
+                                                color={hasText ? "#94A3B8" : "#334155"}
+                                            />
+                                        </Pressable>
+                                        <Pressable
+                                            style={[styles.exportBtn, (!hasText || isSaving) && styles.btnDisabledExport]}
+                                            onPress={handleExportNarrative}
+                                            disabled={!hasText || isSaving}
+                                        >
+                                            {isSaving ? (
+                                                <ActivityIndicator size="small" color="#FFFFFF" />
+                                            ) : (
+                                                <>
+                                                    <MaterialCommunityIcons name="content-save-outline" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                                                    <Text style={styles.exportBtnText}>SAVE TO LIBRARY</Text>
+                                                </>
+                                            )}
+                                        </Pressable>
+                                    </View>
+                                );
+                            })()}
                         </View>
 
                         <View style={styles.outputContent}>
@@ -401,7 +595,7 @@ function getStyles(colors: any) {
             justifyContent: 'center',
         },
         tagPillActive: {
-            backgroundColor: colors.surfaceMuted,
+            backgroundColor: '#0D9488',
         },
         tagPillText: {
             fontSize: 11,
@@ -409,7 +603,7 @@ function getStyles(colors: any) {
             fontWeight: '700',
         },
         tagPillTextActive: {
-            color: colors.textPrimary,
+            color: '#FFFFFF',
         },
 
         // Output Card
@@ -545,6 +739,65 @@ function getStyles(colors: any) {
             fontSize: 14,
             lineHeight: 22,
             minHeight: 300,
+        },
+        btnDisabledDark: {
+            opacity: 0.4,
+        },
+        btnDisabledExport: {
+            opacity: 0.5,
+        },
+        // Property Selector Scroll Row
+        propertySelectorScroll: {
+            marginBottom: 20,
+            marginTop: 4,
+        },
+        propertySelectorContent: {
+            gap: 12,
+            paddingRight: 20,
+        },
+        selectorCard: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: colors.cardBackground,
+            borderRadius: 16,
+            borderWidth: 2,
+            borderColor: colors.cardBorder,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            width: 200,
+            height: 60,
+            gap: 10,
+        },
+        selectorCardActive: {
+            borderColor: colors.accentTeal,
+        },
+        selectorCardImage: {
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            resizeMode: 'cover',
+        },
+        selectorCardIconContainer: {
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            backgroundColor: colors.surfaceSoft,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        selectorCardTextContainer: {
+            flex: 1,
+            justifyContent: 'center',
+        },
+        selectorCardTitle: {
+            fontSize: 11,
+            fontWeight: '800',
+            color: colors.textPrimary,
+        },
+        selectorCardSubtitle: {
+            fontSize: 9,
+            color: colors.textSecondary,
+            marginTop: 2,
         },
     });
 }

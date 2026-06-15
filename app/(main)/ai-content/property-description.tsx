@@ -49,6 +49,7 @@ export default function PropertyDescriptionLabScreen() {
     // Scroll ref
     const scrollRef = useRef<ScrollView>(null);
 
+
     // Fetch properties helper
     const fetchProperties = useCallback(async () => {
         if (!accessToken) return;
@@ -93,6 +94,7 @@ export default function PropertyDescriptionLabScreen() {
     const handleGenerate = async () => {
         if (!inputFeatures.trim() || !accessToken) return;
         Keyboard.dismiss();
+
         setIsGenerating(true);
         setHasGenerated(false);
         setOutput('');
@@ -108,23 +110,12 @@ export default function PropertyDescriptionLabScreen() {
             }
 
             const toneLabel = selectedTone === 'seo-optimized' ? 'SEO Optimized' : selectedTone === 'luxury-tone' ? 'Luxury Tone' : selectedTone === 'concise' ? 'Concise' : 'Storytelling';
-            const prompt = `Write a luxury real estate property description in a ${toneLabel} style. Key features to include: ${promptFeatures}. Make it engaging, professional, and high-converting.`;
+            const prompt = `Write a luxury real estate property description. Key features to include: ${promptFeatures}.  Make it engaging, professional, and high-converting. DO NOT use any markdown formatting like asterisks (**) for bolding. Important stylistic rules to apply: ${toneLabel}.`;
             const response = await generateAiText(prompt, accessToken, 'complex');
 
             if (response.result) {
+                setOutput(response.result);
                 setHasGenerated(true);
-                // Typing animation for premium feel
-                let index = 0;
-                const textToType = response.result;
-                const speed = 10;
-                const timer = setInterval(() => {
-                    if (index < textToType.length) {
-                        setOutput((prev) => prev + textToType.charAt(index));
-                        index++;
-                    } else {
-                        clearInterval(timer);
-                    }
-                }, speed);
             } else {
                 throw new Error('No result received from AI.');
             }
@@ -164,7 +155,18 @@ export default function PropertyDescriptionLabScreen() {
                 accessToken
             );
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert('Saved', 'Narrative saved to your library.');
+            Alert.alert(
+                'Success',
+                'Narrative saved successfully to your library.',
+                [
+                    {
+                        text: 'OK',
+                        onPress: () => {
+                            router.back()
+                        }
+                    }
+                ]
+            );
         } catch (err: any) {
             console.error('[PropertyDescription] Export failed:', err);
             Alert.alert('Export Failed', err?.message || 'Could not save the narrative. Please try again.');
