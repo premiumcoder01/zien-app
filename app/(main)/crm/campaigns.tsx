@@ -654,6 +654,8 @@ Based on this, generate a JSON object with exactly the following fields:
                     }}
                     placeholder="e.g. Summer Listing Collection"
                     placeholderTextColor="#94A3B8"
+                    multiline={false}
+                    numberOfLines={1}
                   />
                   {formErrors.campaignName && (
                     <Text style={styles.errorText}>{formErrors.campaignName}</Text>
@@ -894,6 +896,8 @@ Based on this, generate a JSON object with exactly the following fields:
                           }}
                           placeholder="You won't believe this price drop..."
                           placeholderTextColor="#94A3B8"
+                          multiline={false}
+                          numberOfLines={1}
                         />
                         {formErrors.versionA && (
                           <Text style={styles.errorText}>{formErrors.versionA}</Text>
@@ -918,6 +922,8 @@ Based on this, generate a JSON object with exactly the following fields:
                           }}
                           placeholder="New Pricing: Malibu Villa is now $1.2M"
                           placeholderTextColor="#94A3B8"
+                          multiline={false}
+                          numberOfLines={1}
                         />
                         {formErrors.versionB && (
                           <Text style={styles.errorText}>{formErrors.versionB}</Text>
@@ -2153,6 +2159,8 @@ function getStyles(colors: any, theme?: string) {
       shadowOpacity: 0.02,
       shadowRadius: 4,
       elevation: 1,
+      textAlignVertical: 'center',
+      paddingVertical: Platform.OS === 'android' ? 0 : undefined,
     },
     formInputActive: {
       borderColor: colors.accentTeal,
@@ -2300,6 +2308,8 @@ function getStyles(colors: any, theme?: string) {
       fontSize: 14,
       color: colors.textPrimary,
       fontWeight: '600',
+      textAlignVertical: 'center',
+      paddingVertical: Platform.OS === 'android' ? 0 : undefined,
     },
     complianceItem: {
       flexDirection: 'row',

@@ -11,6 +11,8 @@ import 'react-native-reanimated';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider as AppThemeProvider, useAppTheme } from '@/context/ThemeContext';
 
+import { KeyboardProvider } from 'react-native-keyboard-controller';
+
 const queryClient = new QueryClient();
 
 // Keep the splash screen visible while we fetch resources
@@ -25,13 +27,15 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
-        <AppThemeProvider>
-          <AuthProvider>
-            <InnerLayout />
-          </AuthProvider>
-        </AppThemeProvider>
-      </QueryClientProvider>
+      <KeyboardProvider>
+        <QueryClientProvider client={queryClient}>
+          <AppThemeProvider>
+            <AuthProvider>
+              <InnerLayout />
+            </AuthProvider>
+          </AppThemeProvider>
+        </QueryClientProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }
