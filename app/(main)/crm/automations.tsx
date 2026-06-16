@@ -723,74 +723,72 @@ export default function CRM_AutomationsScreen() {
           style={[styles.fullModalContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={{ flex: 1 }}
           >
             <View style={styles.assistantModalContent}>
-              {/* Top Form Section - Flexible */}
-              <View style={{ flex: 1 }}>
-                <View style={styles.assistantHeader}>
-                  <View style={{ flex: 1, marginRight: 16 }}>
-                    <Text style={styles.assistantTitle}>Zien Assistant</Text>
-                    <Text style={styles.assistantSubtitle}>Define your business objective via neural core.</Text>
+              <View style={styles.assistantHeader}>
+                <View style={{ flex: 1, marginRight: 16 }}>
+                  <Text style={styles.assistantTitle}>Zien Assistant</Text>
+                  <Text style={styles.assistantSubtitle}>Define your business objective via neural core.</Text>
+                </View>
+                <Pressable
+                  style={styles.closeBtnSmall}
+                  onPress={() => setAiAssistantVisible(false)}
+                >
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                bounces={true}
+                contentContainerStyle={{ paddingBottom: 40 }}
+                style={{ flex: 1 }}
+              >
+                <View style={styles.assistantField}>
+                  <Text style={styles.fieldLabel}>Rule Identity <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      style={styles.fieldInput}
+                      placeholder="e.g. VIP Concierge Follow-up"
+                      placeholderTextColor="#94A3B8"
+                      value={ruleIdentity}
+                      onChangeText={setRuleIdentity}
+                    />
                   </View>
+                </View>
+
+                <View style={styles.assistantField}>
+                  <Text style={styles.fieldLabel}>Target Segment</Text>
                   <Pressable
-                    style={styles.closeBtnSmall}
-                    onPress={() => setAiAssistantVisible(false)}
+                    style={styles.segmentPickerTrigger}
+                    onPress={() => { setSegmentPickerVisible(true); setAssistantSegmentSearch(''); }}
                   >
-                    <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                    <Text style={styles.segmentValue}>{targetSegment}</Text>
+                    <MaterialCommunityIcons
+                      name="chevron-down"
+                      size={20}
+                      color={colors.textPrimary}
+                    />
                   </Pressable>
                 </View>
 
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  bounces={true}
-                  contentContainerStyle={{ paddingBottom: 40 }}
-                >
-                  <View style={styles.assistantField}>
-                    <Text style={styles.fieldLabel}>RULE IDENTITY <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                    <View style={styles.inputContainer}>
-                      <TextInput
-                        style={styles.fieldInput}
-                        placeholder="e.g. VIP Concierge Follow-up"
-                        placeholderTextColor="#94A3B8"
-                        value={ruleIdentity}
-                        onChangeText={setRuleIdentity}
-                      />
-                    </View>
+                <View style={styles.assistantField}>
+                  <Text style={styles.fieldLabel}>Prompt / Instructions <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <View style={styles.textareaContainer}>
+                    <TextInput
+                      style={styles.textarea}
+                      placeholder="e.g. Send a personalized SMS to new leads within 5 minutes, wait 2 days, and if they don't respond, send an email template."
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                      numberOfLines={4}
+                      value={aiPrompt}
+                      onChangeText={setAiPrompt}
+                    />
                   </View>
-
-                  <View style={styles.assistantField}>
-                    <Text style={styles.fieldLabel}>TARGET SEGMENT</Text>
-                    <Pressable
-                      style={styles.segmentPickerTrigger}
-                      onPress={() => { setSegmentPickerVisible(true); setAssistantSegmentSearch(''); }}
-                    >
-                      <Text style={styles.segmentValue}>{targetSegment}</Text>
-                      <MaterialCommunityIcons
-                        name="chevron-down"
-                        size={20}
-                        color={colors.textPrimary}
-                      />
-                    </Pressable>
-                  </View>
-
-                  <View style={styles.assistantField}>
-                    <Text style={styles.fieldLabel}>PROMPT / INSTRUCTIONS <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                    <View style={styles.textareaContainer}>
-                      <TextInput
-                        style={styles.textarea}
-                        placeholder="e.g. Send a personalized SMS to new leads within 5 minutes, wait 2 days, and if they don't respond, send an email template."
-                        placeholderTextColor="#94A3B8"
-                        multiline
-                        numberOfLines={4}
-                        value={aiPrompt}
-                        onChangeText={setAiPrompt}
-                      />
-                    </View>
-                  </View>
-                </ScrollView>
-              </View>
+                </View>
+              </ScrollView>
 
               {/* Bottom Footer - Fixed */}
               <View style={styles.modalFooter}>
@@ -883,13 +881,11 @@ export default function CRM_AutomationsScreen() {
           end={{ x: 0.9, y: 1 }}
           style={[styles.fullModalContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
         >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
-          <View style={styles.assistantModalContent}>
-            {/* Top Section - Form */}
-            <View style={{ flex: 1 }}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.assistantModalContent}>
               <View style={styles.assistantHeader}>
                 <View style={{ flex: 1, marginRight: 16 }}>
                   <Text style={styles.assistantTitle}>Create Rules</Text>
@@ -907,10 +903,11 @@ export default function CRM_AutomationsScreen() {
                 showsVerticalScrollIndicator={false}
                 bounces={true}
                 contentContainerStyle={{ paddingBottom: 100 }}
+                style={{ flex: 1 }}
               >
                 {/* Rule Identity */}
                 <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>RULE IDENTITY <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <Text style={styles.fieldLabel}>Rule Identity <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <View style={styles.inputContainer}>
                     <TextInput
                       style={styles.fieldInput}
@@ -924,7 +921,7 @@ export default function CRM_AutomationsScreen() {
 
                 {/* Trigger Logic */}
                 <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>TRIGGER LOGIC (IF) <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <Text style={styles.fieldLabel}>Trigger Logic (IF) <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <Pressable
                     style={styles.segmentPickerTrigger}
                     onPress={() => { setActivePicker('trigger'); setTriggerSearch(''); }}
@@ -936,7 +933,7 @@ export default function CRM_AutomationsScreen() {
 
                 {/* Execution Timing */}
                 <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>EXECUTION (WHEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <Text style={styles.fieldLabel}>Execution (WHEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <Pressable
                     style={styles.segmentPickerTrigger}
                     onPress={() => { setActivePicker('execution'); setExecutionSearch(''); }}
@@ -948,7 +945,7 @@ export default function CRM_AutomationsScreen() {
 
                 {/* Action */}
                 <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>AUTOMATED ACTION (THEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <Text style={styles.fieldLabel}>Automated Action (THEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <Pressable
                     style={styles.segmentPickerTrigger}
                     onPress={() => { setActivePicker('action'); setActionSearch(''); }}
@@ -961,7 +958,7 @@ export default function CRM_AutomationsScreen() {
                 {/* Template Specific Picker (if Email from Template selected) */}
                 {automatedAction === 'Send Email from Template' && (
                   <View style={styles.assistantField}>
-                    <Text style={styles.fieldLabel}>EMAIL TEMPLATE <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                    <Text style={styles.fieldLabel}>Email Template <Text style={{ color: '#EF4444' }}>*</Text></Text>
                     <Pressable
                       style={styles.segmentPickerTrigger}
                       onPress={() => setTemplatePickerVisible(true)}
@@ -976,7 +973,7 @@ export default function CRM_AutomationsScreen() {
 
                 {/* Target Segment */}
                 <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>TARGET SEGMENT <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <Text style={styles.fieldLabel}>Target Segment <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <Pressable
                     style={styles.segmentPickerTrigger}
                     onPress={() => { setActivePicker('segment'); setSegmentSearch(''); }}
@@ -986,162 +983,161 @@ export default function CRM_AutomationsScreen() {
                   </Pressable>
                 </View>
               </ScrollView>
-            </View>
 
-            {/* Modal Footer Actions */}
-            <View style={styles.createModalFooter}>
-              <Pressable
-                style={styles.discardBtn}
-                onPress={() => setCreateRuleVisible(false)}
-              >
-                <Text style={styles.discardBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={styles.saveRuleBtn}
-                onPress={handleCreateSave}
-              >
-                {addMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.saveRuleBtnText}>Save</Text>
-                )}
-              </Pressable>
-            </View>
-
-            {/* Selector Overlay Inside the Modal (rendered absolutely over the Modal contents) */}
-            {(activePicker !== null || templatePickerVisible) && (
-              <View style={styles.pickerOverlayAbsolute}>
-                <Pressable style={StyleSheet.absoluteFill} onPress={() => { setActivePicker(null); setTemplatePickerVisible(false); }} />
-
-                {activePicker === 'trigger' && (
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Trigger</Text>
-                      <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                    </View>
-                    <View style={styles.pickerSearchBoxSmall}>
-                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search trigger..." placeholderTextColor={colors.textMuted} value={triggerSearch} onChangeText={setTriggerSearch} />
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      {filteredTriggers.map(opt => (
-                        <Pressable key={opt} style={[styles.selectionModalItem, triggerLogic === opt && styles.selectionModalItemActive]} onPress={() => { setTriggerLogic(opt); setActivePicker(null); }}>
-                          <Text style={[styles.selectionModalItemText, triggerLogic === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
-                          {triggerLogic === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {activePicker === 'execution' && (
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Timing</Text>
-                      <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                    </View>
-                    <View style={styles.pickerSearchBoxSmall}>
-                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search timing..." placeholderTextColor={colors.textMuted} value={executionSearch} onChangeText={setExecutionSearch} />
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      {filteredExecutions.map(opt => (
-                        <Pressable key={opt} style={[styles.selectionModalItem, executionWhen === opt && styles.selectionModalItemActive]} onPress={() => { setExecutionWhen(opt); setActivePicker(null); }}>
-                          <Text style={[styles.selectionModalItemText, executionWhen === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
-                          {executionWhen === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {activePicker === 'action' && (
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Action</Text>
-                      <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                    </View>
-                    <View style={styles.pickerSearchBoxSmall}>
-                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search action..." placeholderTextColor={colors.textMuted} value={actionSearch} onChangeText={setActionSearch} />
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      {filteredActions.map(opt => (
-                        <Pressable key={opt} style={[styles.selectionModalItem, automatedAction === opt && styles.selectionModalItemActive]} onPress={() => { setAutomatedAction(opt); setActivePicker(null); }}>
-                          <Text style={[styles.selectionModalItemText, automatedAction === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
-                          {automatedAction === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {templatePickerVisible && (
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Template</Text>
-                      <Pressable onPress={() => setTemplatePickerVisible(false)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      {templates.map(t => (
-                        <Pressable key={t.id} style={[styles.selectionModalItem, selectedTemplateId === t.id && styles.selectionModalItemActive]} onPress={() => { setSelectedTemplateId(t.id); setTemplatePickerVisible(false); }}>
-                          <Text style={[styles.selectionModalItemText, selectedTemplateId === t.id && styles.selectionModalItemTextActive]}>{t.name}</Text>
-                          {selectedTemplateId === t.id && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {activePicker === 'segment' && (
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Segment</Text>
-                      <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                    </View>
-                    <View style={styles.pickerSearchBoxSmall}>
-                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search segment..." placeholderTextColor={colors.textMuted} value={segmentSearch} onChangeText={setSegmentSearch} />
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      <Pressable style={[styles.selectionModalItem, targetSegment === 'All Leads' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment('All Leads'); setTargetSegmentId(null); setTargetSegmentType('all'); setActivePicker(null); }}>
-                        <Text style={[styles.selectionModalItemText, targetSegment === 'All Leads' && styles.selectionModalItemTextActive]}>All Leads</Text>
-                        {targetSegment === 'All Leads' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                      </Pressable>
-
-                      {metaData?.groups && metaData.groups.length > 0 && (
-                        <View style={styles.dropdownCategory}>
-                          <Text style={styles.dropdownCategoryText}>Groups</Text>
-                          {metaData.groups.map(group => (
-                            <Pressable key={`group-${group.id}`} style={[styles.selectionModalItem, targetSegmentId === group.id && targetSegmentType === 'group' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment(`Group: ${group.name}`); setTargetSegmentId(group.id); setTargetSegmentType('group'); setActivePicker(null); }}>
-                              <Text style={[styles.selectionModalItemText, targetSegmentId === group.id && targetSegmentType === 'group' && styles.selectionModalItemTextActive]}>{group.name}</Text>
-                              {targetSegmentId === group.id && targetSegmentType === 'group' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                            </Pressable>
-                          ))}
-                        </View>
-                      )}
-
-                      {metaData?.tags && metaData.tags.length > 0 && (
-                        <View style={styles.dropdownCategory}>
-                          <Text style={styles.dropdownCategoryText}>Tags</Text>
-                          {metaData.tags.map(tag => (
-                            <Pressable key={`tag-${tag.id}`} style={[styles.selectionModalItem, targetSegmentId === tag.id && targetSegmentType === 'tag' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment(`Tag: ${tag.name}`); setTargetSegmentId(tag.id); setTargetSegmentType('tag'); setActivePicker(null); }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tag.tag_color }} />
-                                <Text style={[styles.selectionModalItemText, targetSegmentId === tag.id && targetSegmentType === 'tag' && styles.selectionModalItemTextActive]}>{tag.name}</Text>
-                              </View>
-                              {targetSegmentId === tag.id && targetSegmentType === 'tag' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                            </Pressable>
-                          ))}
-                        </View>
-                      )}
-                    </ScrollView>
-                  </View>
-                )}
+              {/* Modal Footer Actions */}
+              <View style={styles.createModalFooter}>
+                <Pressable
+                  style={styles.discardBtn}
+                  onPress={() => setCreateRuleVisible(false)}
+                >
+                  <Text style={styles.discardBtnText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.saveRuleBtn}
+                  onPress={handleCreateSave}
+                >
+                  {addMutation.isPending ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.saveRuleBtnText}>Save</Text>
+                  )}
+                </Pressable>
               </View>
-            )}
-          </View>
-        </KeyboardAvoidingView>
+
+              {/* Selector Overlay Inside the Modal (rendered absolutely over the Modal contents) */}
+              {(activePicker !== null || templatePickerVisible) && (
+                <View style={styles.pickerOverlayAbsolute}>
+                  <Pressable style={StyleSheet.absoluteFill} onPress={() => { setActivePicker(null); setTemplatePickerVisible(false); }} />
+
+                  {activePicker === 'trigger' && (
+                    <View style={styles.selectionModalContainer}>
+                      <View style={styles.selectionModalHeader}>
+                        <Text style={styles.selectionModalTitle}>Select Trigger</Text>
+                        <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                      </View>
+                      <View style={styles.pickerSearchBoxSmall}>
+                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                        <TextInput style={styles.pickerSearchInputSmall} placeholder="Search trigger..." placeholderTextColor={colors.textMuted} value={triggerSearch} onChangeText={setTriggerSearch} />
+                      </View>
+                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                        {filteredTriggers.map(opt => (
+                          <Pressable key={opt} style={[styles.selectionModalItem, triggerLogic === opt && styles.selectionModalItemActive]} onPress={() => { setTriggerLogic(opt); setActivePicker(null); }}>
+                            <Text style={[styles.selectionModalItemText, triggerLogic === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                            {triggerLogic === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {activePicker === 'execution' && (
+                    <View style={styles.selectionModalContainer}>
+                      <View style={styles.selectionModalHeader}>
+                        <Text style={styles.selectionModalTitle}>Select Timing</Text>
+                        <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                      </View>
+                      <View style={styles.pickerSearchBoxSmall}>
+                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                        <TextInput style={styles.pickerSearchInputSmall} placeholder="Search timing..." placeholderTextColor={colors.textMuted} value={executionSearch} onChangeText={setExecutionSearch} />
+                      </View>
+                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                        {filteredExecutions.map(opt => (
+                          <Pressable key={opt} style={[styles.selectionModalItem, executionWhen === opt && styles.selectionModalItemActive]} onPress={() => { setExecutionWhen(opt); setActivePicker(null); }}>
+                            <Text style={[styles.selectionModalItemText, executionWhen === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                            {executionWhen === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {activePicker === 'action' && (
+                    <View style={styles.selectionModalContainer}>
+                      <View style={styles.selectionModalHeader}>
+                        <Text style={styles.selectionModalTitle}>Select Action</Text>
+                        <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                      </View>
+                      <View style={styles.pickerSearchBoxSmall}>
+                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                        <TextInput style={styles.pickerSearchInputSmall} placeholder="Search action..." placeholderTextColor={colors.textMuted} value={actionSearch} onChangeText={setActionSearch} />
+                      </View>
+                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                        {filteredActions.map(opt => (
+                          <Pressable key={opt} style={[styles.selectionModalItem, automatedAction === opt && styles.selectionModalItemActive]} onPress={() => { setAutomatedAction(opt); setActivePicker(null); }}>
+                            <Text style={[styles.selectionModalItemText, automatedAction === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                            {automatedAction === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {templatePickerVisible && (
+                    <View style={styles.selectionModalContainer}>
+                      <View style={styles.selectionModalHeader}>
+                        <Text style={styles.selectionModalTitle}>Select Template</Text>
+                        <Pressable onPress={() => setTemplatePickerVisible(false)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                      </View>
+                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                        {templates.map(t => (
+                          <Pressable key={t.id} style={[styles.selectionModalItem, selectedTemplateId === t.id && styles.selectionModalItemActive]} onPress={() => { setSelectedTemplateId(t.id); setTemplatePickerVisible(false); }}>
+                            <Text style={[styles.selectionModalItemText, selectedTemplateId === t.id && styles.selectionModalItemTextActive]}>{t.name}</Text>
+                            {selectedTemplateId === t.id && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {activePicker === 'segment' && (
+                    <View style={styles.selectionModalContainer}>
+                      <View style={styles.selectionModalHeader}>
+                        <Text style={styles.selectionModalTitle}>Select Segment</Text>
+                        <Pressable onPress={() => setActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                      </View>
+                      <View style={styles.pickerSearchBoxSmall}>
+                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                        <TextInput style={styles.pickerSearchInputSmall} placeholder="Search segment..." placeholderTextColor={colors.textMuted} value={segmentSearch} onChangeText={setSegmentSearch} />
+                      </View>
+                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                        <Pressable style={[styles.selectionModalItem, targetSegment === 'All Leads' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment('All Leads'); setTargetSegmentId(null); setTargetSegmentType('all'); setActivePicker(null); }}>
+                          <Text style={[styles.selectionModalItemText, targetSegment === 'All Leads' && styles.selectionModalItemTextActive]}>All Leads</Text>
+                          {targetSegment === 'All Leads' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                        </Pressable>
+
+                        {metaData?.groups && metaData.groups.length > 0 && (
+                          <View style={styles.dropdownCategory}>
+                            <Text style={styles.dropdownCategoryText}>Groups</Text>
+                            {metaData.groups.map(group => (
+                              <Pressable key={`group-${group.id}`} style={[styles.selectionModalItem, targetSegmentId === group.id && targetSegmentType === 'group' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment(`Group: ${group.name}`); setTargetSegmentId(group.id); setTargetSegmentType('group'); setActivePicker(null); }}>
+                                <Text style={[styles.selectionModalItemText, targetSegmentId === group.id && targetSegmentType === 'group' && styles.selectionModalItemTextActive]}>{group.name}</Text>
+                                {targetSegmentId === group.id && targetSegmentType === 'group' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                              </Pressable>
+                            ))}
+                          </View>
+                        )}
+
+                        {metaData?.tags && metaData.tags.length > 0 && (
+                          <View style={styles.dropdownCategory}>
+                            <Text style={styles.dropdownCategoryText}>Tags</Text>
+                            {metaData.tags.map(tag => (
+                              <Pressable key={`tag-${tag.id}`} style={[styles.selectionModalItem, targetSegmentId === tag.id && targetSegmentType === 'tag' && styles.selectionModalItemActive]} onPress={() => { setTargetSegment(`Tag: ${tag.name}`); setTargetSegmentId(tag.id); setTargetSegmentType('tag'); setActivePicker(null); }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tag.tag_color }} />
+                                  <Text style={[styles.selectionModalItemText, targetSegmentId === tag.id && targetSegmentType === 'tag' && styles.selectionModalItemTextActive]}>{tag.name}</Text>
+                                </View>
+                                {targetSegmentId === tag.id && targetSegmentType === 'tag' && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                              </Pressable>
+                            ))}
+                          </View>
+                        )}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          </KeyboardAvoidingView>
         </LinearGradient>
       </Modal>
 
@@ -1410,290 +1406,290 @@ export default function CRM_AutomationsScreen() {
           end={{ x: 0.9, y: 1 }}
           style={[styles.fullModalContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
         >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
-          <View style={styles.assistantModalContent}>
-            {/* Header */}
-            <View style={styles.assistantHeader}>
-              <View style={{ flex: 1, marginRight: 16 }}>
-                <Text style={styles.assistantTitle}>Modify Rule</Text>
-                <Text style={styles.assistantSubtitle}>Define your automation logic with precision.</Text>
-              </View>
-              <Pressable
-                style={styles.closeBtnSmall}
-                onPress={() => { setEditModalVisible(false); setSelectedRule(null); }}
-                hitSlop={8}
-              >
-                <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }} style={{ flex: 1 }}>
-              {/* Rule Identity */}
-              <View style={styles.assistantField}>
-                <Text style={styles.fieldLabel}>RULE IDENTITY <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    style={styles.fieldInput}
-                    placeholder="e.g. VIP Concierge Follow-up"
-                    placeholderTextColor="#94A3B8"
-                    value={editName}
-                    onChangeText={setEditName}
-                  />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.assistantModalContent}>
+              {/* Header */}
+              <View style={styles.assistantHeader}>
+                <View style={{ flex: 1, marginRight: 16 }}>
+                  <Text style={styles.assistantTitle}>Modify Rule</Text>
+                  <Text style={styles.assistantSubtitle}>Define your automation logic with precision.</Text>
                 </View>
-              </View>
-
-              {/* Trigger Logic & Execution When - Columns */}
-              <View style={styles.editModalTwoColRow}>
-                <View style={[styles.assistantField, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>TRIGGER LOGIC (IF) <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                  <Pressable
-                    style={styles.segmentPickerTrigger}
-                    onPress={() => { setEditActivePicker('trigger'); setTriggerSearch(''); }}
-                  >
-                    <Text style={styles.segmentValue} numberOfLines={1}>{editTrigger}</Text>
-                    <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
-                  </Pressable>
-                </View>
-
-                <View style={[styles.assistantField, { flex: 1, marginLeft: 12 }]}>
-                  <Text style={styles.fieldLabel}>EXECUTION (WHEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                  <Pressable
-                    style={styles.segmentPickerTrigger}
-                    onPress={() => { setEditActivePicker('execution'); setExecutionSearch(''); }}
-                  >
-                    <Text style={styles.segmentValue} numberOfLines={1}>{editExecution}</Text>
-                    <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
-                  </Pressable>
-                </View>
-              </View>
-
-              {/* Automated Action */}
-              <View style={styles.assistantField}>
-                <Text style={styles.fieldLabel}>AUTOMATED ACTION (THEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
                 <Pressable
-                  style={styles.segmentPickerTrigger}
-                  onPress={() => { setEditActivePicker('action'); setActionSearch(''); }}
+                  style={styles.closeBtnSmall}
+                  onPress={() => { setEditModalVisible(false); setSelectedRule(null); }}
+                  hitSlop={8}
                 >
-                  <Text style={styles.segmentValue} numberOfLines={1}>{editAction}</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
                 </Pressable>
               </View>
 
-              {/* Email Template Specific Selector */}
-              {editAction === 'Send Email from Template' && (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }} style={{ flex: 1 }}>
+                {/* Rule Identity */}
                 <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>EMAIL TEMPLATE <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <Text style={styles.fieldLabel}>Rule Identity <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      style={styles.fieldInput}
+                      placeholder="e.g. VIP Concierge Follow-up"
+                      placeholderTextColor="#94A3B8"
+                      value={editName}
+                      onChangeText={setEditName}
+                    />
+                  </View>
+                </View>
+
+                {/* Trigger Logic & Execution When - Columns */}
+                <View style={styles.editModalTwoColRow}>
+                  <View style={[styles.assistantField, { flex: 1 }]}>
+                    <Text style={styles.fieldLabel}>Trigger Logic (IF) <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                    <Pressable
+                      style={styles.segmentPickerTrigger}
+                      onPress={() => { setEditActivePicker('trigger'); setTriggerSearch(''); }}
+                    >
+                      <Text style={styles.segmentValue} numberOfLines={1}>{editTrigger}</Text>
+                      <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                    </Pressable>
+                  </View>
+
+                  <View style={[styles.assistantField, { flex: 1, marginLeft: 12 }]}>
+                    <Text style={styles.fieldLabel}>Execution (WHEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                    <Pressable
+                      style={styles.segmentPickerTrigger}
+                      onPress={() => { setEditActivePicker('execution'); setExecutionSearch(''); }}
+                    >
+                      <Text style={styles.segmentValue} numberOfLines={1}>{editExecution}</Text>
+                      <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                    </Pressable>
+                  </View>
+                </View>
+
+                {/* Automated Action */}
+                <View style={styles.assistantField}>
+                  <Text style={styles.fieldLabel}>Automated Action (THEN) <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <Pressable
                     style={styles.segmentPickerTrigger}
-                    onPress={() => setEditTemplatePickerVisible(true)}
+                    onPress={() => { setEditActivePicker('action'); setActionSearch(''); }}
                   >
-                    <Text style={styles.segmentValue} numberOfLines={1}>
-                      {templates.find(t => t.id === editTemplateId)?.name || 'Choose...'}
-                    </Text>
+                    <Text style={styles.segmentValue} numberOfLines={1}>{editAction}</Text>
                     <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                   </Pressable>
                 </View>
-              )}
 
-              {/* Target Segment */}
-              <View style={styles.assistantField}>
-                <Text style={styles.fieldLabel}>TARGET SEGMENT <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                {/* Email Template Specific Selector */}
+                {editAction === 'Send Email from Template' && (
+                  <View style={styles.assistantField}>
+                    <Text style={styles.fieldLabel}>Email Template <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                    <Pressable
+                      style={styles.segmentPickerTrigger}
+                      onPress={() => setEditTemplatePickerVisible(true)}
+                    >
+                      <Text style={styles.segmentValue} numberOfLines={1}>
+                        {templates.find(t => t.id === editTemplateId)?.name || 'Choose...'}
+                      </Text>
+                      <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                    </Pressable>
+                  </View>
+                )}
+
+                {/* Target Segment */}
+                <View style={styles.assistantField}>
+                  <Text style={styles.fieldLabel}>Target Segment <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <Pressable
+                    style={styles.segmentPickerTrigger}
+                    onPress={() => { setEditActivePicker('segment'); setSegmentSearch(''); }}
+                  >
+                    <Text style={styles.segmentValue} numberOfLines={1}>{editTarget}</Text>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
+              </ScrollView>
+
+              {/* Actions: Cancel / Save Rule */}
+              <View style={styles.viewModalActionsRow}>
                 <Pressable
-                  style={styles.segmentPickerTrigger}
-                  onPress={() => { setEditActivePicker('segment'); setSegmentSearch(''); }}
+                  style={styles.viewModalCancelBtn}
+                  onPress={() => { setEditModalVisible(false); setSelectedRule(null); }}
                 >
-                  <Text style={styles.segmentValue} numberOfLines={1}>{editTarget}</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                  <Text style={styles.viewModalCancelBtnText}>Cancel</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.editModalSaveBtn}
+                  onPress={() => {
+                    if (!editName.trim()) {
+                      Alert.alert('Error', 'Please provide a rule identity (name)');
+                      return;
+                    }
+                    if (editAction === 'Send Email from Template' && !editTemplateId) {
+                      Alert.alert('Error', 'Please select an email template');
+                      return;
+                    }
+
+                    const payload: Partial<CRMAutomation> = {
+                      name: editName,
+                      trigger: editTrigger,
+                      action: editAction === 'Send Email from Template' ? `Email: ${editTemplateId}` : editAction,
+                      target: editTarget,
+                      target_id: editTargetId,
+                      template_id: editTemplateId,
+                      execution: editExecution,
+                      category: editCategory,
+                      icon: editIcon,
+                    };
+
+                    editMutation.mutate({
+                      id: selectedRule!.id,
+                      payload
+                    });
+                  }}
+                >
+                  {editMutation.isPending ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.editModalSaveBtnText}>Save Rule</Text>
+                  )}
                 </Pressable>
               </View>
-            </ScrollView>
+              {/* Edit Modal Pickers (rendered inline as absolute overlay to avoid breaking dark mode / nested modal issues) */}
+              {(editActivePicker !== null || editTemplatePickerVisible) && (
+                <View style={styles.pickerOverlayAbsolute}>
+                  <Pressable style={StyleSheet.absoluteFill} onPress={() => { setEditActivePicker(null); setEditTemplatePickerVisible(false); }} />
 
-            {/* Actions: Cancel / Save Rule */}
-            <View style={styles.viewModalActionsRow}>
-              <Pressable
-                style={styles.viewModalCancelBtn}
-                onPress={() => { setEditModalVisible(false); setSelectedRule(null); }}
-              >
-                <Text style={styles.viewModalCancelBtnText}>Cancel</Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.editModalSaveBtn}
-                onPress={() => {
-                  if (!editName.trim()) {
-                    Alert.alert('Error', 'Please provide a rule identity (name)');
-                    return;
-                  }
-                  if (editAction === 'Send Email from Template' && !editTemplateId) {
-                    Alert.alert('Error', 'Please select an email template');
-                    return;
-                  }
-
-                  const payload: Partial<CRMAutomation> = {
-                    name: editName,
-                    trigger: editTrigger,
-                    action: editAction === 'Send Email from Template' ? `Email: ${editTemplateId}` : editAction,
-                    target: editTarget,
-                    target_id: editTargetId,
-                    template_id: editTemplateId,
-                    execution: editExecution,
-                    category: editCategory,
-                    icon: editIcon,
-                  };
-
-                  editMutation.mutate({
-                    id: selectedRule!.id,
-                    payload
-                  });
-                }}
-              >
-                {editMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.editModalSaveBtnText}>Save Rule</Text>
-                )}
-              </Pressable>
-            </View>
-            {/* Edit Modal Pickers (rendered inline as absolute overlay to avoid breaking dark mode / nested modal issues) */}
-            {(editActivePicker !== null || editTemplatePickerVisible) && (
-              <View style={styles.pickerOverlayAbsolute}>
-                <Pressable style={StyleSheet.absoluteFill} onPress={() => { setEditActivePicker(null); setEditTemplatePickerVisible(false); }} />
-
-                {editActivePicker === 'trigger' && (
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Trigger</Text>
-                      <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                    </View>
-                    <View style={styles.pickerSearchBoxSmall}>
-                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search trigger..." placeholderTextColor={colors.textMuted} value={triggerSearch} onChangeText={setTriggerSearch} />
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      {filteredTriggers.map(opt => (
-                        <Pressable key={opt} style={[styles.selectionModalItem, editTrigger === opt && styles.selectionModalItemActive]} onPress={() => { setEditTrigger(opt); setEditActivePicker(null); }}>
-                          <Text style={[styles.selectionModalItemText, editTrigger === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
-                          {editTrigger === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {editActivePicker === 'execution' && (
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Timing</Text>
-                      <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                    </View>
-                    <View style={styles.pickerSearchBoxSmall}>
-                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search timing..." placeholderTextColor={colors.textMuted} value={executionSearch} onChangeText={setExecutionSearch} />
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      {filteredExecutions.map(opt => (
-                        <Pressable key={opt} style={[styles.selectionModalItem, editExecution === opt && styles.selectionModalItemActive]} onPress={() => { setEditExecution(opt); setEditActivePicker(null); }}>
-                          <Text style={[styles.selectionModalItemText, editExecution === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
-                          {editExecution === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {editActivePicker === 'action' && (
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Action</Text>
-                      <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                    </View>
-                    <View style={styles.pickerSearchBoxSmall}>
-                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search action..." placeholderTextColor={colors.textMuted} value={actionSearch} onChangeText={setActionSearch} />
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      {filteredActions.map(opt => (
-                        <Pressable key={opt} style={[styles.selectionModalItem, editAction === opt && styles.selectionModalItemActive]} onPress={() => { setEditAction(opt); setEditActivePicker(null); }}>
-                          <Text style={[styles.selectionModalItemText, editAction === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
-                          {editAction === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {editTemplatePickerVisible && (
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Email Template</Text>
-                      <Pressable onPress={() => setEditTemplatePickerVisible(false)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      {templates.map(t => (
-                        <Pressable key={t.id} style={[styles.selectionModalItem, editTemplateId === t.id && styles.selectionModalItemActive]} onPress={() => { setEditTemplateId(t.id); setEditTemplatePickerVisible(false); }}>
-                          <Text style={[styles.selectionModalItemText, editTemplateId === t.id && styles.selectionModalItemTextActive]}>{t.name}</Text>
-                          {editTemplateId === t.id && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {editActivePicker === 'segment' && (
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Target Segment</Text>
-                      <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
-                    </View>
-                    <View style={styles.pickerSearchBoxSmall}>
-                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                      <TextInput style={styles.pickerSearchInputSmall} placeholder="Search segment..." placeholderTextColor={colors.textMuted} value={segmentSearch} onChangeText={setSegmentSearch} />
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      {filteredSegments.map(opt => {
-                        const isGroup = opt.startsWith('Group:');
-                        const isTag = opt.startsWith('Tag:');
-                        let targetId: string | number | null = null;
-                        let targetType: 'all' | 'group' | 'tag' = 'all';
-
-                        if (isGroup) {
-                          const gName = opt.replace('Group: ', '');
-                          targetId = metaData?.groups?.find(g => g.name === gName)?.id || null;
-                          targetType = 'group';
-                        } else if (isTag) {
-                          const tName = opt.replace('Tag: ', '');
-                          targetId = metaData?.tags?.find(t => t.name === tName)?.id || null;
-                          targetType = 'tag';
-                        }
-
-                        const isActiveSegment = editTarget === opt;
-
-                        return (
-                          <Pressable
-                            key={opt}
-                            style={[styles.selectionModalItem, isActiveSegment && styles.selectionModalItemActive]}
-                            onPress={() => {
-                              setEditTarget(opt);
-                              setEditTargetId(targetId ? targetId.toString() : null);
-                              setEditTargetType(targetType);
-                              setEditActivePicker(null);
-                            }}
-                          >
-                            <Text style={[styles.selectionModalItemText, isActiveSegment && styles.selectionModalItemTextActive]}>{opt}</Text>
-                            {isActiveSegment && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                  {editActivePicker === 'trigger' && (
+                    <View style={styles.selectionModalContainer}>
+                      <View style={styles.selectionModalHeader}>
+                        <Text style={styles.selectionModalTitle}>Select Trigger</Text>
+                        <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                      </View>
+                      <View style={styles.pickerSearchBoxSmall}>
+                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                        <TextInput style={styles.pickerSearchInputSmall} placeholder="Search trigger..." placeholderTextColor={colors.textMuted} value={triggerSearch} onChangeText={setTriggerSearch} />
+                      </View>
+                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                        {filteredTriggers.map(opt => (
+                          <Pressable key={opt} style={[styles.selectionModalItem, editTrigger === opt && styles.selectionModalItemActive]} onPress={() => { setEditTrigger(opt); setEditActivePicker(null); }}>
+                            <Text style={[styles.selectionModalItemText, editTrigger === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                            {editTrigger === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
                           </Pressable>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
-            )}
-          </View>
-        </KeyboardAvoidingView>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {editActivePicker === 'execution' && (
+                    <View style={styles.selectionModalContainer}>
+                      <View style={styles.selectionModalHeader}>
+                        <Text style={styles.selectionModalTitle}>Select Timing</Text>
+                        <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                      </View>
+                      <View style={styles.pickerSearchBoxSmall}>
+                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                        <TextInput style={styles.pickerSearchInputSmall} placeholder="Search timing..." placeholderTextColor={colors.textMuted} value={executionSearch} onChangeText={setExecutionSearch} />
+                      </View>
+                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                        {filteredExecutions.map(opt => (
+                          <Pressable key={opt} style={[styles.selectionModalItem, editExecution === opt && styles.selectionModalItemActive]} onPress={() => { setEditExecution(opt); setEditActivePicker(null); }}>
+                            <Text style={[styles.selectionModalItemText, editExecution === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                            {editExecution === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {editActivePicker === 'action' && (
+                    <View style={styles.selectionModalContainer}>
+                      <View style={styles.selectionModalHeader}>
+                        <Text style={styles.selectionModalTitle}>Select Action</Text>
+                        <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                      </View>
+                      <View style={styles.pickerSearchBoxSmall}>
+                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                        <TextInput style={styles.pickerSearchInputSmall} placeholder="Search action..." placeholderTextColor={colors.textMuted} value={actionSearch} onChangeText={setActionSearch} />
+                      </View>
+                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                        {filteredActions.map(opt => (
+                          <Pressable key={opt} style={[styles.selectionModalItem, editAction === opt && styles.selectionModalItemActive]} onPress={() => { setEditAction(opt); setEditActivePicker(null); }}>
+                            <Text style={[styles.selectionModalItemText, editAction === opt && styles.selectionModalItemTextActive]}>{opt}</Text>
+                            {editAction === opt && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {editTemplatePickerVisible && (
+                    <View style={styles.selectionModalContainer}>
+                      <View style={styles.selectionModalHeader}>
+                        <Text style={styles.selectionModalTitle}>Select Email Template</Text>
+                        <Pressable onPress={() => setEditTemplatePickerVisible(false)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                      </View>
+                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                        {templates.map(t => (
+                          <Pressable key={t.id} style={[styles.selectionModalItem, editTemplateId === t.id && styles.selectionModalItemActive]} onPress={() => { setEditTemplateId(t.id); setEditTemplatePickerVisible(false); }}>
+                            <Text style={[styles.selectionModalItemText, editTemplateId === t.id && styles.selectionModalItemTextActive]}>{t.name}</Text>
+                            {editTemplateId === t.id && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {editActivePicker === 'segment' && (
+                    <View style={styles.selectionModalContainer}>
+                      <View style={styles.selectionModalHeader}>
+                        <Text style={styles.selectionModalTitle}>Select Target Segment</Text>
+                        <Pressable onPress={() => setEditActivePicker(null)}><MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} /></Pressable>
+                      </View>
+                      <View style={styles.pickerSearchBoxSmall}>
+                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+                        <TextInput style={styles.pickerSearchInputSmall} placeholder="Search segment..." placeholderTextColor={colors.textMuted} value={segmentSearch} onChangeText={setSegmentSearch} />
+                      </View>
+                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
+                        {filteredSegments.map(opt => {
+                          const isGroup = opt.startsWith('Group:');
+                          const isTag = opt.startsWith('Tag:');
+                          let targetId: string | number | null = null;
+                          let targetType: 'all' | 'group' | 'tag' = 'all';
+
+                          if (isGroup) {
+                            const gName = opt.replace('Group: ', '');
+                            targetId = metaData?.groups?.find(g => g.name === gName)?.id || null;
+                            targetType = 'group';
+                          } else if (isTag) {
+                            const tName = opt.replace('Tag: ', '');
+                            targetId = metaData?.tags?.find(t => t.name === tName)?.id || null;
+                            targetType = 'tag';
+                          }
+
+                          const isActiveSegment = editTarget === opt;
+
+                          return (
+                            <Pressable
+                              key={opt}
+                              style={[styles.selectionModalItem, isActiveSegment && styles.selectionModalItemActive]}
+                              onPress={() => {
+                                setEditTarget(opt);
+                                setEditTargetId(targetId ? targetId.toString() : null);
+                                setEditTargetType(targetType);
+                                setEditActivePicker(null);
+                              }}
+                            >
+                              <Text style={[styles.selectionModalItemText, isActiveSegment && styles.selectionModalItemTextActive]}>{opt}</Text>
+                              {isActiveSegment && <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />}
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          </KeyboardAvoidingView>
         </LinearGradient>
       </Modal>
     </LinearGradient>

@@ -50,37 +50,39 @@ export default function VisualAssetLabScreen() {
     const [imageUri, setImageUri] = useState<string>(MOCK_BASE_IMAGE);
     const [isUploadModalVisible, setIsUploadModalVisible] = useState(false);
 
-    const handlePickImage = async (useCamera: boolean) => {
+    const handlePickImage = (useCamera: boolean) => {
         setIsUploadModalVisible(false);
-        try {
-            let result;
-            if (useCamera) {
-                const { status } = await ImagePicker.requestCameraPermissionsAsync();
-                if (status !== 'granted') {
-                    Alert.alert('Permission needed', 'Camera access is required to take photos.');
-                    return;
+        setTimeout(async () => {
+            try {
+                let result;
+                if (useCamera) {
+                    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                    if (status !== 'granted') {
+                        Alert.alert('Permission needed', 'Camera access is required to take photos.');
+                        return;
+                    }
+                    result = await ImagePicker.launchCameraAsync({
+                        // allowsEditing: true,
+                        aspect: [4, 3],
+                        quality: 1,
+                    });
+                } else {
+                    result = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        // allowsEditing: true,
+                        aspect: [4, 3],
+                        quality: 1,
+                    });
                 }
-                result = await ImagePicker.launchCameraAsync({
-                    // allowsEditing: true,
-                    aspect: [4, 3],
-                    quality: 1,
-                });
-            } else {
-                result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                    // allowsEditing: true,
-                    aspect: [4, 3],
-                    quality: 1,
-                });
-            }
 
-            if (!result.canceled) {
-                setImageUri(result.assets[0].uri);
-                setHasGenerated(false);
+                if (!result.canceled) {
+                    setImageUri(result.assets[0].uri);
+                    setHasGenerated(false);
+                }
+            } catch (error) {
+                console.log('Image Picker Error:', error);
             }
-        } catch (error) {
-            console.log('Image Picker Error:', error);
-        }
+        }, 300);
     };
 
     const handleGenerate = () => {

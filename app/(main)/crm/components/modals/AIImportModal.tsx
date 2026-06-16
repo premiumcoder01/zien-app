@@ -272,8 +272,16 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
       // Step 3: Call Zien text extraction AI API
       setCompletedStepIndex(2);
 
+      const availableGroupNames = metaData?.groups && metaData.groups.length > 0
+        ? metaData.groups.map(g => `"${g.name}"`).join(', ')
+        : '"Buyer", "Seller", "Investor", "Past Client"';
+
+      const availableTagNames = metaData?.tags && metaData.tags.length > 0
+        ? metaData.tags.map(t => `"${t.name}"`).join(', ')
+        : '"High Priority", "Review Required", "Lead", "VIP"';
+
       const promptPayload = `\nAnalyze the following contact list data and extract the contacts.\nUser instructions/context: "${instructions || 'make them in a list and find out the context'}"\n\nContact data:\n${fileText || '[No file uploaded. Extract and generate contacts based purely on the instructions/context provided.]'}\n`;
-      const systemInstructionPayload = `\nYou are an expert CRM data analyst. Analyze the provided contact list data and any user instructions, and output a valid JSON array of contact objects. \nEach contact object MUST exactly match this JSON schema:\n{\n  \"name\": string (full name),\n  \"email\": string,\n  \"phone\": string,\n  \"group\": string (categorize as \"Buyer\", \"Seller\", \"Investor\", or \"Past Client\" based on context and user instructions),\n  \"tag\": string (such as \"High Priority\", \"Review Required\", \"Lead\", \"VIP\", etc.),\n  \"tagColor\": string (hex color code suitable for the tag, e.g., \"#F37021\", \"#00A7B5\", \"#64748B\"),\n  \"confidence\": number (confidence score from 1 to 100),\n  \"source\": string (the source of the contact, e.g., \"LinkedIn\", \"Web\", \"Referral\", \"Manual\"),\n  \"attribution\": string (attribution info or event, e.g., \"Tech Summit Lead\", \"Direct Search\", \"Past Client\"),\n  \"budget\": string (budget info, e.g. \"$2M - $5M\", \"$800k - $1.2M\", \"N/A\"),\n  \"timeline\": string (timeline info, e.g. \"Active\", \"3-6 Months\", \"Immediate\")\n}\n\nReturn ONLY the raw JSON array of objects. Do not include any markdown formatting, backticks (such as \`\`\`json), or other text outside the JSON array.\n`;
+      const systemInstructionPayload = `\nYou are an expert CRM data analyst. Analyze the provided contact list data and any user instructions, and output a valid JSON array of contact objects. \nEach contact object MUST exactly match this JSON schema:\n{\n  \"name\": string (full name),\n  \"email\": string,\n  \"phone\": string,\n  \"group\": string (categorize as one of the following available groups: ${availableGroupNames} based on context and user instructions),\n  \"tag\": string (categorize as one of the following available tags if they match, or generate a suitable one: ${availableTagNames}),\n  \"tagColor\": string (hex color code suitable for the tag, e.g., \"#F37021\", \"#00A7B5\", \"#64748B\"),\n  \"confidence\": number (confidence score from 1 to 100),\n  \"source\": string (the source of the contact, e.g., \"LinkedIn\", \"Web\", \"Referral\", \"Manual\"),\n  \"attribution\": string (attribution info or event, e.g., \"Tech Summit Lead\", \"Direct Search\", \"Past Client\"),\n  \"budget\": string (budget info, e.g. \"$2M - $5M\", \"$800k - $1.2M\", \"N/A\"),\n  \"timeline\": string (timeline info, e.g. \"Active\", \"3-6 Months\", \"Immediate\")\n}\n\nReturn ONLY the raw JSON array of objects. Do not include any markdown formatting, backticks (such as \`\`\`json), or other text outside the JSON array.\n`;
 
       const responseData = await extractContactsWithAI(
         accessToken || '',
@@ -406,6 +414,10 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
       Alert.alert('Database Sync Failed', err.message || 'Could not save imported contacts.');
     }
   };
+
+  const avgConfidence = parsedContacts.length > 0
+    ? (parsedContacts.reduce((sum, c) => sum + (Number(c.confidence) || 90), 0) / parsedContacts.length).toFixed(1)
+    : '94.2';
 
   return (
     <Modal
@@ -624,7 +636,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                     <View style={styles.confidenceBadgeWrap}>
                       <Text style={styles.confidenceLabel}>AVG CONFIDENCE</Text>
                       <View style={styles.confidenceValueRow}>
-                        <Text style={styles.confidenceValue}>94.2%</Text>
+                        <Text style={styles.confidenceValue}>{avgConfidence}%</Text>
                         <View style={styles.confidenceCheckCircle}>
                           <MaterialCommunityIcons name="check-bold" size={10} color="#FFFFFF" />
                         </View>
@@ -729,6 +741,21 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                             <Text style={[styles.reviewTagText, { color: contact.tagColor || '#64748B' }]}>
                               {(contact.tag || 'Lead').toUpperCase()}
                             </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.cardSeparator} />
+
+                      {/* Row for Confidence */}
+                      <View style={styles.reviewCardRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.reviewCardLabel}>EXTRACTION CONFIDENCE</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                            <View style={{ height: 6, flex: 1, backgroundColor: colors.borderLight, borderRadius: 3, overflow: 'hidden' }}>
+                              <View style={{ height: 6, width: `${contact.confidence || 95}%` as any, backgroundColor: '#10B981' }} />
+                            </View>
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }}>{contact.confidence || 95}%</Text>
                           </View>
                         </View>
                       </View>

@@ -100,6 +100,13 @@ export default function ContactsScreen() {
   const [deleteContactId, setDeleteContactId] = useState<string | null>(null);
   const [aiImportVisible, setAiImportVisible] = useState(false);
 
+  // Select All to Delete states
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [bulkDeleteProgress, setBulkDeleteProgress] = useState({ current: 0, total: 0 });
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
   const [activeDropdown, setActiveDropdown] = useState<'group' | 'status' | 'tag' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -227,6 +234,55 @@ export default function ContactsScreen() {
     }
   };
 
+  // Select All / Deselect All
+  const toggleSelectAll = () => {
+    if (selectedContactIds.size === contactsList.length) {
+      setSelectedContactIds(new Set());
+    } else {
+      setSelectedContactIds(new Set(contactsList.map(c => c.id)));
+    }
+  };
+
+  const toggleSelectContact = (id: string) => {
+    setSelectedContactIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Bulk Delete handler
+  const handleBulkDelete = async () => {
+    if (!accessToken || selectedContactIds.size === 0) return;
+    setShowBulkDeleteModal(false);
+    setIsBulkDeleting(true);
+    const ids = Array.from(selectedContactIds);
+    setBulkDeleteProgress({ current: 0, total: ids.length });
+    let successCount = 0;
+    let failCount = 0;
+    for (let i = 0; i < ids.length; i++) {
+      try {
+        await deleteCRMContact(accessToken!, ids[i]);
+        successCount++;
+      } catch {
+        failCount++;
+      }
+      setBulkDeleteProgress({ current: i + 1, total: ids.length });
+    }
+    queryClient.invalidateQueries({ queryKey: ['crm-contacts'] });
+    queryClient.invalidateQueries({ queryKey: ['crm-overview'] });
+    setIsBulkDeleting(false);
+    setSelectedContactIds(new Set());
+    setIsSelectMode(false);
+    setBulkDeleteProgress({ current: 0, total: 0 });
+    if (failCount > 0) {
+      Alert.alert('Done', `${successCount} contacts deleted, ${failCount} failed.`);
+    } else {
+      Alert.alert('Success', `${successCount} contact${successCount > 1 ? 's' : ''} deleted successfully.`);
+    }
+  };
+
   const toggleDropdown = (type: 'group' | 'status' | 'tag') => {
     setActiveDropdown(activeDropdown === type ? null : type);
   };
@@ -320,12 +376,76 @@ export default function ContactsScreen() {
             </Pressable>
           </ScrollView>
           <View style={styles.resultsHeader}>
-            <Text style={styles.resultsCount}>Showing <Text style={{ fontWeight: '900', color: colors.textPrimary }}>{contactsList.length}</Text> intelligent matches</Text>
-            {filtersActive && (
-              <Pressable onPress={clearFilters} style={styles.clearFiltersBtn}>
-                <MaterialCommunityIcons name="filter-remove-outline" size={14} color={colors.accent} />
-                <Text style={styles.clearFiltersText}>Clear All</Text>
-              </Pressable>
+            <View style={styles.resultsHeaderInner}>
+              <Text style={styles.resultsCount}>Showing <Text style={{ fontWeight: '900', color: colors.textPrimary }}>{contactsList.length}</Text> intelligent matches</Text>
+              <View style={styles.resultsHeaderRight}>
+                {filtersActive && (
+                  <Pressable onPress={clearFilters} style={styles.clearFiltersBtn}>
+                    <MaterialCommunityIcons name="filter-remove-outline" size={14} color={colors.accent} />
+                    <Text style={styles.clearFiltersText}>Clear All</Text>
+                  </Pressable>
+                )}
+                {contactsList.length > 0 && (
+                  <Pressable
+                    style={[styles.selectModeToggleBtn, isSelectMode && styles.selectModeToggleBtnActive]}
+                    onPress={() => {
+                      if (isSelectMode) {
+                        setIsSelectMode(false);
+                        setSelectedContactIds(new Set());
+                      } else {
+                        setIsSelectMode(true);
+                      }
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name={isSelectMode ? 'close' : 'checkbox-multiple-marked-outline'}
+                      size={14}
+                      color={isSelectMode ? '#FFFFFF' : colors.textSecondary}
+                    />
+                    <Text style={[styles.selectModeToggleText, isSelectMode && { color: '#FFFFFF' }]}>
+                      {isSelectMode ? 'Cancel' : 'Select'}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+
+            {isSelectMode && (
+              <View style={styles.selectActionBar}>
+                <Pressable style={styles.selectAllBtn} onPress={toggleSelectAll}>
+                  <View style={[styles.selectCheckbox, selectedContactIds.size === contactsList.length && contactsList.length > 0 && styles.selectCheckboxChecked]}>
+                    {selectedContactIds.size === contactsList.length && contactsList.length > 0 && (
+                      <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />
+                    )}
+                  </View>
+                  <Text style={styles.selectAllText}>
+                    {selectedContactIds.size === contactsList.length && contactsList.length > 0 ? 'Deselect All' : 'Select All'}
+                  </Text>
+                </Pressable>
+                {selectedContactIds.size > 0 && (
+                  <Pressable
+                    style={styles.deleteAllBtn}
+                    onPress={() => setShowBulkDeleteModal(true)}
+                    disabled={isBulkDeleting}
+                  >
+                    <MaterialCommunityIcons name="trash-can-outline" size={14} color="#FFFFFF" />
+                    <Text style={styles.deleteAllBtnText}>
+                      Delete {selectedContactIds.size} Contact{selectedContactIds.size > 1 ? 's' : ''}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+
+            {isBulkDeleting && (
+              <View style={styles.bulkDeleteProgressBar}>
+                <View style={styles.bulkDeleteProgressTrack}>
+                  <View style={[styles.bulkDeleteProgressFill, { width: `${bulkDeleteProgress.total > 0 ? (bulkDeleteProgress.current / bulkDeleteProgress.total) * 100 : 0}%` }]} />
+                </View>
+                <Text style={styles.bulkDeleteProgressText}>
+                  Deleting {bulkDeleteProgress.current}/{bulkDeleteProgress.total}...
+                </Text>
+              </View>
             )}
           </View>
         </View>
@@ -369,7 +489,19 @@ export default function ContactsScreen() {
             const dateJoined = new Date(contact.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
             return (
-              <View key={contact.id} style={styles.contactCard}>
+              <Pressable
+                key={contact.id}
+                style={[styles.contactCard, isSelectMode && selectedContactIds.has(contact.id) && styles.contactCardSelected]}
+                onPress={isSelectMode ? () => toggleSelectContact(contact.id) : undefined}
+                disabled={!isSelectMode}
+              >
+                {isSelectMode && (
+                  <Pressable style={styles.selectCheckboxRow} onPress={() => toggleSelectContact(contact.id)}>
+                    <View style={[styles.selectCheckbox, selectedContactIds.has(contact.id) && styles.selectCheckboxChecked]}>
+                      {selectedContactIds.has(contact.id) && <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />}
+                    </View>
+                  </Pressable>
+                )}
                 {/* 1. Header Info */}
                 <View style={styles.cardHeaderRow}>
                   <View style={styles.avatarWrap}>
@@ -380,12 +512,12 @@ export default function ContactsScreen() {
                     <Text style={styles.contactName} numberOfLines={1}>{fullName}</Text>
                     <View style={styles.contactSubInfo}>
                       <MaterialCommunityIcons name="email-outline" size={12} color={colors.textMuted} />
-                      <Text style={styles.contactEmail}>{contact.email}</Text>
+                      <Text style={styles.contactEmail} numberOfLines={1} ellipsizeMode="tail">{contact.email}</Text>
                     </View>
                     {contact.phone && (
                       <View style={styles.contactSubInfo}>
                         <MaterialCommunityIcons name="phone-outline" size={12} color={colors.textMuted} />
-                        <Text style={styles.contactEmail}>{phoneNumber}</Text>
+                        <Text style={styles.contactEmail} numberOfLines={1} ellipsizeMode="tail">{phoneNumber}</Text>
                       </View>
                     )}
                   </View>
@@ -500,7 +632,7 @@ export default function ContactsScreen() {
                     <MaterialCommunityIcons name="chevron-right" size={18} color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
                   </Pressable>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </View>
@@ -594,6 +726,37 @@ export default function ContactsScreen() {
         </View>
       </Modal>
 
+      {/* Bulk Delete Confirmation Modal */}
+      <Modal
+        visible={showBulkDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBulkDeleteModal(false)}
+      >
+        <View style={styles.alertBackdrop}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>Delete {selectedContactIds.size} Contact{selectedContactIds.size > 1 ? 's' : ''}?</Text>
+            <Text style={styles.alertMessage}>
+              All selected contacts will be permanently deleted one by one. This action cannot be undone.
+            </Text>
+            <View style={styles.alertBtnRow}>
+              <Pressable
+                style={[styles.alertBtn, styles.alertBtnCancel]}
+                onPress={() => setShowBulkDeleteModal(false)}
+              >
+                <Text style={styles.alertBtnTextCancel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.alertBtn, styles.alertBtnConfirm]}
+                onPress={handleBulkDelete}
+              >
+                <Text style={styles.alertBtnTextConfirm}>Delete All</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Dynamic Action Button */}
       <View style={[styles.fabContainer, { bottom: insets.bottom + 16 }]}>
         <Pressable style={styles.fab} onPress={openAddModal}>
@@ -666,11 +829,18 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
   },
   filterBtnTextActive: { color: colors.accent },
   resultsHeader: {
+    marginBottom: 8,
+    paddingRight: 4,
+  },
+  resultsHeaderInner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-    paddingRight: 4,
+  },
+  resultsHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   resultsCount: { fontSize: 12, color: colors.textSecondary, fontWeight: '600', marginLeft: 4 },
   clearFiltersBtn: {
@@ -686,6 +856,100 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: colors.accent,
+  },
+  selectModeToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceIcon,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  selectModeToggleBtnActive: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
+  },
+  selectModeToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  selectActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  selectAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  selectAllText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  deleteAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#EF4444',
+  },
+  deleteAllBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  selectCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  selectCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.textMuted || '#8DA4B5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectCheckboxChecked: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  contactCardSelected: {
+    borderColor: colors.accent,
+    borderWidth: 1.5,
+  },
+  bulkDeleteProgressBar: {
+    marginTop: 10,
+  },
+  bulkDeleteProgressTrack: {
+    height: 6,
+    backgroundColor: `${colors.textMuted}30`,
+    borderRadius: 3,
+    overflow: 'hidden' as const,
+  },
+  bulkDeleteProgressFill: {
+    height: 6,
+    backgroundColor: '#EF4444',
+    borderRadius: 3,
+  },
+  bulkDeleteProgressText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EF4444',
+    marginTop: 4,
   },
   contactList: { gap: 16 },
   contactCard: {

@@ -14,14 +14,17 @@ import { AILeadImportModal } from './components/modals/AILeadImportModal';
 import { ManageMetaModal } from './components/modals/ManageMetaModal';
 
 
-function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEditPress, isArchiving, isConverting }: {
+function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEditPress, isArchiving, isConverting, isSelectMode, isSelected, onToggleSelect }: {
   lead: CRMLead,
   onDeletePress: () => void,
   onConvertPress: () => void,
   onToggleArchive: () => void,
   onEditPress: () => void,
   isArchiving?: boolean,
-  isConverting?: boolean
+  isConverting?: boolean,
+  isSelectMode?: boolean,
+  isSelected?: boolean,
+  onToggleSelect?: () => void,
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
@@ -35,7 +38,18 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
   const badgeColor = isConverted ? '#2563EB' : (isActive ? (colors.accentGreen || '#10B981') : (colors.danger || '#EF4444'));
 
   return (
-    <View style={[styles.leadCard, isHot && styles.leadCardHotBorder]}>
+    <Pressable
+      style={[styles.leadCard, isHot && styles.leadCardHotBorder, isSelectMode && isSelected && styles.leadCardSelected]}
+      onPress={isSelectMode ? onToggleSelect : undefined}
+      disabled={!isSelectMode}
+    >
+      {isSelectMode && (
+        <Pressable style={styles.selectCheckboxRow} onPress={onToggleSelect}>
+          <View style={[styles.selectCheckbox, isSelected && styles.selectCheckboxChecked]}>
+            {isSelected && <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />}
+          </View>
+        </Pressable>
+      )}
       <View style={styles.leadCardHeader}>
         <View style={styles.leadAvatar}>
           <LinearGradient
@@ -174,7 +188,7 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
           )}
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -215,6 +229,13 @@ export default function LeadsScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [convertingLeadId, setConvertingLeadId] = useState<string | null>(null);
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
+
+  // Select All to Delete states
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [bulkDeleteProgress, setBulkDeleteProgress] = useState({ current: 0, total: 0 });
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [leadToConvert, setLeadToConvert] = useState<any | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('All Status');
   const [isStatusDropdownOpen, setStatusDropdownOpen] = useState(false);
@@ -368,6 +389,55 @@ export default function LeadsScreen() {
       } finally {
         setIsDeleting(false);
       }
+    }
+  };
+
+  // Select All / Deselect All
+  const toggleSelectAll = () => {
+    if (selectedLeadIds.size === filteredLeads.length) {
+      setSelectedLeadIds(new Set());
+    } else {
+      setSelectedLeadIds(new Set(filteredLeads.map(l => l.id)));
+    }
+  };
+
+  const toggleSelectLead = (id: string) => {
+    setSelectedLeadIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Bulk Delete handler
+  const handleBulkDelete = async () => {
+    if (!accessToken || selectedLeadIds.size === 0) return;
+    setShowBulkDeleteModal(false);
+    setIsBulkDeleting(true);
+    const ids = Array.from(selectedLeadIds);
+    setBulkDeleteProgress({ current: 0, total: ids.length });
+    let successCount = 0;
+    let failCount = 0;
+    for (let i = 0; i < ids.length; i++) {
+      try {
+        await deleteCRMLead(accessToken, ids[i]);
+        successCount++;
+      } catch {
+        failCount++;
+      }
+      setBulkDeleteProgress({ current: i + 1, total: ids.length });
+    }
+    await refetchLeads();
+    queryClient.invalidateQueries({ queryKey: ['crm-overview'] });
+    setIsBulkDeleting(false);
+    setSelectedLeadIds(new Set());
+    setIsSelectMode(false);
+    setBulkDeleteProgress({ current: 0, total: 0 });
+    if (failCount > 0) {
+      Alert.alert('Done', `${successCount} leads deleted, ${failCount} failed.`);
+    } else {
+      Alert.alert('Success', `${successCount} lead${successCount > 1 ? 's' : ''} deleted successfully.`);
     }
   };
 
@@ -567,9 +637,71 @@ export default function LeadsScreen() {
 
 
         <View style={styles.listHeaderRow}>
-          <Text style={styles.sectionTitle}>
-            Showing {filteredLeads.length} leads {isHotFilterActive && `(filtered from ${leadsList.length})`}
-          </Text>
+          <View style={styles.listHeaderInner}>
+            <Text style={styles.sectionTitle}>
+              Showing {filteredLeads.length} leads {isHotFilterActive && `(filtered from ${leadsList.length})`}
+            </Text>
+            {filteredLeads.length > 0 && (
+              <Pressable
+                style={[styles.selectModeToggleBtn, isSelectMode && styles.selectModeToggleBtnActive]}
+                onPress={() => {
+                  if (isSelectMode) {
+                    setIsSelectMode(false);
+                    setSelectedLeadIds(new Set());
+                  } else {
+                    setIsSelectMode(true);
+                  }
+                }}
+              >
+                <MaterialCommunityIcons
+                  name={isSelectMode ? 'close' : 'checkbox-multiple-marked-outline'}
+                  size={14}
+                  color={isSelectMode ? '#FFFFFF' : colors.textSecondary}
+                />
+                <Text style={[styles.selectModeToggleText, isSelectMode && { color: '#FFFFFF' }]}>
+                  {isSelectMode ? 'Cancel' : 'Select'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+
+          {isSelectMode && (
+            <View style={styles.selectActionBar}>
+              <Pressable style={styles.selectAllBtn} onPress={toggleSelectAll}>
+                <View style={[styles.selectCheckbox, selectedLeadIds.size === filteredLeads.length && filteredLeads.length > 0 && styles.selectCheckboxChecked]}>
+                  {selectedLeadIds.size === filteredLeads.length && filteredLeads.length > 0 && (
+                    <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />
+                  )}
+                </View>
+                <Text style={styles.selectAllText}>
+                  {selectedLeadIds.size === filteredLeads.length && filteredLeads.length > 0 ? 'Deselect All' : 'Select All'}
+                </Text>
+              </Pressable>
+              {selectedLeadIds.size > 0 && (
+                <Pressable
+                  style={styles.deleteAllBtn}
+                  onPress={() => setShowBulkDeleteModal(true)}
+                  disabled={isBulkDeleting}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.deleteAllBtnText}>
+                    Delete {selectedLeadIds.size} Lead{selectedLeadIds.size > 1 ? 's' : ''}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          )}
+
+          {isBulkDeleting && (
+            <View style={styles.bulkDeleteProgressBar}>
+              <View style={styles.bulkDeleteProgressTrack}>
+                <View style={[styles.bulkDeleteProgressFill, { width: `${bulkDeleteProgress.total > 0 ? (bulkDeleteProgress.current / bulkDeleteProgress.total) * 100 : 0}%` }]} />
+              </View>
+              <Text style={styles.bulkDeleteProgressText}>
+                Deleting {bulkDeleteProgress.current}/{bulkDeleteProgress.total}...
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.leadList}>
@@ -587,6 +719,9 @@ export default function LeadsScreen() {
               lead={lead}
               isArchiving={loadingLeadId === lead.id}
               isConverting={convertingLeadId === lead.id}
+              isSelectMode={isSelectMode}
+              isSelected={selectedLeadIds.has(lead.id)}
+              onToggleSelect={() => toggleSelectLead(lead.id)}
               onDeletePress={() => setLeadToDelete(lead.id)}
               onConvertPress={() => handleDirectConvert(lead)}
               onToggleArchive={() => toggleArchive(lead)}
@@ -642,6 +777,34 @@ export default function LeadsScreen() {
                 ) : (
                   <Text style={styles.modalDeleteConfirmBtnText}>Delete Lead</Text>
                 )}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Bulk Delete Confirmation Modal */}
+      <Modal
+        visible={showBulkDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBulkDeleteModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowBulkDeleteModal(false)}>
+          <Pressable style={[styles.modalContainer, { padding: 32 }]} onPress={e => e.stopPropagation()}>
+            <View style={styles.modalDeleteIconCircle}>
+              <MaterialCommunityIcons name="delete-sweep-outline" size={32} color={colors.danger || "#EF4444"} />
+            </View>
+            <Text style={styles.modalDeleteTitle}>Delete {selectedLeadIds.size} Lead{selectedLeadIds.size > 1 ? 's' : ''}?</Text>
+            <Text style={styles.modalDeleteSubtitle}>
+              All selected leads will be permanently deleted one by one. This action cannot be undone.
+            </Text>
+            <View style={styles.modalDeleteActions}>
+              <Pressable style={styles.modalCancelBtn} onPress={() => setShowBulkDeleteModal(false)}>
+                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.modalDeleteConfirmBtn} onPress={handleBulkDelete}>
+                <Text style={styles.modalDeleteConfirmBtnText}>Delete All</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -1227,10 +1390,109 @@ function getStyles(colors: any, theme?: string) {
       paddingHorizontal: 20,
       marginBottom: 12,
     },
+    listHeaderInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
     sectionTitle: {
       fontSize: 14,
       fontWeight: '700',
       color: colors.textSecondary,
+    },
+    selectModeToggleBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    selectModeToggleBtnActive: {
+      backgroundColor: colors.danger || '#EF4444',
+      borderColor: colors.danger || '#EF4444',
+    },
+    selectModeToggleText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    selectActionBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+    },
+    selectAllBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    selectAllText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    deleteAllBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: colors.danger || '#EF4444',
+    },
+    deleteAllBtnText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+    selectCheckboxRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    selectCheckbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      borderWidth: 2,
+      borderColor: colors.textMuted || '#8DA4B5',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    selectCheckboxChecked: {
+      backgroundColor: colors.accentTeal,
+      borderColor: colors.accentTeal,
+    },
+    leadCardSelected: {
+      borderColor: colors.accentTeal,
+      borderWidth: 1.5,
+    },
+    bulkDeleteProgressBar: {
+      marginTop: 10,
+    },
+    bulkDeleteProgressTrack: {
+      height: 6,
+      backgroundColor: `${colors.textMuted}30`,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    bulkDeleteProgressFill: {
+      height: 6,
+      backgroundColor: colors.danger || '#EF4444',
+      borderRadius: 3,
+    },
+    bulkDeleteProgressText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.danger || '#EF4444',
+      marginTop: 4,
     },
     leadList: {
       paddingHorizontal: 20,

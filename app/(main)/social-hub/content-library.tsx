@@ -102,22 +102,24 @@ function EditPostModal({
     }
   }, [item, visible]);
 
-  const pickImage = async (useCamera: boolean) => {
+  const pickImage = (useCamera: boolean) => {
     setShowImagePicker(false);
-    const perm = useCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (perm.status !== 'granted') {
-      Alert.alert('Permission Denied', 'Please enable access in settings.');
-      return;
-    }
-    const result = useCamera
-      ? await ImagePicker.launchCameraAsync({ aspect: [1, 1], quality: 0.8 })
-      : await ImagePicker.launchImageLibraryAsync({ aspect: [1, 1], quality: 0.8 });
-    if (!result.canceled && result.assets[0]?.uri) {
-      setLocalMediaUri(result.assets[0].uri);
-      setMediaUrl(null);
-    }
+    setTimeout(async () => {
+      const perm = useCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted') {
+        Alert.alert('Permission Denied', 'Please enable access in settings.');
+        return;
+      }
+      const result = useCamera
+        ? await ImagePicker.launchCameraAsync({ aspect: [1, 1], quality: 0.8 })
+        : await ImagePicker.launchImageLibraryAsync({ aspect: [1, 1], quality: 0.8 });
+      if (!result.canceled && result.assets[0]?.uri) {
+        setLocalMediaUri(result.assets[0].uri);
+        setMediaUrl(null);
+      }
+    }, 300);
   };
 
   const handleSave = async () => {

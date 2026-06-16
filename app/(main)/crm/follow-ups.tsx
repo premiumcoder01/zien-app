@@ -1490,8 +1490,6 @@ function getStyles(colors: any) {
       fontWeight: '800',
       color: colors.textPrimary,
       marginBottom: 8,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
     },
     modalInput: {
       height: 52,

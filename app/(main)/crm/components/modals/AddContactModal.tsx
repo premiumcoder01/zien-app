@@ -576,7 +576,6 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '800',
     color: colors.textPrimary,
     marginBottom: 8,
-    textTransform: 'capitalize',
   },
   required: {
     color: colors.danger || '#EF4444',

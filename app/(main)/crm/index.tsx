@@ -6,9 +6,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Href, useRouter } from 'expo-router';
+import { Href, useFocusEffect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -77,6 +77,13 @@ export default function CRMScreen() {
     queryFn: () => getCRMOverview(accessToken!),
     enabled: !!accessToken,
   });
+
+  // Sync with server whenever screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const error = queryError instanceof Error ? queryError.message : (queryError ? 'Something went wrong' : null);
 
@@ -291,12 +298,18 @@ export default function CRMScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0a2341" />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme === 'dark' ? '#00a7b5' : '#0a2341'}
+            colors={[theme === 'dark' ? '#00a7b5' : '#0a2341']}
+            progressBackgroundColor={colors.cardBackground}
+          />
         }>
 
         {loading && !refreshing && (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#0a2341" />
+            <ActivityIndicator size="large" color={theme === 'dark' ? '#00a7b5' : '#0a2341'} />
           </View>
         )}
 

@@ -284,8 +284,16 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
       // Step 3: Call Zien text extraction AI API
       setCompletedStepIndex(2);
 
+      const availableGroupNames = metaData?.groups && metaData.groups.length > 0
+        ? metaData.groups.map(g => `"${g.name}"`).join(', ')
+        : '"Buyer", "Seller", "Investor", "Past Client"';
+
+      const availableTagNames = metaData?.tags && metaData.tags.length > 0
+        ? metaData.tags.map(t => `"${t.name}"`).join(', ')
+        : '"HOT", "WARM", "COLD"';
+
       const promptPayload = `\nAnalyze the following lead list data and extract the leads.\nUser instructions/context: "${instructions || 'None'}"\n\nLead data:\n${fileText || '[No file uploaded. Extract and generate leads based purely on the instructions/context provided.]'}\n`;
-      const systemInstructionPayload = `\nYou are an expert CRM lead analyst. Analyze the provided lead list data and any user instructions, and output a valid JSON array of lead objects. \nEach lead object MUST exactly match this JSON schema:\n{\n  \"name\": string (full name),\n  \"email\": string,\n  \"source\": string (the source of the lead, e.g., \"LinkedIn\", \"Web\", \"Referral\", \"Manual\"),\n  \"status\": string (categorize as \"New\" or \"Qualified\"),\n  \"score\": number (lead intent score from 1 to 100),\n  \"tag\": string (such as \"HOT\", \"WARM\", or \"COLD\"),\n  \"confidence\": number (confidence score of analysis from 1 to 100),\n  \"date\": string (such as \"Today\", \"Yesterday\", or a short relative date)\n}\n\nReturn ONLY the raw JSON array of objects. Do not include any markdown formatting, backticks (such as \`\`\`json), or other text outside the JSON array.\n`;
+      const systemInstructionPayload = `\nYou are an expert CRM lead analyst. Analyze the provided lead list data and any user instructions, and output a valid JSON array of lead objects. \nEach lead object MUST exactly match this JSON schema:\n{\n  \"name\": string (full name),\n  \"email\": string,\n  \"group\": string (categorize as one of the following available groups: ${availableGroupNames} based on context and user instructions),\n  \"source\": string (the source of the lead, e.g., \"LinkedIn\", \"Web\", \"Referral\", \"Manual\"),\n  \"status\": string (categorize as \"New\" or \"Qualified\"),\n  \"score\": number (lead intent score from 1 to 100),\n  \"tag\": string (categorize as one of the following available tags: ${availableTagNames}),\n  \"confidence\": number (confidence score of analysis from 1 to 100),\n  \"date\": string (such as \"Today\", \"Yesterday\", or a short relative date)\n}\n\nReturn ONLY the raw JSON array of objects. Do not include any markdown formatting, backticks (such as \`\`\`json), or other text outside the JSON array.\n`;
 
       const responseData = await extractContactsWithAI(
         accessToken || '',
@@ -403,7 +411,7 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
           group_id: findGroupId(contact.group || 'Buyer'),
           tag_id: findTagId(contact.tag || 'Lead'),
           source: contact.source || 'AI Import',
-          status: isStatusActive(contact.status) ? 1 : 0,
+          status: isStatusActive(contact.status) ? '1' : '0',
           score: contact.score || 75,
           lead_date_label: isStatusConverted(contact.status) ? 'Converted' : (contact.date || 'Today'),
         };
@@ -698,29 +706,34 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                         </Pressable>
                       </View>
 
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
-                        {/* COLUMN 1: LEAD DETAILS */}
-                        <View style={{ minWidth: 150, flex: 2 }}>
-                          <Text style={styles.reviewCardLabel}>LEAD DETAILS</Text>
-                          <Text style={styles.reviewCardName} numberOfLines={1}>{contact.name || 'Unknown'}</Text>
-                          <Text style={[styles.reviewCardEmail, { color: theme === 'dark' ? '#00a7b5' : '#0a2341' }]} numberOfLines={1}>{contact.email || 'no-email@zien.ai'}</Text>
-                        </View>
+                      {/* LEAD DETAILS */}
+                      <View style={styles.reviewCardSection}>
+                        <Text style={styles.reviewCardLabel}>LEAD DETAILS</Text>
+                        <Text style={styles.reviewCardName} numberOfLines={1}>{contact.name || 'Unknown'}</Text>
+                        <Text style={[styles.reviewCardEmail, { color: theme === 'dark' ? '#00a7b5' : '#0a2341' }]} numberOfLines={1}>{contact.email || 'no-email@zien.ai'}</Text>
+                      </View>
 
-                        {/* COLUMN 2: SOURCE */}
-                        <View style={{ minWidth: 80, flex: 1 }}>
+                      <View style={styles.cardSeparator} />
+
+                      {/* Row for Source and AI Lead Score */}
+                      <View style={styles.reviewCardRow}>
+                        <View style={{ flex: 1 }}>
                           <Text style={styles.reviewCardLabel}>SOURCE</Text>
                           <Text style={styles.reviewCardValueBold}>{contact.source || 'Manual'}</Text>
                           <Text style={styles.reviewCardValueSub}>{contact.date || 'Today'}</Text>
                         </View>
 
-                        {/* COLUMN 3: AI LEAD SCORE */}
-                        <View style={{ minWidth: 60, flex: 1, alignItems: 'center' }}>
+                        <View style={{ flex: 1 }}>
                           <Text style={styles.reviewCardLabel}>AI LEAD SCORE</Text>
                           <Text style={{ fontSize: 18, fontWeight: '900', color: '#00a7b5', marginTop: 2 }}>{contact.score || 50}</Text>
                         </View>
+                      </View>
 
-                        {/* COLUMN 4: STATUS */}
-                        <View style={{ minWidth: 60, flex: 1, alignItems: 'center' }}>
+                      <View style={styles.cardSeparator} />
+
+                      {/* Row for Status and Category */}
+                      <View style={styles.reviewCardRow}>
+                        <View style={{ flex: 1 }}>
                           <Text style={styles.reviewCardLabel}>STATUS</Text>
                           {(() => {
                             const rawStatus = (contact.status || 'New').trim();
@@ -734,27 +747,32 @@ export const AILeadImportModal: React.FC<AILeadImportModalProps> = ({
                               ? '#2563EB' 
                               : (isInactive ? '#EF4444' : '#10B981');
                             return (
-                              <View style={{ backgroundColor: badgeBg, borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, marginTop: 4 }}>
+                              <View style={{ backgroundColor: badgeBg, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 10, alignSelf: 'flex-start', marginTop: 4 }}>
                                 <Text style={{ fontSize: 10, fontWeight: '900', color: badgeText }}>{rawStatus.toUpperCase()}</Text>
                               </View>
                             );
                           })()}
                         </View>
 
-                        {/* COLUMN 5: CATEGORY */}
-                        <View style={{ minWidth: 60, flex: 1, alignItems: 'center' }}>
+                        <View style={{ flex: 1 }}>
                           <Text style={styles.reviewCardLabel}>CATEGORY</Text>
-                          <View style={{ backgroundColor: 'rgba(100, 116, 139, 0.1)', borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, marginTop: 4 }}>
+                          <View style={{ backgroundColor: 'rgba(100, 116, 139, 0.1)', borderRadius: 8, paddingVertical: 5, paddingHorizontal: 10, alignSelf: 'flex-start', marginTop: 4 }}>
                             <Text style={{ fontSize: 10, fontWeight: '900', color: colors.textSecondary }}>{(contact.tag || 'WARM').toUpperCase()}</Text>
                           </View>
                         </View>
+                      </View>
 
-                        {/* COLUMN 6: CONFIDENCE */}
-                        <View style={{ minWidth: 80, flex: 1 }}>
-                          <Text style={styles.reviewCardLabel}>CONFIDENCE</Text>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textSecondary, marginBottom: 4 }}>{contact.confidence || 95}%</Text>
-                          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.surfaceSoft, overflow: 'hidden' }}>
-                            <View style={{ height: 6, width: `${contact.confidence || 95}%` as any, backgroundColor: '#00a7b5' }} />
+                      <View style={styles.cardSeparator} />
+
+                      {/* Row for Confidence */}
+                      <View style={styles.reviewCardRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.reviewCardLabel}>EXTRACTION CONFIDENCE</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                            <View style={{ height: 6, flex: 1, backgroundColor: colors.borderLight || '#94A3B840', borderRadius: 3, overflow: 'hidden' }}>
+                              <View style={{ height: 6, width: `${contact.confidence || 95}%` as any, backgroundColor: '#00a7b5' }} />
+                            </View>
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }}>{contact.confidence || 95}%</Text>
                           </View>
                         </View>
                       </View>

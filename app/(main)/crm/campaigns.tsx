@@ -345,27 +345,29 @@ Based on this, generate a JSON object with exactly the following fields:
     }
   };
 
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleDeleteCampaign = (id: string) => {
-    Alert.alert(
-      "Delete Campaign",
-      "Are you sure you want to delete this campaign? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteCRMCampaign(accessToken || '', id);
-              refetch();
-              Alert.alert("Success", "Campaign deleted successfully.");
-            } catch (error) {
-              Alert.alert("Error", "Failed to delete campaign.");
-            }
-          }
-        }
-      ]
-    );
+    setCampaignToDelete(id);
+    setConfirmDeleteVisible(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!campaignToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteCRMCampaign(accessToken || '', campaignToDelete);
+      refetch();
+      setConfirmDeleteVisible(false);
+      setCampaignToDelete(null);
+      Alert.alert("Success", "Campaign deleted successfully.");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to delete campaign.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Filtering Logic
@@ -1715,6 +1717,35 @@ Based on this, generate a JSON object with exactly the following fields:
           </Pressable>
         </Pressable>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={confirmDeleteVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setConfirmDeleteVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmModal}>
+            <Text style={styles.confirmTitle}>Delete Campaign</Text>
+            <Text style={styles.confirmSubtitle}>
+              Are you sure you want to delete this campaign? This action cannot be undone.
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setConfirmDeleteVisible(false)} disabled={isDeleting}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.deleteBtn} onPress={confirmDelete} disabled={isDeleting}>
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color="#EF4444" />
+                ) : (
+                  <Text style={styles.deleteBtnText}>Delete</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
 
     </LinearGradient>
@@ -3102,6 +3133,72 @@ function getStyles(colors: any, theme?: string) {
     inputError: {
       borderColor: '#EF4444',
       borderWidth: 1.5,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(15, 23, 42, 0.4)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    confirmModal: {
+      width: '100%',
+      maxWidth: 340,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 28,
+      padding: 24,
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.1,
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    confirmTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    confirmSubtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 20,
+      marginBottom: 24,
+      fontWeight: '500',
+    },
+    modalActions: {
+      flexDirection: 'row',
+      gap: 12,
+      width: '100%',
+    },
+    cancelBtn: {
+      flex: 1,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.surfaceSoft || 'rgba(148, 163, 184, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cancelBtnText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    deleteBtn: {
+      flex: 1,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.surfaceSoft || 'rgba(148, 163, 184, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    deleteBtnText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#EF4444',
     },
   });
 }

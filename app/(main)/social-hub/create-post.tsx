@@ -432,35 +432,37 @@ export default function CreatePostScreen() {
     return cameraStatus === 'granted' && libraryStatus === 'granted';
   };
 
-  const pickImage = async (useCamera: boolean) => {
+  const pickImage = (useCamera: boolean) => {
     setIsPickerVisible(false);
-    const hasPermission = await requestPermissions();
-    if (!hasPermission) {
-      Alert.alert('Permission Denied', 'Please enable camera and gallery access in settings.');
-      return;
-    }
+    setTimeout(async () => {
+      const hasPermission = await requestPermissions();
+      if (!hasPermission) {
+        Alert.alert('Permission Denied', 'Please enable camera and gallery access in settings.');
+        return;
+      }
 
-    let result;
-    if (useCamera) {
-      result = await ImagePicker.launchCameraAsync({
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-    } else {
-      result = await ImagePicker.launchImageLibraryAsync({
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-    }
+      let result;
+      if (useCamera) {
+        result = await ImagePicker.launchCameraAsync({
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      }
 
-    if (!result.canceled && result.assets && result.assets[0].uri) {
-      const newUri = result.assets[0].uri;
-      const newId = `u-${Date.now()}`;
-      const newMedia = { id: newId, uri: newUri };
-      setUploadedMedia(prev => [newMedia, ...prev]);
-      setLastSelectedMediaUri(newUri);
-      setSelectedMediaIds(prev => [...prev, newId]);
-    }
+      if (!result.canceled && result.assets && result.assets[0].uri) {
+        const newUri = result.assets[0].uri;
+        const newId = `u-${Date.now()}`;
+        const newMedia = { id: newId, uri: newUri };
+        setUploadedMedia(prev => [newMedia, ...prev]);
+        setLastSelectedMediaUri(newUri);
+        setSelectedMediaIds(prev => [...prev, newId]);
+      }
+    }, 300);
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {

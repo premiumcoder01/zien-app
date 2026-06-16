@@ -1384,24 +1384,25 @@ export default function CreateListingScreen() {
             <View style={styles.sheetActions}>
               <TouchableOpacity
                 style={styles.sheetActionItem}
-                onPress={async () => {
+                onPress={() => {
                   setIsPickingMedia(false);
+                  setTimeout(async () => {
+                    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                    if (status !== 'granted') {
+                      alert("Photo library permission is required to select photos.");
+                      return;
+                    }
 
-                  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                  if (status !== 'granted') {
-                    alert("Photo library permission is required to select photos.");
-                    return;
-                  }
+                    const result = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                      allowsMultipleSelection: true,
+                      quality: 0.8,
+                    });
 
-                  const result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                    allowsMultipleSelection: true,
-                    quality: 0.8,
-                  });
-
-                  if (!result.canceled && result.assets.length > 0) {
-                    result.assets.forEach(asset => uploadMutation(asset.uri));
-                  }
+                    if (!result.canceled && result.assets.length > 0) {
+                      result.assets.forEach(asset => uploadMutation(asset.uri));
+                    }
+                  }, 300);
                 }}
               >
                 <View style={[styles.sheetActionIcon, { backgroundColor: colors.accentTeal + '20' }]}>
@@ -1412,20 +1413,22 @@ export default function CreateListingScreen() {
 
               <TouchableOpacity
                 style={styles.sheetActionItem}
-                onPress={async () => {
+                onPress={() => {
                   setIsPickingMedia(false);
-                  const { status } = await ImagePicker.requestCameraPermissionsAsync();
-                  if (status !== 'granted') {
-                    alert("Camera permission is required");
-                    return;
-                  }
+                  setTimeout(async () => {
+                    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                    if (status !== 'granted') {
+                      alert("Camera permission is required");
+                      return;
+                    }
 
-                  const result = await ImagePicker.launchCameraAsync({
-                    quality: 0.8,
-                  });
-                  if (!result.canceled && result.assets[0]) {
-                    uploadMutation(result.assets[0].uri);
-                  }
+                    const result = await ImagePicker.launchCameraAsync({
+                      quality: 0.8,
+                    });
+                    if (!result.canceled && result.assets[0]) {
+                      uploadMutation(result.assets[0].uri);
+                    }
+                  }, 300);
                 }}
               >
                 <View style={[styles.sheetActionIcon, { backgroundColor: '#EC489920' }]}>

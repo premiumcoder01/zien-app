@@ -646,18 +646,22 @@ export default function EditListingScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setIsPickingMedia(false)}>
           <View style={styles.bottomSheet}>
             <View style={styles.sheetHeader}><View style={styles.sheetDragHandle} /><Text style={styles.sheetTitle}>Add Media</Text></View>
-            <TouchableOpacity style={styles.sheetActionItem} onPress={async () => {
+            <TouchableOpacity style={styles.sheetActionItem} onPress={() => {
               setIsPickingMedia(false);
-              const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
-              if (!res.canceled && res.assets[0]) uploadMutation(res.assets[0].uri);
+              setTimeout(async () => {
+                const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+                if (!res.canceled && res.assets[0]) uploadMutation(res.assets[0].uri);
+              }, 300);
             }}>
               <MaterialCommunityIcons name="image-multiple" size={24} color={colors.accentTeal} style={{ marginRight: 15 }} />
               <Text style={styles.sheetActionText}>Photo Library</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.sheetActionItem} onPress={async () => {
+            <TouchableOpacity style={styles.sheetActionItem} onPress={() => {
               setIsPickingMedia(false);
-              const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-              if (!res.canceled && res.assets[0]) uploadMutation(res.assets[0].uri);
+              setTimeout(async () => {
+                const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+                if (!res.canceled && res.assets[0]) uploadMutation(res.assets[0].uri);
+              }, 300);
             }}>
               <MaterialCommunityIcons name="camera" size={24} color="#EC4899" style={{ marginRight: 15 }} />
               <Text style={styles.sheetActionText}>Take Photo</Text>
