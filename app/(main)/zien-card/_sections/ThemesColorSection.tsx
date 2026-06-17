@@ -99,6 +99,7 @@ export function ThemesColorSection({
   const [accentColor, setAccentColor] = useState<string>(activeCard?.card_color || ACCENT_COLORS[0]);
   const [selectedFontLabel, setSelectedFontLabel] = useState<SelectedFontLabel>(getFontLabel(activeCard?.font ?? undefined));
   const [isSaving, setIsSaving] = useState(false);
+  const profileUrl = activeCard ? `https://staging.zien.ai/card/${activeCard.id}` : undefined;
 
   const [fontsLoaded] = useFonts({
     Inter_800ExtraBold,
@@ -150,7 +151,7 @@ export function ThemesColorSection({
     legalRole: card.role || '',
     license: card.license || '',
     company: card.company_name || '',
-    address: '',
+    address: card.address || '',
     phone: card.phone || '',
     email: card.email || '',
     website: card.website || '',
@@ -202,6 +203,7 @@ export function ThemesColorSection({
               companyLogoUri={activeCard.logo || undefined}
               headingFontFamily={selectedFontFamily}
               bodyFontFamily={selectedFontFamily}
+              cardUrl={profileUrl}
             />
           </View>
         </View>
@@ -325,7 +327,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: '#0a2341',
+    backgroundColor: colors.accentTeal,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 14,

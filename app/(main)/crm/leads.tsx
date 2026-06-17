@@ -31,8 +31,6 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
   const styles = getStyles(colors);
   const fullName = `${lead.first_name} ${lead.last_name}`;
   const isHot = lead.score >= 80;
-  const isHigh = lead.score >= 70;
-  const isLow = lead.score < 40;
   const isConverted = lead.lead_date_label === 'Converted';
   const isActive = lead.status === 1;
   const badgeLabel = isConverted ? 'CONVERTED' : (isActive ? 'ACTIVE' : 'INACTIVE');
@@ -103,20 +101,7 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
           <Text style={[styles.statusLabelInline, { color: badgeColor }]}>{badgeLabel}</Text>
         </View>
 
-        {/* 2. AI Score Badge */}
-        <View style={styles.aiScoreBadge}>
-          <MaterialCommunityIcons
-            name="brain"
-            size={12}
-            color={isHigh ? colors.accentTeal : isLow ? (colors.danger || '#E11D48') : colors.textSecondary}
-          />
-          <Text style={styles.aiScoreTitle}>AI SCORE </Text>
-          <Text style={[styles.aiScoreValue, isHigh ? { color: colors.accentTeal } : isLow ? { color: colors.danger || '#E11D48' } : { color: colors.textPrimary }]}>
-            {lead.score}
-          </Text>
-        </View>
-
-        {/* 3. Custom Tag Badge */}
+        {/* 2. Custom Tag Badge */}
         {lead.tag && (
           <View style={[styles.tagBadge, { backgroundColor: `${lead.tag.tag_color}15`, borderColor: `${lead.tag.tag_color}30` }]}>
             <View style={[styles.tagDot, { backgroundColor: lead.tag.tag_color }]} />
@@ -860,11 +845,16 @@ export default function LeadsScreen() {
               <View style={styles.convertCol}>
                 <Text style={styles.convertLabel}>Email <Text style={{ color: '#E11D48' }}>*</Text></Text>
                 <TextInput
-                  style={[styles.convertInput, errors.email && styles.inputError]}
+                  style={[
+                    styles.convertInput, 
+                    errors.email && styles.inputError,
+                    !!leadToEdit && { backgroundColor: colors.surfaceSoft, color: colors.textMuted }
+                  ]}
                   value={email}
                   onChangeText={(t) => { setEmail(t); if (errors.email) setErrors(prev => ({ ...prev, email: '' })); }}
                   placeholder="john@example.com"
                   placeholderTextColor={colors.textMuted || "#8DA4B5"}
+                  editable={!leadToEdit}
                 />
                 {errors.email ? <Text style={styles.inlineError}>{errors.email}</Text> : null}
               </View>

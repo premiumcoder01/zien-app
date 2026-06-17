@@ -30,6 +30,7 @@ export interface DigitalCard {
   accent_color: string | null;
   template: string | null;
   font: string | null;
+  address?: string | null;
   status: number;
   created_at: string;
   updated_at: string;
@@ -108,6 +109,7 @@ export const createDigitalCard = async (accessToken: string, payload: CreateDigi
     tiktok: '',
     facebook: '',
     logo: '',
+    address: '',
     card_color: isWork ? '#0B2341' : '#14b8a6',
     template: 'modern',
     font: 'inter',

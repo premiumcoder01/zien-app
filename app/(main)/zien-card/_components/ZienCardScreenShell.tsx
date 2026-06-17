@@ -32,7 +32,7 @@ export function ZienCardScreenShell({
       colors={(colors.backgroundGradient as any) || ['#CAD8E4', '#D7E9F2', '#F3E1D7']}
       start={{ x: 0.1, y: 0 }}
       end={{ x: 0.9, y: 1 }}
-      style={[styles.background, { paddingTop: insets.top }]}>
+      style={[styles.background, { paddingTop: insets.top + 16 }]}>
       <View style={styles.headerWrap}>
         <View style={styles.header}>
           {showBack && (

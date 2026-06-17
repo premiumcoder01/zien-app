@@ -317,7 +317,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   sumLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary },
   sumValue: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, marginTop: 4 },
   insightCard: {
-    backgroundColor: '#0B2341',
+    backgroundColor: colors.accentTeal,
     borderRadius: 24,
     padding: 24,
     marginBottom: 20,
@@ -326,7 +326,9 @@ const getStyles = (colors: any) => StyleSheet.create({
   insightTitle: { fontSize: 18, fontWeight: '900', color: '#FFFFFF' },
   insightSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 20, marginTop: 8 },
   insightBtn: {
-    backgroundColor: '#0a2341',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 12,

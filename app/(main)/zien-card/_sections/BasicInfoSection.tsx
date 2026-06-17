@@ -56,6 +56,7 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
   const styles = getStyles(colors);
 
   const insets = useSafeAreaInsets();
+  const profileUrl = activeCard ? `https://staging.zien.ai/card/${activeCard.id}` : undefined;
   const [activeTab, setActiveTab] = useState<FormTab>('personal');
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState<DigitalCard>(activeCard);
@@ -128,6 +129,7 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
         title: form.title,
         role: form.role,
         company_name: form.company_name,
+        address: form.address,
         image: form.image,
         phone: form.phone,
         email: form.email,
@@ -255,7 +257,7 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
     legalRole: form.role || '',
     license: form.license || '',
     company: form.company_name || '',
-    address: '',
+    address: form.address || '',
     phone: form.phone || '',
     email: form.email || '',
     website: form.website || '',
@@ -282,6 +284,7 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
             template={(form.template as any) || 'modern'}
             avatarUri={localPhotoUri || form.image?.trim() || undefined}
             companyLogoUri={localLogoUri || form.logo?.trim() || undefined}
+            cardUrl={profileUrl}
           />
         </View>
 
@@ -535,6 +538,17 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
                   placeholderTextColor="#9AA7B6"
                 />
                 {errors.website ? <Text style={styles.errorText}>{errors.website}</Text> : null}
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>Address</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.address || ''}
+                  onChangeText={(v) => setForm((p) => ({ ...p, address: v }))}
+                  placeholder="e.g. Beverly Hills, CA"
+                  placeholderTextColor="#9AA7B6"
+                />
               </View>
 
               <Text style={styles.subSectionTitle}>Social Profiles</Text>
@@ -843,10 +857,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   tabActive: {
-    backgroundColor: '#0a2341',
-    borderColor: '#0a2341',
+    backgroundColor: colors.accentTeal,
+    borderColor: colors.accentTeal,
     elevation: 2,
-    shadowColor: '#0a2341',
+    shadowColor: colors.accentTeal,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,

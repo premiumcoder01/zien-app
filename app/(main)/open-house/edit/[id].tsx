@@ -23,7 +23,6 @@ import {
   Alert,
   Clipboard,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -33,8 +32,11 @@ import {
   Text,
   TextInput,
   useWindowDimensions,
-  View
+  View,
+  KeyboardAvoidingView
 } from 'react-native';
+import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { ProgressStep, ProgressSteps } from 'react-native-progress-steps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -238,6 +240,11 @@ export default function OpenHouseEditScreen() {
   const [brandColors, setBrandColors] = useState<string[]>([...EXTENDED_BRAND_COLORS]);
 
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  const { height: kbAnimHeight } = useReanimatedKeyboardAnimation();
+  const animatedBottomBarStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: kbAnimHeight.value }],
+  }));
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
@@ -466,7 +473,7 @@ export default function OpenHouseEditScreen() {
             labelFontSize={10}
             activeLabelFontSize={10}
           >
-            <ProgressStep label="EVENT DETAILS" removeBtnRow>
+            <ProgressStep label="Event Details" removeBtnRow>
               <Step2Details
                 eventDate={eventDate}
                 setEventDate={setEventDate}
@@ -495,7 +502,7 @@ export default function OpenHouseEditScreen() {
                 setCallingCode={setCallingCode}
               />
             </ProgressStep>
-            <ProgressStep label="CUSTOMIZATION" removeBtnRow>
+            <ProgressStep label="Customization" removeBtnRow>
               {!isFinalized ? (
                 <Step4Customization
                   selectedPropertyId={selectedPropertyId}
@@ -534,8 +541,8 @@ export default function OpenHouseEditScreen() {
         </View>
 
         {/* Global Fixed Bottom Bar */}
-        {!isFinalized && !isKeyboardVisible && (
-          <View style={[styles.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        {!isFinalized && (
+          <Animated.View style={[styles.fixedBottomBar, animatedBottomBarStyle, { paddingBottom: isKeyboardVisible ? 16 : Math.max(insets.bottom, 16) }]}>
             {activeStep === 0 && (
               <View style={styles.fixedBtnRow}>
                 <OutlineButton
@@ -573,7 +580,7 @@ export default function OpenHouseEditScreen() {
                 />
               </View>
             )}
-          </View>
+          </Animated.View>
         )}
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -652,7 +659,7 @@ function Step2Details({
         <View style={styles.formCardWrap}>
           <View style={[styles.formCard, { borderTopWidth: 1, borderRadius: 18, padding: 32 }]}>
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>DATE *</Text>
+              <Text style={styles.fieldLabel}>Date *</Text>
               <Pressable style={styles.inputWrap} onPress={() => { openPicker('date'); if (errors.eventDate) setErrors(prev => ({ ...prev, eventDate: undefined })); }} android_ripple={{ color: 'rgba(13,148,136,0.08)' }}>
                 <Text style={[styles.inputText, { color: colors.textPrimary }]} numberOfLines={1}>{formatDisplayDate(eventDate)}</Text>
                 <MaterialCommunityIcons name="calendar-outline" size={16} color={colors.textPrimary} />
@@ -661,7 +668,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>START *</Text>
+              <Text style={styles.fieldLabel}>Start *</Text>
               <Pressable style={styles.inputWrap} onPress={() => { openPicker('start'); if (errors.startTimeDate) setErrors(prev => ({ ...prev, startTimeDate: undefined })); }} android_ripple={{ color: 'rgba(13,148,136,0.08)' }}>
                 <Text style={[styles.inputText, { color: colors.textPrimary }]} numberOfLines={1}>{formatDisplayTime(startTimeDate)}</Text>
                 <MaterialCommunityIcons name="clock-outline" size={16} color={colors.textPrimary} />
@@ -670,7 +677,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>END *</Text>
+              <Text style={styles.fieldLabel}>End *</Text>
               <Pressable style={styles.inputWrap} onPress={() => { openPicker('end'); if (errors.endTimeDate) setErrors(prev => ({ ...prev, endTimeDate: undefined })); }} android_ripple={{ color: 'rgba(13,148,136,0.08)' }}>
                 <Text style={[styles.inputText, { color: colors.textPrimary }]} numberOfLines={1}>{formatDisplayTime(endTimeDate)}</Text>
                 <MaterialCommunityIcons name="clock-outline" size={16} color={colors.textPrimary} />
@@ -679,7 +686,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>AGENT NAME *</Text>
+              <Text style={styles.fieldLabel}>Agent Name *</Text>
               <View style={[styles.inputWrap, errors.agentName && { borderColor: '#EF4444' }]}>
                 <TextInput
                   style={styles.input}
@@ -700,21 +707,21 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>BROKERAGE NAME</Text>
+              <Text style={styles.fieldLabel}>Brokerage Name</Text>
               <View style={styles.inputWrap}>
                 <TextInput style={styles.input} value={brokerageName} onChangeText={setBrokerageName} placeholder="e.g. Zien Estates" placeholderTextColor="#9CA3AF" />
               </View>
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>LICENSE NUMBER (DRE#)</Text>
+              <Text style={styles.fieldLabel}>Agent License (DRE#)</Text>
               <View style={styles.inputWrap}>
                 <TextInput style={styles.input} value={licenseNumber} onChangeText={setLicenseNumber} placeholder="e.g. DRE# 000000" placeholderTextColor="#9CA3AF" />
               </View>
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>AGENT PHONE *</Text>
+              <Text style={styles.fieldLabel}>Agent Phone *</Text>
               <PhoneInput
                 ref={phoneInputRef}
                 defaultValue={agentPhone}
@@ -798,7 +805,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>AGENT EMAIL *</Text>
+              <Text style={styles.fieldLabel}>Agent Email *</Text>
               <View style={[styles.inputWrap, errors.agentEmail && { borderColor: '#EF4444' }]}>
                 <TextInput
                   style={styles.input}
@@ -818,11 +825,6 @@ function Step2Details({
                   {errors.agentEmail}
                 </Text>
               )}
-            </View>
-
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>SEND PERFORMANCE REPORT TO SELLER</Text>
-              <Switch value={sendReport} onValueChange={setSendReport} trackColor={{ false: '#E4EAF2', true: '#0D9488' }} thumbColor="#FFFFFF" />
             </View>
           </View>
         </View>
@@ -994,7 +996,7 @@ function Step4Customization({
                 <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: currentAccent, borderWidth: 1.5, borderColor: colors.cardBorder }} />
               </View>
 
-              <Text style={styles.sectionHeaderLabelSmall}>LOGO PRESENTATION</Text>
+              <Text style={styles.sectionHeaderLabelSmall}>Logo Presentation</Text>
               <View style={styles.segmentedControl}>
                 <Pressable style={[styles.segmentBtn, logoMode === 'text' && styles.segmentBtnActive]} onPress={() => setLogoMode('text')}>
                   <Text style={logoMode === 'text' ? styles.segmentBtnTextActive : styles.segmentBtnText}>Agency Text</Text>
@@ -1009,12 +1011,20 @@ function Step4Customization({
                   <TextInput style={styles.input} value={agentName} onChangeText={() => { }} placeholder="Agency Name" placeholderTextColor="#9CA3AF" editable={false} />
                 </View>
               ) : (
-                <View style={[styles.logoUploadContainer, { alignItems: 'center' }]}>
+                <View style={[styles.logoUploadContainer, { alignItems: 'center', gap: 12 }]}>
                   <Pressable style={[styles.logoUploadBtn, { width: '100%' }]} onPress={handleLogoUpload}>
                     <Text style={styles.logoUploadBtnText}>{agencyLogoUri ? 'Replace Brand Image' : 'Upload Agency Logo'}</Text>
                   </Pressable>
                   {agencyLogoUri && (
-                    <View style={styles.logoPreviewWrap}>
+                    <Pressable
+                      style={[styles.logoUploadBtn, { borderColor: '#EF4444', backgroundColor: '#FEF2F2', width: '100%' }]}
+                      onPress={() => setAgencyLogoUri(null)}
+                    >
+                      <Text style={[styles.logoUploadBtnText, { color: '#DC2626' }]}>Remove Image</Text>
+                    </Pressable>
+                  )}
+                  {agencyLogoUri && (
+                    <View style={[styles.logoPreviewWrap, { marginTop: 0 }]}>
                       <Image source={{ uri: agencyLogoUri }} style={styles.logoPreview} contentFit="contain" />
                     </View>
                   )}
@@ -1026,7 +1036,7 @@ function Step4Customization({
               <Text style={styles.customCardTitle}>AI Property Narrative</Text>
               <Text style={styles.customCardSubLabelText}>Type your custom instructions below to generate highly personalized copy.</Text>
 
-              <Text style={styles.aiFieldLabel}>YOUR PROMPT / CUSTOM TEXT</Text>
+              <Text style={styles.aiFieldLabel}>Your Prompt / Custom Text</Text>
               <TextInput
                 style={styles.aiInput}
                 multiline
@@ -1054,7 +1064,7 @@ function Step4Customization({
               </Pressable>
 
               <View style={styles.aiOutputHeaderRow}>
-                <Text style={styles.aiFieldLabel}>GENERATED OUTPUT</Text>
+                <Text style={styles.aiFieldLabel}>Generated Output</Text>
                 <View style={styles.stylePillRow}>
                   {DESC_STYLES.map((style) => (
                     <Pressable key={style} style={[styles.stylePill, descStyle === style.toLowerCase() && styles.stylePillActive]} onPress={() => setDescStyle(style.toLowerCase() as DescStyleKey)}>
@@ -1086,7 +1096,7 @@ function Step4Customization({
                 ))}
                 <Pressable style={styles.galleryAddBoxSmall} onPress={handleGalleryUpload}>
                   <MaterialCommunityIcons name="plus" size={20} color={colors.accentTeal} />
-                  <Text style={styles.galleryAddTextSmall}>ADD PHOTOS</Text>
+                  <Text style={styles.galleryAddTextSmall}>Add Photos</Text>
                 </Pressable>
               </ScrollView>
             </View>
@@ -1105,7 +1115,7 @@ function Step4Customization({
 
           {/* RIGHT COLUMN: Live Preview */}
           <View style={[styles.rightColumn, isMobile && styles.rightColumnMobile]}>
-            <Text style={styles.sectionHeaderLabelPreview}>LIVE COMPANION PREVIEW</Text>
+            <Text style={styles.sectionHeaderLabelPreview}>Live Companion Preview</Text>
             <View style={styles.phoneMockup}>
               <View style={styles.phoneHeader}>
                 {logoMode === 'image' && agencyLogoUri ? (
@@ -1451,7 +1461,7 @@ function getStyles(colors: any) {
 
     logoUploadContainer: { backgroundColor: colors.surfaceSoft, borderWidth: 1.5, borderColor: colors.accentTeal, borderStyle: 'dashed', borderRadius: 12, padding: 16, marginTop: 12 },
     logoUploadBtn: { backgroundColor: colors.cardBackground, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, borderWidth: 1, borderColor: colors.cardBorder, flex: 1 },
-    logoUploadBtnText: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
+    logoUploadBtnText: { fontSize: 13, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
     logoPreviewWrap: { width: 120, height: 120, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.surfaceSoft, borderWidth: 1.5, borderColor: colors.cardBorder, marginTop: 12 },
     logoPreview: { width: '100%', height: '100%' },
 

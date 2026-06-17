@@ -184,59 +184,66 @@ export default function ForgotPasswordScreen() {
                 <AuthSubtitle center>Enter OTP and set your new password</AuthSubtitle>
 
                 <View style={styles.form}>
-                  <LabeledInput
-                    label="Email Address"
-                    value={email}
-                    editable={false}
-                    containerStyle={styles.disabledInput}
-                  />
-
-                  <View style={styles.infoBox}>
-                    <MaterialCommunityIcons name="shield-check-outline" size={18} color={colors.textPrimary} />
-                    <Text style={styles.infoText}>
-                      OTP sent to <Text style={styles.bold}>{email}</Text>
+                  <View style={styles.verificationCard}>
+                    <View style={styles.verificationCardHeader}>
+                      <MaterialCommunityIcons name="shield-check" size={20} color={colors.accent || '#00a7b5'} />
+                      <Text style={styles.verificationCardTitle}>OTP Sent Successfully</Text>
+                    </View>
+                    <Text style={styles.verificationCardSubtitle}>We sent a 4-digit code to</Text>
+                    <Text style={styles.verificationCardEmail} textBreakStrategy="simple" selectable={true}>
+                      {email}
                     </Text>
                   </View>
 
-                  <LabeledInput
-                    label="OTP"
-                    placeholder="Enter 4-digit code"
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    value={otp}
-                    onChangeText={(text) => {
-                      setOtp(text);
-                      if (otpError) setOtpError('');
-                    }}
-                    error={otpError}
-                    required
-                  />
+                  <View style={styles.otpContainer}>
+                    <LabeledInput
+                      label="OTP"
+                      placeholder="Enter 4-digit code"
+                      keyboardType="number-pad"
+                      maxLength={4}
+                      value={otp}
+                      onChangeText={(text) => {
+                        setOtp(text);
+                        if (otpError) setOtpError('');
+                      }}
+                      error={otpError}
+                      required
+                    />
 
-                  <View style={styles.expiryRow}>
-                    {expiryTimer > 0 ? (
-                      <Text style={styles.expiryText}>
-                        Code expires in <Text style={styles.bold}>{formatTime(expiryTimer)}</Text>
-                      </Text>
-                    ) : (
-                      <Text style={styles.expiryText}>Code expired</Text>
-                    )}
-                    <Pressable
-                      onPress={handleResendOtp}
-                      disabled={isResending || resendTimer > 0}
-                      style={({ pressed }) => [
-                        styles.resendButton,
-                        (isResending || resendTimer > 0) && styles.resendButtonDisabled,
-                        pressed && !isResending && resendTimer === 0 && { opacity: 0.7 }
-                      ]}
-                    >
-                      {isResending ? (
-                        <ActivityIndicator size="small" color={colors.accent || '#0a2341'} />
-                      ) : (
-                        <Text style={[styles.resendLink, resendTimer > 0 && styles.disabledLink]}>
-                          Resend {resendTimer > 0 ? `(${resendTimer}s)` : ''}
-                        </Text>
-                      )}
-                    </Pressable>
+                    <View style={styles.otpRow}>
+                      <View style={styles.timerContainer}>
+                        <MaterialCommunityIcons
+                          name="clock-outline"
+                          size={14}
+                          color={expiryTimer > 0 ? colors.textSecondary : '#ef4444'}
+                        />
+                        {expiryTimer > 0 ? (
+                          <Text style={styles.timerText}>
+                            Expires in <Text style={styles.timerBold}>{formatTime(expiryTimer)}</Text>
+                          </Text>
+                        ) : (
+                          <Text style={styles.expiredText}>Code expired</Text>
+                        )}
+                      </View>
+
+                      <Pressable
+                        onPress={handleResendOtp}
+                        disabled={isResending || resendTimer > 0}
+                        style={({ pressed }) => [
+                          styles.resendBtn,
+                          (isResending || resendTimer > 0) && styles.resendBtnDisabled,
+                          pressed && !isResending && resendTimer === 0 && { opacity: 0.7 }
+                        ]}
+                      >
+                        {isResending ? (
+                          <ActivityIndicator size="small" color={colors.accent || '#00a7b5'} style={{ width: 14, height: 14 }} />
+                        ) : (
+                          <Text style={[styles.resendBtnText, resendTimer > 0 && styles.resendBtnTextDisabled]}>
+                            Resend {resendTimer > 0 ? `(${resendTimer}s)` : ''}
+                          </Text>
+                        )}
+                      </Pressable>
+                    </View>
                   </View>
 
                   <PasswordInput
@@ -326,33 +333,83 @@ function getStyles(colors: any, theme: string) {
     disabledInput: {
       opacity: 0.7,
     },
-    infoBox: {
+    verificationCard: {
+      backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,167,181,0.04)',
+      borderColor: colors.borderLight || '#E1E8F0',
+      borderWidth: 1,
+      borderRadius: 16,
+      padding: 16,
+      gap: 4,
+    },
+    verificationCardHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-      padding: 12,
-      borderRadius: 12,
       gap: 8,
     },
-    infoText: {
-      fontSize: 13,
-      color: colors.textPrimary,
-      flex: 1,
-    },
-    bold: {
+    verificationCardTitle: {
+      fontSize: 14,
       fontWeight: '700',
+      color: colors.textPrimary,
     },
-    expiryRow: {
+    verificationCardSubtitle: {
+      fontSize: 12.5,
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
+    verificationCardEmail: {
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: colors.accent || '#00a7b5',
+      marginTop: 2,
+    },
+    otpContainer: {
+      gap: 6,
+    },
+    otpRow: {
       flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 6,
+      paddingHorizontal: 2,
+    },
+    timerContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    timerText: {
+      fontSize: 12.5,
+      color: colors.textSecondary,
+    },
+    timerBold: {
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    expiredText: {
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: '#ef4444',
+    },
+    resendBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 12,
+      backgroundColor: colors.accent ? `${colors.accent}15` : 'rgba(11, 160, 178, 0.1)',
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: -4,
-      marginBottom: 4,
-      gap: 8,
     },
-    expiryText: {
+    resendBtnDisabled: {
+      backgroundColor: 'transparent',
+    },
+    resendBtnText: {
       fontSize: 13,
+      color: colors.accent || '#00a7b5',
+      fontWeight: '800',
+    },
+    resendBtnTextDisabled: {
       color: colors.textSecondary,
+      opacity: 0.6,
+      fontWeight: '600',
     },
     actionRow: {
       flexDirection: 'row',
@@ -361,27 +418,6 @@ function getStyles(colors: any, theme: string) {
     },
     flexButton: {
       flex: 1,
-    },
-    resendButton: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-      backgroundColor: colors.accent ? `${colors.accent}15` : 'rgba(11, 160, 178, 0.1)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    resendButtonDisabled: {
-      backgroundColor: 'transparent',
-    },
-    resendLink: {
-      fontSize: 13,
-      color: colors.accent || '#0a2341',
-      fontWeight: '800',
-    },
-    disabledLink: {
-      color: colors.textSecondary,
-      opacity: 0.7,
-      fontWeight: '600',
     },
     backLink: {
       marginTop: 16,

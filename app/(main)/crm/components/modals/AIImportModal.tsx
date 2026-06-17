@@ -531,18 +531,36 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
                           <Text style={styles.attachedFileName} numberOfLines={1}>
                             {selectedFile.name}
                           </Text>
-                          <View style={styles.attachedStatusRow}>
-                            <Text style={styles.attachedReadyText}>
-                              Ready to Process • {selectedFile.size}
-                            </Text>
-                            <View style={{ flexDirection: 'row', gap: 12 }}>
-                              <Pressable onPress={handlePickDocument} hitSlop={12}>
-                                <Text style={[styles.attachedChangeText, { color: colors.textSecondary }]}>Change</Text>
-                              </Pressable>
-                              <Pressable onPress={() => setSelectedFile(null)} hitSlop={12}>
-                                <Text style={styles.attachedChangeText}>Remove</Text>
-                              </Pressable>
-                            </View>
+                          <Text style={styles.attachedReadyText}>
+                            Ready to Process • {selectedFile.size}
+                          </Text>
+                          <View style={styles.attachedActionsRow}>
+                            <Pressable 
+                              onPress={handlePickDocument} 
+                              style={styles.attachedActionBtn}
+                              hitSlop={8}
+                            >
+                              <MaterialCommunityIcons 
+                                name="pencil-outline" 
+                                size={14} 
+                                color={colors.textPrimary} 
+                                style={{ marginRight: 4 }} 
+                              />
+                              <Text style={styles.attachedActionBtnText}>Change</Text>
+                            </Pressable>
+                            <Pressable 
+                              onPress={() => setSelectedFile(null)} 
+                              style={[styles.attachedActionBtn, styles.attachedRemoveBtn]}
+                              hitSlop={8}
+                            >
+                              <MaterialCommunityIcons 
+                                name="trash-can-outline" 
+                                size={14} 
+                                color="#EF4444" 
+                                style={{ marginRight: 4 }} 
+                              />
+                              <Text style={styles.attachedRemoveBtnText}>Remove</Text>
+                            </Pressable>
                           </View>
                         </View>
                       </View>
@@ -584,34 +602,36 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
 
             /* STEP 2: AI Processing Table Review Screen */
             <>
+              {/* Top Navigation Bar */}
+              <View style={styles.topNavBar}>
+                <Pressable onPress={() => setCurrentStep('upload')} style={styles.backNavBarBtn} hitSlop={12}>
+                  <MaterialCommunityIcons name="chevron-left" size={24} color={colors.textPrimary} />
+                  <Text style={styles.backNavBarText}>Back</Text>
+                </Pressable>
+                <Pressable onPress={resetImport} style={styles.startNewNavBarBtn} hitSlop={12}>
+                  <MaterialCommunityIcons name="sync" size={14} color={colors.textPrimary} style={{ marginRight: 4 }} />
+                  <Text style={styles.startNewNavBarText}>Start New</Text>
+                </Pressable>
+              </View>
+
               {/* Review Page Header */}
               <View style={styles.header}>
-                <View style={[styles.headerTitleRow, { alignItems: 'center', justifyContent: 'space-between' }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
-                    <LinearGradient
-                      colors={['#0a2341', '#00a7b5']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.sparkleIconBadge}
-                    >
-                      <MaterialCommunityIcons name="table-large" size={20} color="#FFFFFF" />
-                    </LinearGradient>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.title, { fontSize: 18 }]} numberOfLines={1}>AI Processing Table</Text>
-                    </View>
+                <View style={styles.headerTitleRow}>
+                  <LinearGradient
+                    colors={['#0a2341', '#00a7b5']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.sparkleIconBadge}
+                  >
+                    <MaterialCommunityIcons name="table-large" size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                  <View style={styles.headerTexts}>
+                    <Text style={[styles.title, { fontSize: 18 }]}>AI Processing Table</Text>
+                    <Text style={[styles.subtitle, { marginTop: 4 }]}>
+                      Review all mapped fields. AI has automatically extracted contact details, attribution, and intent.
+                    </Text>
                   </View>
-
-                  {/* Reset button inside top right */}
-                  <Pressable onPress={resetImport} style={styles.startNewBtn} hitSlop={10}>
-                    <MaterialCommunityIcons name="sync" size={13} color={colors.textPrimary} style={{ marginRight: 3 }} />
-                    <Text style={[styles.startNewText, { fontSize: 11 }]}>Start New</Text>
-                  </Pressable>
                 </View>
-
-                {/* Subtitle rendered outside horizontal row, taking full width */}
-                <Text style={[styles.subtitle, { marginTop: 8 }]}>
-                  Review all mapped fields. AI has automatically extracted contact details, attribution, and intent.
-                </Text>
               </View>
 
               <View style={styles.dividerLine} />
@@ -1001,6 +1021,39 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  topNavBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  backNavBarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: -4,
+  },
+  backNavBarText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  startNewNavBarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1.2,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.surfaceSoft,
+  },
+  startNewNavBarText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
   startNewBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1226,19 +1279,38 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     fontWeight: '900',
     color: theme === 'dark' ? '#00a7b5' : '#0b2341',
   },
-  attachedStatusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   attachedReadyText: {
     fontSize: 11,
     fontWeight: '800',
     color: '#10B981',
   },
-  attachedChangeText: {
+  attachedActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  attachedActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1.2,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.surfaceSoft,
+  },
+  attachedActionBtnText: {
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  attachedRemoveBtn: {
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+  },
+  attachedRemoveBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
     color: '#EF4444',
   },
   initializeBtn: {

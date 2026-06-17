@@ -509,7 +509,13 @@ export default function ContactsScreen() {
                     <View style={[styles.statusDot, { backgroundColor: contact.status === 1 ? '#10B981' : '#64748B' }]} />
                   </View>
                   <View style={styles.contactMain}>
-                    <Text style={styles.contactName} numberOfLines={1}>{fullName}</Text>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.contactName} numberOfLines={1}>{fullName}</Text>
+                      <View style={[styles.heatBadge, { backgroundColor: contact.heat_index > 70 ? (theme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2') : colors.surfaceIcon }]}>
+                        <MaterialCommunityIcons name="fire" size={13} color={contact.heat_index > 70 ? '#EF4444' : colors.iconMuted} />
+                        <Text style={[styles.heatValue, { color: contact.heat_index > 70 ? '#EF4444' : colors.textPrimary }]}>{contact.heat_index}</Text>
+                      </View>
+                    </View>
                     <View style={styles.contactSubInfo}>
                       <MaterialCommunityIcons name="email-outline" size={12} color={colors.textMuted} />
                       <Text style={styles.contactEmail} numberOfLines={1} ellipsizeMode="tail">{contact.email}</Text>
@@ -521,30 +527,26 @@ export default function ContactsScreen() {
                       </View>
                     )}
                   </View>
-                  <View style={[styles.heatBadge, { backgroundColor: contact.heat_index > 70 ? (theme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2') : colors.surfaceIcon }]}>
-                    <MaterialCommunityIcons name="fire" size={16} color={contact.heat_index > 70 ? '#EF4444' : colors.iconMuted} />
-                    <Text style={[styles.heatValue, { color: contact.heat_index > 70 ? '#EF4444' : colors.textPrimary }]}>{contact.heat_index}</Text>
-                  </View>
                 </View>
 
                 {/* 2. Metadata Tags Row */}
                 <View style={styles.tagsRow}>
                   <View style={[styles.statusBadge, { backgroundColor: contact.status === 1 ? '#10B98115' : '#64748B15' }]}>
                     <View style={[styles.statusDotSmall, { backgroundColor: contact.status === 1 ? '#10B981' : '#64748B' }]} />
-                    <Text style={[styles.statusText, { color: contact.status === 1 ? '#10B981' : '#64748B' }]}>
+                    <Text style={[styles.statusText, { color: contact.status === 1 ? '#10B981' : '#64748B' }]} numberOfLines={1} ellipsizeMode="tail">
                       {contact.status === 1 ? 'ACTIVE' : 'INACTIVE'}
                     </Text>
                   </View>
                   <View style={styles.dataBadge}>
                     <MaterialCommunityIcons name="account-group-outline" size={12} color={colors.textSecondary} />
-                    <Text style={styles.dataBadgeText}>{groupName}</Text>
+                    <Text style={styles.dataBadgeText} numberOfLines={1} ellipsizeMode="tail">{groupName}</Text>
                   </View>
                   <View style={[styles.dataBadge, { backgroundColor: getBadgeBgColor(tagColor) }]}>
-                    <Text style={[styles.dataBadgeText, { color: tagColor }]}>{tagName}</Text>
+                    <Text style={[styles.dataBadgeText, { color: tagColor }]} numberOfLines={1} ellipsizeMode="tail">{tagName}</Text>
                   </View>
                   {contact.pipeline_stage && (
                     <View style={[styles.dataBadge, { backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.15)' : '#F0F9FA' }]}>
-                      <Text style={[styles.dataBadgeText, { color: theme === 'dark' ? '#00a7b5' : '#0a2341' }]}>{contact.pipeline_stage}</Text>
+                      <Text style={[styles.dataBadgeText, { color: theme === 'dark' ? '#00a7b5' : '#0a2341' }]} numberOfLines={1} ellipsizeMode="tail">{contact.pipeline_stage}</Text>
                     </View>
                   )}
                 </View>
@@ -985,33 +987,41 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   avatarText: { fontSize: 22, fontWeight: '900', color: colors.textPrimary },
-  contactMain: { flex: 1, gap: 2 },
-  contactName: { fontSize: 16, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.3 },
+  contactMain: { flex: 1, gap: 4 },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    marginBottom: 2,
+  },
+  contactName: { fontSize: 16, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.3, flexShrink: 1 },
   contactSubInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   contactEmail: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
   heatBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
   },
-  heatValue: { fontSize: 16, fontWeight: '900' },
+  heatValue: { fontSize: 11, fontWeight: '900' },
   tagsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    width: '100%',
     marginBottom: 16,
   },
   statusBadge: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 24,
-    paddingHorizontal: 10,
-    borderRadius: 30,
+    height: 28,
+    paddingHorizontal: 6,
+    borderRadius: 8,
     gap: 4,
   },
   statusDotSmall: {
@@ -1025,12 +1035,13 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     letterSpacing: 0.3,
   },
   dataBadge: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 24,
-    paddingHorizontal: 10,
-    borderRadius: 30,
+    height: 28,
+    paddingHorizontal: 6,
+    borderRadius: 8,
     gap: 4,
     backgroundColor: 'rgba(100, 116, 139, 0.08)',
   },

@@ -142,7 +142,7 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
               {lead.message ? (
                 <View style={[styles.contactItem, { alignItems: 'flex-start', marginTop: 4 }]}>
                   <MaterialCommunityIcons name="message-outline" size={16} color="#9AA7B6" style={{ marginTop: 2 }} />
-                  <Text style={[styles.contactText, { fontWeight: '400', fontSize: 13, color: '#64748B' }]} numberOfLines={3}>
+                  <Text style={[styles.contactText, { fontWeight: '400', fontSize: 13, color: '#64748B' }]}>
                     {"\""}{lead.message}{"\""}
                   </Text>
                 </View>
@@ -185,7 +185,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#0a2341',
+    backgroundColor: colors.accentTeal,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 15,

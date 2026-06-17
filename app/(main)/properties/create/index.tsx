@@ -14,7 +14,6 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -26,6 +25,7 @@ import {
   useWindowDimensions,
   View
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -288,7 +288,7 @@ function StepDetails({
       </View>
 
       {/* Stats Grid - 2 Rows of 2 Columns */}
-      <View style={{ paddingHorizontal: 20, gap: 12 }}>
+      <View style={{ paddingHorizontal: 0, gap: 12 }}>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <PropertyStatCard
             icon="bed-outline"
@@ -321,7 +321,7 @@ function StepDetails({
       </View>
 
       {/* Structural Section - Matching Screenshot */}
-      <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
+      <View style={{ paddingHorizontal: 0, marginTop: 24 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>STRUCTURAL</Text>
         <View style={{ gap: 10 }}>
           <PropertyDetailItem icon="office-building-outline" label="Property Type" value={formData.type} />
@@ -341,7 +341,7 @@ function StepDetails({
       </View>
 
       {/* Exterior */}
-      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>EXTERIOR</Text>
         <View style={{ gap: 10 }}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -359,7 +359,7 @@ function StepDetails({
       </View>
 
       {/* Interior */}
-      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>INTERIOR</Text>
         <View style={{ gap: 10 }}>
           <PropertyDetailItem icon="view-grid-outline" label="Flooring" value={formData.flooring} isPill />
@@ -373,7 +373,7 @@ function StepDetails({
       </View>
 
       {/* Utilities */}
-      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>UTILITIES</Text>
         <View style={{ gap: 10 }}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -384,7 +384,7 @@ function StepDetails({
       </View>
 
       {/* Financial */}
-      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>FINANCIAL</Text>
         <View style={{ gap: 10 }}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -399,7 +399,7 @@ function StepDetails({
       </View>
 
       {/* Schools */}
-      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>SCHOOLS</Text>
         <View style={{ gap: 10 }}>
           <PropertyDetailItem icon="school-outline" label="District" value={formData.highSchoolDistrict} />
@@ -410,7 +410,7 @@ function StepDetails({
       </View>
 
       {/* MLS & Legal */}
-      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>MLS & LEGAL</Text>
         <View style={{ gap: 10 }}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -428,7 +428,7 @@ function StepDetails({
 
       {/* Directions */}
       {!!formData.directions && (
-        <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+        <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
           <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>DIRECTIONS</Text>
           <View style={styles.directionsCard}>
             <MaterialCommunityIcons name="directions" size={20} color={colors.accentTeal} style={{ marginBottom: 10 }} />
@@ -438,7 +438,7 @@ function StepDetails({
       )}
 
       {/* Remarks */}
-      <View style={{ paddingHorizontal: 20, marginTop: 28 }}>
+      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
         <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 12 }]}>REMARKS</Text>
         {!!formData.publicRemarks && (
           <View style={[styles.remarkCard, { marginBottom: 12 }]}>
@@ -464,19 +464,30 @@ function StepMedia({
   setMlsPhotos,
   userPhotos,
   setUserPhotos,
+  selectedLocalPhotos,
+  setSelectedLocalPhotos,
   onPickerOpen,
   isUploading,
+  uploadProgress,
+  onUploadPress,
+  activeTab,
+  setActiveTab,
 }: {
   mlsPhotos: string[],
   setMlsPhotos: React.Dispatch<React.SetStateAction<string[]>>,
   userPhotos: string[],
   setUserPhotos: React.Dispatch<React.SetStateAction<string[]>>,
+  selectedLocalPhotos: string[],
+  setSelectedLocalPhotos: React.Dispatch<React.SetStateAction<string[]>>,
   onPickerOpen: () => void,
   isUploading: boolean,
+  uploadProgress: { current: number, total: number },
+  onUploadPress: () => void,
+  activeTab: 'mls' | 'uploads',
+  setActiveTab: React.Dispatch<React.SetStateAction<'mls' | 'uploads'>>,
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
-  const [activeTab, setActiveTab] = useState<'mls' | 'uploads'>('mls');
   const [enhancedImages, setEnhancedImages] = useState<Set<string>>(new Set());
   const [enhancingMap, setEnhancingMap] = useState<Record<string, boolean>>({});
 
@@ -499,19 +510,76 @@ function StepMedia({
   const PHOTO_W = '47%' as any;
 
   return (
-    <View style={styles.stepContainer}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+    <View style={[styles.stepContainer, { paddingBottom: 40 }]}>
 
-        {/* Header */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
-          <Text style={styles.intelTitle}>AI Media</Text>
-          <Text style={styles.intelSubtitle}>Upload your photos or use Zien AI to generate high-end architectural visuals.</Text>
-        </View>
+      {/* Header */}
+      <View style={{ paddingHorizontal: 0, marginBottom: 20 }}>
+        <Text style={styles.intelTitle}>AI Media</Text>
+        <Text style={styles.intelSubtitle}>Upload your photos or use Zien AI to generate high-end architectural visuals.</Text>
+      </View>
 
-        {/* Top action cards */}
-        <View style={{ paddingHorizontal: 16, gap: 12, marginBottom: 24 }}>
+      {/* Top action cards */}
+      <View style={{ paddingHorizontal: 0, gap: 12, marginBottom: 24 }}>
 
-          {/* Upload Media Card */}
+        {/* Upload Media Card or Local Preview Card */}
+        {selectedLocalPhotos.length > 0 ? (
+          <View style={[styles.localPreviewCard, { marginBottom: 0 }]}>
+            <View style={styles.localPreviewHeader}>
+              <Text style={styles.localPreviewTitle}>Selected Photos</Text>
+              <Text style={styles.localPreviewCount}>{selectedLocalPhotos.length} photo{selectedLocalPhotos.length > 1 ? 's' : ''} selected</Text>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.localPreviewScroll}
+            >
+              {selectedLocalPhotos.map((uri, idx) => (
+                <View key={idx} style={styles.localPreviewThumbWrap}>
+                  <Image source={{ uri }} style={styles.localPreviewThumb} contentFit="cover" />
+                  <TouchableOpacity
+                    style={styles.localPreviewRemoveBtn}
+                    onPress={() => setSelectedLocalPhotos(prev => prev.filter((_, i) => i !== idx))}
+                    disabled={isUploading}
+                  >
+                    <MaterialCommunityIcons name="close" size={10} color="#FFF" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+
+            {isUploading && (
+              <View style={styles.uploadProgressRow}>
+                <ActivityIndicator size="small" color={colors.accentTeal} />
+                <Text style={styles.uploadProgressText}>
+                  Uploading {uploadProgress.current} of {uploadProgress.total}...
+                </Text>
+              </View>
+            )}
+
+            {!isUploading && (
+              <View style={styles.localPreviewActionRow}>
+                <TouchableOpacity
+                  style={styles.localPreviewAddMoreBtn}
+                  onPress={onPickerOpen}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
+                  <Text style={styles.localPreviewAddMoreText}>Add More</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.localPreviewUploadBtn}
+                  onPress={onUploadPress}
+                  activeOpacity={0.85}
+                >
+                  <MaterialCommunityIcons name="cloud-upload" size={16} color="#FFF" />
+                  <Text style={styles.localPreviewUploadText}>Upload to Vault</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : (
           <TouchableOpacity style={styles.mediaUploadCard} onPress={onPickerOpen} activeOpacity={0.8}>
             <View style={styles.mediaUploadIconWrap}>
               <MaterialCommunityIcons name="tray-arrow-up" size={26} color={colors.textSecondary} />
@@ -522,183 +590,184 @@ function StepMedia({
               <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
               <Text style={styles.mediaSelectBtnText}>Select Photos</Text>
             </View>
-            {isUploading && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 }}>
-                <ActivityIndicator size="small" color={colors.accentTeal} />
-                <Text style={{ fontSize: 12, color: colors.accentTeal, fontWeight: '600' }}>Securing to vault...</Text>
-              </View>
-            )}
           </TouchableOpacity>
+        )}
 
-          {/* AI Studio Card */}
-          <View style={styles.aiStudioCardNew}>
-            <LinearGradient
-              colors={['rgba(13,148,136,0.07)', 'rgba(99,102,241,0.07)']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.aiStudioCardHeader}>
-              <View style={styles.aiStudioIconBox}>
-                <MaterialCommunityIcons name="creation" size={20} color="#FFF" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.aiStudioCardTitle}>AI Studio Generator</Text>
-                <Text style={styles.aiStudioCardSub}>Describe the architectural scene to synthesize.</Text>
-              </View>
-              <View style={styles.aiStudioComingSoon}>
-                <Text style={styles.aiStudioComingSoonText}>SOON</Text>
-              </View>
+        {/* AI Studio Card */}
+        <View style={styles.aiStudioCardNew}>
+          <LinearGradient
+            colors={['rgba(13,148,136,0.07)', 'rgba(99,102,241,0.07)']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.aiStudioCardHeader}>
+            <View style={styles.aiStudioIconBox}>
+              <MaterialCommunityIcons name="creation" size={20} color="#FFF" />
             </View>
-            <Text style={styles.aiStudioPromptLabel}>GENERATION PROMPT</Text>
-            <View style={styles.aiStudioPromptBox}>
-              <TextInput
-                style={styles.aiStudioPromptInput}
-                placeholder="e.g. A high-end modern living room with floor-to-ceiling windows at golden hour, minimalist furniture, marble floors..."
-                placeholderTextColor={colors.textMuted}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.aiStudioCardTitle}>AI Studio Generator</Text>
+              <Text style={styles.aiStudioCardSub}>Describe the architectural scene to synthesize.</Text>
             </View>
-            <TouchableOpacity style={styles.aiStudioGenerateBtn} activeOpacity={0.85}>
-              <MaterialCommunityIcons name="creation" size={16} color="#FFF" />
-              <Text style={styles.aiStudioGenerateBtnText}>Generate with AI</Text>
-            </TouchableOpacity>
+            <View style={styles.aiStudioComingSoon}>
+              <Text style={styles.aiStudioComingSoonText}>SOON</Text>
+            </View>
           </View>
-        </View>
-
-        {/* Tab bar */}
-        <View style={styles.mediaTabBar}>
+          <Text style={styles.aiStudioPromptLabel}>GENERATION PROMPT</Text>
+          <View style={styles.aiStudioPromptBox}>
+            <TextInput
+              style={styles.aiStudioPromptInput}
+              placeholder="e.g. A high-end modern living room with floor-to-ceiling windows at golden hour, minimalist furniture, marble floors..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+          </View>
           <TouchableOpacity
-            style={[styles.mediaTab, activeTab === 'mls' && styles.mediaTabActive]}
-            onPress={() => setActiveTab('mls')}
+            style={[
+              styles.aiStudioGenerateBtn,
+              { backgroundColor: colors.accentTeal + '15' }
+            ]}
+            activeOpacity={0.85}
+            disabled
           >
-            <Text style={[styles.mediaTabText, activeTab === 'mls' && styles.mediaTabTextActive]}>
-              MLS Professional ({mlsPhotos.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.mediaTab, activeTab === 'uploads' && styles.mediaTabActive]}
-            onPress={() => setActiveTab('uploads')}
-          >
-            <Text style={[styles.mediaTabText, activeTab === 'uploads' && styles.mediaTabTextActive]}>
-              My Uploads ({userPhotos.length})
-            </Text>
+            <MaterialCommunityIcons name="creation" size={16} color={colors.accentTeal} />
+            <Text style={[styles.aiStudioGenerateBtnText, { color: colors.accentTeal }]}>Generate with AI</Text>
           </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Divider */}
-        <View style={{ height: 1, backgroundColor: colors.cardBorder, marginBottom: 16 }} />
+      {/* Tab bar */}
+      <View style={styles.mediaTabBar}>
+        <TouchableOpacity
+          style={[styles.mediaTab, activeTab === 'mls' && styles.mediaTabActive]}
+          onPress={() => setActiveTab('mls')}
+        >
+          <Text style={[styles.mediaTabText, activeTab === 'mls' && styles.mediaTabTextActive]}>
+            MLS Professional ({mlsPhotos.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.mediaTab, activeTab === 'uploads' && styles.mediaTabActive]}
+          onPress={() => setActiveTab('uploads')}
+        >
+          <Text style={[styles.mediaTabText, activeTab === 'uploads' && styles.mediaTabTextActive]}>
+            My Uploads ({userPhotos.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* MLS Grid */}
-        {activeTab === 'mls' && (
-          <View style={{ paddingHorizontal: 16 }}>
-            {mlsPhotos.length > 0 ? (
-              <View style={styles.photoGrid}>
-                {mlsPhotos.map((url, idx) => (
+      {/* Divider */}
+      <View style={{ height: 1, backgroundColor: colors.cardBorder, marginBottom: 16 }} />
+
+      {/* MLS Grid */}
+      {activeTab === 'mls' && (
+        <View style={{ paddingHorizontal: 0 }}>
+          {mlsPhotos.length > 0 ? (
+            <View style={styles.photoGrid}>
+              {mlsPhotos.map((url, idx) => (
+                <View key={idx} style={[styles.photoGridCard, { width: PHOTO_W }]}>
+                  <View style={styles.photoGridImgWrap}>
+                    <Image source={{ uri: url }} style={styles.photoGridImg} contentFit="cover" />
+                    <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => removeMlsPhoto(url)}>
+                      <MaterialCommunityIcons name="close" size={14} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.photoGridFooter}>
+                    <Text style={styles.photoGridLabel}>VERIFIED MLS</Text>
+                    <Text style={styles.photoGridScene}>Scene {idx + 1}</Text>
+                    <View style={styles.photoGridReadOnly}>
+                      <MaterialCommunityIcons name="lock-outline" size={11} color={colors.textMuted} />
+                      <Text style={styles.photoGridReadOnlyText}>Read Only</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.mediaEmptyState}>
+              <MaterialCommunityIcons name="image-multiple-outline" size={40} color={colors.textMuted} />
+              <Text style={styles.mediaEmptyTitle}>No MLS photos found</Text>
+              <Text style={styles.mediaEmptySub}>MLS photos will appear here after enrichment</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Uploads Grid */}
+      {activeTab === 'uploads' && (
+        <View style={{ paddingHorizontal: 0 }}>
+          {userPhotos.length > 0 ? (
+            <View style={styles.photoGrid}>
+              {userPhotos.map((url, idx) => {
+                const isEnhanced = enhancedImages.has(url);
+                const isProcessing = enhancingMap[url];
+                return (
                   <View key={idx} style={[styles.photoGridCard, { width: PHOTO_W }]}>
                     <View style={styles.photoGridImgWrap}>
                       <Image source={{ uri: url }} style={styles.photoGridImg} contentFit="cover" />
-                      <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => removeMlsPhoto(url)}>
+                      {isProcessing && (
+                        <View style={styles.photoGridOverlay}>
+                          <ActivityIndicator color="#FFF" size="small" />
+                          <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700', marginTop: 4 }}>Optimizing...</Text>
+                        </View>
+                      )}
+                      <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => removeUserPhoto(url)}>
                         <MaterialCommunityIcons name="close" size={14} color="#FFF" />
                       </TouchableOpacity>
                     </View>
                     <View style={styles.photoGridFooter}>
-                      <Text style={styles.photoGridLabel}>VERIFIED MLS</Text>
+                      <Text style={[styles.photoGridLabel, { color: '#7C3AED' }]}>AI OPTIMIZED</Text>
                       <Text style={styles.photoGridScene}>Scene {idx + 1}</Text>
-                      <View style={styles.photoGridReadOnly}>
-                        <MaterialCommunityIcons name="lock-outline" size={11} color={colors.textMuted} />
-                        <Text style={styles.photoGridReadOnlyText}>Read Only</Text>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.mediaEmptyState}>
-                <MaterialCommunityIcons name="image-multiple-outline" size={40} color={colors.textMuted} />
-                <Text style={styles.mediaEmptyTitle}>No MLS photos found</Text>
-                <Text style={styles.mediaEmptySub}>MLS photos will appear here after enrichment</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Uploads Grid */}
-        {activeTab === 'uploads' && (
-          <View style={{ paddingHorizontal: 16 }}>
-            {userPhotos.length > 0 ? (
-              <View style={styles.photoGrid}>
-                {userPhotos.map((url, idx) => {
-                  const isEnhanced = enhancedImages.has(url);
-                  const isProcessing = enhancingMap[url];
-                  return (
-                    <View key={idx} style={[styles.photoGridCard, { width: PHOTO_W }]}>
-                      <View style={styles.photoGridImgWrap}>
-                        <Image source={{ uri: url }} style={styles.photoGridImg} contentFit="cover" />
-                        {isProcessing && (
-                          <View style={styles.photoGridOverlay}>
-                            <ActivityIndicator color="#FFF" size="small" />
-                            <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700', marginTop: 4 }}>Optimizing...</Text>
-                          </View>
-                        )}
-                        <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => removeUserPhoto(url)}>
-                          <MaterialCommunityIcons name="close" size={14} color="#FFF" />
+                      {isEnhanced ? (
+                        <View style={styles.enhancedBadgeSmall}>
+                          <MaterialCommunityIcons name="check-circle" size={11} color={colors.accentTeal} />
+                          <Text style={styles.enhancedBadgeSmallText}>Enhanced</Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={[styles.magicBtnSmall, isProcessing && { opacity: 0.5 }]}
+                          onPress={() => toggleEnhance(url)}
+                          disabled={isProcessing}
+                        >
+                          <MaterialCommunityIcons name="creation" size={11} color={colors.accentTeal} />
+                          <Text style={styles.magicBtnSmallText}>Enhance</Text>
                         </TouchableOpacity>
-                      </View>
-                      <View style={styles.photoGridFooter}>
-                        <Text style={[styles.photoGridLabel, { color: '#7C3AED' }]}>AI OPTIMIZED</Text>
-                        <Text style={styles.photoGridScene}>Scene {idx + 1}</Text>
-                        {isEnhanced ? (
-                          <View style={styles.enhancedBadgeSmall}>
-                            <MaterialCommunityIcons name="check-circle" size={11} color={colors.accentTeal} />
-                            <Text style={styles.enhancedBadgeSmallText}>Enhanced</Text>
-                          </View>
-                        ) : (
-                          <TouchableOpacity
-                            style={[styles.magicBtnSmall, isProcessing && { opacity: 0.5 }]}
-                            onPress={() => toggleEnhance(url)}
-                            disabled={isProcessing}
-                          >
-                            <MaterialCommunityIcons name="creation" size={11} color={colors.accentTeal} />
-                            <Text style={styles.magicBtnSmallText}>Enhance</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
+                      )}
                     </View>
-                  );
-                })}
-                {/* Add more tile — same dimensions as photo card */}
-                <TouchableOpacity
-                  style={[styles.photoGridCard, styles.photoGridAddTile, { width: PHOTO_W }]}
-                  onPress={onPickerOpen}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.photoGridImgWrap, { alignItems: 'center', justifyContent: 'center' }]}>
-                    <MaterialCommunityIcons name="plus" size={32} color={colors.textMuted} />
                   </View>
-                  <View style={styles.photoGridFooter}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textMuted, textAlign: 'center' }}>Add Photo</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.mediaEmptyState} onPress={onPickerOpen} activeOpacity={0.8}>
-                <View style={styles.mediaEmptyIconCircle}>
-                  <MaterialCommunityIcons name="cloud-upload-outline" size={32} color={colors.accentTeal} />
+                );
+              })}
+              {/* Add more tile — same dimensions as photo card */}
+              <TouchableOpacity
+                style={[styles.photoGridCard, styles.photoGridAddTile, { width: PHOTO_W }]}
+                onPress={onPickerOpen}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.photoGridImgWrap, { alignItems: 'center', justifyContent: 'center' }]}>
+                  <MaterialCommunityIcons name="plus" size={32} color={colors.textMuted} />
                 </View>
-                <Text style={styles.mediaEmptyTitle}>No uploads yet</Text>
-                <Text style={styles.mediaEmptySub}>Tap to add your own property photos</Text>
-                <View style={[styles.mediaSelectBtn, { marginTop: 16, alignSelf: 'center' }]}>
-                  <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
-                  <Text style={styles.mediaSelectBtnText}>Select Photos</Text>
+                <View style={styles.photoGridFooter}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textMuted, textAlign: 'center' }}>Add Photo</Text>
                 </View>
               </TouchableOpacity>
-            )}
-          </View>
-        )}
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.mediaEmptyState} onPress={onPickerOpen} activeOpacity={0.8}>
+              <View style={styles.mediaEmptyIconCircle}>
+                <MaterialCommunityIcons name="cloud-upload-outline" size={32} color={colors.accentTeal} />
+              </View>
+              <Text style={styles.mediaEmptyTitle}>No uploads yet</Text>
+              <Text style={styles.mediaEmptySub}>Tap to add your own property photos</Text>
+              <View style={[styles.mediaSelectBtn, { marginTop: 16, alignSelf: 'center' }]}>
+                <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
+                <Text style={styles.mediaSelectBtnText}>Select Photos</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
-      </ScrollView>
     </View>
   );
 }
@@ -1018,6 +1087,60 @@ export default function CreateListingScreen() {
   const [isPickingMedia, setIsPickingMedia] = useState(false);
   const [input, setInput] = useState('');
 
+  // Local photo preview and upload confirmation states
+  const [selectedLocalPhotos, setSelectedLocalPhotos] = useState<string[]>([]);
+  const [activeMediaTab, setActiveMediaTab] = useState<'mls' | 'uploads'>('mls');
+  const [isUploadingLocal, setIsUploadingLocal] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setToastVisible(true);
+    setTimeout(() => {
+      setToastVisible(false);
+    }, 3500);
+  };
+
+  const handleUploadSelected = async () => {
+    if (selectedLocalPhotos.length === 0) return;
+    setIsUploadingLocal(true);
+    setUploadProgress({ current: 0, total: selectedLocalPhotos.length });
+
+    let successCount = 0;
+    const uploadedUrls: string[] = [];
+
+    for (let i = 0; i < selectedLocalPhotos.length; i++) {
+      try {
+        const uri = selectedLocalPhotos[i];
+        const res = await uploadPropertyImage(uri, accessToken || '');
+        if (res.url) {
+          uploadedUrls.push(res.url);
+          successCount++;
+        }
+      } catch (err) {
+        console.error("Failed to upload image at index:", i, err);
+      }
+      setUploadProgress(prev => ({ ...prev, current: i + 1 }));
+    }
+
+    if (uploadedUrls.length > 0) {
+      setUserPhotos(prev => [...prev, ...uploadedUrls]);
+    }
+
+    setIsUploadingLocal(false);
+    setSelectedLocalPhotos([]);
+    setUploadProgress({ current: 0, total: 0 });
+
+    if (successCount > 0) {
+      setActiveMediaTab('uploads');
+      showToast(`${successCount} photo${successCount > 1 ? 's' : ''} uploaded successfully!`);
+    } else {
+      Alert.alert("Upload Failed", "Failed to upload photos. Please try again.");
+    }
+  };
+
   const [formData, setFormData] = useState({
     confidence: 0,
     address: '',
@@ -1110,7 +1233,7 @@ export default function CreateListingScreen() {
           lotSize: d.LotSizeAcres ? `${d.LotSizeAcres} Acres` : d.LotSizeSquareFeet ? `${(d.LotSizeSquareFeet / 43560).toFixed(4)} Acres` : '',
           lotFeatures: Array.isArray(d.LotFeatures) ? d.LotFeatures : [],
           parkingFeatures: Array.isArray(d.ParkingFeatures) ? d.ParkingFeatures : [],
-          patioFeatures: Array.isArray(d.PatioAndPorchFeatures) ? d.PatioAndPorchFeatures : [],
+          patioFeatures: Array.isArray(d.LotAndPorchFeatures) ? d.LotAndPorchFeatures : [],
           sewer: Array.isArray(d.Sewer) ? d.Sewer[0] : d.Sewer || '',
           garage: d.GarageSpaces ? `${d.GarageSpaces} Car` : d.ParkingTotal ? `${d.ParkingTotal} Car` : 'None',
           appliances: Array.isArray(d.Appliances) ? d.Appliances : [],
@@ -1240,8 +1363,14 @@ export default function CreateListingScreen() {
           setMlsPhotos={setMlsPhotos}
           userPhotos={userPhotos}
           setUserPhotos={setUserPhotos}
+          selectedLocalPhotos={selectedLocalPhotos}
+          setSelectedLocalPhotos={setSelectedLocalPhotos}
           onPickerOpen={() => setIsPickingMedia(true)}
-          isUploading={isUploading}
+          isUploading={isUploadingLocal}
+          uploadProgress={uploadProgress}
+          onUploadPress={handleUploadSelected}
+          activeTab={activeMediaTab}
+          setActiveTab={setActiveMediaTab}
         />
       );
       case 3: return (
@@ -1314,8 +1443,15 @@ export default function CreateListingScreen() {
         end={{ x: 1, y: 1 }}
       />
 
+      {toastVisible && (
+        <View style={[styles.toastContainer, { top: insets.top + 8 }]}>
+          <MaterialCommunityIcons name="check-circle" size={18} color="#FFFFFF" />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </View>
+      )}
+
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
         style={{ flex: 1 }}
       >
         <PageHeader
@@ -1400,7 +1536,8 @@ export default function CreateListingScreen() {
                     });
 
                     if (!result.canceled && result.assets.length > 0) {
-                      result.assets.forEach(asset => uploadMutation(asset.uri));
+                      const newUris = result.assets.map(asset => asset.uri);
+                      setSelectedLocalPhotos(prev => [...prev, ...newUris]);
                     }
                   }, 300);
                 }}
@@ -1426,7 +1563,8 @@ export default function CreateListingScreen() {
                       quality: 0.8,
                     });
                     if (!result.canceled && result.assets[0]) {
-                      uploadMutation(result.assets[0].uri);
+                      const newUri = result.assets[0].uri;
+                      setSelectedLocalPhotos(prev => [...prev, newUri]);
                     }
                   }, 300);
                 }}
@@ -1460,7 +1598,7 @@ function getStyles(colors: any) {
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 16,
+      paddingHorizontal: 12,
     },
 
     // Step Indicator
@@ -1545,7 +1683,8 @@ function getStyles(colors: any) {
     premiumCard: {
       backgroundColor: colors.cardBackground,
       borderRadius: 24,
-      padding: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 16,
       borderWidth: 1,
       borderColor: colors.cardBorder,
       shadowColor: colors.cardShadowColor,
@@ -1841,7 +1980,7 @@ function getStyles(colors: any) {
     },
     horizontalGallery: {
       gap: 12,
-      paddingRight: 20,
+      paddingRight: 0,
     },
     reviewGalleryItem: {
       width: SCREEN_WIDTH * 0.6,
@@ -2023,7 +2162,7 @@ function getStyles(colors: any) {
       textAlign: 'center',
       marginBottom: 24,
       fontWeight: '500',
-      paddingHorizontal: 20,
+      paddingHorizontal: 0,
     },
     successTitle: {
       fontSize: 22,
@@ -2121,7 +2260,8 @@ function getStyles(colors: any) {
     premiumCardLarge: {
       backgroundColor: colors.cardBackground,
       borderRadius: 28,
-      padding: 24,
+      paddingHorizontal: 14,
+      paddingVertical: 18,
       borderWidth: 1.5,
       borderColor: colors.cardBorder,
       shadowColor: colors.cardShadowColor,
@@ -2235,7 +2375,7 @@ function getStyles(colors: any) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 16,
-      paddingHorizontal: 20,
+      paddingHorizontal: 0,
       marginBottom: 30,
     },
     intelIconOuter: {
@@ -2273,7 +2413,7 @@ function getStyles(colors: any) {
       fontWeight: '500',
     },
     statsScrollContent: {
-      paddingHorizontal: 20,
+      paddingHorizontal: 0,
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 12,
@@ -2386,7 +2526,7 @@ function getStyles(colors: any) {
       textAlign: 'center',
       marginBottom: 32,
       fontWeight: '500',
-      paddingHorizontal: 20,
+      paddingHorizontal: 0,
     },
     reviewItemPremium: {
       flexDirection: 'row',
@@ -2467,7 +2607,7 @@ function getStyles(colors: any) {
       fontWeight: '500',
     },
     galleryScroll: {
-      paddingHorizontal: 20,
+      paddingHorizontal: 0,
       gap: 12,
     },
     photoContainerLarge: {
@@ -2591,7 +2731,7 @@ function getStyles(colors: any) {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: 20,
+      paddingHorizontal: 0,
       marginBottom: 16,
     },
     mediaSectionTitle: {
@@ -2627,7 +2767,7 @@ function getStyles(colors: any) {
     userPhotosGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      paddingHorizontal: 20,
+      paddingHorizontal: 0,
       gap: 12,
     },
     userPhotoItem: {
@@ -2690,7 +2830,7 @@ function getStyles(colors: any) {
       color: colors.textMuted,
       marginTop: 4,
     },
-    aiStudioCard: { marginHorizontal: 20, marginTop: 32, borderRadius: 24, overflow: 'hidden' },
+    aiStudioCard: { marginHorizontal: 0, marginTop: 32, borderRadius: 24, overflow: 'hidden' },
     aiStudioGradient: { padding: 24 },
     aiStudioContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     aiStudioInfo: { flex: 1, paddingRight: 16 },
@@ -2699,7 +2839,7 @@ function getStyles(colors: any) {
     aiStudioBadge: { backgroundColor: colors.accentTeal, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
     aiStudioBadgeText: { fontSize: 10, fontWeight: '900', color: '#FFF' },
     mediaUploadCard: {
-      backgroundColor: colors.cardBackground, borderRadius: 20, padding: 20,
+      backgroundColor: colors.cardBackground, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 16,
       alignItems: 'center' as const, borderWidth: 1.5, borderColor: colors.cardBorder, borderStyle: 'dashed' as const,
     },
     mediaUploadIconWrap: {
@@ -2715,7 +2855,7 @@ function getStyles(colors: any) {
     },
     mediaSelectBtnText: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
     aiStudioCardNew: {
-      backgroundColor: colors.cardBackground, borderRadius: 20, padding: 18,
+      backgroundColor: colors.cardBackground, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 16,
       borderWidth: 1, borderColor: colors.cardBorder, overflow: 'hidden' as const,
     },
     aiStudioCardHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, marginBottom: 16 },
@@ -2729,7 +2869,7 @@ function getStyles(colors: any) {
     aiStudioComingSoonText: { fontSize: 9, fontWeight: '900', color: colors.accentTeal, letterSpacing: 0.5 },
     aiStudioPromptLabel: { fontSize: 9, fontWeight: '900', color: colors.textMuted, letterSpacing: 1, marginBottom: 8 },
     aiStudioPromptBox: {
-      backgroundColor: colors.cardBackground,
+      backgroundColor: colors.inputBackground,
       borderRadius: 14,
       paddingHorizontal: 14,
       paddingVertical: 12,
@@ -2751,11 +2891,11 @@ function getStyles(colors: any) {
       fontStyle: 'italic',
     },
     aiStudioGenerateBtn: {
-      backgroundColor: colors.textPrimary, borderRadius: 12, height: 44,
+      backgroundColor: colors.accentTeal, borderRadius: 12, height: 44,
       flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
     },
     aiStudioGenerateBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-    mediaTabBar: { flexDirection: 'row' as const, paddingHorizontal: 16, gap: 4 },
+    mediaTabBar: { flexDirection: 'row' as const, paddingHorizontal: 0, gap: 4 },
     mediaTab: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
     mediaTabActive: { borderBottomWidth: 2, borderBottomColor: colors.accentTeal, borderRadius: 0 },
     mediaTabText: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
@@ -2790,7 +2930,7 @@ function getStyles(colors: any) {
       alignItems: 'center' as const, justifyContent: 'center' as const,
       borderStyle: 'dashed' as const, borderWidth: 2, borderColor: colors.cardBorder, backgroundColor: colors.surfaceIcon,
     },
-    mediaEmptyState: { alignItems: 'center' as const, paddingVertical: 48, paddingHorizontal: 24 },
+    mediaEmptyState: { alignItems: 'center' as const, paddingVertical: 48, paddingHorizontal: 0 },
     mediaEmptyIconCircle: {
       width: 72, height: 72, borderRadius: 36, backgroundColor: colors.accentTeal + '15',
       alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 16,
@@ -2914,6 +3054,133 @@ function getStyles(colors: any) {
       color: colors.danger || '#DC2626',
       fontWeight: '600',
       flex: 1,
+    },
+    localPreviewCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      marginBottom: 24,
+    },
+    localPreviewHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    localPreviewTitle: {
+      fontSize: 14,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    localPreviewCount: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textMuted,
+    },
+    localPreviewScroll: {
+      paddingVertical: 4,
+      marginBottom: 16,
+    },
+    localPreviewThumbWrap: {
+      position: 'relative',
+      marginRight: 12,
+    },
+    localPreviewThumb: {
+      width: 80,
+      height: 80,
+      borderRadius: 12,
+    },
+    localPreviewRemoveBtn: {
+      position: 'absolute',
+      top: -6,
+      right: -6,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: 'rgba(239,68,68,0.9)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: colors.cardBackground,
+    },
+    localPreviewActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    localPreviewAddMoreBtn: {
+      flex: 1,
+      height: 44,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.surfaceIcon,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    localPreviewAddMoreText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    localPreviewUploadBtn: {
+      flex: 2,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: colors.accentTeal,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    localPreviewUploadText: {
+      color: '#FFF',
+      fontSize: 13,
+      fontWeight: '800',
+    },
+    uploadProgressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: colors.accentTeal + '10',
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.accentTeal + '20',
+      marginBottom: 20,
+    },
+    uploadProgressText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.accentTeal,
+    },
+    toastContainer: {
+      position: 'absolute',
+      left: 20,
+      right: 20,
+      zIndex: 9999,
+      backgroundColor: '#10B981',
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      shadowColor: '#10B981',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    toastText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '700',
     },
   });
 }

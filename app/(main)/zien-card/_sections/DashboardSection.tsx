@@ -28,7 +28,7 @@ function mapToCardData(card: DigitalCard): ProfileCardData {
     legalRole: card.role || '',
     license: card.license || '',
     company: card.company_name || '',
-    address: '',
+    address: card.address || '',
     phone: card.phone || '',
     email: card.email || '',
     website: card.website || '',
@@ -60,6 +60,12 @@ export function DashboardSection({
   const { data: enquiries = [] } = useLeadEnquiries();
   const cardLeads = enquiries.filter(e => String(e.digital_card_id) === String(activeCard?.id));
   const enquiryCount = cardLeads.length;
+
+  console.log('[Lead Debug] Active Card:', activeCard?.id, `(${activeCard?.profile_name})`);
+  console.log('[Lead Debug] Total enquiries in cache:', enquiries.length);
+  enquiries.forEach(e => {
+    console.log(`  - Lead ID: ${e.id}, Card ID in Lead: ${e.digital_card_id}, Match: ${String(e.digital_card_id) === String(activeCard?.id)}`);
+  });
 
   const formatLeadDate = (dateStr: string) => {
     try {
@@ -261,7 +267,7 @@ export function DashboardSection({
 
         {mainTab === 'mycard' && (
           <>
-            <View style={[styles.workCardTag, { backgroundColor: activeCard.card_color || '#0a2341' }]}>
+            <View style={[styles.workCardTag, { backgroundColor: activeCard.card_color || colors.accentTeal }]}>
               <Text style={styles.workCardTagText}>{activeCard?.profile_type} card</Text>
             </View>
 
@@ -272,7 +278,7 @@ export function DashboardSection({
                 template={(activeCard.template as any) || 'modern'}
                 avatarUri={activeCard.image || undefined}
                 companyLogoUri={activeCard.logo || undefined}
-                cardUrl={`http://18.219.170.119:3000/card/${activeCard.id}`}
+                cardUrl={profileUrl}
               />
             </View>
 
@@ -314,7 +320,7 @@ export function DashboardSection({
 
               <View style={styles.leadsBlock}>
                 <View style={styles.leadsIconWrap}>
-                  <MaterialCommunityIcons name="account-group-outline" size={22} color="#0a2341" />
+                  <MaterialCommunityIcons name="account-group-outline" size={22} color={colors.accentTeal} />
                 </View>
                 <View style={styles.leadsTextWrap}>
                   <Text style={styles.leadsLabel}>TOTAL LEADS Enquiries</Text>
@@ -335,7 +341,9 @@ export function DashboardSection({
         {mainTab === 'enquiries' && (
           <View style={styles.enquiriesSection}>
             <Text style={styles.enquiriesHeading}>Enquiries</Text>
-            <Text style={styles.enquiriesSubheading}>Manage leads and contacts collected from your digital cards.</Text>
+            <Text style={styles.enquiriesSubheading}>
+              Manage leads and contacts collected from your "{activeCard?.profile_name || 'active'}" card.
+            </Text>
 
             {cardLeads.length > 0 ? (
               cardLeads.map((lead) => (
@@ -374,7 +382,7 @@ export function DashboardSection({
                     {lead.message ? (
                       <View style={[styles.contactItem, { alignItems: 'flex-start', marginTop: 4 }]}>
                         <MaterialCommunityIcons name="message-outline" size={16} color="#9AA7B6" style={{ marginTop: 2 }} />
-                        <Text style={[styles.contactText, { fontWeight: '400', fontSize: 13, color: '#64748B' }]} numberOfLines={3}>
+                        <Text style={[styles.contactText, { fontWeight: '400', fontSize: 13, color: '#64748B' }]}>
                           "{lead.message}"
                         </Text>
                       </View>
@@ -539,8 +547,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   tabActive: {
-    backgroundColor: '#0a2341',
-    shadowColor: '#0a2341',
+    backgroundColor: colors.accentTeal,
+    shadowColor: colors.accentTeal,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -624,7 +632,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    backgroundColor: '#0a2341',
+    backgroundColor: colors.accentTeal,
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 16,

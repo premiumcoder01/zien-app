@@ -343,13 +343,18 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               <View style={styles.fullWidthCol}>
                 <Text style={styles.label}>Email <Text style={styles.required}>*</Text></Text>
                 <TextInput
-                  style={[styles.input, errors.email && styles.inputError]}
+                  style={[
+                    styles.input, 
+                    errors.email && styles.inputError,
+                    isEditing && { backgroundColor: colors.surfaceIcon, color: colors.textMuted }
+                  ]}
                   value={email}
                   onChangeText={(t) => { setEmail(t); clearError('email'); }}
                   placeholder="name@email.com"
                   placeholderTextColor={colors.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  editable={!isEditing}
                 />
                 {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
               </View>

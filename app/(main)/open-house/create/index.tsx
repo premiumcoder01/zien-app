@@ -19,7 +19,6 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -29,8 +28,11 @@ import {
   TextInput,
   useWindowDimensions,
   View,
-  Keyboard
+  Keyboard,
+  KeyboardAvoidingView
 } from 'react-native';
+import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 
 
@@ -260,6 +262,11 @@ export default function OpenHouseCreateScreen() {
 
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
+  const { height: kbAnimHeight } = useReanimatedKeyboardAnimation();
+  const animatedBottomBarStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: kbAnimHeight.value }],
+  }));
+
   useEffect(() => {
     const showSubscription = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
     const hideSubscription = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
@@ -403,8 +410,8 @@ export default function OpenHouseCreateScreen() {
       style={[styles.background, { paddingTop: insets.top }]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
         <Modal transparent visible={isFinalizing} animationType="fade">
           <View style={styles.loaderOverlay}>
@@ -445,7 +452,7 @@ export default function OpenHouseCreateScreen() {
             activeLabelFontSize={10}
 
           >
-            <ProgressStep label="PROPERTY" removeBtnRow>
+            <ProgressStep label="Property" removeBtnRow>
               <Step1SelectProperty
                 properties={propertiesData?.properties || []}
                 isLoading={isLoadingProperties}
@@ -456,7 +463,7 @@ export default function OpenHouseCreateScreen() {
                 }}
               />
             </ProgressStep>
-            <ProgressStep label="DETAILS" removeBtnRow>
+            <ProgressStep label="Details" removeBtnRow>
               <Step2Details
                 eventDate={eventDate}
                 setEventDate={setEventDate}
@@ -485,7 +492,7 @@ export default function OpenHouseCreateScreen() {
                 setCallingCode={setCallingCode}
               />
             </ProgressStep>
-            <ProgressStep label="CUSTOMIZATION" removeBtnRow>
+            <ProgressStep label="Customization" removeBtnRow>
               {!isFinalized ? (
                 <Step4Customization
                   selectedPropertyId={selectedPropertyId}
@@ -541,8 +548,8 @@ export default function OpenHouseCreateScreen() {
         </View>
 
         {/* Global Fixed Bottom Bar */}
-        {!isFinalized && !isKeyboardVisible && (
-          <View style={[styles.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        {!isFinalized && (
+          <Animated.View style={[styles.fixedBottomBar, animatedBottomBarStyle, { paddingBottom: isKeyboardVisible ? 16 : Math.max(insets.bottom, 16) }]}>
             {activeStep === 0 && (
               <GradientButton
                 title="Continue to Details"
@@ -589,7 +596,7 @@ export default function OpenHouseCreateScreen() {
                 />
               </View>
             )}
-          </View>
+          </Animated.View>
         )}
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -718,7 +725,7 @@ function Step1SelectProperty({
         )}
         <Pressable style={styles.compactAddBtn} onPress={() => router.push('/(main)/properties/create')}>
           <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.accentTeal} />
-          <Text style={styles.compactAddBtnText}>ADD NEW PROPERTY</Text>
+          <Text style={styles.compactAddBtnText}>Add New Property</Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -835,7 +842,7 @@ function Step2Details({
         <View style={styles.formCardWrap}>
           <View style={[styles.formCard, { borderTopWidth: 1, borderRadius: 18, padding: 32 }]}>
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>DATE *</Text>
+              <Text style={styles.fieldLabel}>Date *</Text>
               <Pressable
                 style={[styles.inputWrap, errors.eventDate && { borderColor: '#EF4444' }]}
                 onPress={() => {
@@ -856,7 +863,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>START *</Text>
+              <Text style={styles.fieldLabel}>Start *</Text>
               <Pressable
                 style={[styles.inputWrap, errors.startTimeDate && { borderColor: '#EF4444' }]}
                 onPress={() => {
@@ -877,7 +884,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>END *</Text>
+              <Text style={styles.fieldLabel}>End *</Text>
               <Pressable
                 style={[styles.inputWrap, errors.endTimeDate && { borderColor: '#EF4444' }]}
                 onPress={() => {
@@ -898,7 +905,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>AGENT NAME *</Text>
+              <Text style={styles.fieldLabel}>Agent Name *</Text>
               <View style={[styles.inputWrap, errors.agentName && { borderColor: '#EF4444' }]}>
                 <TextInput
                   style={styles.input}
@@ -919,7 +926,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>BROKERAGE NAME</Text>
+              <Text style={styles.fieldLabel}>Brokerage Name</Text>
               <View style={styles.inputWrap}>
                 <TextInput
                   style={styles.input}
@@ -932,7 +939,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>LICENSE NUMBER (DRE#)</Text>
+              <Text style={styles.fieldLabel}>Agent License (DRE#)</Text>
               <View style={styles.inputWrap}>
                 <TextInput
                   style={styles.input}
@@ -945,7 +952,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>AGENT PHONE *</Text>
+              <Text style={styles.fieldLabel}>Agent Phone *</Text>
               <PhoneInput
                 ref={phoneInputRef}
                 defaultValue={agentPhone}
@@ -1029,7 +1036,7 @@ function Step2Details({
             </View>
 
             <View style={styles.fieldSingle}>
-              <Text style={styles.fieldLabel}>AGENT EMAIL *</Text>
+              <Text style={styles.fieldLabel}>Agent Email *</Text>
               <View style={[styles.inputWrap, errors.agentEmail && { borderColor: '#EF4444' }]}>
                 <TextInput
                   style={styles.input}
@@ -1335,7 +1342,7 @@ function Step4Customization({
                 <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: currentAccent, borderWidth: 1.5, borderColor: colors.cardBorder }} />
               </View>
 
-              <Text style={styles.sectionHeaderLabelSmall}>LOGO PRESENTATION</Text>
+              <Text style={styles.sectionHeaderLabelSmall}>Logo Presentation</Text>
               <View style={styles.segmentedControl}>
                 <Pressable
                   style={[styles.segmentBtn, logoMode === 'text' && styles.segmentBtnActive]}
@@ -1363,17 +1370,22 @@ function Step4Customization({
                   />
                 </View>
               ) : (
-                <View style={[styles.logoUploadContainer, { alignItems: 'center' }]}>
-                  <Pressable
-                    style={[styles.logoUploadBtn, { width: '100%' }]}
-                    onPress={handleLogoUpload}
-                  >
+                <View style={[styles.logoUploadContainer, { alignItems: 'center', gap: 12 }]}>
+                  <Pressable style={[styles.logoUploadBtn, { width: '100%' }]} onPress={handleLogoUpload}>
                     <Text style={styles.logoUploadBtnText}>
                       {agencyLogoUri ? "Replace Brand Image" : "Upload Agency Logo"}
                     </Text>
                   </Pressable>
                   {agencyLogoUri && (
-                    <View style={styles.logoPreviewWrap}>
+                    <Pressable
+                      style={[styles.logoUploadBtn, { borderColor: '#EF4444', backgroundColor: '#FEF2F2', width: '100%' }]}
+                      onPress={() => setAgencyLogoUri(null)}
+                    >
+                      <Text style={[styles.logoUploadBtnText, { color: '#DC2626' }]}>Remove Image</Text>
+                    </Pressable>
+                  )}
+                  {agencyLogoUri && (
+                    <View style={[styles.logoPreviewWrap, { marginTop: 0 }]}>
                       <Image source={{ uri: agencyLogoUri }} style={styles.logoPreview} contentFit="contain" />
                     </View>
                   )}
@@ -1386,7 +1398,7 @@ function Step4Customization({
               <Text style={styles.customCardTitle}>AI Property Narrative</Text>
               <Text style={styles.customCardSubLabelText}>Type your custom instructions below to generate highly personalized copy.</Text>
 
-              <Text style={styles.aiFieldLabel}>YOUR PROMPT / CUSTOM TEXT</Text>
+              <Text style={styles.aiFieldLabel}>Your Prompt / Custom Text</Text>
               <TextInput
                 style={styles.aiInput}
                 multiline
@@ -1414,7 +1426,7 @@ function Step4Customization({
               </Pressable>
 
               <View style={styles.aiOutputHeaderRow}>
-                <Text style={styles.aiFieldLabel}>GENERATED OUTPUT</Text>
+                <Text style={styles.aiFieldLabel}>Generated Output</Text>
                 <View style={styles.stylePillRow}>
                   {DESC_STYLES.map((style) => (
                     <Pressable key={style} style={[styles.stylePill, descStyle === style.toLowerCase() && styles.stylePillActive]} onPress={() => setDescStyle(style.toLowerCase() as DescStyleKey)}>
@@ -1460,7 +1472,7 @@ function Step4Customization({
                   onPress={handleGalleryUpload}
                 >
                   <MaterialCommunityIcons name="plus" size={20} color={colors.accentTeal} />
-                  <Text style={styles.galleryAddTextSmall}>ADD PHOTOS</Text>
+                  <Text style={styles.galleryAddTextSmall}>Add Photos</Text>
                 </Pressable>
               </ScrollView>
             </View>
@@ -1468,7 +1480,7 @@ function Step4Customization({
 
           {/* RIGHT COLUMN: Live Companion Preview */}
           <View style={[styles.rightColumn, isMobile && styles.rightColumnMobile]}>
-            <Text style={styles.sectionHeaderLabelPreview}>LIVE COMPANION PREVIEW</Text>
+            <Text style={styles.sectionHeaderLabelPreview}>Live Companion Preview</Text>
 
             <View style={styles.phoneMockup}>
               {/* Phone Header */}
@@ -1646,7 +1658,7 @@ function Step5SheetReady({
           >
             <MaterialCommunityIcons name="link-variant" size={32} color={colors.accentTeal} />
             <Text style={styles.readyMobileCardLabel}>Digital Share Link</Text>
-            <Text style={styles.readyMobileCardSubLabel}>VISITOR PORTAL</Text>
+            <Text style={styles.readyMobileCardSubLabel}>Visitor Portal</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
@@ -1654,7 +1666,7 @@ function Step5SheetReady({
           >
             <MaterialCommunityIcons name="qrcode" size={32} color="#0B2D3E" />
             <Text style={styles.readyMobileCardLabel}>Download QR Code</Text>
-            <Text style={styles.readyMobileCardSubLabel}>PRINT FOR DESK</Text>
+            <Text style={styles.readyMobileCardSubLabel}>Print for Desk</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
@@ -1662,7 +1674,7 @@ function Step5SheetReady({
           >
             <MaterialCommunityIcons name="email-outline" size={32} color="#4F46E5" />
             <Text style={styles.readyMobileCardLabel}>Launch Campaign</Text>
-            <Text style={styles.readyMobileCardSubLabel}>EMAIL & SMS</Text>
+            <Text style={styles.readyMobileCardSubLabel}>Email & SMS</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.readyMobileCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
@@ -1670,7 +1682,7 @@ function Step5SheetReady({
           >
             <MaterialCommunityIcons name="share-variant" size={32} color="#8B5CF6" />
             <Text style={styles.readyMobileCardLabel}>Post to Social</Text>
-            <Text style={styles.readyMobileCardSubLabel}>INSTAGRAM/FACEBOOK</Text>
+            <Text style={styles.readyMobileCardSubLabel}>Instagram/Facebook</Text>
           </Pressable>
         </View>
 
@@ -3216,6 +3228,7 @@ function getStyles(colors: any) {
       fontSize: 13,
       fontWeight: '800',
       color: colors.textPrimary,
+      textAlign: 'center',
     },
     logoPreviewWrap: {
       width: 120,

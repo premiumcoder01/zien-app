@@ -80,10 +80,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   pillActive: {
-    backgroundColor: '#0a2341',
-    borderColor: '#0a2341',
+    backgroundColor: colors.accentTeal,
+    borderColor: colors.accentTeal,
     elevation: 4,
-    shadowColor: '#0a2341',
+    shadowColor: colors.accentTeal,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

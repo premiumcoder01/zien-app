@@ -1,9 +1,9 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getOpenHouses, OpenHouseEvent, deleteOpenHouse } from '@/services/openHouseService';
+import { deleteOpenHouse, getOpenHouses, OpenHouseEvent } from '@/services/openHouseService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -60,7 +60,7 @@ function EventCard({ event, variant, onDelete }: { event: any; variant: 'live' |
           <View style={styles.statItemRefined}>
             <MaterialCommunityIcons name="account-group-outline" size={16} color={colors.accentTeal} />
             <Text style={styles.statValueRefined}>{event.visitors}</Text>
-            <Text style={styles.statLabelRefined}>Visitors</Text>
+            <Text style={styles.statLabelRefined}>Check-ins</Text>
           </View>
           <View style={styles.dividerDot} />
           <View style={styles.statItemRefined}>
@@ -81,7 +81,7 @@ function EventCard({ event, variant, onDelete }: { event: any; variant: 'live' |
             }}
           >
             <MaterialCommunityIcons name={isLive ? "chart-timeline-variant" : "eye-outline"} size={16} color="#FFF" style={{ marginRight: 8 }} />
-            <Text style={styles.primaryBtnText}>{isLive ? 'Manage Live' : 'View Report'}</Text>
+            <Text style={styles.primaryBtnText}>{isLive ? 'Manage Live' : 'View'}</Text>
           </Pressable>
 
           <View style={styles.secondaryActions}>

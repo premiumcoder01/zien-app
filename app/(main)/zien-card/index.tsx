@@ -53,7 +53,7 @@ export default function ZienCardDashboardScreen() {
 
   // Lifted state
   const { data: cards = [], isLoading, refetch } = useDigitalCards();
-  const { data: leads = [] } = useLeadEnquiries();
+  const { data: leads = [], refetch: refetchLeads } = useLeadEnquiries();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [saveTrigger, setSaveTrigger] = useState(0);
 
@@ -61,7 +61,8 @@ export default function ZienCardDashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       refetch();
-    }, [refetch])
+      refetchLeads();
+    }, [refetch, refetchLeads])
   );
 
   // Use 's' param or default to dashboard
@@ -95,19 +96,7 @@ export default function ZienCardDashboardScreen() {
       return;
     }
 
-    Alert.alert(
-      "Export Leads",
-      `Do you want to export all ${leads.length} leads as a CSV file?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Export",
-          onPress: () => {
-            exportLeadsToCSV(leads);
-          }
-        }
-      ]
-    );
+    exportLeadsToCSV(leads);
   };
 
   const headerRight = ((showGlobalSave || showExport) && cards.length > 0) ? (
