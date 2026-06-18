@@ -115,6 +115,27 @@ export const updateSocialPost = async (token: string, postId: number, payload: a
 };
 
 /**
+ * Delete a social post by ID.
+ */
+export const deleteSocialPost = async (token: string, postId: number): Promise<{ success: boolean; message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/solo/social/posts/${postId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to delete post');
+  }
+
+  return json;
+};
+
+/**
  * Create a new social campaign.
  */
 export const createCampaign = async (
@@ -318,6 +339,99 @@ export const disconnectSocialAccount = async (token: string, accountId: number):
   const json = await response.json();
   if (!response.ok) {
     throw new Error(json.message || 'Failed to disconnect social account');
+  }
+
+  return json;
+};
+
+export interface AutomationRule {
+  id: number;
+  user_id: number;
+  name: string;
+  trigger_event: string;
+  action_type: string;
+  config: {
+    scope: {
+      type: string;
+      value?: string | number;
+    };
+    platforms: string[];
+    template_id: string;
+  };
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const getAutomationRules = async (token: string): Promise<AutomationRule[]> => {
+  const response = await fetch(`${API_BASE_URL}/solo/social/automation`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to fetch automation rules');
+  }
+
+  return json.data;
+};
+
+export const createAutomationRule = async (token: string, payload: any): Promise<AutomationRule> => {
+  const response = await fetch(`${API_BASE_URL}/solo/social/automation`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to create automation rule');
+  }
+
+  return json.data || json;
+};
+
+export const updateAutomationRule = async (token: string, id: number, payload: any): Promise<AutomationRule> => {
+  const response = await fetch(`${API_BASE_URL}/solo/social/automation/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to update automation rule');
+  }
+
+  return json.data || json;
+};
+
+export const deleteAutomationRule = async (token: string, id: number): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/solo/social/automation/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to delete automation rule');
   }
 
   return json;

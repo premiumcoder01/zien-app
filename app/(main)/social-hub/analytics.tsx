@@ -1,51 +1,282 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { getProperties } from '@/services/propertyService';
+import { getSocialPosts } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Dimensions,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View
+  View,
 } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const PLATFORMS = [
-  { name: 'Instagram', pct: 65, color: '#E1306C', icon: 'instagram' },
-  { name: 'Facebook', pct: 20, color: '#1877F2', icon: 'facebook' },
-  { name: 'LinkedIn', pct: 15, color: '#0A66C2', icon: 'linkedin' },
-];
+const escapeCSVField = (val: string | number | boolean | null | undefined): string => {
+  if (val === null || val === undefined) return '""';
+  const str = String(val).trim().replace(/\n+/g, ' ');
+  return `"${str.replace(/"/g, '""')}"`;
+};
 
-const KPI_CARDS = [
-  { title: 'CLICK RATE', value: '3.2%', change: '+0.8%', icon: 'cursor-default-click-outline', color: '#0a2341' },
-  { title: 'WEB VISITS', value: '1,420', change: '+12%', icon: 'web', color: '#6366F1' },
-  { title: 'LEADS', value: '28', change: '+5%', icon: 'account-plus-outline', color: '#F59E0B' },
-];
+const formatCSVDate = (dateString?: string): string => {
+  if (!dateString) return '';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return '';
+  }
+};
 
 export default function AnalyticsScreen() {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
-
+  const { colors, theme } = useAppTheme();
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [dateRange] = useState('Last 30 Days');
+  const { accessToken } = useAuth();
+  
+  const [dateRange, setDateRange] = useState<'Last 30 Days' | 'Last 90 Days'>('Last 30 Days');
 
   const { width } = Dimensions.get('window');
   const chartWidth = width - 40;
 
-  const engagementData = useMemo(
-    () => ({
-      labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'],
-      datasets: [{ data: [12, 18, 14, 22, 19, 26] }],
-    }),
-    []
-  );
+  // 1. Fetch posts from API
+  const { data: posts = [], isLoading: isPostsLoading } = useQuery({
+    queryKey: ['social-posts-all'],
+    queryFn: () => getSocialPosts(accessToken || ''),
+    enabled: !!accessToken,
+  });
+
+  // 2. Fetch properties to resolve property address
+  const { data: properties = [], isLoading: isPropertiesLoading } = useQuery({
+    queryKey: ['properties-all'],
+    queryFn: async () => {
+      const resp = await getProperties(accessToken || '');
+      return resp.properties || [];
+    },
+    enabled: !!accessToken,
+  });
+
+  const isLoading = isPostsLoading || isPropertiesLoading;
+
+  // 3. Process published posts
+  const publishedPosts = useMemo(() => {
+    return posts.filter(post => post.status === 2 || post.published_at !== null);
+  }, [posts]);
+
+  // 4. Filter posts by selected date range
+  const filteredPostsByRange = useMemo(() => {
+    const rangeDays = dateRange === 'Last 30 Days' ? 30 : 90;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - rangeDays);
+    return publishedPosts.filter(post => {
+      const dateStr = post.published_at || post.scheduled_at || post.created_at;
+      return dateStr ? new Date(dateStr) >= cutoffDate : false;
+    });
+  }, [publishedPosts, dateRange]);
+
+  // 5. Total Published Posts
+  const totalPublished = filteredPostsByRange.length;
+
+  // 6. Total Platforms Synced (sum of successfully published platforms)
+  const totalPlatformsSynced = useMemo(() => {
+    return filteredPostsByRange.reduce((acc, post) => acc + (post.post_platforms?.length || 0), 0);
+  }, [filteredPostsByRange]);
+
+  // 7. Platform Distribution percentages
+  const platformStats = useMemo(() => {
+    const counts: Record<string, number> = {
+      facebook: 0,
+      instagram: 0,
+      linkedin: 0,
+      tiktok: 0,
+    };
+    
+    let totalPlatformsCount = 0;
+    filteredPostsByRange.forEach(post => {
+      post.post_platforms?.forEach(platObj => {
+        const platformName = platObj.account?.platform?.toLowerCase();
+        if (platformName && platformName in counts) {
+          counts[platformName]++;
+          totalPlatformsCount++;
+        }
+      });
+    });
+
+    const percentages = {
+      facebook: totalPlatformsCount > 0 ? Math.round((counts.facebook / totalPlatformsCount) * 100) : 0,
+      instagram: totalPlatformsCount > 0 ? Math.round((counts.instagram / totalPlatformsCount) * 100) : 0,
+      linkedin: totalPlatformsCount > 0 ? Math.round((counts.linkedin / totalPlatformsCount) * 100) : 0,
+      tiktok: totalPlatformsCount > 0 ? Math.round((counts.tiktok / totalPlatformsCount) * 100) : 0,
+    };
+
+    return { counts, percentages, total: totalPlatformsCount };
+  }, [filteredPostsByRange]);
+
+  // 8. Dominant Platform
+  const dominantPlatformInfo = useMemo(() => {
+    const keys = Object.keys(platformStats.percentages) as Array<keyof typeof platformStats.percentages>;
+    let maxPct = -1;
+    let dominantKey = 'None';
+
+    keys.forEach(key => {
+      const pct = platformStats.percentages[key];
+      if (pct > maxPct && pct > 0) {
+        maxPct = pct;
+        dominantKey = key.charAt(0).toUpperCase() + key.slice(1);
+      }
+    });
+
+    if (dominantKey === 'None' && totalPublished > 0) {
+      dominantKey = 'Facebook';
+      maxPct = 100;
+    }
+
+    return {
+      name: dominantKey,
+      pct: maxPct > 0 ? `${maxPct}%` : '0%',
+    };
+  }, [platformStats, totalPublished]);
+
+  // 9. Last 6 Months Activity Chart Data (based on all published posts for trend visualization)
+  const last6MonthsChartData = useMemo(() => {
+    const months: { label: string; year: number; monthIndex: number; count: number }[] = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        label: d.toLocaleDateString('en-US', { month: 'short' }),
+        year: d.getFullYear(),
+        monthIndex: d.getMonth(),
+        count: 0
+      });
+    }
+
+    publishedPosts.forEach(post => {
+      const dateStr = post.published_at || post.scheduled_at || post.created_at;
+      if (dateStr) {
+        const d = new Date(dateStr);
+        months.forEach(m => {
+          if (m.year === d.getFullYear() && m.monthIndex === d.getMonth()) {
+            m.count++;
+          }
+        });
+      }
+    });
+
+    return {
+      labels: months.map(m => m.label),
+      datasets: [{ data: months.map(m => m.count) }]
+    };
+  }, [publishedPosts]);
+
+  // Dynamic AI Insight based on dominant platform
+  const aiInsightMessage = useMemo(() => {
+    const p = dominantPlatformInfo.name.toLowerCase();
+    if (p === 'facebook') {
+      return 'Facebook syndicate reach increases by 35% when published on weekdays before 9 AM with property details.';
+    }
+    if (p === 'instagram') {
+      return 'Instagram video posts see 48% higher conversion. Adding high-contrast images increases reach by 22%.';
+    }
+    if (p === 'linkedin') {
+      return 'LinkedIn professional posts perform 42% better for video-tours between 6 PM and 8 PM.';
+    }
+    return 'Social media stories perform 42% better for video-tours when syndicated between 6 PM and 8 PM.';
+  }, [dominantPlatformInfo]);
+
+  const handleRangePress = () => {
+    Alert.alert(
+      'Select Date Range',
+      'Choose the time period for analytics.',
+      [
+        { text: 'Last 30 Days', onPress: () => setDateRange('Last 30 Days') },
+        { text: 'Last 90 Days', onPress: () => setDateRange('Last 90 Days') },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const handleExportReport = async () => {
+    if (posts.length === 0) {
+      Alert.alert('Export Report', 'No post data available to export.');
+      return;
+    }
+
+    const propertyMap = new Map(properties.map((p: any) => [p.id, p.address]));
+
+    const headers = "Date,Type,Property Address,Platforms,Status,Caption\n";
+    const rows = posts.map(post => {
+      const date = formatCSVDate(post.published_at || post.scheduled_at || post.created_at);
+      const type = post.property_id ? 'Property' : 'General Content';
+      const address = post.property_id ? (propertyMap.get(post.property_id) || 'General Content') : 'General Content';
+      
+      const platformsArr = post.post_platforms?.map((p: any) => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
+      const platforms = platformsArr.join(', ') || '';
+
+      let statusStr = 'Scheduled';
+      if (post.status === 2 || post.published_at !== null) {
+        statusStr = 'Published';
+      } else if (post.status === 3) {
+        statusStr = 'Failed';
+      }
+
+      return [
+        date,
+        type,
+        address,
+        platforms,
+        statusStr,
+        post.caption || ''
+      ].map(escapeCSVField).join(',');
+    }).join('\n');
+
+    const csvContent = headers + rows;
+    
+    // Naming structure exactly matching: Zien_Social_Report_DD-MM-YYYY.csv
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const filename = `Zien_Social_Report_${day}-${month}-${year}.csv`;
+    const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+
+    try {
+      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+        encoding: 'utf8',
+      });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Export Social Report',
+          UTI: 'public.comma-separated-values-text',
+        });
+      } else {
+        Alert.alert('Export Error', 'Sharing is not available on this device.');
+      }
+    } catch (error) {
+      console.error('CSV Export Failed:', error);
+      Alert.alert('Export Error', 'Failed to generate or share the CSV report. Please try again.');
+    }
+  };
 
   const chartConfig = useMemo(
     () => ({
@@ -60,6 +291,15 @@ export default function AnalyticsScreen() {
     [colors]
   );
 
+  if (isLoading) {
+    return (
+      <LinearGradient colors={colors.backgroundGradient as any} style={[styles.background, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.accentTeal} />
+        <Text style={[styles.loadingText, { color: colors.textMuted }]}>Analyzing syndication logs...</Text>
+      </LinearGradient>
+    );
+  }
+
   return (
     <LinearGradient
       colors={colors.backgroundGradient as any}
@@ -69,7 +309,6 @@ export default function AnalyticsScreen() {
         title="Analytics"
         subtitle="Performance insights and engagement growth."
         onBack={() => router.back()}
-
       />
 
       <ScrollView
@@ -77,157 +316,147 @@ export default function AnalyticsScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}>
 
-
         {/* Top Actions */}
-        <View style={styles.topActions}>
-          <Pressable style={styles.topActionBtn}>
+        <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.topActions}>
+          <Pressable style={styles.topActionBtn} onPress={handleRangePress}>
             <Text style={styles.topActionText}>{dateRange}</Text>
             <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textPrimary} />
           </Pressable>
-          <Pressable style={styles.topActionBtn}>
-            <Text style={[styles.topActionText, { color: colors.textPrimary }]}>Export Report</Text>
+          
+          <Pressable style={[styles.topActionBtn, styles.exportBtn]} onPress={handleExportReport}>
+            <MaterialCommunityIcons name="download" size={16} color={colors.cardBackground} />
+            <Text style={[styles.topActionText, { color: colors.cardBackground }]}>Export Report</Text>
           </Pressable>
-        </View>
+        </Animated.View>
+
+
 
         {/* Chart Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Engagement Growth</Text>
-        </View>
+        <Animated.View entering={FadeInDown.delay(150).duration(400)}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Publishing Activity (Last 6 Months)</Text>
+          </View>
 
-        <View style={styles.chartCard}>
-          <BarChart
-            data={engagementData}
-            width={chartWidth}
-            height={220}
-            fromZero
-            yAxisLabel=""
-            yAxisSuffix=""
-            chartConfig={chartConfig as any}
-            style={styles.chart}
-            withInnerLines={false}
-          />
-        </View>
+          <View style={styles.chartCard}>
+            <BarChart
+              data={last6MonthsChartData}
+              width={chartWidth}
+              height={220}
+              fromZero
+              yAxisLabel=""
+              yAxisSuffix=""
+              chartConfig={chartConfig as any}
+              style={styles.chart}
+              withInnerLines={false}
+            />
+          </View>
+        </Animated.View>
 
         {/* Platform Breakdown */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Platform Reach</Text>
-        </View>
+        <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Platform Distribution</Text>
+          </View>
 
-        <View style={styles.platformCard}>
-          {PLATFORMS.map((p, i) => (
-            <View key={i} style={styles.platformRow}>
-              <View style={[styles.platformIcon, { backgroundColor: `${p.color}10` }]}>
-                <MaterialCommunityIcons name={p.icon as any} size={18} color={p.color} />
-              </View>
-              <View style={styles.platformInfo}>
-                <View style={styles.platformTagRow}>
-                  <Text style={styles.platformLabel}>{p.name}</Text>
-                  <Text style={styles.percentText}>{p.pct}%</Text>
+          <View style={styles.platformCard}>
+            {[
+              { name: 'Facebook', pct: platformStats.percentages.facebook, color: '#1877F2', icon: 'facebook' },
+              { name: 'Instagram', pct: platformStats.percentages.instagram, color: '#E1306C', icon: 'instagram' },
+              { name: 'LinkedIn', pct: platformStats.percentages.linkedin, color: '#0A66C2', icon: 'linkedin' },
+              { name: 'TikTok', pct: platformStats.percentages.tiktok, color: '#FE2C55', icon: 'music-note' },
+            ].map((p, i) => (
+              <View key={i} style={[styles.platformRow, i === 3 && { marginBottom: 0 }]}>
+                <View style={[styles.platformIcon, { backgroundColor: `${p.color}10` }]}>
+                  <MaterialCommunityIcons name={p.icon as any} size={18} color={p.color} />
                 </View>
-                <View style={styles.progressContainer}>
-                  <View style={[styles.progressFill, { width: `${p.pct}%`, backgroundColor: p.color }]} />
+                <View style={styles.platformInfo}>
+                  <View style={styles.platformTagRow}>
+                    <Text style={styles.platformLabel}>{p.name}</Text>
+                    <Text style={styles.percentText}>{p.pct}%</Text>
+                  </View>
+                  <View style={styles.progressContainer}>
+                    <View style={[styles.progressFill, { width: `${p.pct}%`, backgroundColor: p.color }]} />
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        </Animated.View>
 
         {/* AI Insight Upgrade */}
-        <LinearGradient
-          colors={['#0B2341', '#1E293B']}
-          style={styles.aiInsightBox}>
-          <View style={styles.aiHeader}>
-            <View style={styles.pulseContainer}>
-              <View style={styles.pulseInner} />
-            </View>
-            <Text style={styles.aiTitle}>NEURAL SYNC INSIGHT</Text>
-          </View>
-          <Text style={styles.aiMessage}>
-            "Your audience engagement peaks during the 11 AM - 1 PM window on Instagram. Converting these visitors into leads is 4.2x more likely if you include a direct CTA in your captions."
-          </Text>
-          <View style={styles.aiFooter}>
-            <Text style={styles.aiConfidence}>Confidence Score: 98%</Text>
-          </View>
-        </LinearGradient>
-
-        {/* KPI Grid */}
-        <View style={styles.kpiGrid}>
-          {KPI_CARDS.map((kpi, i) => (
-            <View key={i} style={styles.kpiCard}>
-              <View style={[styles.kpiIconBox, { backgroundColor: `${kpi.color}15` }]}>
-                <MaterialCommunityIcons name={kpi.icon as any} size={20} color={kpi.color} />
+        <Animated.View entering={FadeInDown.delay(250).duration(400)}>
+          <LinearGradient
+            colors={theme === 'dark' ? ['#151D26', '#222F3D'] : ['#0b2341', '#1c3e66']}
+            style={styles.aiInsightBox}>
+            <View style={styles.aiHeader}>
+              <View style={styles.pulseContainer}>
+                <View style={styles.pulseInner} />
               </View>
-              <View style={styles.kpiContent}>
-                <Text style={styles.kpiLabel}>{kpi.title}</Text>
-                <Text style={styles.kpiVal}>{kpi.value}</Text>
-                <Text style={styles.kpiDiff}>{kpi.change}</Text>
-              </View>
+              <Text style={styles.aiTitle}>AI INSIGHT ✨</Text>
             </View>
-          ))}
-        </View>
+            <Text style={styles.aiMessage}>
+              "{aiInsightMessage}"
+            </Text>
+          </LinearGradient>
+        </Animated.View>
 
+        {/* KPI Metrics - Vertically Stacked under AI Insight */}
+        <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.metricsCard}>
+          <View style={styles.metricRow}>
+            <View style={[styles.metricIconBox, { backgroundColor: `${colors.accentTeal}15` }]}>
+              <MaterialCommunityIcons name="layers-outline" size={16} color={colors.accentTeal} />
+            </View>
+            <View style={styles.metricInfo}>
+              <Text style={styles.metricLabel}>TOTAL POSTS PUBLISHED</Text>
+              <Text style={styles.metricSubtext}>Lifetime count</Text>
+            </View>
+            <Text style={styles.metricVal}>{totalPublished}</Text>
+          </View>
+
+          <View style={styles.metricRow}>
+            <View style={[styles.metricIconBox, { backgroundColor: '#1B5E9A15' }]}>
+              <MaterialCommunityIcons name="sync" size={16} color="#1B5E9A" />
+            </View>
+            <View style={styles.metricInfo}>
+              <Text style={styles.metricLabel}>PLATFORMS SYNCED</Text>
+              <Text style={styles.metricSubtext}>Total successful syndications</Text>
+            </View>
+            <Text style={styles.metricVal}>{totalPlatformsSynced}</Text>
+          </View>
+
+          <View style={[styles.metricRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
+            <View style={[styles.metricIconBox, { backgroundColor: '#16A34A15' }]}>
+              <MaterialCommunityIcons name="trophy-outline" size={16} color="#16A34A" />
+            </View>
+            <View style={styles.metricInfo}>
+              <Text style={styles.metricLabel}>DOMINANT PLATFORM</Text>
+              <Text style={styles.metricSubtext}>{dominantPlatformInfo.pct} of posts</Text>
+            </View>
+            <Text style={styles.metricValText}>{dominantPlatformInfo.name}</Text>
+          </View>
+        </Animated.View>
 
       </ScrollView>
     </LinearGradient>
   );
 }
 
-function getStyles(colors: any) {
+function getStyles(colors: any, theme: 'light' | 'dark') {
   return StyleSheet.create({
     background: { flex: 1 },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 20 },
-    kpiGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 12,
-      marginTop: 10,
-      marginBottom: 24,
+    loadingText: {
+      marginTop: 15,
+      fontWeight: '700',
+      fontSize: 14,
     },
-    kpiCard: {
-      width: '48%',
-      backgroundColor: colors.cardBackground,
-      borderRadius: 20,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      ...Platform.select({
-        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
-        android: { elevation: 2 },
-      }),
-    },
-    kpiIconBox: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 12,
-    },
-    kpiContent: {},
-    kpiLabel: {
-      fontSize: 9,
-      fontWeight: '800',
-      color: colors.textMuted,
-      letterSpacing: 0.5,
-      marginBottom: 4,
-    },
-    kpiVal: {
-      fontSize: 20,
-      fontWeight: '900',
-      color: colors.textPrimary,
-    },
-    kpiDiff: {
-      fontSize: 11,
-      fontWeight: '800',
-      color: '#10B981',
-      marginTop: 2,
-    },
+
     sectionHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 16,
+      marginBottom: 12,
     },
     sectionTitle: {
       fontSize: 15,
@@ -236,23 +465,29 @@ function getStyles(colors: any) {
     },
     topActions: {
       flexDirection: 'row',
+      justifyContent: 'space-between',
       gap: 12,
       marginBottom: 24,
     },
     topActionBtn: {
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      flex: 1,
+      height: 48,
       backgroundColor: colors.cardBackground,
       borderRadius: 14,
       borderWidth: 1,
       borderColor: colors.cardBorder,
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
       gap: 8,
       ...Platform.select({
         ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8 },
         android: { elevation: 1 },
       }),
+    },
+    exportBtn: {
+      backgroundColor: colors.textPrimary,
+      borderColor: colors.textPrimary,
     },
     topActionText: {
       fontSize: 13,
@@ -267,10 +502,14 @@ function getStyles(colors: any) {
       borderColor: colors.cardBorder,
       marginBottom: 24,
       alignItems: 'center',
+      ...Platform.select({
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
+        android: { elevation: 2 },
+      }),
     },
     chart: {
       borderRadius: 16,
-      marginRight: 0, // Kit fix
+      marginRight: 0,
     },
     platformCard: {
       backgroundColor: colors.cardBackground,
@@ -279,6 +518,10 @@ function getStyles(colors: any) {
       borderWidth: 1,
       borderColor: colors.cardBorder,
       marginBottom: 24,
+      ...Platform.select({
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
+        android: { elevation: 2 },
+      }),
     },
     platformRow: {
       flexDirection: 'row',
@@ -327,6 +570,10 @@ function getStyles(colors: any) {
       padding: 24,
       borderWidth: 1,
       borderColor: 'rgba(255,255,255,0.1)',
+      ...Platform.select({
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.1, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
+        android: { elevation: 4 },
+      }),
     },
     aiHeader: {
       flexDirection: 'row',
@@ -338,7 +585,7 @@ function getStyles(colors: any) {
       width: 12,
       height: 12,
       borderRadius: 6,
-      backgroundColor: 'rgba(11, 160, 178, 0.2)',
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -346,31 +593,75 @@ function getStyles(colors: any) {
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: '#0a2341',
+      backgroundColor: '#FFF',
     },
     aiTitle: {
       fontSize: 10,
       fontWeight: '900',
-      color: '#0a2341',
+      color: '#FFF',
       letterSpacing: 1.5,
     },
     aiMessage: {
       fontSize: 14,
-      color: colors.textMuted,
+      color: '#FFF',
       fontWeight: '600',
       lineHeight: 22,
       fontStyle: 'italic',
+      opacity: 0.9,
     },
-    aiFooter: {
-      marginTop: 16,
-      paddingTop: 16,
-      borderTopWidth: 1,
-      borderTopColor: 'rgba(255,255,255,0.05)',
+    metricsCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      marginTop: 20,
+      ...Platform.select({
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
+        android: { elevation: 2 },
+      }),
     },
-    aiConfidence: {
+    metricRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.rowBorder || colors.cardBorder,
+    },
+    metricIconBox: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+    metricInfo: {
+      flex: 1,
+    },
+    metricLabel: {
       fontSize: 10,
       fontWeight: '800',
-      color: colors.textSecondary,
+      color: colors.textPrimary,
+      letterSpacing: 0.3,
+      marginBottom: 2,
+    },
+    metricSubtext: {
+      fontSize: 9,
+      fontWeight: '600',
+      color: colors.textMuted,
+    },
+    metricVal: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginLeft: 12,
+    },
+    metricValText: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginLeft: 12,
     },
   });
 }

@@ -50,26 +50,52 @@ function PostDetailModal({
 
   const mediaUrl = post.media?.[0]?.media_url;
   const captionFirstLine = (post.caption || '').split('\n')[0].trim();
-  const statusLabel = post.published_at ? 'PUBLISHED' : 'SCHEDULED';
-  const statusColor = post.published_at ? '#10B981' : '#0a2341';
+
+  const platforms = post.post_platforms?.map(p => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
+  const mainPlatform = platforms[0];
+
+  const statusLabel = post.status === 2 ? 'PUBLISHED' : post.status === 3 ? 'FAILED' : 'SCHEDULED';
+  const statusColor = post.status === 2 ? '#10B981' : post.status === 3 ? '#EF4444' : colors.accentTeal;
   const timeStr = post.scheduled_at ? formatTime(post.scheduled_at) : '';
 
   return (
-    <Modal visible={!!post} transparent animationType="fade">
-      <Pressable style={{
-        flex: 1, backgroundColor: 'rgba(11, 35, 65, 0.55)',
-        justifyContent: 'center', alignItems: 'center', padding: 20,
-      }} onPress={onClose}>
-        <Animated.View entering={FadeIn.duration(200)} style={{
-          width: '100%', maxWidth: 380, backgroundColor: colors.cardBackground,
-          borderRadius: 28, overflow: 'hidden',
-          ...Platform.select({
-            ios: { shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 16 }, shadowRadius: 32 },
-            android: { elevation: 16 },
-          }),
-        }}>
+    <Modal visible={!!post} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(11, 35, 65, 0.55)',
+          justifyContent: 'flex-end',
+        }}
+        onPress={onClose}
+      >
+        <Animated.View
+          entering={FadeInDown.duration(250)}
+          style={{
+            width: '100%',
+            backgroundColor: colors.cardBackground,
+            borderTopLeftRadius: 32,
+            borderTopRightRadius: 32,
+            overflow: 'hidden',
+            paddingBottom: Math.max(insets.bottom, 20),
+            ...Platform.select({
+              ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowOffset: { width: 0, height: -10 }, shadowRadius: 24 },
+              android: { elevation: 24 },
+            }),
+          }}
+        >
+          {/* Grab Handle */}
+          <View style={{
+            width: 40,
+            height: 5,
+            backgroundColor: colors.cardBorder || '#E2E8F0',
+            borderRadius: 2.5,
+            alignSelf: 'center',
+            marginTop: 12,
+            marginBottom: 16,
+          }} />
+
           {/* Image */}
-          <View style={{ height: 200, backgroundColor: colors.surfaceSoft, position: 'relative' }}>
+          <View style={{ height: 180, backgroundColor: colors.surfaceSoft, position: 'relative', marginHorizontal: 20, borderRadius: 20, overflow: 'hidden' }}>
             {mediaUrl ? (
               <Image source={{ uri: mediaUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={300} />
             ) : (
@@ -86,37 +112,79 @@ function PostDetailModal({
             }}>
               <MaterialCommunityIcons name="close" size={18} color="#0b2341" />
             </Pressable>
-            <View style={{
-              position: 'absolute', bottom: 14, left: 14, flexDirection: 'row', alignItems: 'center', gap: 6,
-              backgroundColor: '#0b2341', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10,
-            }}>
-              <MaterialCommunityIcons name="instagram" size={14} color="#FFF" />
-              <Text style={{ fontSize: 10, fontWeight: '900', color: '#FFF', letterSpacing: 0.8 }}>INSTAGRAM</Text>
-            </View>
+            {mainPlatform && (
+              <View style={{
+                position: 'absolute', bottom: 14, left: 14, flexDirection: 'row', alignItems: 'center', gap: 6,
+                backgroundColor: '#0b2341', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10,
+              }}>
+                <MaterialCommunityIcons
+                  name={
+                    mainPlatform === 'instagram' ? 'instagram' :
+                      mainPlatform === 'facebook' ? 'facebook' :
+                        mainPlatform === 'linkedin' ? 'linkedin' :
+                          mainPlatform === 'twitter' ? 'twitter' : 'layers-outline'
+                  }
+                  size={14}
+                  color="#FFF"
+                />
+                <Text style={{ fontSize: 10, fontWeight: '900', color: '#FFF', letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                  {platforms.length > 1 ? 'MULTIPLE' : mainPlatform}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Body */}
-          <View style={{ padding: 22 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+          <View style={{ paddingHorizontal: 22, paddingTop: 18, paddingBottom: 10 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <Text style={{ flex: 1, fontSize: 18, fontWeight: '900', color: colors.textPrimary, lineHeight: 24 }}>{captionFirstLine}</Text>
               <View style={{ marginLeft: 12, alignItems: 'flex-end' }}>
                 <Text style={{ fontSize: 8, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 2 }}>STATUS</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <MaterialCommunityIcons name={post.published_at ? 'check-circle' : 'clock-outline'} size={12} color={statusColor} />
+                  <MaterialCommunityIcons name={post.status === 2 ? 'check-circle' : post.status === 3 ? 'alert-circle' : 'clock-outline'} size={12} color={statusColor} />
                   <Text style={{ fontSize: 10, fontWeight: '900', color: statusColor, letterSpacing: 0.3 }}>{statusLabel}</Text>
                 </View>
               </View>
             </View>
 
-            {/* Time & Location */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            {/* Time & Platforms */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
               {timeStr && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <MaterialCommunityIcons name="clock-time-four-outline" size={13} color={colors.textMuted} />
                   <Text style={{ fontSize: 12, color: colors.textMuted, fontWeight: '700' }}>{timeStr}</Text>
                 </View>
               )}
+
+              {platforms.length > 0 && (
+                <View style={{ flexDirection: 'row', gap: 4 }}>
+                  {platforms.map((plat, idx) => {
+                    const iconName = plat === 'instagram' ? 'instagram' :
+                      plat === 'facebook' ? 'facebook' :
+                        plat === 'linkedin' ? 'linkedin' :
+                          plat === 'twitter' ? 'twitter' : 'layers-outline';
+                    return (
+                      <MaterialCommunityIcons key={plat + idx} name={iconName} size={14} color={colors.textPrimary} />
+                    );
+                  })}
+                </View>
+              )}
             </View>
+
+            {/* Error Message */}
+            {post.error_message && (
+              <View style={{
+                flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+                backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.2)', borderWidth: 1,
+                padding: 12, borderRadius: 16, marginBottom: 16,
+              }}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#EF4444" style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#EF4444', marginBottom: 2 }}>PUBLISH ERROR</Text>
+                  <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '600' }}>{post.error_message}</Text>
+                </View>
+              </View>
+            )}
 
             {/* Caption Preview */}
             <Text style={{ fontSize: 13, color: colors.textSecondary, lineHeight: 20, fontWeight: '600', marginBottom: 24 }} numberOfLines={4}>
@@ -125,17 +193,19 @@ function PostDetailModal({
 
             {/* Action Buttons */}
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Pressable
-                onPress={() => { onClose(); onEdit(post); }}
-                style={{
-                  flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  height: 48, borderRadius: 16, borderWidth: 1.5, borderColor: colors.cardBorder,
-                  backgroundColor: colors.cardBackground,
-                }}
-              >
-                <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textPrimary} />
-                <Text style={{ fontSize: 14, fontWeight: '800', color: colors.textPrimary }}>Edit Post</Text>
-              </Pressable>
+              {post.status !== 2 && (
+                <Pressable
+                  onPress={() => { onClose(); onEdit(post); }}
+                  style={{
+                    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    height: 48, borderRadius: 16, borderWidth: 1.5, borderColor: colors.cardBorder,
+                    backgroundColor: colors.cardBackground,
+                  }}
+                >
+                  <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textPrimary} />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.textPrimary }}>Edit Post</Text>
+                </Pressable>
+              )}
               <Pressable
                 onPress={onClose}
                 style={{ flex: 1, height: 48, borderRadius: 16, overflow: 'hidden' }}
@@ -163,11 +233,11 @@ export default function SchedulerScreen() {
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedPost, setSelectedPost] = useState<SocialPost | null>(null);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(() => toDateKey(new Date()));
 
   const { data: posts = [], isLoading } = useQuery({
-    queryKey: ['social-posts-scheduled'],
-    queryFn: () => getSocialPosts(accessToken || '', 1),
+    queryKey: ['social-posts-all'],
+    queryFn: () => getSocialPosts(accessToken || ''),
     enabled: !!accessToken,
   });
 
@@ -255,10 +325,8 @@ export default function SchedulerScreen() {
       <LinearGradient colors={colors.backgroundGradient as any} style={{ flex: 1, paddingTop: insets.top }}>
         <PageHeader
           title="Scheduler"
-          subtitle="View and manage your publishing schedule."
+          subtitle="View and manage your publishing schedule across all platforms."
           onBack={() => router.back()}
-          rightIcon="plus"
-          onRightPress={() => router.push('/(main)/social-hub/create-post')}
         />
 
         {/* Month Navigation */}
@@ -325,57 +393,51 @@ export default function SchedulerScreen() {
                     <Pressable
                       key={dayObj.dateKey + idx}
                       onPress={() => {
-                        if (hasPosts) {
-                          if (dayPosts.length === 1) {
-                            setSelectedPost(dayPosts[0]);
-                          } else {
-                            setSelectedDay(isSelected ? null : dayObj.dateKey);
-                          }
-                        }
+                        setSelectedDay(dayObj.dateKey);
                       }}
                       style={{
                         width: CELL_PCT,
-                        minHeight: 90,
+                        height: 62,
                         borderRightWidth: (idx + 1) % 7 === 0 ? 0 : 0.5,
                         borderBottomWidth: 0.5,
                         borderColor: colors.cardBorder,
-                        padding: 6,
+                        paddingVertical: 6,
+                        alignItems: 'center',
+                        justifyContent: 'center',
                         backgroundColor: isSelected ? `${colors.accentTeal}08` : 'transparent',
                       }}
                     >
                       {/* Day Number */}
                       <View style={{
-                        width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
-                        backgroundColor: dayObj.isToday ? colors.accentTeal : 'transparent',
+                        width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: isSelected ? colors.accentTeal : dayObj.isToday ? `${colors.accentTeal}30` : 'transparent',
                         marginBottom: 4,
                       }}>
                         <Text style={{
-                          fontSize: 13, fontWeight: dayObj.isToday ? '900' : '700',
-                          color: dayObj.isToday ? '#FFF' : dayObj.isExtra ? `${colors.textMuted}80` : colors.textPrimary,
+                          fontSize: 13, fontWeight: isSelected || dayObj.isToday ? '900' : '700',
+                          color: isSelected ? '#FFF' : dayObj.isToday ? colors.accentTeal : dayObj.isExtra ? `${colors.textMuted}60` : colors.textPrimary,
                         }}>{dayObj.day}</Text>
                       </View>
 
                       {/* Event Indicators */}
                       {hasPosts && (
-                        <View style={{ gap: 3 }}>
-                          {dayPosts.slice(0, 2).map((post) => (
-                            <Pressable
-                              key={post.id}
-                              onPress={() => setSelectedPost(post)}
-                              style={{
-                                flexDirection: 'row', alignItems: 'center', gap: 3,
-                                backgroundColor: `${colors.accentTeal}12`, paddingVertical: 3, paddingHorizontal: 4,
-                                borderRadius: 6,
-                              }}
-                            >
-                              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: colors.accentTeal }} />
-                              <Text style={{ fontSize: 7, fontWeight: '800', color: colors.textPrimary, flex: 1 }} numberOfLines={1}>
-                                {(post.caption || '').split('\n')[0].substring(0, 18)}
-                              </Text>
-                            </Pressable>
-                          ))}
-                          {dayPosts.length > 2 && (
-                            <Text style={{ fontSize: 8, fontWeight: '800', color: colors.accentTeal, paddingLeft: 2 }}>+{dayPosts.length - 2}</Text>
+                        <View style={{ flexDirection: 'row', gap: 3, height: 6, alignItems: 'center', justifyContent: 'center' }}>
+                          {dayPosts.slice(0, 3).map((post) => {
+                            const statusColor = post.status === 2 ? '#10B981' : post.status === 3 ? '#EF4444' : colors.accentTeal;
+                            return (
+                              <View
+                                key={post.id}
+                                style={{
+                                  width: 5,
+                                  height: 5,
+                                  borderRadius: 2.5,
+                                  backgroundColor: statusColor,
+                                }}
+                              />
+                            );
+                          })}
+                          {dayPosts.length > 3 && (
+                            <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.textMuted }} />
                           )}
                         </View>
                       )}
@@ -384,54 +446,122 @@ export default function SchedulerScreen() {
                 })}
               </View>
 
-              {/* Expanded Day Posts */}
-              {selectedDay && selectedDayPosts.length > 0 && (
-                <Animated.View entering={FadeIn.duration(300)} style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '900', color: colors.textPrimary }}>
-                      {new Date(selectedDay + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+              {/* Selected Day Posts List */}
+              {selectedDay && (
+                <Animated.View entering={FadeIn.duration(300)} style={{ paddingHorizontal: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.cardBorder }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: colors.textPrimary }}>
+                      {new Date(selectedDay + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                     </Text>
-                    <Pressable onPress={() => setSelectedDay(null)} style={{
-                      width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surfaceSoft,
-                      alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <MaterialCommunityIcons name="close" size={14} color={colors.textMuted} />
-                    </Pressable>
                   </View>
-                  {selectedDayPosts.map((post) => {
-                    const mediaUrl = post.media?.[0]?.media_url;
-                    const label = (post.caption || '').split('\n')[0].trim();
-                    const time = post.scheduled_at ? formatTime(post.scheduled_at) : '';
-                    return (
+
+                  {selectedDayPosts.length > 0 ? (
+                    selectedDayPosts.map((post) => {
+                      const mediaUrl = post.media?.[0]?.media_url;
+                      const label = (post.caption || '').split('\n')[0].trim();
+                      const time = post.scheduled_at ? formatTime(post.scheduled_at) : '';
+
+                      const platforms = post.post_platforms?.map(p => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
+
+                      const statusLabel = post.status === 2 ? 'PUBLISHED' : post.status === 3 ? 'FAILED' : 'SCHEDULED';
+                      const statusColor = post.status === 2 ? '#10B981' : post.status === 3 ? '#EF4444' : colors.accentTeal;
+                      const statusBg = post.status === 2 ? 'rgba(16, 185, 129, 0.08)' : post.status === 3 ? 'rgba(239, 68, 68, 0.08)' : `${colors.accentTeal}12`;
+
+                      return (
+                        <Pressable
+                          key={post.id}
+                          onPress={() => setSelectedPost(post)}
+                          style={{
+                            flexDirection: 'row', gap: 12, padding: 14, marginBottom: 10,
+                            backgroundColor: colors.surfaceSoft, borderRadius: 18,
+                            borderWidth: 1, borderColor: colors.cardBorder,
+                          }}
+                        >
+                          {mediaUrl ? (
+                            <Image source={{ uri: mediaUrl }} style={{ width: 52, height: 52, borderRadius: 14 }} contentFit="cover" />
+                          ) : (
+                            <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: colors.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
+                              <MaterialCommunityIcons name="image-outline" size={22} color={colors.textMuted} />
+                            </View>
+                          )}
+                          <View style={{ flex: 1, justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: colors.textPrimary, marginBottom: 4 }} numberOfLines={1}>{label}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                <MaterialCommunityIcons name="clock-outline" size={11} color={colors.textMuted} />
+                                <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textMuted }}>{time}</Text>
+                              </View>
+
+                              <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.textMuted }} />
+
+                              <View style={{
+                                flexDirection: 'row', alignItems: 'center', gap: 4,
+                                backgroundColor: statusBg, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6
+                              }}>
+                                <MaterialCommunityIcons
+                                  name={post.status === 2 ? 'check-circle' : post.status === 3 ? 'alert-circle' : 'clock-outline'}
+                                  size={10}
+                                  color={statusColor}
+                                />
+                                <Text style={{ fontSize: 9, fontWeight: '900', color: statusColor, letterSpacing: 0.3 }}>{statusLabel}</Text>
+                              </View>
+
+                              {platforms.length > 0 && (
+                                <>
+                                  <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.textMuted }} />
+                                  <View style={{ flexDirection: 'row', gap: 3 }}>
+                                    {platforms.map((plat, idx) => {
+                                      const iconName = plat === 'instagram' ? 'instagram' :
+                                        plat === 'facebook' ? 'facebook' :
+                                          plat === 'linkedin' ? 'linkedin' :
+                                            plat === 'twitter' ? 'twitter' : 'layers-outline';
+                                      return (
+                                        <MaterialCommunityIcons key={plat + idx} name={iconName} size={12} color={colors.textPrimary} />
+                                      );
+                                    })}
+                                  </View>
+                                </>
+                              )}
+                            </View>
+                            {post.error_message && (
+                              <Text style={{ fontSize: 10, color: '#EF4444', fontWeight: '600', marginTop: 4 }} numberOfLines={1}>
+                                Error: {post.error_message}
+                              </Text>
+                            )}
+                          </View>
+                          <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} style={{ alignSelf: 'center' }} />
+                        </Pressable>
+                      );
+                    })
+                  ) : (
+                    <View style={{ alignItems: 'center', paddingVertical: 32, gap: 12 }}>
+                      <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' }}>
+                        <MaterialCommunityIcons name="calendar-blank" size={24} color={colors.textMuted} />
+                      </View>
+                      <View style={{ alignItems: 'center', gap: 4 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: colors.textPrimary }}>No posts scheduled</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textMuted, textAlign: 'center' }}>
+                          Create a post to publish on this day.
+                        </Text>
+                      </View>
                       <Pressable
-                        key={post.id}
-                        onPress={() => setSelectedPost(post)}
+                        onPress={() => {
+                          router.push({
+                            pathname: '/(main)/social-hub/create-post',
+                            params: { defaultDate: selectedDay },
+                          });
+                        }}
                         style={{
-                          flexDirection: 'row', gap: 12, padding: 14, marginBottom: 10,
-                          backgroundColor: colors.surfaceSoft, borderRadius: 18,
-                          borderWidth: 1, borderColor: colors.cardBorder,
+                          flexDirection: 'row', alignItems: 'center', gap: 6,
+                          backgroundColor: colors.accentTeal, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12,
+                          marginTop: 4,
                         }}
                       >
-                        {mediaUrl ? (
-                          <Image source={{ uri: mediaUrl }} style={{ width: 52, height: 52, borderRadius: 14 }} contentFit="cover" />
-                        ) : (
-                          <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: colors.cardBorder, alignItems: 'center', justifyContent: 'center' }}>
-                            <MaterialCommunityIcons name="image-outline" size={22} color={colors.textMuted} />
-                          </View>
-                        )}
-                        <View style={{ flex: 1, justifyContent: 'center' }}>
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: colors.textPrimary, marginBottom: 4 }} numberOfLines={1}>{label}</Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <MaterialCommunityIcons name="clock-outline" size={11} color={colors.accentTeal} />
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textMuted }}>{time}</Text>
-                            <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: colors.textMuted, marginHorizontal: 4 }} />
-                            <Text style={{ fontSize: 10, fontWeight: '800', color: colors.accentTeal }}>SCHEDULED</Text>
-                          </View>
-                        </View>
-                        <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} style={{ alignSelf: 'center' }} />
+                        <MaterialCommunityIcons name="plus" size={16} color="#FFF" />
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: '#FFF' }}>Schedule Post</Text>
                       </Pressable>
-                    );
-                  })}
+                    </View>
+                  )}
                 </Animated.View>
               )}
             </ScrollView>
@@ -444,6 +574,38 @@ export default function SchedulerScreen() {
           onClose={() => setSelectedPost(null)}
           onEdit={handleEdit}
         />
+
+        {/* Floating Action Button */}
+        <Pressable
+          style={{
+            position: 'absolute',
+            right: 24,
+            bottom: insets.bottom + 24,
+            borderRadius: 28,
+            overflow: 'hidden',
+            ...Platform.select({
+              ios: { shadowColor: '#0a2341', shadowOpacity: 0.35, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
+              android: { elevation: 10 },
+            }),
+          }}
+          onPress={() => router.push('/(main)/social-hub/create-post')}
+        >
+          <LinearGradient
+            colors={['#0a2341', '#0D9488']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 14,
+              paddingHorizontal: 20,
+              gap: 8,
+            }}
+          >
+            <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+            <Text style={{ fontSize: 14, fontWeight: '900', color: '#FFFFFF' }}>Create Post</Text>
+          </LinearGradient>
+        </Pressable>
       </LinearGradient>
     </View>
   );

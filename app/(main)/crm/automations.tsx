@@ -43,14 +43,6 @@ interface IntelligentFlow {
   subtitle: string;
 }
 
-const FLOWS_DATA: IntelligentFlow[] = [
-  { id: '1', title: 'Instant SMS Follow-up on New Lead', subtitle: 'Boosts engagement by 40%' },
-  { id: '2', title: 'Re-engage Leads after 30 days', subtitle: 'Prevents database decay' },
-  { id: '3', title: 'Auto-assign Premium Leads to Senior Agents', subtitle: 'Optimizes conversion for $2M+' },
-  { id: '4', title: 'Predictive Churn Prevention', subtitle: 'AI detects low-activity high-value leads' },
-  { id: '5', title: 'Neighborhood Alert Workflow', subtitle: 'Syncs lead zip code with new inventory' },
-];
-
 export default function CRM_AutomationsScreen() {
   const { colors, theme } = useAppTheme();
   const { accessToken } = useAuth();
@@ -685,27 +677,6 @@ export default function CRM_AutomationsScreen() {
               <Text style={{ fontWeight: '900' }}>AI Insight:</Text> Your active rules are saving {savedHours} hrs/week.
             </Text>
           </View>
-        </View>
-
-        {/* Intelligent CRM Flows */}
-        <View style={styles.flowsSection}>
-          <Text style={styles.sectionTitle}>Intelligent CRM Flows</Text>
-          {FLOWS_DATA.map(flow => (
-            <Pressable
-              key={flow.id}
-              style={styles.flowRow}
-              onPress={() => handleFlowPress(flow)}
-            >
-              <View style={styles.flowIconBox}>
-                <MaterialCommunityIcons name="dots-hexagon" size={20} color={colors.accent} />
-              </View>
-              <View style={styles.flowInfo}>
-                <Text style={styles.flowTitle}>{flow.title}</Text>
-                <Text style={styles.flowSubtitle}>{flow.subtitle}</Text>
-              </View>
-              <MaterialCommunityIcons name="plus" size={20} color="#CBD5E1" />
-            </Pressable>
-          ))}
         </View>
       </ScrollView>
 
@@ -1970,54 +1941,6 @@ function getStyles(colors: any, theme?: string) {
       fontSize: 12,
       color: '#FFFFFF',
       fontWeight: '500',
-    },
-    flowsSection: {
-      marginBottom: 30,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: '900',
-      color: colors.textPrimary,
-      marginBottom: 16,
-      letterSpacing: -0.5,
-    },
-    flowRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.cardBackground,
-      borderRadius: 24,
-      padding: 16,
-      marginBottom: 12,
-      borderWidth: 1.5,
-      borderColor: colors.cardBorder,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.05,
-      shadowRadius: 8,
-      elevation: 2,
-    },
-    flowIconBox: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
-      backgroundColor: 'rgba(11, 160, 178, 0.08)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 14,
-    },
-    flowInfo: {
-      flex: 1,
-    },
-    flowTitle: {
-      fontSize: 15,
-      fontWeight: '800',
-      color: colors.textPrimary,
-      marginBottom: 2,
-    },
-    flowSubtitle: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      fontWeight: '600',
     },
     fullModalContainer: {
       flex: 1,

@@ -22,13 +22,14 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const SOCIAL_PLATFORMS = [
   { id: 'instagram', name: 'Instagram', icon: 'instagram', color: '#E1306C', bgColor: '#FDF2F8' },
   { id: 'facebook', name: 'Facebook', icon: 'facebook', color: '#1877F2', bgColor: '#EFF6FF' },
-  { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin', color: '#0A66C2', bgColor: '#F0F9FF' },
+  // { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin', color: '#0A66C2', bgColor: '#F0F9FF' },
   { id: 'tiktok', name: 'TikTok', icon: 'music-note', color: '#000000', bgColor: '#F8FAFC' },
 ];
 
@@ -64,6 +65,19 @@ export default function AccountsScreen() {
   // Modal States
   const [activeAccount, setActiveAccount] = useState<typeof SOCIAL_PLATFORMS[0] | null>(null);
   const [editAccount, setEditAccount] = useState<{ platform: typeof SOCIAL_PLATFORMS[0]; apiAccount: any } | null>(null);
+  const [showWebView, setShowWebView] = useState(false);
+  const [oauthUrl, setOauthUrl] = useState('');
+
+  const handleNavigationStateChange = (navState: any) => {
+    console.log('WebView Navigation URL:', navState.url);
+
+    if (navState.url.includes('/social/settings/callback')) {
+      console.log('Success detected from URL redirect!');
+      setShowWebView(false);
+      queryClient.invalidateQueries({ queryKey: ['social-accounts'] });
+      Alert.alert('Success', 'Social account connected successfully.');
+    }
+  };
 
   const handleAccountPress = (account: typeof SOCIAL_PLATFORMS[0]) => {
     setActiveAccount(account);
@@ -128,7 +142,8 @@ export default function AccountsScreen() {
           Alert.alert('Error', data.message || 'Failed to connect LinkedIn.');
         }
       } else {
-        const url = `https://staging-api.zien.ai/api/solo/social/oauth/${activeAccount.id}/url`;
+        const provider = activeAccount.id === 'instagram' ? 'facebook' : activeAccount.id;
+        const url = `https://staging-api.zien.ai/api/solo/social/oauth/${provider}/url`;
         console.log(`[OAuth] Fetching: ${url}`);
         const response = await fetch(url, {
           method: 'GET',
@@ -138,7 +153,8 @@ export default function AccountsScreen() {
         const data = await response.json();
         console.log("[OAuth] Response Data:", data);
         if (data && data.url) {
-          await Linking.openURL(data.url);
+          setOauthUrl(data.url);
+          setShowWebView(true);
         } else {
           Alert.alert('Error', `Failed to retrieve connection URL (Status: ${response.status}).`);
         }
@@ -174,70 +190,125 @@ export default function AccountsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
 
-        {/* Social Channels Card */}
-        <View style={[styles.proCard, { borderTopWidth: 4, borderTopColor: '#0F172A', maxWidth: 600, alignSelf: 'center', width: '100%' }]}>
-          <View style={styles.cardHeaderRow}>
-            <MaterialCommunityIcons name="cellphone" size={20} color={colors.textPrimary} />
-            <Text style={styles.sectionTitle}>Social Channels</Text>
+        {/* Section Header */}
+        <View style={styles.sectionHeaderPremium}>
+          <Text style={styles.sectionTitlePremium}>Connected Channels</Text>
+          <Text style={styles.sectionSubtitlePremium}>
+            Link your brand profiles to automate content generation and sharing.
+          </Text>
+        </View>
+
+        {accountsLoading ? (
+          <View style={styles.loaderContainerPremium}>
+            <ActivityIndicator size="large" color={colors.accentTeal} />
+            <Text style={styles.loaderTextPremium}>Retrieving channels...</Text>
           </View>
+        ) : (
+          <View style={styles.platformsContainer}>
+            {SOCIAL_PLATFORMS.map((platform) => {
+              const apiAccount = connectedAccounts?.find(
+                (acc: any) => acc.platform.toLowerCase() === platform.id.toLowerCase()
+              );
+              const isConnected = !!apiAccount;
+              const displayName = isConnected ? (apiAccount.account_name || 'Connected') : 'Not connected';
 
-          {accountsLoading ? (
-            <View style={styles.loaderContainer}>
-              <ActivityIndicator size="small" color={colors.accentTeal} />
-            </View>
-          ) : (
-            <View style={styles.accountsList}>
-              {SOCIAL_PLATFORMS.map((platform) => {
-                const apiAccount = connectedAccounts?.find(
-                  (acc: any) => acc.platform.toLowerCase() === platform.id.toLowerCase()
-                );
-                const isConnected = !!apiAccount;
-                const displayName = isConnected ? (apiAccount.account_name || 'Connected') : 'Not connected';
+              const isInstagram = platform.id === 'instagram';
+              const isFacebook = platform.id === 'facebook';
+              const isLinkedin = platform.id === 'linkedin';
 
-                return (
-                  <View key={platform.id} style={styles.accountRow}>
-                    <View style={[styles.accountIconBox, { backgroundColor: platform.bgColor }]}>
-                      <MaterialCommunityIcons name={platform.icon as any} size={22} color={platform.color} />
+              let cardBg = colors.cardBackground;
+              let cardBorder = colors.cardBorder;
+
+              if (isConnected) {
+                if (theme === 'dark') {
+                  cardBg = isInstagram ? '#200A13' : isFacebook ? '#091524' : isLinkedin ? '#071624' : '#121214';
+                  cardBorder = isInstagram ? 'rgba(225, 48, 108, 0.3)' : isFacebook ? 'rgba(24, 119, 242, 0.3)' : isLinkedin ? 'rgba(10, 102, 194, 0.3)' : 'rgba(255,255,255,0.15)';
+                } else {
+                  cardBg = isInstagram ? '#FFF0F5' : isFacebook ? '#F0F6FF' : isLinkedin ? '#F0F9FF' : '#F8FAFC';
+                  cardBorder = isInstagram ? 'rgba(225, 48, 108, 0.2)' : isFacebook ? 'rgba(24, 119, 242, 0.2)' : isLinkedin ? 'rgba(10, 102, 194, 0.2)' : 'rgba(0,0,0,0.08)';
+                }
+              }
+
+              return (
+                <View
+                  key={platform.id}
+                  style={[
+                    styles.platformCardPremium,
+                    { backgroundColor: cardBg, borderColor: cardBorder }
+                  ]}
+                >
+                  {/* Brand Icon Box */}
+                  {isConnected ? (
+                    <LinearGradient
+                      colors={isInstagram ? ['#833AB4', '#FD1D1D', '#F77737'] :
+                        isFacebook ? ['#1877F2', '#166FE5'] :
+                          isLinkedin ? ['#0A66C2', '#0077B5'] :
+                            ['#1E1E1E', '#000000']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.accountIconBoxPremium}
+                    >
+                      <MaterialCommunityIcons name={platform.icon as any} size={22} color="#FFFFFF" />
+                    </LinearGradient>
+                  ) : (
+                    <View style={[styles.accountIconBoxPremiumDefault, { backgroundColor: colors.surfaceSoft }]}>
+                      <MaterialCommunityIcons name={platform.icon as any} size={22} color={colors.textMuted} />
                     </View>
+                  )}
 
-                    <View style={styles.accountTextContent}>
-                      <Text style={styles.accountRowName} numberOfLines={1}>{platform.name}</Text>
-                      <Text style={styles.accountRowHandle} numberOfLines={1}>{displayName}</Text>
-                    </View>
+                  {/* Content Section */}
+                  <View style={styles.accountTextContentPremium}>
+                    <Text style={styles.accountRowNamePremium} numberOfLines={1}>{platform.name}</Text>
 
-                    <View style={styles.accountRowRight}>
-                      {isConnected ? (
-                        <View style={[
-                          styles.connectedRightContainer,
-                          SCREEN_WIDTH < 480 && { flexDirection: 'column', alignItems: 'flex-end', gap: 4 }
-                        ]}>
-                          <Text style={styles.connectedLabel}>CONNECTED</Text>
-                          <Pressable
-                            style={({ pressed }) => [
-                              styles.disconnectBtn,
-                              pressed && { opacity: 0.8 },
-                            ]}
-                            onPress={() => handleDisconnectPress(platform, apiAccount)}>
-                            <Text style={styles.disconnectBtnText}>Disconnect</Text>
-                          </Pressable>
-                        </View>
-                      ) : (
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.connectBtn,
-                            pressed && { opacity: 0.8 },
-                          ]}
-                          onPress={() => handleAccountPress(platform)}>
-                          <Text style={styles.connectBtnText}>Connect</Text>
-                        </Pressable>
-                      )}
+                    {/* Connection status badge */}
+                    <View style={styles.statusBadgeRow}>
+                      <View style={[styles.statusDot, { backgroundColor: isConnected ? '#10B981' : colors.textMuted + '60' }]} />
+                      <Text style={[styles.accountRowHandlePremium, { color: isConnected ? colors.textPrimary : colors.textMuted }]} numberOfLines={1}>
+                        {displayName}
+                      </Text>
                     </View>
                   </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
+
+                  {/* Actions */}
+                  <View style={styles.accountRowRightPremium}>
+                    {isConnected ? (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.manageBtnPremium,
+                          pressed && { opacity: 0.8 },
+                        ]}
+                        onPress={() => handleDisconnectPress(platform, apiAccount)}
+                      >
+                        <MaterialCommunityIcons name="cog-outline" size={15} color={colors.textSecondary} style={{ marginRight: 4 }} />
+                        <Text style={styles.manageBtnTextPremium}>Manage</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.connectBtnPremiumWrapper,
+                          pressed && { opacity: 0.8 },
+                        ]}
+                        onPress={() => handleAccountPress(platform)}
+                      >
+                        <LinearGradient
+                          colors={isInstagram ? ['#E1306C', '#FD1D1D', '#F77737'] :
+                            isFacebook ? ['#1877F2', '#166FE5'] :
+                              isLinkedin ? ['#0A66C2', '#0077B5'] :
+                                ['#18181B', '#09090B']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.connectBtnPremiumGradient}
+                        >
+                          <Text style={styles.connectBtnPremiumText}>Connect</Text>
+                        </LinearGradient>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
 
       {/* Connect Account Modal */}
@@ -265,7 +336,7 @@ export default function AccountsScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                
+
                 <View style={styles.partnerBanner}>
                   <MaterialCommunityIcons name="check" size={16} color={theme === 'dark' ? '#34D399' : '#15803D'} style={{ marginRight: 6 }} />
                   <Text style={styles.partnerText}>Zien is a verified partner of LinkedIn</Text>
@@ -357,6 +428,31 @@ export default function AccountsScreen() {
           <Pressable style={styles.flex1} onPress={() => setEditAccount(null)} />
         </View>
       </Modal>
+
+      {/* OAuth WebView Modal */}
+      <Modal visible={showWebView} animationType="slide" transparent={false}>
+        <View style={{ flex: 1, backgroundColor: colors.cardBackground, paddingTop: Math.max(insets.top, 20) }}>
+          <View style={styles.webViewHeader}>
+            <Text style={styles.webViewTitle}>Connect Channel</Text>
+            <Pressable onPress={() => setShowWebView(false)} style={styles.closeWebViewButton}>
+              <MaterialCommunityIcons name="close" size={24} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+          {!!oauthUrl && (
+            <WebView
+              source={{ uri: oauthUrl }}
+              onNavigationStateChange={handleNavigationStateChange}
+              startInLoadingState={true}
+              incognito={true}
+              renderLoading={() => (
+                <View style={styles.webViewLoading}>
+                  <ActivityIndicator size="large" color={colors.accentTeal} />
+                </View>
+              )}
+            />
+          )}
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -395,114 +491,135 @@ function getStyles(colors: any, theme: string) {
       fontWeight: '700',
     },
 
-    // Pro Card Styles
-    proCard: {
-      backgroundColor: colors.cardBackground,
-      padding: SCREEN_WIDTH < 480 ? 16 : 24,
-      borderRadius: 16,
-      overflow: 'hidden',
-      shadowColor: colors.cardShadowColor,
-      shadowOpacity: 0.05,
-      shadowOffset: { width: 0, height: 4 },
-      shadowRadius: 12,
-      elevation: 2,
+    sectionHeaderPremium: {
+      maxWidth: 600,
+      width: '100%',
+      alignSelf: 'center',
+      marginBottom: 20,
+      marginTop: 10,
     },
-    cardHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginBottom: 24,
-    },
-    sectionTitle: {
-      fontSize: 18,
+    sectionTitlePremium: {
+      fontSize: 16,
       fontWeight: '900',
       color: colors.textPrimary,
-      letterSpacing: -0.4,
+      letterSpacing: -0.3,
+      marginBottom: 4,
     },
-
-    accountsList: {
-      gap: 16,
-    },
-    accountRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: SCREEN_WIDTH < 480 ? 10 : 16,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      borderRadius: 12,
-    },
-    accountIconBox: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    accountTextContent: {
-      flex: 1,
-      marginLeft: 12,
-    },
-    accountRowName: {
-      fontSize: 15,
-      fontWeight: '800',
-      color: colors.textPrimary,
-    },
-    accountRowHandle: {
+    sectionSubtitlePremium: {
       fontSize: 12,
-      color: colors.textSecondary,
-      fontWeight: '500',
-      marginTop: 1,
+      fontWeight: '600',
+      color: colors.textMuted,
+      lineHeight: 16,
     },
-    accountRowRight: {
-      alignItems: 'flex-end',
-      justifyContent: 'center',
-      gap: 6,
-      marginLeft: 8,
-    },
-    loaderContainer: {
-      paddingVertical: 40,
+    loaderContainerPremium: {
+      paddingVertical: 80,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    connectedRightContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
       gap: 12,
     },
-    connectedLabel: {
-      fontSize: 11,
+    loaderTextPremium: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textMuted,
+    },
+    platformsContainer: {
+      gap: 2,
+    },
+    platformCardPremium: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderRadius: 20,
+      padding: 16,
+      marginBottom: 14,
+      maxWidth: 600,
+      width: '100%',
+      alignSelf: 'center',
+      ...Platform.select({
+        ios: {
+          shadowColor: colors.cardShadowColor,
+          shadowOpacity: 0.04,
+          shadowOffset: { width: 0, height: 4 },
+          shadowRadius: 12,
+        },
+        android: {
+          elevation: 2,
+        },
+      }),
+    },
+    accountIconBoxPremium: {
+      width: 46,
+      height: 46,
+      borderRadius: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    accountIconBoxPremiumDefault: {
+      width: 46,
+      height: 46,
+      borderRadius: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    accountTextContentPremium: {
+      flex: 1,
+      marginLeft: 14,
+      gap: 3,
+    },
+    accountRowNamePremium: {
+      fontSize: 15,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    statusBadgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    statusDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    accountRowHandlePremium: {
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    accountRowRightPremium: {
+      marginLeft: 10,
+    },
+    manageBtnPremium: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.surfaceSoft,
+    },
+    manageBtnTextPremium: {
+      fontSize: 12,
       fontWeight: '800',
-      color: '#0D9488',
-      letterSpacing: 0.3,
+      color: colors.textSecondary,
     },
-    disconnectBtn: {
+    connectBtnPremiumWrapper: {
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    connectBtnPremiumGradient: {
       paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 8,
-      backgroundColor: '#FEE2E2',
-      minWidth: 90,
+      paddingVertical: 9,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    disconnectBtnText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: '#EF4444',
-    },
-    connectBtn: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 8,
-      backgroundColor: theme === 'dark' ? colors.textPrimary : '#0F172A',
       minWidth: 90,
-      alignItems: 'center',
-      justifyContent: 'center',
     },
-    connectBtnText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: theme === 'dark' ? colors.cardBackground : '#FFFFFF',
+    connectBtnPremiumText: {
+      fontSize: 12,
+      fontWeight: '900',
+      color: '#FFFFFF',
+      letterSpacing: 0.2,
     },
 
     // Modals
@@ -739,6 +856,33 @@ function getStyles(colors: any, theme: string) {
       fontSize: 13,
       fontWeight: '600',
       color: theme === 'dark' ? '#34D399' : '#15803D',
+    },
+    webViewHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    webViewTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    closeWebViewButton: {
+      padding: 6,
+    },
+    webViewLoading: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.cardBackground,
     },
   });
 }

@@ -48,7 +48,7 @@ type StrategyId = 'immediate' | 'optimal' | 'custom';
 const PLATFORMS: { id: PlatformId; label: string; icon: string }[] = [
   { id: 'instagram', label: 'Instagram', icon: 'instagram' },
   { id: 'facebook', label: 'Facebook', icon: 'facebook' },
-  { id: 'linkedin', label: 'LinkedIn', icon: 'linkedin' },
+  // { id: 'linkedin', label: 'LinkedIn', icon: 'linkedin' },
   { id: 'tiktok', label: 'TikTok', icon: 'music-note' },
 ];
 

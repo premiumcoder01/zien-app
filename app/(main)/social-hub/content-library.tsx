@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { uploadPropertyImage } from '@/services/propertyService';
-import { getSocialPosts, SocialPost, updateSocialPost } from '@/services/socialService';
+import { getSocialPosts, deleteSocialPost, SocialPost, updateSocialPost } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -64,7 +64,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 const CATEGORIES = ['AI Generated', 'Property', 'Open House', 'Custom'];
-const PLATFORMS_LIST = ['Instagram', 'Facebook', 'LinkedIn', 'TikTok', 'Multi'];
+const PLATFORMS_LIST = ['Instagram', 'Facebook', 'TikTok', 'Multi'];
 
 // ─── Edit Post Modal ────────────────────────────────────────────────
 function EditPostModal({
@@ -468,6 +468,14 @@ function EditPostModal({
   );
 }
 
+function formatCardDate(dateStr: string | null): string {
+  if (!dateStr) return 'No date';
+  const d = new Date(dateStr);
+  const dateFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const timeFormatted = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${dateFormatted}, ${timeFormatted}`;
+}
+
 // ─── Premium Content Card ───────────────────────────────────────────
 function ContentCardItem({
   item,
@@ -486,113 +494,130 @@ function ContentCardItem({
   const mediaUrl = item.media?.[0]?.media_url;
   const captionPreview = (item.caption || 'Untitled Content').split('\n')[0].trim();
   const fullCaption = item.caption || '';
-  const dateStr = formatDate(item.scheduled_at || item.created_at);
+  const dateStr = formatCardDate(item.scheduled_at || item.created_at);
   const mediaCount = item.media?.length || 0;
+  const usedCount = 1;
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 80).duration(400)} style={{
       backgroundColor: colors.cardBackground, borderRadius: 24, overflow: 'hidden',
-      borderWidth: 1, borderColor: colors.cardBorder, marginBottom: 16,
+      borderWidth: 1.5, borderColor: colors.cardBorder, marginBottom: 16,
       ...Platform.select({
-        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.08, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
-        android: { elevation: 4 },
+        ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 6 }, shadowRadius: 12 },
+        android: { elevation: 3 },
       }),
     }}>
-      {/* Media Section — horizontal layout */}
-      <View style={{ flexDirection: 'row', padding: 14, gap: 14 }}>
-        {/* Thumbnail */}
+      {/* Media Top Section */}
+      <Pressable onPress={() => onEdit(item)} style={{ position: 'relative', height: 180, backgroundColor: colors.surfaceSoft }}>
+        {mediaUrl ? (
+          <Image source={{ uri: mediaUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={300} />
+        ) : (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialCommunityIcons name="image-outline" size={48} color={colors.textMuted} />
+          </View>
+        )}
+
+        {/* Tag Overlay - top left */}
         <View style={{
-          width: 110, height: 110, borderRadius: 18, overflow: 'hidden',
-          backgroundColor: colors.surfaceSoft, position: 'relative',
+          position: 'absolute', top: 12, left: 12,
+          backgroundColor: tag.bgColor, paddingVertical: 4, paddingHorizontal: 10,
+          borderRadius: 8, borderWidth: 1, borderColor: `${tag.color}20`,
         }}>
-          {mediaUrl ? (
-            <Image source={{ uri: mediaUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={300} />
-          ) : (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-              <MaterialCommunityIcons name="image-outline" size={32} color={colors.textMuted} />
-            </View>
-          )}
-
-          {/* Media count badge */}
-          {mediaCount > 1 && (
-            <View style={{
-              position: 'absolute', bottom: 6, right: 6, flexDirection: 'row', alignItems: 'center', gap: 3,
-              backgroundColor: 'rgba(0,0,0,0.6)', paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8,
-            }}>
-              <MaterialCommunityIcons name="image-multiple" size={9} color="#FFF" />
-              <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFF' }}>{mediaCount}</Text>
-            </View>
-          )}
+          <Text style={{ fontSize: 9, fontWeight: '900', color: tag.color, letterSpacing: 0.8 }}>{tag.label}</Text>
         </View>
 
-        {/* Info */}
-        <View style={{ flex: 1, justifyContent: 'space-between' }}>
-          {/* Top: Tag + Status */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <View style={{
-              backgroundColor: tag.bgColor, paddingVertical: 3, paddingHorizontal: 8,
-              borderRadius: 8, borderWidth: 1, borderColor: `${tag.color}20`,
-            }}>
-              <Text style={{ fontSize: 8, fontWeight: '900', color: tag.color, letterSpacing: 0.8 }}>{tag.label}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <MaterialCommunityIcons name={status.icon as any} size={11} color={status.color} />
-              <Text style={{ fontSize: 10, fontWeight: '800', color: status.color }}>{status.label}</Text>
-            </View>
-          </View>
+        {/* Status Overlay - top right */}
+        <View style={{
+          position: 'absolute', top: 12, right: 12,
+          flexDirection: 'row', alignItems: 'center', gap: 4,
+          backgroundColor: 'rgba(255, 255, 255, 0.9)', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8,
+        }}>
+          <MaterialCommunityIcons name={status.icon as any} size={11} color={status.color} />
+          <Text style={{ fontSize: 9, fontWeight: '900', color: status.color }}>{status.label}</Text>
+        </View>
 
-          {/* Caption */}
+        {/* Media count badge */}
+        {mediaCount > 1 && (
+          <View style={{
+            position: 'absolute', bottom: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 3,
+            backgroundColor: 'rgba(0,0,0,0.6)', paddingVertical: 2, paddingHorizontal: 6, borderRadius: 8,
+          }}>
+            <MaterialCommunityIcons name="image-multiple" size={10} color="#FFF" />
+            <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFF' }}>{mediaCount}</Text>
+          </View>
+        )}
+      </Pressable>
+
+      {/* Info details */}
+      <Pressable onPress={() => onEdit(item)} style={{ padding: 16 }}>
+        {/* Title */}
+        <Text style={{
+          fontSize: 15, fontWeight: '900', color: colors.textPrimary, marginBottom: 6, lineHeight: 20
+        }} numberOfLines={1}>
+          {captionPreview}
+        </Text>
+
+        {/* Date */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <MaterialCommunityIcons name="calendar-outline" size={12} color={colors.textMuted} />
+          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textMuted }}>{dateStr}</Text>
+        </View>
+
+        {/* Caption snippet */}
+        {fullCaption.length > captionPreview.length && (
           <Text style={{
-            fontSize: 13, fontWeight: '800', color: colors.textPrimary, lineHeight: 18,
-          }} numberOfLines={2}>{captionPreview}</Text>
+            fontSize: 12, color: colors.textSecondary, lineHeight: 18, fontWeight: '600'
+          }} numberOfLines={2}>
+            {fullCaption.replace(captionPreview, '').trim() || fullCaption}
+          </Text>
+        )}
+      </Pressable>
 
-          {/* Date */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-            <MaterialCommunityIcons name="calendar-outline" size={11} color={colors.textMuted} />
-            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textMuted }}>{dateStr}</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Action bar */}
+      {/* Action Footer Bar */}
       <View style={{
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingHorizontal: 14, paddingVertical: 10,
+        paddingHorizontal: 16, paddingVertical: 12,
         borderTopWidth: 1, borderTopColor: colors.cardBorder,
         backgroundColor: colors.surfaceSoft,
       }}>
-        <Pressable
-          onPress={() => onEdit(item)}
-          style={{
-            flexDirection: 'row', alignItems: 'center', gap: 5,
-            backgroundColor: `${colors.accentTeal}12`, paddingVertical: 6, paddingHorizontal: 14, borderRadius: 12,
-          }}
-        >
-          <MaterialCommunityIcons name="pencil-outline" size={13} color={colors.accentTeal} />
-          <Text style={{ fontSize: 11, fontWeight: '800', color: colors.accentTeal }}>Edit</Text>
-        </Pressable>
+        {/* Used count */}
+        <Text style={{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }}>
+          Used {usedCount} times
+        </Text>
 
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Pressable style={{
-            width: 32, height: 32, borderRadius: 12, backgroundColor: colors.cardBackground,
-            alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.cardBorder,
-          }}>
-            <MaterialCommunityIcons name="content-copy" size={14} color={colors.textMuted} />
+        {/* Action Icons */}
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {/* Eye Icon (View / Preview) */}
+          <Pressable
+            onPress={() => onEdit(item)}
+            style={{
+              width: 34, height: 34, borderRadius: 10, backgroundColor: colors.cardBackground,
+              alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.cardBorder,
+            }}
+          >
+            <MaterialCommunityIcons name="eye-outline" size={16} color={colors.textMuted} />
           </Pressable>
-          <Pressable style={{
-            width: 32, height: 32, borderRadius: 12, backgroundColor: colors.cardBackground,
-            alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.cardBorder,
-          }}>
-            <MaterialCommunityIcons name="share-variant-outline" size={14} color={colors.textMuted} />
+
+          {/* Share Icon */}
+          <Pressable
+            onPress={() => Alert.alert('Share', 'Caption copied to clipboard.')}
+            style={{
+              width: 34, height: 34, borderRadius: 10, backgroundColor: colors.cardBackground,
+              alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.cardBorder,
+            }}
+          >
+            <MaterialCommunityIcons name="share-variant-outline" size={16} color={colors.textMuted} />
           </Pressable>
+
+          {/* Delete Icon */}
           <Pressable
             onPress={() => onDelete(item.id)}
             style={{
-              width: 32, height: 32, borderRadius: 12, backgroundColor: 'rgba(239,68,68,0.06)',
-              alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(239,68,68,0.12)',
+              width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(239,68,68,0.05)',
+              alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(239,68,68,0.15)',
             }}
           >
-            <MaterialCommunityIcons name="trash-can-outline" size={14} color="#EF4444" />
+            <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
           </Pressable>
         </View>
       </View>
@@ -602,8 +627,8 @@ function ContentCardItem({
 
 // ─── Delete Confirmation Modal ──────────────────────────────────────
 function DeleteConfirmationModal({
-  visible, onClose, onConfirm,
-}: { visible: boolean; onClose: () => void; onConfirm: () => void; }) {
+  visible, onClose, onConfirm, isDeleting,
+}: { visible: boolean; onClose: () => void; onConfirm: () => void; isDeleting: boolean; }) {
   const { colors } = useAppTheme();
 
   return (
@@ -630,17 +655,21 @@ function DeleteConfirmationModal({
           </Text>
 
           <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
-            <Pressable onPress={onClose} style={{
+            <Pressable disabled={isDeleting} onPress={onClose} style={{
               flex: 1, height: 50, borderRadius: 16, borderWidth: 1.5, borderColor: colors.cardBorder,
               backgroundColor: colors.cardBackground, alignItems: 'center', justifyContent: 'center',
             }}>
               <Text style={{ fontSize: 15, fontWeight: '800', color: colors.textPrimary }}>Cancel</Text>
             </Pressable>
-            <Pressable onPress={onConfirm} style={{
+            <Pressable disabled={isDeleting} onPress={onConfirm} style={{
               flex: 1, height: 50, borderRadius: 16, backgroundColor: '#EF4444',
               alignItems: 'center', justifyContent: 'center',
             }}>
-              <Text style={{ fontSize: 15, fontWeight: '900', color: '#FFF' }}>Delete</Text>
+              {isDeleting ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={{ fontSize: 15, fontWeight: '900', color: '#FFF' }}>Delete</Text>
+              )}
             </Pressable>
           </View>
         </Animated.View>
@@ -649,14 +678,40 @@ function DeleteConfirmationModal({
   );
 }
 
+// ─── Dropdown Options Configuration ────────────────────────────────
+const DROPDOWN_OPTIONS = {
+  type: [
+    { id: 'all', label: 'All Types' },
+    { id: 'property', label: 'Property' },
+    { id: 'open-house', label: 'Open House' },
+    { id: 'campaign', label: 'Campaign' },
+    { id: 'custom', label: 'Custom' },
+  ],
+  status: [
+    { id: 'all', label: 'All Statuses' },
+    { id: 'draft', label: 'Drafts' },
+    { id: 'scheduled', label: 'Scheduled' },
+    { id: 'published', label: 'Published' },
+  ],
+  date: [
+    { id: 'oldest', label: 'Oldest First' },
+    { id: 'newest', label: 'Newest First' },
+  ],
+} as const;
+
 // ─── Main Screen ────────────────────────────────────────────────────
 export default function ContentLibraryScreen() {
   const { colors } = useAppTheme();
   const { accessToken } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabId>('all');
+  const [activeType, setActiveType] = useState<'all' | 'property' | 'open-house' | 'campaign' | 'custom'>('all');
+  const [activeStatus, setActiveStatus] = useState<'all' | 'draft' | 'scheduled' | 'published'>('all');
+  const [activeSort, setActiveSort] = useState<'oldest' | 'newest'>('oldest');
+  const [activeDropdown, setActiveDropdown] = useState<'type' | 'status' | 'date' | null>(null);
+
   const [itemToDelete, setItemToDelete] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editingItem, setEditingItem] = useState<SocialPost | null>(null);
   const queryClient = useQueryClient();
 
@@ -667,17 +722,45 @@ export default function ContentLibraryScreen() {
   });
 
   const filteredCards = useMemo(() => {
-    if (activeTab === 'all') return contentList;
-    if (activeTab === 'property') return contentList.filter(c => c.property_id);
-    if (activeTab === 'open-house') return contentList.filter(c => c.caption?.toLowerCase().includes('open house'));
-    if (activeTab === 'campaign') return contentList.filter(c => c.campaign_id);
-    return contentList;
-  }, [activeTab, contentList]);
+    let list = [...contentList];
 
-  const handleDelete = () => {
-    if (itemToDelete) {
-      // API call to delete
+    // Filter by Type
+    if (activeType !== 'all') {
+      if (activeType === 'property') list = list.filter(c => c.property_id);
+      else if (activeType === 'open-house') list = list.filter(c => c.caption?.toLowerCase().includes('open house'));
+      else if (activeType === 'campaign') list = list.filter(c => c.campaign_id);
+      else if (activeType === 'custom') list = list.filter(c => !c.property_id && !c.campaign_id && !c.caption?.toLowerCase().includes('open house'));
+    }
+
+    // Filter by Status
+    if (activeStatus !== 'all') {
+      if (activeStatus === 'draft') list = list.filter(c => !c.published_at && c.status !== 1);
+      else if (activeStatus === 'scheduled') list = list.filter(c => c.status === 1);
+      else if (activeStatus === 'published') list = list.filter(c => c.published_at);
+    }
+
+    // Sort by Date
+    list.sort((a, b) => {
+      const dateA = new Date(a.scheduled_at || a.created_at).getTime();
+      const dateB = new Date(b.scheduled_at || b.created_at).getTime();
+      return activeSort === 'newest' ? dateB - dateA : dateA - dateB;
+    });
+
+    return list;
+  }, [contentList, activeType, activeStatus, activeSort]);
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteSocialPost(accessToken || '', itemToDelete);
       setItemToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ['social-posts'] });
+    } catch (error: any) {
+      console.error('Failed to delete asset:', error);
+      Alert.alert('Error', error?.message || 'Failed to delete asset. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -692,6 +775,10 @@ export default function ContentLibraryScreen() {
     }
   };
 
+  const activeTypeLabel = DROPDOWN_OPTIONS.type.find(o => o.id === activeType)?.label.replace('All Types', 'All') || 'All';
+  const activeStatusLabel = DROPDOWN_OPTIONS.status.find(o => o.id === activeStatus)?.label.replace('All Statuses', 'All') || 'All';
+  const activeDateLabel = DROPDOWN_OPTIONS.date.find(o => o.id === activeSort)?.label || 'Oldest First';
+
   return (
     <View style={{ flex: 1 }}>
       <LinearGradient
@@ -700,15 +787,15 @@ export default function ContentLibraryScreen() {
       >
         <PageHeader
           title="Content Library"
-          subtitle="Your high-performing social assets vault."
+          subtitle="Manage and reuse your high-performing social assets."
           onBack={() => router.back()}
-
         />
 
         <DeleteConfirmationModal
           visible={!!itemToDelete}
           onClose={() => setItemToDelete(null)}
           onConfirm={handleDelete}
+          isDeleting={isDeleting}
         />
 
         <EditPostModal
@@ -718,49 +805,63 @@ export default function ContentLibraryScreen() {
           accessToken={accessToken || ''}
         />
 
-        {/* Premium Tab Bar */}
-        <Animated.View entering={FadeInDown.delay(50).duration(400)} style={{ marginTop: 6, marginBottom: 8 }}>
+        {/* Filter Dropdowns Bar */}
+        <Animated.View entering={FadeInDown.delay(50).duration(400)} style={{ marginTop: 6, marginBottom: 12 }}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
+            contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
           >
-            {TABS.map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <Pressable
-                  key={tab.id}
-                  onPress={() => setActiveTab(tab.id)}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center', gap: 6,
-                    paddingVertical: 9, paddingHorizontal: 16,
-                    borderRadius: 14,
-                    backgroundColor: isActive ? colors.textPrimary : colors.cardBackground,
-                    borderWidth: 1, borderColor: isActive ? colors.textPrimary : colors.cardBorder,
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name={tab.icon}
-                    size={14}
-                    color={isActive ? colors.cardBackground : colors.textMuted}
-                  />
-                  <Text style={{
-                    fontSize: 12, fontWeight: '800',
-                    color: isActive ? colors.cardBackground : colors.textMuted,
-                  }}>{tab.label}</Text>
-                  {isActive && activeTab !== 'all' && (
-                    <View style={{
-                      backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8,
-                      paddingHorizontal: 6, paddingVertical: 1, marginLeft: 2,
-                    }}>
-                      <Text style={{ fontSize: 10, fontWeight: '900', color: colors.cardBackground }}>
-                        {filteredCards.length}
-                      </Text>
-                    </View>
-                  )}
-                </Pressable>
-              );
-            })}
+            {/* Type Dropdown */}
+            <Pressable
+              onPress={() => setActiveDropdown('type')}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 6,
+                paddingVertical: 10, paddingHorizontal: 14,
+                borderRadius: 12,
+                backgroundColor: colors.cardBackground,
+                borderWidth: 1.5, borderColor: colors.cardBorder,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }}>
+                Type: {activeTypeLabel}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={14} color={colors.textMuted} />
+            </Pressable>
+
+            {/* Status Dropdown */}
+            <Pressable
+              onPress={() => setActiveDropdown('status')}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 6,
+                paddingVertical: 10, paddingHorizontal: 14,
+                borderRadius: 12,
+                backgroundColor: colors.cardBackground,
+                borderWidth: 1.5, borderColor: colors.cardBorder,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }}>
+                Status: {activeStatusLabel}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={14} color={colors.textMuted} />
+            </Pressable>
+
+            {/* Date/Sort Dropdown */}
+            <Pressable
+              onPress={() => setActiveDropdown('date')}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 6,
+                paddingVertical: 10, paddingHorizontal: 14,
+                borderRadius: 12,
+                backgroundColor: colors.cardBackground,
+                borderWidth: 1.5, borderColor: colors.cardBorder,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }}>
+                Date: {activeDateLabel}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={14} color={colors.textMuted} />
+            </Pressable>
           </ScrollView>
         </Animated.View>
 
@@ -821,25 +922,94 @@ export default function ContentLibraryScreen() {
           )}
         </ScrollView>
 
-        {/* Floating Action Button */}
-        <Pressable
-          style={{
-            position: 'absolute', right: 24, bottom: insets.bottom + 24,
-            borderRadius: 28,
-            ...Platform.select({
-              ios: { shadowColor: '#0a2341', shadowOpacity: 0.35, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
-              android: { elevation: 10 },
-            }),
-          }}
-          onPress={() => router.push('/(main)/social-hub/create-post')}
-        >
-          <LinearGradient colors={['#0a2341', '#0D9488']} style={{
-            width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center',
-          }}>
-            <MaterialCommunityIcons name="plus" size={28} color="#FFF" />
-          </LinearGradient>
-        </Pressable>
       </LinearGradient>
+
+      {/* Dropdown Options Bottom Sheet Modal */}
+      <Modal
+        visible={!!activeDropdown}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setActiveDropdown(null)}
+      >
+        <Pressable 
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(11, 35, 65, 0.55)',
+            justifyContent: 'flex-end',
+          }}
+          onPress={() => setActiveDropdown(null)}
+        >
+          <View style={{
+            backgroundColor: colors.cardBackground,
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            paddingBottom: Math.max(insets.bottom, 24),
+            paddingHorizontal: 24,
+            paddingTop: 16,
+          }}>
+            {/* Grab Handle */}
+            <View style={{
+              width: 36,
+              height: 4,
+              backgroundColor: colors.cardBorder,
+              borderRadius: 2,
+              alignSelf: 'center',
+              marginBottom: 20,
+            }} />
+
+            {/* Title */}
+            <Text style={{
+              fontSize: 15,
+              fontWeight: '900',
+              color: colors.textPrimary,
+              marginBottom: 16,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+            }}>
+              Select {activeDropdown === 'type' ? 'Content Type' : activeDropdown === 'status' ? 'Publication Status' : 'Sort Order'}
+            </Text>
+
+            {/* Options List */}
+            {activeDropdown && DROPDOWN_OPTIONS[activeDropdown].map((opt) => {
+              const isSelected = 
+                activeDropdown === 'type' ? activeType === opt.id :
+                activeDropdown === 'status' ? activeStatus === opt.id :
+                activeSort === opt.id;
+
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => {
+                    if (activeDropdown === 'type') setActiveType(opt.id as any);
+                    else if (activeDropdown === 'status') setActiveStatus(opt.id as any);
+                    else setActiveSort(opt.id as any);
+                    setActiveDropdown(null);
+                  }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingVertical: 14,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.cardBorder,
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 14,
+                    fontWeight: isSelected ? '800' : '600',
+                    color: isSelected ? colors.accentTeal : colors.textPrimary,
+                  }}>
+                    {opt.label}
+                  </Text>
+                  {isSelected && (
+                    <MaterialCommunityIcons name="check" size={18} color={colors.accentTeal} />
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

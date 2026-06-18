@@ -344,7 +344,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                 <Text style={styles.label}>Email <Text style={styles.required}>*</Text></Text>
                 <TextInput
                   style={[
-                    styles.input, 
+                    styles.input,
                     errors.email && styles.inputError,
                     isEditing && { backgroundColor: colors.surfaceIcon, color: colors.textMuted }
                   ]}

@@ -257,10 +257,6 @@ export default function CRMCampaignsScreen() {
   }, [params.openAiModal, params.aiPrompt]);
 
   const handleGenerateAICampaign = async () => {
-    if (!aiTemplateId) {
-      Alert.alert("Required", "Please select a brand template for the AI campaign.");
-      return;
-    }
     if (!aiDescription.trim()) {
       Alert.alert("Required", "Please describe your campaign objective.");
       return;
@@ -268,7 +264,17 @@ export default function CRMCampaignsScreen() {
 
     setIsGeneratingAI(true);
     try {
-      const systemInstruction = `You are a professional Real Estate Marketing Copywriter.
+      let systemInstruction = '';
+      if (aiTemplateId) {
+        systemInstruction = `You are a professional Real Estate Marketing Copywriter.
+The user wants to create a new marketing campaign targeting "${aiSegment}" using an existing template.
+Here is their instruction/prompt: "${aiDescription.trim()}".
+Based on this, generate a JSON object with exactly the following fields:
+1. "campaignName": A catchy, professional name for this campaign (max 50 chars).
+2. "subjectA": A compelling email subject line for variation A.
+3. "subjectB": A compelling email subject line for variation B (different approach than A).`;
+      } else {
+        systemInstruction = `You are a professional Real Estate Marketing Copywriter.
 The user wants to create a new marketing campaign targeting "${aiSegment}".
 Here is their instruction/prompt: "${aiDescription.trim()}".
 Based on this, generate a JSON object with exactly the following fields:
@@ -276,6 +282,7 @@ Based on this, generate a JSON object with exactly the following fields:
 2. "subjectA": A compelling email subject line for variation A.
 3. "subjectB": A compelling email subject line for variation B (different approach than A).
 4. "emailBody": The complete HTML body of the email. Use professional styling, inline CSS, and placeholder variables like {{first_name}} where appropriate. Make it persuasive and directly related to the user's prompt.`;
+      }
 
       const aiResponse = await extractContactsWithAI(accessToken || '', aiDescription.trim(), systemInstruction);
       
@@ -295,28 +302,35 @@ Based on this, generate a JSON object with exactly the following fields:
 
       const data = JSON.parse(cleanJsonStr);
 
-      const tempId = `ai-temp-${Date.now()}`;
-      setAiGeneratedTemplate({
-        id: tempId,
-        name: `[AI] ${data.campaignName}`,
-        template_type: 'email',
-        content_json: {
-          components: [
-            {
-              type: 'Text Block',
-              content: data.emailBody
-            }
-          ]
-        },
-        subject: data.subjectA,
-        status: 1
-      });
+      if (aiTemplateId) {
+        // Use existing template directly
+        setFormTemplateId(aiTemplateId);
+        setAiGeneratedTemplate(null);
+      } else {
+        // Generate new temporary AI template with generated email body
+        const tempId = `ai-temp-${Date.now()}`;
+        setAiGeneratedTemplate({
+          id: tempId,
+          name: `[AI] ${data.campaignName}`,
+          template_type: 'email',
+          content_json: {
+            components: [
+              {
+                type: 'Text Block',
+                content: data.emailBody
+              }
+            ]
+          },
+          subject: data.subjectA,
+          status: 1
+        });
+        setFormTemplateId(tempId);
+      }
 
       // Populate campaign form fields
       setFormCampaignName(data.campaignName || '');
       setCommChannel('EMAIL');
       setTargetSegment(aiSegment);
-      setFormTemplateId(tempId);
       setAbTesting(true);
       setVersionA(data.subjectA || '');
       setVersionB(data.subjectB || '');
@@ -1590,6 +1604,34 @@ Based on this, generate a JSON object with exactly the following fields:
                       nestedScrollEnabled={true}
                       showsVerticalScrollIndicator={true}
                     >
+                      <Pressable
+                        style={({ pressed }) => ({
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingVertical: 10,
+                          paddingHorizontal: 16,
+                          backgroundColor: !aiTemplateId
+                            ? 'rgba(59, 130, 246, 0.08)'
+                            : pressed
+                              ? '#F1F5F9'
+                              : 'transparent',
+                          borderRadius: 8,
+                          marginHorizontal: 4,
+                          marginVertical: 2
+                        })}
+                        onPress={() => { setAiTemplateId(null); setAiTemplateDropdown(false); }}
+                      >
+                        <Text style={{
+                          color: !aiTemplateId ? '#3B82F6' : '#1E293B',
+                          fontSize: 13,
+                          fontWeight: !aiTemplateId ? '700' : '600'
+                        }}>Select template (Generate New Body)</Text>
+                        {!aiTemplateId && (
+                          <MaterialCommunityIcons name="check" size={16} color="#3B82F6" />
+                        )}
+                      </Pressable>
+
                       {(templateList || [])
                         .filter(t => t.template_type.toLowerCase() === 'email')
                         .map(opt => {

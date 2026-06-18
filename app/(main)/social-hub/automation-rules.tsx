@@ -1,254 +1,329 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import {
+  createAutomationRule,
+  deleteAutomationRule,
+  getAutomationRules,
+  getTemplates,
+  updateAutomationRule,
+  AutomationRule
+} from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
-  LayoutAnimation,
+  KeyboardAvoidingView,
+  Modal as RNModal,
   Platform,
   Pressable,
-  Modal as RNModal,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
-  UIManager,
   View
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-if (Platform.OS === 'android') {
-  if (UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-  }
-}
-
-const INITIAL_RULES = [
-  {
-    id: '1',
-    title: 'New Listing Promo',
-    ifLabel: 'Property Status Change',
-    thenLabel: 'Post on All Platforms',
-    status: 'ACTIVE' as const,
-    icon: 'star-four-points-outline' as const,
-  },
-  {
-    id: '2',
-    title: 'Open House Reminder',
-    ifLabel: '24h Before Event',
-    thenLabel: 'Instagram Story + FB Post',
-    status: 'ACTIVE' as const,
-    icon: 'clock-outline' as const,
-  },
-  {
-    id: '3',
-    title: 'Weekly Market Update',
-    ifLabel: 'Every Monday @ 9AM',
-    thenLabel: 'LinkedIn Article',
-    status: 'PAUSED' as const,
-    icon: 'calendar-blank-outline' as const,
-  },
-  {
-    id: '4',
-    title: 'Price Drop Alert',
-    ifLabel: 'Price Change > 5%',
-    thenLabel: 'Facebook & Instagram Post',
-    status: 'ACTIVE' as const,
-    icon: 'lightning-bolt-outline' as const,
-  },
-];
-
 const TRIGGER_OPTIONS = [
-  'Property Status Change',
-  'New Open House Created',
-  'Price Adjustment Detected',
-  'Scheduled Task Completion',
-  'New Follower Detected',
+  { label: 'New Property Listed', value: 'New Property Listed' },
+  { label: 'Property Sold', value: 'Property Sold' },
+  { label: 'Property Price Reduced', value: 'Property Price Reduced' },
 ];
 
 const ACTION_OPTIONS = [
-  'Post to All Connected Platforms',
-  'Notify Team via Dashboard',
-  'Draft AI Campaign',
-  'Send Weekly Digest',
+  { label: 'Auto-Generate & Publish Immediately', value: 'Auto-Generate & Publish Immediately' },
+  { label: 'Auto-Generate & Save as Draft', value: 'Auto-Generate & Save as Draft' },
+  { label: 'Notify Team to Post Manually', value: 'Notify Team to Post Manually' },
 ];
 
 const SCOPE_OPTIONS = [
-  'All Properties',
-  'Premium Only',
-  'New Listings Only',
-  'Global Market',
-  'Active Listings',
+  { label: 'All Properties', value: 'All Properties' },
+  { label: 'Filter by Minimum Price', value: 'Filter by Minimum Price' },
+  { label: 'Filter by Property Type', value: 'Filter by Property Type' },
 ];
 
-const SUGGESTED_FLOWS = [
-  { id: 'a', label: 'Replenish Content Queue when Empty', highlighted: true, trigger: 'Queue Empty', action: 'Draft AI Campaign' },
-  { id: 'b', label: 'Cross-post TikToks to IG Reels', highlighted: false, trigger: 'New TikTok Post', action: 'Repost to Reels' },
-  { id: 'c', label: 'Auto-DM New Followers', highlighted: false, trigger: 'New Follower', action: 'Send Welcome DM' },
+const PROPERTY_TYPE_OPTIONS = [
+  { label: 'Residential', value: 'Residential' },
+  { label: 'Commercial', value: 'Commercial' },
+  { label: 'Land', value: 'Land' },
+  { label: 'Luxury', value: 'Luxury' },
 ];
-
-type Rule = {
-  id: string;
-  title: string;
-  ifLabel: string;
-  thenLabel: string;
-  status: 'ACTIVE' | 'PAUSED';
-  icon: any;
-};
 
 export default function AutomationRulesScreen() {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
-
+  const { colors, theme } = useAppTheme();
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
   const [search, setSearch] = useState('');
-  const [rules, setRules] = useState<Rule[]>(INITIAL_RULES);
-
-  // Modal States
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newRuleName, setNewRuleName] = useState('');
-  const [selectedTrigger, setSelectedTrigger] = useState('');
-  const [selectedAction, setSelectedAction] = useState('');
-  const [scheduleDate, setScheduleDate] = useState('dd/mm/yyyy');
-  const [triggerTime, setTriggerTime] = useState('09:00 AM');
-  const [targetScope, setTargetScope] = useState('All Properties');
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['Instagram', 'Facebook', 'Linkedin', 'TikTok']);
-  const [activeDropdown, setActiveDropdown] = useState<'trigger' | 'action' | 'scope' | null>(null);
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
 
-  // Handlers
-  const toggleRuleStatus = (id: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setRules(currentRules =>
-      currentRules.map(rule =>
-        rule.id === id
-          ? { ...rule, status: rule.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE' }
-          : rule
-      )
-    );
+  // Form States
+  const [newRuleName, setNewRuleName] = useState('');
+  const [selectedTrigger, setSelectedTrigger] = useState(TRIGGER_OPTIONS[0].value);
+  const [selectedAction, setSelectedAction] = useState(ACTION_OPTIONS[0].value);
+  const [targetScope, setTargetScope] = useState(SCOPE_OPTIONS[0].value);
+  const [scopeValue, setScopeValue] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['Instagram', 'Facebook']);
+  const [activeDropdown, setActiveDropdown] = useState<'trigger' | 'action' | 'scope' | 'template' | 'propertyType' | null>(null);
+
+  // Validation Error States
+  const [ruleNameError, setRuleNameError] = useState('');
+  const [templateError, setTemplateError] = useState('');
+  const [platformsError, setPlatformsError] = useState('');
+  const [scopeValError, setScopeValError] = useState('');
+
+  // Queries
+  const { data: rules = [], isLoading: isRulesLoading } = useQuery({
+    queryKey: ['automation-rules-all'],
+    queryFn: () => getAutomationRules(accessToken || ''),
+    enabled: !!accessToken,
+  });
+
+  const { data: templates = [], isLoading: isTemplatesLoading } = useQuery({
+    queryKey: ['social-templates-all'],
+    queryFn: () => getTemplates(accessToken || ''),
+    enabled: !!accessToken,
+  });
+
+  const isLoading = isRulesLoading || isTemplatesLoading;
+
+  React.useEffect(() => {
+    if (templates.length > 0 && !selectedTemplateId) {
+      setSelectedTemplateId(String(templates[0].id));
+    }
+  }, [templates, selectedTemplateId]);
+
+  const closeModal = () => {
+    setShowCreateModal(false);
+    setEditingRuleId(null);
+    setNewRuleName('');
+    setSelectedTrigger(TRIGGER_OPTIONS[0].value);
+    setSelectedAction(ACTION_OPTIONS[0].value);
+    setTargetScope(SCOPE_OPTIONS[0].value);
+    setScopeValue('');
+    setSelectedTemplateId(templates.length > 0 ? String(templates[0].id) : '');
+    setSelectedPlatforms(['Instagram', 'Facebook']);
+    setActiveDropdown(null);
+
+    setRuleNameError('');
+    setTemplateError('');
+    setPlatformsError('');
+    setScopeValError('');
   };
 
-  const deleteRule = (id: string) => {
+  const openCreateModal = () => {
+    setEditingRuleId(null);
+    setNewRuleName('');
+    setSelectedTrigger(TRIGGER_OPTIONS[0].value);
+    setSelectedAction(ACTION_OPTIONS[0].value);
+    setTargetScope(SCOPE_OPTIONS[0].value);
+    setScopeValue('');
+    setSelectedTemplateId(templates.length > 0 ? String(templates[0].id) : '');
+    setSelectedPlatforms(['Instagram', 'Facebook']);
+    
+    setRuleNameError('');
+    setTemplateError('');
+    setPlatformsError('');
+    setScopeValError('');
+    
+    setShowCreateModal(true);
+  };
+
+  const openEditModal = (rule: AutomationRule) => {
+    setEditingRuleId(rule.id);
+    setNewRuleName(rule.name);
+    setSelectedTrigger(rule.trigger_event);
+    setSelectedAction(rule.action_type);
+    setTargetScope(rule.config?.scope?.type || SCOPE_OPTIONS[0].value);
+    setScopeValue(rule.config?.scope?.value ? String(rule.config.scope.value) : '');
+    setSelectedTemplateId(rule.config?.template_id ? String(rule.config.template_id) : '');
+    setSelectedPlatforms(rule.config?.platforms || []);
+    
+    setRuleNameError('');
+    setTemplateError('');
+    setPlatformsError('');
+    setScopeValError('');
+    
+    setShowCreateModal(true);
+  };
+
+  const handleToggleActive = async (rule: AutomationRule) => {
+    if (!accessToken) return;
+    try {
+      await updateAutomationRule(accessToken, rule.id, {
+        is_active: !rule.is_active,
+      });
+      queryClient.invalidateQueries({ queryKey: ['automation-rules-all'] });
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to toggle rule status');
+    }
+  };
+
+  const handleDeleteRule = (id: number) => {
     Alert.alert(
-      "Delete Rule",
-      "Are you sure you want to delete this automation rule?",
+      'Delete Automation',
+      'Are you sure you want to delete this automation rule? This action cannot be undone.',
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setRules(currentRules => currentRules.filter(r => r.id !== id));
-          }
-        }
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (!accessToken) return;
+            try {
+              await deleteAutomationRule(accessToken, id);
+              queryClient.invalidateQueries({ queryKey: ['automation-rules-all'] });
+              Alert.alert('Success', 'Rule deleted successfully');
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete rule');
+            }
+          },
+        },
       ]
     );
   };
 
-  const handleCreateRule = () => {
-    // Basic validation
-    if (!newRuleName) return;
+  const handleSaveRule = async () => {
+    let isValid = true;
 
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-
-    if (editingRuleId) {
-      setRules(currentRules =>
-        currentRules.map(rule =>
-          rule.id === editingRuleId
-            ? {
-              ...rule,
-              title: newRuleName,
-              ifLabel: selectedTrigger || 'Custom Trigger',
-              thenLabel: selectedAction || 'Custom Action',
-            }
-            : rule
-        )
-      );
+    if (!newRuleName.trim()) {
+      setRuleNameError('Rule name is required.');
+      isValid = false;
     } else {
-      const newRule: Rule = {
-        id: Date.now().toString(),
-        title: newRuleName,
-        ifLabel: selectedTrigger || 'Custom Trigger',
-        thenLabel: selectedAction || 'Custom Action',
-        status: 'ACTIVE',
-        icon: 'robot-outline',
-      };
-      setRules([newRule, ...rules]);
+      setRuleNameError('');
     }
 
-    closeModal();
+    if (!selectedTemplateId) {
+      setTemplateError('Please select a template to use.');
+      isValid = false;
+    } else {
+      setTemplateError('');
+    }
+
+    if (selectedPlatforms.length === 0) {
+      setPlatformsError('Please select at least one target platform.');
+      isValid = false;
+    } else {
+      setPlatformsError('');
+    }
+
+    if (targetScope === 'Filter by Minimum Price') {
+      if (!scopeValue.trim()) {
+        setScopeValError('Minimum price is required.');
+        isValid = false;
+      } else if (isNaN(Number(scopeValue))) {
+        setScopeValError('Please enter a valid number.');
+        isValid = false;
+      } else {
+        setScopeValError('');
+      }
+    } else if (targetScope === 'Filter by Property Type') {
+      if (!scopeValue.trim()) {
+        setScopeValError('Property type is required.');
+        isValid = false;
+      } else {
+        setScopeValError('');
+      }
+    } else {
+      setScopeValError('');
+    }
+
+    if (!isValid) return;
+
+    const payload = {
+      name: newRuleName,
+      trigger_event: selectedTrigger,
+      action_type: selectedAction,
+      is_active: true,
+      config: {
+        scope: {
+          type: targetScope,
+          ...(targetScope !== 'All Properties' ? { value: targetScope === 'Filter by Minimum Price' ? Number(scopeValue) : scopeValue } : {})
+        },
+        platforms: selectedPlatforms,
+        template_id: String(selectedTemplateId),
+      },
+    };
+
+    if (!accessToken) return;
+
+    try {
+      if (editingRuleId) {
+        await updateAutomationRule(accessToken, editingRuleId, payload);
+      } else {
+        await createAutomationRule(accessToken, payload);
+      }
+      queryClient.invalidateQueries({ queryKey: ['automation-rules-all'] });
+      closeModal();
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to save automation rule');
+    }
   };
 
-  const openSuggestionModal = (flow: (typeof SUGGESTED_FLOWS)[0]) => {
-    setNewRuleName(flow.label || '');
-    setSelectedTrigger(flow.trigger || '');
-    setSelectedAction(flow.action || '');
-    setScheduleDate('dd/mm/yyyy');
-    setTriggerTime('09:00 AM');
-    setTargetScope('All Properties');
-    setSelectedPlatforms(['Instagram', 'Facebook', 'Linkedin', 'TikTok']);
-    setShowCreateModal(true);
-  };
+  const filteredRules = rules.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
 
-  const openEditModal = (rule: Rule) => {
-    setEditingRuleId(rule.id);
-    setNewRuleName(rule.title);
-    setSelectedTrigger(rule.ifLabel);
-    setSelectedAction(rule.thenLabel);
-    setScheduleDate('dd/mm/yyyy');
-    setTriggerTime('09:00 AM');
-    setTargetScope('All Properties');
-    setSelectedPlatforms(['Instagram', 'Facebook', 'Linkedin', 'TikTok']);
-    setShowCreateModal(true);
-  };
+  const triggerDropdownOptions = TRIGGER_OPTIONS;
+  const actionDropdownOptions = ACTION_OPTIONS;
+  const scopeDropdownOptions = SCOPE_OPTIONS;
+  const templateDropdownOptions = templates.map(t => ({ label: t.name, value: String(t.id) }));
 
-  const closeModal = () => {
-    setShowCreateModal(false);
-    setActiveDropdown(null);
-    setEditingRuleId(null);
-    setNewRuleName('');
-    setSelectedTrigger('');
-    setSelectedAction('');
-    setScheduleDate('dd/mm/yyyy');
-    setTriggerTime('09:00 AM');
-    setTargetScope('All Properties');
-    setSelectedPlatforms([]);
-  };
-
-  const DropdownMenu = ({ visible, options, selected, onSelect, onClose }: any) => {
+  const DropdownMenu = ({ visible, title, options, selected, onSelect, onClose }: any) => {
     if (!visible) return null;
     return (
-      <RNModal transparent visible={visible} animationType="fade">
+      <RNModal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
         <Pressable style={styles.dropdownOverlay} onPress={onClose}>
-          <View style={styles.dropdownMenuContent}>
-            {options.map((opt: string) => (
-              <Pressable
-                key={opt}
-                style={styles.dropdownMenuItem}
-                onPress={() => {
-                  onSelect(opt);
-                  onClose();
-                }}>
-                <View style={styles.dropdownMenuItemInner}>
-                  {selected === opt && (
-                    <MaterialCommunityIcons name="check" size={16} color={colors.textPrimary} style={{ marginRight: 8 }} />
-                  )}
-                  <Text style={styles.dropdownMenuItemText}>{opt}</Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
+          <Pressable style={styles.dropdownMenuContent} onPress={() => {}}>
+            <View style={styles.bottomSheetHandle} />
+            {!!title && (
+              <>
+                <Text style={styles.dropdownSheetTitle}>{title}</Text>
+                <View style={styles.dropdownSheetDivider} />
+              </>
+            )}
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+              {options.map((opt: any) => {
+                const isSelected = selected === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    style={[
+                      styles.dropdownMenuItem,
+                      isSelected && { backgroundColor: colors.surfaceSoft }
+                    ]}
+                    onPress={() => {
+                      onSelect(opt.value);
+                      onClose();
+                    }}>
+                    <View style={styles.dropdownMenuItemInner}>
+                      {isSelected && (
+                        <MaterialCommunityIcons name="check" size={16} color={colors.accentTeal} style={{ marginRight: 8 }} />
+                      )}
+                      <Text style={[
+                        styles.dropdownMenuItemText,
+                        isSelected && { color: colors.accentTeal }
+                      ]}>{opt.label}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
         </Pressable>
       </RNModal>
     );
   };
-
-  const filteredRules = rules.filter(r => r.title.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <LinearGradient
@@ -259,309 +334,418 @@ export default function AutomationRulesScreen() {
         title="Automation Rules"
         subtitle="Set up 'if this, then that' workflows for your social media."
         onBack={() => router.back()}
-
       />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 120 }]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accentTeal} />
+          <Text style={[styles.loadingText, { color: colors.textMuted }]}>Configuring workflows...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+          showsVerticalScrollIndicator={false}>
 
-        {/* Search */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchIconBox}>
-            <MaterialCommunityIcons name="magnify" size={20} color={colors.textMuted} />
+          {/* Search bar */}
+          <View style={styles.searchContainer}>
+            <MaterialCommunityIcons name="magnify" size={20} color={colors.textMuted} style={{ marginRight: 10 }} />
+            <TextInput
+              style={styles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search rules..."
+              placeholderTextColor={colors.textMuted || '#94A3B8'}
+            />
           </View>
-          <TextInput
-            style={styles.searchInput}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search automation rules..."
-            placeholderTextColor="#94A3B8"
-          />
-        </View>
 
-        {/* Rule list */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Active Automations</Text>
-          <Text style={styles.sectionCount}>{filteredRules.length} Rules</Text>
-        </View>
+          {/* Rule List */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Active Automations</Text>
+            <Text style={styles.sectionCount}>{filteredRules.length} Rules</Text>
+          </View>
 
-        <View style={styles.ruleList}>
-          {filteredRules.map((rule) => (
-            <View
-              key={rule.id}
-              style={[
-                styles.ruleCard,
-                rule.status === 'PAUSED' && styles.ruleCardPaused
-              ]}
-            >
-              <View style={styles.ruleRowMain}>
-                <View style={[styles.ruleIconBox, { backgroundColor: rule.status === 'PAUSED' ? '#F1F5F9' : '#0a234110' }]}>
-                  <MaterialCommunityIcons
-                    name={rule.icon}
-                    size={22}
-                    color={rule.status === 'PAUSED' ? '#94A3B8' : '#0a2341'}
-                  />
-                </View>
-                <View style={styles.ruleContent}>
-                  <Text style={[styles.ruleLabelTitle, rule.status === 'PAUSED' && styles.textPaused]}>
-                    {rule.title}
-                  </Text>
-                  <View style={styles.logicFlow}>
-                    <Text style={styles.logicText} numberOfLines={1}>
-                      <Text style={styles.logicBold}>IF</Text> {rule.ifLabel} → <Text style={styles.logicBold}>THEN</Text> {rule.thenLabel}
-                    </Text>
+          <View style={styles.ruleList}>
+            {filteredRules.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialCommunityIcons name="robot-off-outline" size={48} color={colors.textMuted} />
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>No automation rules found</Text>
+              </View>
+            ) : (
+              filteredRules.map((rule, idx) => (
+                <Animated.View
+                  entering={FadeInDown.delay(idx * 100).springify()}
+                  key={rule.id}
+                  style={styles.ruleCard}
+                >
+                  <View style={styles.ruleHeaderRow}>
+                    <View style={styles.ruleTitleSection}>
+                      <View style={styles.ruleIconBox}>
+                        <MaterialCommunityIcons name="lightning-bolt-outline" size={20} color={colors.accentTeal} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                          <Text style={styles.ruleTitleText}>{rule.name}</Text>
+                          <View style={styles.scopeBadge}>
+                            <Text style={styles.scopeBadgeText}>
+                              {rule.config?.scope?.type?.toUpperCase() || 'ALL PROPERTIES'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
                   </View>
-                </View>
-                <Switch
-                  value={rule.status === 'ACTIVE'}
-                  onValueChange={() => toggleRuleStatus(rule.id)}
-                  trackColor={{ false: '#E2E8F0', true: '#0a2341' }}
-                  thumbColor={Platform.OS === 'ios' ? '#FFFFFF' : rule.status === 'ACTIVE' ? '#FFFFFF' : '#FFFFFF'}
-                  ios_backgroundColor="#E2E8F0"
-                />
-              </View>
 
-              <View style={styles.ruleFooter}>
-                <View style={styles.footerInfo}>
-                  <MaterialCommunityIcons name="history" size={14} color={colors.textMuted} />
-                  <Text style={styles.footerText}>Last run 2h ago</Text>
-                </View>
-                <View style={styles.footerActions}>
-                  <Pressable style={styles.footerBtn} onPress={() => openEditModal(rule)}>
-                    <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textSecondary} />
-                  </Pressable>
-                  <Pressable style={styles.footerBtn} onPress={() => deleteRule(rule.id)}>
-                    <MaterialCommunityIcons name="trash-can-outline" size={16} color="#F87171" />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
+                  <View style={styles.ruleInfoDivider} />
 
-        {/* Automation Impact Widget */}
-        <LinearGradient
-          colors={['#0B2341', '#1E293B']}
-          style={styles.impactWidget}>
-          <View style={styles.widgetHeader}>
-            <View style={styles.widgetIconBox}>
-              <MaterialCommunityIcons name="lightning-bolt" size={20} color="#0a2341" />
-            </View>
-            <View>
-              <Text style={styles.widgetTitle}>System Impact</Text>
-              <Text style={styles.widgetSubtitle}>Efficiency gains this month</Text>
-            </View>
+                  <View style={styles.ruleFooterRow}>
+                    <View style={styles.timeSection}>
+                      <MaterialCommunityIcons name="clock-outline" size={14} color={colors.textMuted} />
+                      <Text style={styles.timeText}>
+                        {rule.action_type === 'Auto-Generate & Publish Immediately' ? 'Immediate' : 'Delayed'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.actionButtons}>
+                      <Pressable
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: rule.is_active ? 'rgba(16, 185, 129, 0.1)' : colors.surfaceSoft }
+                        ]}
+                        onPress={() => handleToggleActive(rule)}
+                      >
+                        <Text style={[styles.statusText, { color: rule.is_active ? '#10B981' : colors.textMuted }]}>
+                          {rule.is_active ? 'ACTIVE' : 'PAUSED'}
+                        </Text>
+                      </Pressable>
+
+                      <Pressable style={styles.editBtn} onPress={() => openEditModal(rule)}>
+                        <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.textSecondary} />
+                      </Pressable>
+
+                      <Pressable style={styles.deleteBtn} onPress={() => handleDeleteRule(rule.id)}>
+                        <MaterialCommunityIcons name="trash-can-outline" size={18} color="#F87171" />
+                      </Pressable>
+                    </View>
+                  </View>
+                </Animated.View>
+              ))
+            )}
           </View>
-          <View style={styles.widgetStats}>
-            <View style={styles.statRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statVal}>42</Text>
-                <Text style={styles.statLabel}>Task Handled</Text>
+
+          {/* Automation Impact Section matching web design exactly */}
+          <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.impactContainer}>
+            <View style={styles.impactHeader}>
+              <View style={styles.impactRadarBox}>
+                <MaterialCommunityIcons name="radar" size={22} color={colors.accentTeal} />
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statVal}>12h</Text>
-                <Text style={styles.statLabel}>Time Reclaimed</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.impactTitle}>Automation Impact</Text>
+                <Text style={styles.impactSubtitle}>Last 30 days performance</Text>
               </View>
             </View>
-          </View>
-        </LinearGradient>
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Smart Recommendations</Text>
-        </View>
+            <View style={styles.impactDivider} />
 
-        <View style={styles.suggestionsContainer}>
-          {SUGGESTED_FLOWS.map((flow) => (
-            <Pressable
-              key={flow.id}
-              onPress={() => openSuggestionModal(flow)}
-              style={({ pressed }) => [styles.suggestedCard, pressed && { opacity: 0.7 }]}>
-              <View style={styles.suggestedIconWrap}>
-                <MaterialCommunityIcons name="auto-fix" size={20} color="#0a2341" />
+            <View style={styles.impactStatsRow}>
+              <View style={styles.impactStatItem}>
+                <Text style={styles.impactStatValue}>16</Text>
+                <Text style={styles.impactStatLabel}>Posts Automated</Text>
               </View>
-              <Text style={styles.suggestedText}>{flow.label}</Text>
-              <MaterialCommunityIcons name="plus" size={20} color={colors.textMuted} />
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
+
+              <View style={styles.impactStatDivider} />
+
+              <View style={styles.impactStatItem}>
+                <Text style={styles.impactStatValue}>5h</Text>
+                <Text style={styles.impactStatLabel}>Time Saved</Text>
+              </View>
+            </View>
+          </Animated.View>
+
+        </ScrollView>
+      )}
 
       {/* Floating Create Rule Button */}
-      <View style={[styles.floatingAction, { bottom: insets.bottom + 20 }]}>
+      {!isLoading && (
         <Pressable
-          style={styles.createRuleFab}
-          onPress={() => {
-            setNewRuleName('');
-            setSelectedTrigger('Property Status Change');
-            setSelectedAction('Post to All Connected Platforms');
-            setScheduleDate('dd/mm/yyyy');
-            setTriggerTime('09:00 AM');
-            setTargetScope('All Properties');
-            setSelectedPlatforms(['Instagram']);
-            setShowCreateModal(true);
-          }}>
-          <MaterialCommunityIcons name="plus" size={24} color="#FFF" />
-          <Text style={styles.fabText}>New Automation</Text>
+          style={styles.fab}
+          onPress={openCreateModal}
+        >
+          <LinearGradient
+            colors={[colors.accentTeal, colors.accentBlue]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.fabGradient}
+          >
+            <MaterialCommunityIcons name="plus" size={18} color="#FFF" />
+            <Text style={styles.fabText}>Create Rule</Text>
+          </LinearGradient>
         </Pressable>
-      </View>
+      )}
 
-      {/* Create / Suggestion Modal */}
-      <RNModal visible={showCreateModal} transparent animationType="slide" onRequestClose={closeModal}>
+      {/* Create / Edit Rule Modal */}
+      <RNModal visible={showCreateModal} transparent={false} animationType="slide" onRequestClose={closeModal}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingTop: insets.top, height: '100%' }]}>
-            <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>{editingRuleId ? 'Edit Automation Rule' : 'Create Automation Rule'}</Text>
-              <Pressable onPress={closeModal} style={styles.closeBtn}>
-                <MaterialCommunityIcons name="close" size={24} color={colors.textMuted} />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
-              {/* Rule Name */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.fieldLabel}>Rule Name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newRuleName}
-                  onChangeText={setNewRuleName}
-                  placeholder="TikTok Sync"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-
-              {/* Trigger & Action */}
-              <View style={styles.formRow}>
-                <View style={styles.formCol}>
-                  <Text style={styles.fieldLabel}>Trigger (IF)</Text>
-                  <Pressable style={styles.dropdownStub} onPress={() => setActiveDropdown('trigger')}>
-                    <Text style={styles.dropdownText} numberOfLines={1}>{selectedTrigger || 'Select Trigger'}</Text>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                  </Pressable>
-                </View>
-                <View style={styles.formCol}>
-                  <Text style={styles.fieldLabel}>Action (THEN)</Text>
-                  <Pressable style={styles.dropdownStub} onPress={() => setActiveDropdown('action')}>
-                    <Text style={styles.dropdownText} numberOfLines={1}>{selectedAction || 'Select Action'}</Text>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                  </Pressable>
-                </View>
-              </View>
-
-              {/* Schedule Date & Trigger Time */}
-              <View style={styles.formRow}>
-                <View style={styles.formCol}>
-                  <Text style={styles.fieldLabel}>Schedule Date</Text>
-                  <Pressable
-                    style={styles.dropdownStub}
-                    onPress={() => Alert.alert('Select Date', 'Date picker would open here.')}>
-                    <Text style={styles.dropdownValue}>{scheduleDate}</Text>
-                    <MaterialCommunityIcons name="calendar-outline" size={18} color={colors.textPrimary} />
-                  </Pressable>
-                </View>
-                <View style={styles.formCol}>
-                  <Text style={styles.fieldLabel}>Trigger Time</Text>
-                  <Pressable
-                    style={styles.dropdownStub}
-                    onPress={() => Alert.alert('Select Time', 'Time picker would open here.')}>
-                    <Text style={styles.dropdownValue}>{triggerTime}</Text>
-                    <MaterialCommunityIcons name="clock-outline" size={18} color={colors.textPrimary} />
-                  </Pressable>
-                </View>
-              </View>
-
-              {/* Target Scope */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.fieldLabel}>Target Scope</Text>
-                <Pressable style={styles.dropdownStub} onPress={() => setActiveDropdown('scope')}>
-                  <Text style={styles.dropdownText}>{targetScope}</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={[styles.modalContent, { paddingTop: insets.top, paddingBottom: 0 }]}>
+              <View style={styles.modalHeaderRow}>
+                <Text style={styles.modalTitle}>{editingRuleId ? 'Edit Automation Rule' : 'Create Automation Rule'}</Text>
+                <Pressable onPress={closeModal} style={styles.closeBtn}>
+                  <MaterialCommunityIcons name="close" size={22} color={colors.textMuted} />
                 </Pressable>
               </View>
 
-              {/* Target Platforms */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.fieldLabel}>Target Platforms</Text>
-                <View style={styles.platformGrid}>
-                  {[
-                    { id: 'Instagram', icon: 'instagram', color: '#E1306C' },
-                    { id: 'Facebook', icon: 'facebook', color: '#1877F2' },
-                    { id: 'Linkedin', icon: 'linkedin', color: '#0A66C2' },
-                    { id: 'TikTok', icon: 'music-note', color: '#000000' }
-                  ].map((p) => {
-                    const isSelected = selectedPlatforms.includes(p.id);
-                    return (
-                      <Pressable
-                        key={p.id}
-                        onPress={() => {
-                          if (isSelected) {
-                            setSelectedPlatforms(selectedPlatforms.filter(id => id !== p.id));
-                          } else {
-                            setSelectedPlatforms([...selectedPlatforms, p.id]);
-                          }
-                        }}
-                        style={[styles.platformToggle, isSelected && styles.platformToggleActive]}
-                      >
-                        <View style={[styles.customCheckbox, isSelected && styles.customCheckboxActive]}>
-                          {isSelected && <MaterialCommunityIcons name="check" size={12} color="#FFF" />}
-                        </View>
-                        <MaterialCommunityIcons name={p.icon as any} size={18} color={p.color} style={{ marginHorizontal: 4 }} />
-                        <Text style={styles.platformLabel}>{p.id}</Text>
-                      </Pressable>
-                    );
-                  })}
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+                {/* Rule Name */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.fieldLabel}>Rule Name <Text style={styles.asterisk}>*</Text></Text>
+                  <TextInput
+                    style={[styles.input, !!ruleNameError && styles.inputError]}
+                    value={newRuleName}
+                    onChangeText={(val) => {
+                      setNewRuleName(val);
+                      if (val.trim()) setRuleNameError('');
+                    }}
+                    placeholder="e.g. Social Lead email"
+                    placeholderTextColor={colors.textMuted || '#94A3B8'}
+                  />
+                  {!!ruleNameError && <Text style={styles.errorText}>{ruleNameError}</Text>}
                 </View>
+
+                {/* Trigger (IF) */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.fieldLabel}>Trigger (IF) <Text style={styles.asterisk}>*</Text></Text>
+                  <Pressable style={styles.dropdownStub} onPress={() => setActiveDropdown('trigger')}>
+                    <Text style={styles.dropdownText} numberOfLines={1}>
+                      {TRIGGER_OPTIONS.find(o => o.value === selectedTrigger)?.label || 'Select Trigger'}
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
+
+                {/* Action (THEN) */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.fieldLabel}>Action (THEN) <Text style={styles.asterisk}>*</Text></Text>
+                  <Pressable style={styles.dropdownStub} onPress={() => setActiveDropdown('action')}>
+                    <Text style={styles.dropdownText} numberOfLines={1}>
+                      {ACTION_OPTIONS.find(o => o.value === selectedAction)?.label || 'Select Action'}
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
+
+                {/* Template to Use */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.fieldLabel}>Template to Use <Text style={styles.asterisk}>*</Text></Text>
+                  <Pressable style={[styles.dropdownStub, !!templateError && styles.inputError]} onPress={() => setActiveDropdown('template')}>
+                    <Text style={styles.dropdownText} numberOfLines={1}>
+                      {templates.find(t => String(t.id) === selectedTemplateId)?.name || 'Select Template'}
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                  </Pressable>
+                  {!!templateError && <Text style={styles.errorText}>{templateError}</Text>}
+                </View>
+
+                {/* Target Scope */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.fieldLabel}>Target Scope <Text style={styles.asterisk}>*</Text></Text>
+                  <Pressable style={styles.dropdownStub} onPress={() => setActiveDropdown('scope')}>
+                    <Text style={styles.dropdownText} numberOfLines={1}>
+                      {SCOPE_OPTIONS.find(o => o.value === targetScope)?.label || 'Select Scope'}
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                  </Pressable>
+                </View>
+
+                {/* Dynamic field for Filter by Minimum Price */}
+                {targetScope === 'Filter by Minimum Price' && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.fieldLabel}>Minimum Price ($) <Text style={styles.asterisk}>*</Text></Text>
+                    <TextInput
+                      style={[styles.input, !!scopeValError && styles.inputError]}
+                      value={scopeValue}
+                      onChangeText={(val) => {
+                        setScopeValue(val);
+                        if (val.trim()) setScopeValError('');
+                      }}
+                      keyboardType="numeric"
+                      placeholder="e.g. 1000000"
+                      placeholderTextColor={colors.textMuted || '#94A3B8'}
+                    />
+                    {!!scopeValError && <Text style={styles.errorText}>{scopeValError}</Text>}
+                  </View>
+                )}
+
+                {/* Dynamic field for Filter by Property Type */}
+                {targetScope === 'Filter by Property Type' && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.fieldLabel}>Property Type <Text style={styles.asterisk}>*</Text></Text>
+                    <Pressable
+                      style={[styles.dropdownStub, !!scopeValError && styles.inputError]}
+                      onPress={() => setActiveDropdown('propertyType')}
+                    >
+                      <Text style={styles.dropdownText} numberOfLines={1}>
+                        {PROPERTY_TYPE_OPTIONS.find(o => o.value === scopeValue)?.label || 'Select Property Type'}
+                      </Text>
+                      <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textPrimary} />
+                    </Pressable>
+                    {!!scopeValError && <Text style={styles.errorText}>{scopeValError}</Text>}
+                  </View>
+                )}
+
+                {/* Platforms */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.fieldLabel}>Target Platforms <Text style={styles.asterisk}>*</Text></Text>
+                  <View style={styles.platformGrid}>
+                    {[
+                      { id: 'Instagram', icon: 'instagram', color: '#E1306C' },
+                      { id: 'Facebook', icon: 'facebook', color: '#1877F2' },
+                      // { id: 'Linkedin', icon: 'linkedin', color: '#0A66C2' },
+                      { id: 'TikTok', icon: 'music-note', color: '#FE2C55' }
+                    ].map((p) => {
+                      const isSelected = selectedPlatforms.includes(p.id);
+                      return (
+                        <Pressable
+                          key={p.id}
+                          onPress={() => {
+                            let updated;
+                            if (isSelected) {
+                              updated = selectedPlatforms.filter(item => item !== p.id);
+                            } else {
+                              updated = [...selectedPlatforms, p.id];
+                            }
+                            setSelectedPlatforms(updated);
+                            if (updated.length > 0) setPlatformsError('');
+                          }}
+                          style={styles.platformRowBadge}
+                        >
+                          <MaterialCommunityIcons 
+                            name={isSelected ? "checkbox-marked" : "checkbox-blank-outline"} 
+                            size={18} 
+                            color={isSelected ? colors.accentTeal : colors.textMuted} 
+                            style={{ marginRight: 8 }}
+                          />
+                          <MaterialCommunityIcons name={p.icon as any} size={16} color={colors.textPrimary} style={{ marginRight: 6 }} />
+                          <Text style={[styles.platformText, { color: colors.textPrimary }]}>{p.id}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {!!platformsError && <Text style={styles.errorText}>{platformsError}</Text>}
+                </View>
+              </ScrollView>
+
+              {/* Fixed bottom buttons */}
+              <View style={styles.actionRowFixed}>
+                <Pressable style={[styles.modalBtn, styles.cancelBtn]} onPress={closeModal}>
+                  <Text style={[styles.modalBtnText, { color: colors.textPrimary }]}>Cancel</Text>
+                </Pressable>
+                <Pressable style={[styles.modalBtn, styles.saveBtn]} onPress={handleSaveRule}>
+                  <Text style={[styles.modalBtnText, { color: '#FFF' }]}>
+                    {editingRuleId ? 'Update Rule' : 'Activate Rule'}
+                  </Text>
+                </Pressable>
               </View>
-            </ScrollView>
 
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalCancelBtn} onPress={closeModal}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.modalSaveBtn} onPress={handleCreateRule}>
-                <MaterialCommunityIcons name="check" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.modalSaveText}>{editingRuleId ? 'Update Rule' : 'Activate Rule'}</Text>
-              </Pressable>
+              {/* Dropdown Modals */}
+              <DropdownMenu
+                visible={activeDropdown === 'trigger'}
+                title="Select Trigger Event"
+                options={triggerDropdownOptions}
+                selected={selectedTrigger}
+                onSelect={setSelectedTrigger}
+                onClose={() => setActiveDropdown(null)}
+              />
+
+              <DropdownMenu
+                visible={activeDropdown === 'action'}
+                title="Select Action Type"
+                options={actionDropdownOptions}
+                selected={selectedAction}
+                onSelect={setSelectedAction}
+                onClose={() => setActiveDropdown(null)}
+              />
+
+              <DropdownMenu
+                visible={activeDropdown === 'scope'}
+                title="Select Target Scope"
+                options={scopeDropdownOptions}
+                selected={targetScope}
+                onSelect={setTargetScope}
+                onClose={() => setActiveDropdown(null)}
+              />
+
+              <DropdownMenu
+                visible={activeDropdown === 'template'}
+                title="Select Template"
+                options={templateDropdownOptions}
+                selected={selectedTemplateId}
+                onSelect={setSelectedTemplateId}
+                onClose={() => setActiveDropdown(null)}
+              />
+
+              <DropdownMenu
+                visible={activeDropdown === 'propertyType'}
+                title="Select Property Type"
+                options={PROPERTY_TYPE_OPTIONS}
+                selected={scopeValue}
+                onSelect={(val: string) => {
+                  setScopeValue(val);
+                  setScopeValError('');
+                }}
+                onClose={() => setActiveDropdown(null)}
+              />
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
-
-        {/* Dropdown Menus */}
-        <DropdownMenu
-          visible={activeDropdown === 'trigger'}
-          options={TRIGGER_OPTIONS}
-          selected={selectedTrigger}
-          onSelect={setSelectedTrigger}
-          onClose={() => setActiveDropdown(null)}
-        />
-        <DropdownMenu
-          visible={activeDropdown === 'action'}
-          options={ACTION_OPTIONS}
-          selected={selectedAction}
-          onSelect={setSelectedAction}
-          onClose={() => setActiveDropdown(null)}
-        />
-        <DropdownMenu
-          visible={activeDropdown === 'scope'}
-          options={SCOPE_OPTIONS}
-          selected={targetScope}
-          onSelect={setTargetScope}
-          onClose={() => setActiveDropdown(null)}
-        />
       </RNModal>
-
-    </LinearGradient >
+    </LinearGradient>
   );
 }
 
-function getStyles(colors: any) {
+function getStyles(colors: any, theme: 'light' | 'dark') {
   return StyleSheet.create({
     background: { flex: 1 },
     scroll: { flex: 1 },
-    scrollContent: { paddingHorizontal: 20 },
+    scrollContent: { paddingHorizontal: 18 },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: 12,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    fab: {
+      position: 'absolute',
+      bottom: 30,
+      right: 25,
+      borderRadius: 28,
+      elevation: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+    },
+    fabGradient: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 22,
+      height: 45,
+      borderRadius: 28,
+      gap: 8,
+    },
+    fabText: {
+      color: '#FFF',
+      fontSize: 14,
+      fontWeight: '800',
+      letterSpacing: -0.2,
+    },
     searchContainer: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -570,19 +754,17 @@ function getStyles(colors: any) {
       borderWidth: 1,
       borderColor: colors.cardBorder,
       paddingHorizontal: 16,
-      marginBottom: 24,
-      ...Platform.select({
-        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 12 },
-        android: { elevation: 2 },
-      }),
+      height: 48,
+      marginBottom: 20,
+      marginTop: 10,
     },
-    searchIconBox: { marginRight: 12 },
     searchInput: {
       flex: 1,
-      paddingVertical: 14,
-      fontSize: 15,
-      fontWeight: '600',
+      fontSize: 13,
+      fontWeight: '700',
       color: colors.textPrimary,
+      height: '100%',
+      paddingVertical: 0,
     },
     sectionHeader: {
       flexDirection: 'row',
@@ -591,406 +773,398 @@ function getStyles(colors: any) {
       marginBottom: 16,
     },
     sectionTitle: {
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: '900',
       color: colors.textPrimary,
     },
     sectionCount: {
       fontSize: 12,
-      fontWeight: '800',
+      fontWeight: '700',
       color: colors.textMuted,
     },
-    ruleList: { gap: 16, marginBottom: 24 },
+    ruleList: {
+      marginBottom: 24,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 40,
+    },
+    emptyText: {
+      marginTop: 12,
+      fontSize: 13,
+      fontWeight: '600',
+    },
     ruleCard: {
       backgroundColor: colors.cardBackground,
-      borderRadius: 24,
+      borderRadius: 22,
       padding: 16,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: colors.cardBorder,
+      marginBottom: 14,
       ...Platform.select({
-        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.03, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
         android: { elevation: 2 },
       }),
     },
-    ruleCardPaused: {
-      backgroundColor: colors.surfaceSoft,
-      borderColor: colors.cardBorder,
+    ruleHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
     },
-    ruleRowMain: {
+    ruleTitleSection: {
       flexDirection: 'row',
       alignItems: 'center',
+      flex: 1,
       gap: 12,
-      marginBottom: 16,
     },
     ruleIconBox: {
-      width: 48,
-      height: 48,
-      borderRadius: 14,
+      width: 38,
+      height: 38,
+      borderRadius: 11,
+      backgroundColor: `${colors.accentTeal}12`,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    ruleContent: { flex: 1 },
-    ruleLabelTitle: {
-      fontSize: 16,
-      fontWeight: '900',
+    ruleTitleText: {
+      fontSize: 14,
+      fontWeight: '800',
       color: colors.textPrimary,
-      marginBottom: 4,
     },
-    textPaused: { color: colors.textMuted },
-    logicFlow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+    scopeBadge: {
+      backgroundColor: colors.surfaceSoft,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
     },
-    logicText: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      fontWeight: '600',
-    },
-    logicBold: {
-      color: '#0a2341',
+    scopeBadgeText: {
+      fontSize: 8,
       fontWeight: '900',
+      color: colors.textSecondary,
+      letterSpacing: 0.5,
     },
-    ruleFooter: {
+    ruleInfoDivider: {
+      height: 1,
+      backgroundColor: colors.rowBorder || colors.cardBorder,
+      marginVertical: 12,
+    },
+    ruleFooterRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingTop: 14,
-      borderTopWidth: 1,
-      borderTopColor: colors.cardBorder,
     },
-    footerInfo: {
+    timeSection: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
     },
-    footerText: {
-      fontSize: 11,
+    timeText: {
+      fontSize: 12,
       fontWeight: '700',
       color: colors.textMuted,
     },
-    footerActions: {
-      flexDirection: 'row',
-      gap: 8,
-    },
-    footerBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
-      backgroundColor: colors.surfaceSoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-    },
-    impactWidget: {
-      borderRadius: 24,
-      padding: 24,
-      marginBottom: 32,
-      ...Platform.select({
-        ios: { shadowColor: '#0B2341', shadowOpacity: 0.15, shadowOffset: { width: 0, height: 10 }, shadowRadius: 15 },
-        android: { elevation: 6 },
-      }),
-    },
-    widgetHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginBottom: 24,
-    },
-    widgetIconBox: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: 'rgba(11, 160, 178, 0.2)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    widgetTitle: {
-      fontSize: 16,
-      fontWeight: '900',
-      color: '#FFFFFF',
-    },
-    widgetSubtitle: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: 'rgba(255,255,255,0.6)',
-    },
-    widgetStats: {},
-    statRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-around',
-    },
-    statItem: {
-      alignItems: 'center',
-    },
-    statVal: {
-      fontSize: 28,
-      fontWeight: '900',
-      color: '#FFFFFF',
-    },
-    statLabel: {
-      fontSize: 11,
-      fontWeight: '800',
-      color: '#0a2341',
-      marginTop: 4,
-      letterSpacing: 0.5,
-    },
-    statDivider: {
-      width: 1,
-      height: 40,
-      backgroundColor: colors.surfaceIcon,
-    },
-    suggestionsContainer: { gap: 12 },
-    suggestedCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.cardBackground,
-      borderRadius: 20,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      gap: 12,
-    },
-    suggestedIconWrap: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      backgroundColor: '#0a234110',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    suggestedText: {
-      flex: 1,
-      fontSize: 14,
-      fontWeight: '700',
-      color: colors.textPrimary,
-    },
-    floatingAction: {
-      position: 'absolute',
-      left: 20,
-      right: 20,
-      alignItems: 'center',
-    },
-    createRuleFab: {
-      backgroundColor: colors.accentTeal,
+    actionButtons: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      paddingHorizontal: 24,
-      paddingVertical: 18,
-      borderRadius: 30,
-      shadowColor: '#0B2341',
-      shadowOpacity: 0.3,
-      shadowOffset: { width: 0, height: 10 },
-      shadowRadius: 15,
-      elevation: 8,
     },
-    fabText: {
-      color: '#FFFFFF',
+    statusBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 8,
+    },
+    statusText: {
+      fontSize: 9,
+      fontWeight: '900',
+      letterSpacing: 0.5,
+    },
+    editBtn: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceSoft,
+    },
+    deleteBtn: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    },
+    impactContainer: {
+      backgroundColor: theme === 'dark' ? '#151D26' : '#0B2D3E',
+      borderRadius: 24,
+      padding: 20,
+      marginBottom: 20,
+      ...Platform.select({
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.1, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
+        android: { elevation: 4 },
+      }),
+    },
+    impactHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    impactRadarBox: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    impactTitle: {
       fontSize: 16,
       fontWeight: '900',
+      color: '#FFF',
     },
-    // Modal Styles
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(15, 23, 42, 0.4)',
-      justifyContent: 'flex-start',
+    impactSubtitle: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: 'rgba(255,255,255,0.7)',
+      marginTop: 2,
     },
-    modalContent: {
-      backgroundColor: colors.cardBackground,
-      height: '100%',
-      width: '100%',
-      shadowColor: colors.cardShadowColor,
-      shadowOpacity: 0.15,
-      shadowOffset: { width: 0, height: -10 },
-      shadowRadius: 20,
-      elevation: 20,
+    impactDivider: {
+      height: 1,
+      backgroundColor: 'rgba(255,255,255,0.1)',
+      marginVertical: 16,
+    },
+    impactStatsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+    },
+    impactStatItem: {
+      alignItems: 'center',
+    },
+    impactStatValue: {
+      fontSize: 28,
+      fontWeight: '900',
+      color: '#FFF',
+    },
+    impactStatLabel: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: 'rgba(255,255,255,0.8)',
+      marginTop: 4,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    impactStatDivider: {
+      width: 1,
+      height: 35,
+      backgroundColor: 'rgba(255,255,255,0.1)',
     },
     dropdownOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.4)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
     },
     dropdownMenuContent: {
       backgroundColor: colors.cardBackground,
-      borderRadius: 16,
-      width: '100%',
-      paddingVertical: 10,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
       borderWidth: 1,
       borderColor: colors.cardBorder,
-      shadowColor: colors.cardShadowColor,
-      shadowOpacity: 0.4,
-      shadowOffset: { width: 0, height: 6 },
-      shadowRadius: 12,
-      elevation: 12,
+      borderBottomWidth: 0,
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: -10 },
+      elevation: 10,
+    },
+    bottomSheetHandle: {
+      width: 40,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: `${colors.textMuted}30`,
+      alignSelf: 'center',
+      marginBottom: 16,
+      marginTop: 4,
+    },
+    dropdownSheetTitle: {
+      fontSize: 14,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginBottom: 12,
+    },
+    dropdownSheetDivider: {
+      height: 1,
+      backgroundColor: colors.rowBorder || colors.cardBorder,
+      marginBottom: 10,
     },
     dropdownMenuItem: {
-      paddingHorizontal: 20,
       paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.rowBorder || colors.cardBorder,
     },
     dropdownMenuItemInner: {
       flexDirection: 'row',
       alignItems: 'center',
     },
     dropdownMenuItemText: {
-      color: colors.textPrimary,
-      fontSize: 16,
-      fontWeight: '700',
-    },
-    dropdownValue: {
-      fontSize: 16,
-      color: colors.textPrimary,
-      fontWeight: '600',
-    },
-    customCheckbox: {
-      width: 20,
-      height: 20,
-      borderRadius: 4,
-      borderWidth: 1.5,
-      borderColor: colors.cardBorder,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 8,
-    },
-    customCheckboxActive: {
-      backgroundColor: '#0a2341',
-      borderColor: '#0a2341',
-    },
-    modalHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 24,
-      paddingVertical: 20,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.cardBorder,
-    },
-    modalScroll: {
-      paddingHorizontal: 24,
-      paddingBottom: 40,
-      paddingTop: 20,
-    },
-    closeBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.surfaceSoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    modalTitle: {
-      fontSize: 22,
-      fontWeight: '900',
-      color: colors.textPrimary
-    },
-    fieldLabel: {
-      fontSize: 14,
-      fontWeight: '800',
-      color: colors.textPrimary,
-      marginBottom: 10,
-    },
-    inputGroup: {
-      marginBottom: 24,
-    },
-    formRow: {
-      gap: 16,
-      marginBottom: 24,
-    },
-    formCol: {
-      flex: 1,
-    },
-    input: {
-      backgroundColor: colors.cardBackground,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      fontSize: 16,
-      color: colors.textPrimary,
-    },
-    dropdownStub: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      backgroundColor: colors.cardBackground,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-    },
-    dropdownText: {
-      fontSize: 16,
-      color: colors.textPrimary,
-      fontWeight: '600',
-    },
-    platformGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 10,
-    },
-    platformToggle: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.surfaceSoft,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 14,
-      width: '48.5%',
-    },
-    platformToggleActive: {
-      backgroundColor: '#0a234105',
-      borderColor: '#0a234120',
-    },
-    platformLabel: {
-      paddingLeft: 4,
       fontSize: 13,
       fontWeight: '700',
       color: colors.textPrimary,
     },
-    modalActions: {
-      flexDirection: 'row',
-      gap: 16,
-      padding: 24,
-      borderTopWidth: 1,
-      borderTopColor: colors.cardBorder,
-      backgroundColor: colors.cardBackground,
-    },
-    modalCancelBtn: {
+    modalOverlay: {
       flex: 1,
-      paddingVertical: 14,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
+      backgroundColor: colors.cardBackground,
+      justifyContent: 'flex-start',
+    },
+    modalContent: {
+      backgroundColor: colors.cardBackground,
+      flex: 1,
+      height: '100%',
+      paddingHorizontal: 20,
+      paddingBottom: 40,
+    },
+    modalHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 18,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.rowBorder || colors.cardBorder,
+      marginBottom: 16,
+    },
+    modalTitle: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    closeBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.cardBackground
+      backgroundColor: colors.surfaceSoft,
     },
-    modalCancelText: {
-      color: colors.textPrimary,
+    modalScroll: {
+      paddingBottom: 20,
+    },
+    inputGroup: {
+      marginBottom: 16,
+    },
+    fieldLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      marginBottom: 8,
+      letterSpacing: 0.3,
+    },
+    input: {
+      height: 48,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.surfaceSoft,
+      paddingHorizontal: 16,
+      fontSize: 13,
       fontWeight: '700',
-      fontSize: 15
+      color: colors.textPrimary,
     },
-    modalSaveBtn: {
-      flex: 2,
+    formRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 16,
+    },
+    formCol: {
+      flex: 1,
+    },
+    dropdownStub: {
+      height: 48,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.surfaceSoft,
+      paddingHorizontal: 14,
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 6,
+    },
+    dropdownText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    platformGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    platformRowBadge: {
+      width: '48%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.surfaceSoft,
+      padding: 12,
+      borderRadius: 14,
+    },
+    platformText: {
+      fontSize: 11,
+      fontWeight: '800',
+    },
+    asterisk: {
+      color: '#EF4444',
+    },
+    errorText: {
+      color: '#EF4444',
+      fontSize: 11,
+      fontWeight: '600',
+      marginTop: 4,
+    },
+    inputError: {
+      borderColor: '#EF4444',
+    },
+    actionRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 20,
+    },
+    actionRowFixed: {
+      flexDirection: 'row',
+      gap: 12,
+      paddingVertical: 16,
+      borderTopWidth: 1,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.cardBackground,
+      paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    },
+    modalBtn: {
+      flex: 1,
+      height: 48,
+      borderRadius: 16,
+      alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
-      paddingVertical: 14,
-      borderRadius: 12,
+    },
+    cancelBtn: {
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+    },
+    saveBtn: {
       backgroundColor: colors.accentTeal,
     },
-    modalSaveText: {
-      color: '#FFFFFF',
+    modalBtnText: {
+      fontSize: 14,
       fontWeight: '800',
-      fontSize: 15
-    }
+    },
   });
 }

@@ -4,7 +4,6 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { deleteTemplate, getTemplates } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -14,13 +13,12 @@ import {
   Dimensions,
   FlatList,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
+  View
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,13 +29,13 @@ const PLATFORM_FILTERS = [
   { id: 'all', label: 'All', icon: 'apps' as const },
   { id: 'instagram', label: 'Instagram', icon: 'instagram' as const },
   { id: 'facebook', label: 'Facebook', icon: 'facebook' as const },
-  { id: 'linkedin', label: 'LinkedIn', icon: 'linkedin' as const },
+  // { id: 'linkedin', label: 'LinkedIn', icon: 'linkedin' as const },
   { id: 'tiktok', label: 'TikTok', icon: 'music-note' as const },
 ];
 
 export default function SocialTemplatesScreen() {
-  const { colors } = useAppTheme();
-  const styles = getStyles(colors);
+  const { colors, theme } = useAppTheme();
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { accessToken } = useAuth();
@@ -86,17 +84,17 @@ export default function SocialTemplatesScreen() {
 
   const renderTemplate = ({ item, index }: { item: any; index: number }) => {
     const platformIcon = item.platform.toLowerCase() === 'instagram' ? 'instagram' :
-                         item.platform.toLowerCase() === 'facebook' ? 'facebook' :
-                         item.platform.toLowerCase() === 'linkedin' ? 'linkedin' :
-                         item.platform.toLowerCase() === 'tiktok' ? 'music-note' : 'layers-outline';
-    
+      item.platform.toLowerCase() === 'facebook' ? 'facebook' :
+        item.platform.toLowerCase() === 'linkedin' ? 'linkedin' :
+          item.platform.toLowerCase() === 'tiktok' ? 'music-note' : 'layers-outline';
+
     const platformColor = item.platform.toLowerCase() === 'instagram' ? '#E1306C' :
-                          item.platform.toLowerCase() === 'facebook' ? '#1877F2' :
-                          item.platform.toLowerCase() === 'linkedin' ? '#0A66C2' :
-                          item.platform.toLowerCase() === 'tiktok' ? '#000000' : colors.accentTeal;
+      item.platform.toLowerCase() === 'facebook' ? '#1877F2' :
+        item.platform.toLowerCase() === 'linkedin' ? '#0A66C2' :
+          item.platform.toLowerCase() === 'tiktok' ? '#000000' : colors.accentTeal;
 
     return (
-      <Animated.View 
+      <Animated.View
         entering={FadeInDown.delay(index * 100).springify()}
         style={styles.templateCard}
       >
@@ -104,7 +102,7 @@ export default function SocialTemplatesScreen() {
           colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
           style={styles.glassBackground}
         />
-        
+
         <View style={styles.cardHeader}>
           <View style={[styles.platformBadge, { backgroundColor: platformColor + '20' }]}>
             <MaterialCommunityIcons name={platformIcon as any} size={14} color={platformColor} />
@@ -132,7 +130,7 @@ export default function SocialTemplatesScreen() {
             <Text style={styles.statValue}>124</Text>
             <Text style={styles.statLabel}>Posts</Text>
           </View>
-          <Pressable 
+          <Pressable
             style={styles.editButton}
             onPress={() => setWebOnlyModalVisible(true)}
           >
@@ -152,7 +150,7 @@ export default function SocialTemplatesScreen() {
       >
         <PageHeader
           title="Template Library"
-          subtitle="Pre-built high-converting social structures."
+          subtitle="Design premium visual templates for automated social posting."
           onBack={() => router.back()}
         />
 
@@ -180,10 +178,10 @@ export default function SocialTemplatesScreen() {
                   activePlatform === filter.id && styles.activeFilterPill,
                 ]}
               >
-                <MaterialCommunityIcons 
-                  name={filter.icon as any} 
-                  size={16} 
-                  color={activePlatform === filter.id ? '#FFF' : colors.textMuted} 
+                <MaterialCommunityIcons
+                  name={filter.icon as any}
+                  size={16}
+                  color={activePlatform === filter.id ? '#FFF' : colors.textMuted}
                 />
                 <Text style={[
                   styles.filterText,
@@ -218,7 +216,7 @@ export default function SocialTemplatesScreen() {
           />
         )}
 
-        <Pressable 
+        <Pressable
           style={styles.fab}
           onPress={() => setWebOnlyModalVisible(true)}
         >
@@ -228,7 +226,8 @@ export default function SocialTemplatesScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.fabGradient}
           >
-            <MaterialCommunityIcons name="plus" size={32} color="#FFF" />
+            <MaterialCommunityIcons name="plus" size={18} color="#FFF" />
+            <Text style={styles.fabText}>Create Template</Text>
           </LinearGradient>
         </Pressable>
 
@@ -248,7 +247,7 @@ export default function SocialTemplatesScreen() {
               <Text style={styles.modalDescription}>
                 Creating and editing template architectures requires the high-fidelity Visual Social Canvas, currently available on our desktop platform.
               </Text>
-              <Pressable 
+              <Pressable
                 style={styles.closeModalBtn}
                 onPress={() => setWebOnlyModalVisible(false)}
               >
@@ -262,7 +261,7 @@ export default function SocialTemplatesScreen() {
   );
 }
 
-const getStyles = (colors: any) => StyleSheet.create({
+const getStyles = (colors: any, theme: 'light' | 'dark') => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -427,9 +426,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     position: 'absolute',
     bottom: 30,
     right: 25,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    borderRadius: 28,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -437,11 +434,18 @@ const getStyles = (colors: any) => StyleSheet.create({
     shadowRadius: 10,
   },
   fabGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 32,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 22,
+    height: 45,
+    borderRadius: 28,
+    gap: 8,
+  },
+  fabText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: -0.2,
   },
   loadingContainer: {
     flex: 1,
@@ -472,22 +476,22 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.8)' : 'rgba(11, 45, 62, 0.5)',
     justifyContent: 'center',
     padding: 25,
   },
   modalContent: {
-    backgroundColor: '#1A1D21',
+    backgroundColor: colors.cardBackground,
     borderRadius: 30,
     padding: 30,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.cardBorder,
   },
   webBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(45, 212, 191, 0.1)',
+    backgroundColor: theme === 'dark' ? 'rgba(45, 212, 191, 0.1)' : 'rgba(10, 35, 65, 0.08)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -503,27 +507,27 @@ const getStyles = (colors: any) => StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#FFF',
+    color: colors.textPrimary,
     marginBottom: 12,
     textAlign: 'center',
   },
   modalDescription: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 25,
     fontWeight: '500',
   },
   closeModalBtn: {
-    backgroundColor: '#FFF',
+    backgroundColor: colors.textPrimary,
     width: '100%',
     paddingVertical: 16,
     borderRadius: 18,
     alignItems: 'center',
   },
   closeModalBtnText: {
-    color: '#000',
+    color: colors.cardBackground,
     fontSize: 16,
     fontWeight: '800',
   },
