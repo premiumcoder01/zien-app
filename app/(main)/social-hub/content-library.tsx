@@ -19,6 +19,7 @@ import {
   Pressable,
   Image as RNImage,
   ScrollView,
+  Share,
   Text,
   TextInput,
   View
@@ -600,7 +601,15 @@ function ContentCardItem({
 
           {/* Share Icon */}
           <Pressable
-            onPress={() => Alert.alert('Share', 'Caption copied to clipboard.')}
+            onPress={async () => {
+              try {
+                await Share.share({
+                  message: item.caption || 'Untitled Content',
+                });
+              } catch (error) {
+                console.log('Error sharing post:', error);
+              }
+            }}
             style={{
               width: 34, height: 34, borderRadius: 10, backgroundColor: colors.cardBackground,
               alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.cardBorder,

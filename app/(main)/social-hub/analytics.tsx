@@ -21,7 +21,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { BarChart } from 'react-native-chart-kit';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -54,8 +53,7 @@ export default function AnalyticsScreen() {
   
   const [dateRange, setDateRange] = useState<'Last 30 Days' | 'Last 90 Days'>('Last 30 Days');
 
-  const { width } = Dimensions.get('window');
-  const chartWidth = width - 40;
+
 
   // 1. Fetch posts from API
   const { data: posts = [], isLoading: isPostsLoading } = useQuery({
@@ -76,9 +74,9 @@ export default function AnalyticsScreen() {
 
   const isLoading = isPostsLoading || isPropertiesLoading;
 
-  // 3. Process published posts
+  // 3. Process all posts for activity logs
   const publishedPosts = useMemo(() => {
-    return posts.filter(post => post.status === 2 || post.published_at !== null);
+    return posts;
   }, [posts]);
 
   // 4. Filter posts by selected date range
@@ -278,18 +276,7 @@ export default function AnalyticsScreen() {
     }
   };
 
-  const chartConfig = useMemo(
-    () => ({
-      backgroundGradientFrom: colors.cardBackground,
-      backgroundGradientTo: colors.cardBackground,
-      decimalPlaces: 0,
-      color: (opacity = 1) => `rgba(11, 160, 178, ${opacity * 0.9})`,
-      labelColor: (opacity = 1) => colors.textSecondary,
-      barPercentage: 0.6,
-      propsForBackgroundLines: { stroke: colors.cardBorder, strokeWidth: 1 },
-    }),
-    [colors]
-  );
+
 
   if (isLoading) {
     return (
@@ -338,17 +325,39 @@ export default function AnalyticsScreen() {
           </View>
 
           <View style={styles.chartCard}>
-            <BarChart
-              data={last6MonthsChartData}
-              width={chartWidth}
-              height={220}
-              fromZero
-              yAxisLabel=""
-              yAxisSuffix=""
-              chartConfig={chartConfig as any}
-              style={styles.chart}
-              withInnerLines={false}
-            />
+            <View style={styles.customChartContainer}>
+              {last6MonthsChartData.labels.map((label, idx) => {
+                const value = last6MonthsChartData.datasets[0].data[idx] || 0;
+                const maxVal = Math.max(...last6MonthsChartData.datasets[0].data, 1);
+                // Proportional height up to 120px
+                const barHeight = maxVal > 0 ? (value / maxVal) * 120 : 0;
+
+                return (
+                  <View key={idx} style={styles.chartColumn}>
+                    {/* Value Label above the bar */}
+                    <Text style={styles.chartValueLabel}>{value}</Text>
+
+                    {/* Bar container */}
+                    <View style={styles.barOuter}>
+                      {value > 0 ? (
+                        <View
+                          style={[
+                            styles.barFill,
+                            {
+                              height: barHeight,
+                              backgroundColor: theme === 'dark' ? colors.accentTeal : '#0A2341',
+                            },
+                          ]}
+                        />
+                      ) : null}
+                    </View>
+
+                    {/* X-Axis Month Label */}
+                    <Text style={styles.chartMonthLabel}>{label}</Text>
+                  </View>
+                );
+              })}
+            </View>
           </View>
         </Animated.View>
 
@@ -497,19 +506,47 @@ function getStyles(colors: any, theme: 'light' | 'dark') {
     chartCard: {
       backgroundColor: colors.cardBackground,
       borderRadius: 24,
-      padding: 16,
+      padding: 20,
       borderWidth: 1,
       borderColor: colors.cardBorder,
       marginBottom: 24,
-      alignItems: 'center',
       ...Platform.select({
         ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
         android: { elevation: 2 },
       }),
     },
-    chart: {
-      borderRadius: 16,
-      marginRight: 0,
+    customChartContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      width: '100%',
+      height: 170,
+    },
+    chartColumn: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    chartValueLabel: {
+      fontSize: 13,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    barOuter: {
+      height: 120,
+      width: 32,
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    barFill: {
+      width: '100%',
+      borderRadius: 6,
+    },
+    chartMonthLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
     },
     platformCard: {
       backgroundColor: colors.cardBackground,

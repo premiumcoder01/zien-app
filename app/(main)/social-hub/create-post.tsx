@@ -2,7 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { generateAiText } from '@/services/aiContentService';
 import { getProperties, getPropertyDetails, uploadPropertyImage } from '@/services/propertyService';
-import { createSocialPost, updateSocialPost } from '@/services/socialService';
+import { createSocialPost, getSocialAccounts, getSocialPostById, updateSocialPost } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -54,7 +55,7 @@ const PLATFORMS: { id: PlatformId; label: string; icon: string }[] = [
 
 const HASHTAG_CHIPS = ['#Luxury', '#OpenHouse', '#ZienRealty', '#LALiving'];
 
-const DEFAULT_CAPTION = `✨ JUST LISTED! Check out this stunning modern home at 123 Business Way, Los Angeles. Featuring 4 bedrooms, 3 baths, and a resort-style backyard.\n\nDM for a private tour!\n\n#RealEstate #JustListed #LosAngelesRealEstate #ZienAI`;
+const DEFAULT_CAPTION = `JUST LISTED: 1601 Welch Street, Houston TX 77006\n\nExperience luxury living at its finest. This stunning property is now available for private tours.\n\nDM for details! #Zien #RealEstate #JustListed`;
 
 const MEDIA_GRID = [
   { id: 'm1', uri: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&q=80&w=800' },
@@ -233,8 +234,9 @@ export default function CreatePostScreen() {
   const [step, setStep] = useState<StepId | 'success'>(1);
   const [targetContent, setTargetContent] = useState('Custom Post / Market Update');
   const [caption, setCaption] = useState(isEditMode ? '' : DEFAULT_CAPTION);
-  const [platforms, setPlatforms] = useState<PlatformId[]>(['instagram', 'facebook']);
+  const [platforms, setPlatforms] = useState<PlatformId[]>([]);
   const [previewPlatform, setPreviewPlatform] = useState<PlatformId>('instagram');
+  const [hasInitializedPlatforms, setHasInitializedPlatforms] = useState(false);
   const [uploadedMedia, setUploadedMedia] = useState<{ id: string, uri: string }[]>([]);
   const [selectedMediaIds, setSelectedMediaIds] = useState<string[]>([]);
   const [lastSelectedMediaUri, setLastSelectedMediaUri] = useState<string | undefined>(undefined);
@@ -296,6 +298,28 @@ export default function CreatePostScreen() {
             }
           } catch { /* property fetch failed, use default */ }
         }
+
+        // Prefill platforms from post details API if in edit mode
+        if (postId && accessToken) {
+          try {
+            const postDetails = await getSocialPostById(accessToken, Number(postId));
+            if (postDetails && Array.isArray(postDetails.post_platforms)) {
+              const postPlatformIds = postDetails.post_platforms
+                .map((pp: any) => pp.platform?.toLowerCase())
+                .filter((platformId: any) => PLATFORMS.some(p => p.id === platformId)) as PlatformId[];
+
+              if (postPlatformIds.length > 0) {
+                setPlatforms(postPlatformIds);
+                setHasInitializedPlatforms(true);
+                if (!postPlatformIds.includes(previewPlatform)) {
+                  setPreviewPlatform(postPlatformIds[0]);
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('[CreatePost] Failed to fetch post details for platforms prefill:', err);
+          }
+        }
       } catch (error: any) {
         Alert.alert('Error', error.message || 'Failed to load post data');
         router.back();
@@ -329,6 +353,28 @@ export default function CreatePostScreen() {
 
   const properties = propertiesData?.properties || [];
 
+  const { data: socialAccounts, isLoading: isLoadingAccounts } = useQuery({
+    queryKey: ['socialAccounts'],
+    queryFn: () => getSocialAccounts(accessToken || ''),
+    enabled: !!accessToken,
+  });
+
+  // Default platforms initialization for new posts
+  useEffect(() => {
+    if (!isEditMode && socialAccounts && Array.isArray(socialAccounts) && !hasInitializedPlatforms) {
+      const activePlatformIds = socialAccounts
+        .filter((acc: any) => acc && acc.status === 1)
+        .map((acc: any) => acc.platform?.toLowerCase())
+        .filter((platformId: any) => PLATFORMS.some(p => p.id === platformId)) as PlatformId[];
+
+      setPlatforms(activePlatformIds);
+      setHasInitializedPlatforms(true);
+      if (activePlatformIds.length > 0 && !activePlatformIds.includes(previewPlatform)) {
+        setPreviewPlatform(activePlatformIds[0]);
+      }
+    }
+  }, [socialAccounts, isEditMode, hasInitializedPlatforms]);
+
   useEffect(() => {
     if (isEditMode && hasPrefilledRef.current) return; // Don't override edit prefill
     if (!isLoadingProperties) {
@@ -342,7 +388,9 @@ export default function CreatePostScreen() {
           }
         }
         if (targetContent === 'Custom Post / Market Update') {
-          setTargetContent(`${properties[0].address} (Property)`);
+          const firstProp = properties[0];
+          setTargetContent(`${firstProp.address} (Property)`);
+          setCaption(`JUST LISTED: ${firstProp.address}\n\nExperience luxury living at its finest. This stunning property is now available for private tours.\n\nDM for details! #Zien #RealEstate #JustListed`);
         }
       } else {
         setTargetContent('Custom Post / Market Update');
@@ -355,22 +403,8 @@ export default function CreatePostScreen() {
   }, [properties, targetContent]);
 
   const hashtagChips = useMemo(() => {
-    if (selectedProperty) {
-      const address = selectedProperty.address || '';
-      const cityMatch = address.match(/,\s*([^,]+)\s+[A-Z]{2}\s+\d+/);
-      const city = cityMatch ? cityMatch[1].trim().replace(/\s+/g, '') : 'Houston';
-      const streetMatch = address.split(',')[0];
-      const street = streetMatch ? streetMatch.trim().replace(/\s+/g, '') : 'WelchStreet';
-      return [
-        `#${city}RealEstate`,
-        `#HomeForSale`,
-        `#${street}`,
-        `#${city}Homes`,
-        `#RealEstateGoals`
-      ];
-    }
-    return ['#RealEstate', '#JustListed', '#DreamHome', '#ZienAI', '#HomeDesign'];
-  }, [selectedProperty]);
+    return ['#Zien', '#RealEstate', '#JustListed'];
+  }, []);
 
   const handleGenerateAICaption = async () => {
     if (!accessToken) return;
@@ -485,7 +519,16 @@ export default function CreatePostScreen() {
 
   const goNext = useCallback(async () => {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
-    if (step === 1) setStep(2);
+    if (step === 1) {
+      if (platforms.length === 0) {
+        Alert.alert(
+          'Selection Required',
+          'Please select at least one connected social media channel to proceed.'
+        );
+        return;
+      }
+      setStep(2);
+    }
     else if (step === 2) setStep(3);
     else if (step === 3) {
       if (isSubmitting) return;
@@ -499,6 +542,13 @@ export default function CreatePostScreen() {
           finalMediaUrl = uploadRes.url;
         }
 
+        const platformAccountIds = platforms.map(platformId => {
+          const matchedAcc = (socialAccounts || []).find(
+            (acc: any) => acc.platform?.toLowerCase() === platformId.toLowerCase()
+          );
+          return matchedAcc?.id;
+        }).filter(id => id !== undefined && id !== null);
+
         // 2. Prepare payload
         const payload = {
           caption,
@@ -511,7 +561,7 @@ export default function CreatePostScreen() {
               media_type: 'image'
             }
           ] : [],
-          platform_account_ids: []
+          platform_account_ids: platformAccountIds
         };
 
         // 3. Call API — create or update
@@ -529,7 +579,7 @@ export default function CreatePostScreen() {
         setIsSubmitting(false);
       }
     }
-  }, [step, isSubmitting, caption, selectedProperty, strategy, scheduledDate, lastSelectedMediaUri, accessToken, isEditMode, postId]);
+  }, [step, isSubmitting, caption, selectedProperty, strategy, scheduledDate, lastSelectedMediaUri, accessToken, isEditMode, postId, platforms, socialAccounts]);
 
   const goBack = useCallback(() => {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
@@ -589,7 +639,10 @@ export default function CreatePostScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.surfaceSoft }]}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.container, { backgroundColor: colors.surfaceSoft }]}
+    >
       <LinearGradient colors={colors.backgroundGradient as any} style={StyleSheet.absoluteFill} />
 
       {/* Header */}
@@ -661,14 +714,14 @@ export default function CreatePostScreen() {
             </View>
 
             <View style={styles.card}>
-              <Text style={[styles.cardLabel, { marginBottom: 12 }]}>Caption & Strategy</Text>
+              <Text style={[styles.cardLabel, { marginBottom: 12 }]}>Caption</Text>
 
               <View style={styles.aiInputContainer}>
                 <TextInput
                   style={styles.aiContextInputFull}
                   value={captionContext}
                   onChangeText={setCaptionContext}
-                  placeholder="Additional Context from user..."
+                  placeholder="Write your caption...  "
                   placeholderTextColor={colors.textMuted}
                 />
                 <Pressable
@@ -716,14 +769,32 @@ export default function CreatePostScreen() {
               <Text style={styles.cardLabel}>Select Platforms</Text>
               <View style={styles.platformSelectionGrid}>
                 {PLATFORMS.map(p => {
+                  const isConnected = (socialAccounts || []).some(
+                    (acc: any) => acc.platform?.toLowerCase() === p.id.toLowerCase() && acc.status === 1
+                  );
                   const isSelected = platforms.includes(p.id);
                   return (
                     <Pressable
                       key={p.id}
-                      style={[styles.platformOption, isSelected && styles.platformOptionSelected]}
+                      style={[
+                        styles.platformOption,
+                        isSelected && styles.platformOptionSelected,
+                        !isConnected && styles.platformOptionDisabled
+                      ]}
                       onPress={() => {
                         triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
-                        togglePlatform(p.id);
+                        if (isConnected) {
+                          togglePlatform(p.id);
+                        } else {
+                          Alert.alert(
+                            'Channel Not Connected',
+                            `Please connect your ${p.label} account in Account Settings to publish posts.`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Go to Settings', onPress: () => router.push('/(main)/social-hub/accounts') }
+                            ]
+                          );
+                        }
                       }}
                     >
                       <LinearGradient
@@ -737,13 +808,26 @@ export default function CreatePostScreen() {
                         />
                       </LinearGradient>
                       <View style={styles.platformTextInfo}>
-                        <Text style={[styles.platformLabel, isSelected && styles.platformLabelActive]}>{p.label}</Text>
-                        <Text style={styles.platformStatus}>{isSelected ? 'Connected' : 'Draft Mode'}</Text>
+                        <Text style={[
+                          styles.platformLabel,
+                          isSelected && styles.platformLabelActive,
+                          !isConnected && { color: colors.textMuted }
+                        ]}>
+                          {p.label}
+                        </Text>
+                        <Text style={styles.platformStatus}>
+                          {isConnected ? 'Connected' : 'Not Connected'}
+                        </Text>
                       </View>
-                      {isSelected && (
+                      {isConnected && isSelected && (
                         <Animated.View entering={FadeInRight} style={styles.platformCheckBadge}>
                           <MaterialCommunityIcons name="check" size={10} color="#FFF" />
                         </Animated.View>
+                      )}
+                      {!isConnected && (
+                        <View style={styles.notConnectedBadge}>
+                          <Text style={styles.notConnectedBadgeText}>NOT CONNECTED</Text>
+                        </View>
                       )}
                     </Pressable>
                   );
@@ -960,7 +1044,11 @@ export default function CreatePostScreen() {
           <PostPreviewCard
             caption={caption}
             previewPlatform={previewPlatform}
-            selectedMedia={selectedMediaIds.length > 0 ? lastSelectedMediaUri : undefined}
+            selectedMedia={
+              selectedMediaIds.length > 0
+                ? lastSelectedMediaUri
+                : (selectedProperty?.data?.user_images?.[0] || selectedProperty?.data?.Media?.[0]?.MediaURL || undefined)
+            }
             selectedPlatforms={platforms}
             onPreviewPlatformChange={setPreviewPlatform}
           />
@@ -1063,6 +1151,7 @@ export default function CreatePostScreen() {
                   onPress={() => {
                     triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
                     setTargetContent('Custom Post / Market Update');
+                    setCaption(DEFAULT_CAPTION);
                     setIsTargetDropdownVisible(false);
                   }}
                 >
@@ -1096,6 +1185,7 @@ export default function CreatePostScreen() {
                           onPress={() => {
                             triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
                             setTargetContent(label);
+                            setCaption(`JUST LISTED: ${prop.address}\n\nExperience luxury living at its finest. This stunning property is now available for private tours.\n\nDM for details! #Zien #RealEstate #JustListed`);
                             setIsTargetDropdownVisible(false);
                           }}
                         >
@@ -1121,7 +1211,7 @@ export default function CreatePostScreen() {
           </View>
         </Pressable>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -1166,9 +1256,12 @@ function getStyles(colors: any) {
     hashtagBox: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
     hashtag: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.surfaceSoft, borderWidth: 1, borderColor: colors.cardBorder },
     hashtagText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
-    platformSelectionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    platformOption: { flex: 1, minWidth: '46%', flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 22, borderWidth: 1.5, borderColor: colors.cardBorder, backgroundColor: colors.cardBackground, position: 'relative' },
+    platformSelectionGrid: { flexDirection: 'column', gap: 16 },
+    platformOption: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 22, borderWidth: 1.5, borderColor: colors.cardBorder, backgroundColor: colors.cardBackground, position: 'relative' },
     platformOptionSelected: { borderColor: colors.accentTeal, shadowColor: colors.accentTeal, shadowOpacity: 0.1, shadowOffset: { width: 0, height: 6 }, shadowRadius: 12 },
+    platformOptionDisabled: { borderColor: colors.cardBorder, opacity: 0.7 },
+    notConnectedBadge: { position: 'absolute', top: -8, right: 12, backgroundColor: colors.surfaceSoft, borderColor: colors.cardBorder, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    notConnectedBadgeText: { fontSize: 8.5, fontWeight: '900', color: colors.textMuted, letterSpacing: 0.5 },
     platformIconCircle: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
     platformTextInfo: { flex: 1 },
     platformStatus: { fontSize: 10, color: colors.textMuted, fontWeight: '600', marginTop: 2 },

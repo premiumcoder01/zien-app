@@ -11,6 +11,12 @@ export function ExternalLink({ href, ...rest }: Props) {
       {...rest}
       href={href as any}
       onPress={async (event) => {
+        if (rest.onPress) {
+          rest.onPress(event);
+        }
+        if (event.defaultPrevented) {
+          return;
+        }
         if (process.env.EXPO_OS !== 'web') {
           // Prevent the default behavior of linking to the default browser on native.
           event.preventDefault();
