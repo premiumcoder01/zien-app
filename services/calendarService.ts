@@ -2,6 +2,8 @@ import * as Calendar from 'expo-calendar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
+const API_BASE_URL = 'https://staging-api.zien.ai/api';
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -14,11 +16,28 @@ export interface CalendarEvent {
   source: 'google' | 'outlook' | 'apple' | 'local';
   color?: string;
   meetingLink?: string;
+  allDay?: boolean;
 }
 
 export interface LocalSyncConfig {
   enabled: boolean;
   selectedCalendarIds: string[];
+}
+
+export interface BackendCalendarStatus {
+  connected: boolean;
+  expiresAt?: string;
+}
+
+export interface BackendTask {
+  id: string;
+  title: string;
+  dueDate: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'pending' | 'completed';
+  owner: string;
+  notes?: string;
+  webViewLink?: string;
 }
 
 const LOCAL_EVENTS_KEY = 'zien_local_events';
@@ -214,4 +233,205 @@ export const getSyncConfig = async (): Promise<LocalSyncConfig> => {
     console.error('Error getting sync configuration:', error);
     return { enabled: false, selectedCalendarIds: [] };
   }
+};
+
+// ── Backend API Calendar Integrations ──
+
+export const getBackendCalendarStatus = async (token: string): Promise<BackendCalendarStatus> => {
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/status`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to fetch calendar status');
+  }
+  return json.data;
+};
+
+export const getGoogleCalendarAuthUrl = async (token: string): Promise<string> => {
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/google/auth-url`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to fetch auth url');
+  }
+  return json.url;
+};
+
+export const disconnectBackendCalendar = async (token: string): Promise<boolean> => {
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/disconnect`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to disconnect calendar');
+  }
+  return json.ok || json.success || true;
+};
+
+export const getBackendCalendarEvents = async (token: string): Promise<CalendarEvent[]> => {
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/events`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to fetch calendar events');
+  }
+  
+  const rawEvents = json.data || [];
+  return rawEvents.map((evt: any) => {
+    const startDate = evt.start?.dateTime || evt.start?.date || new Date().toISOString();
+    const endDate = evt.end?.dateTime || evt.end?.date || new Date().toISOString();
+    const allDay = !evt.start?.dateTime;
+    
+    return {
+      id: evt.id,
+      title: evt.summary || 'Untitled Event',
+      startDate,
+      endDate,
+      location: evt.location || undefined,
+      notes: evt.description || undefined,
+      calendarId: 'google',
+      calendarTitle: 'Google Calendar',
+      source: 'google',
+      color: '#EA4335',
+      meetingLink: evt.hangoutLink || undefined,
+      allDay,
+    };
+  });
+};
+
+export const getBackendCalendarTasks = async (token: string): Promise<BackendTask[]> => {
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/tasks`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to fetch calendar tasks');
+  }
+  
+  const rawTasks = json.data || [];
+  return rawTasks.map((t: any) => {
+    const status = t.status === 'completed' ? 'completed' : 'pending';
+    
+    let dueDate = 'No due date';
+    if (t.due) {
+      const d = new Date(t.due);
+      dueDate = d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
+    
+    return {
+      id: t.id,
+      title: t.title || 'Untitled Task',
+      dueDate,
+      priority: 'medium',
+      status,
+      owner: 'Google',
+      notes: t.notes || undefined,
+      webViewLink: t.webViewLink || undefined,
+    };
+  });
+};
+
+export const createBackendCalendarEvent = async (
+  token: string,
+  event: { title: string; startDate: string; endDate: string; notes?: string }
+): Promise<any> => {
+  const body = {
+    summary: event.title,
+    description: event.notes,
+    start: {
+      dateTime: event.startDate,
+    },
+    end: {
+      dateTime: event.endDate,
+    },
+  };
+
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/events`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to create calendar event');
+  }
+  return json.data;
+};
+
+export const createBackendCalendarTask = async (
+  token: string,
+  task: { title: string; notes?: string; due?: string }
+): Promise<any> => {
+  const body = {
+    title: task.title,
+    notes: task.notes,
+    due: task.due,
+  };
+
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/tasks`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to create calendar task');
+  }
+  return json.data;
+};
+
+export const deleteBackendCalendarEvent = async (token: string, eventId: string): Promise<boolean> => {
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/events/${eventId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to delete calendar event');
+  }
+  return json.ok || json.success || true;
 };
