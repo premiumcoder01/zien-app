@@ -6,7 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -67,6 +67,45 @@ export default function AccountsScreen() {
   const [editAccount, setEditAccount] = useState<{ platform: typeof SOCIAL_PLATFORMS[0]; apiAccount: any } | null>(null);
   const [showWebView, setShowWebView] = useState(false);
   const [oauthUrl, setOauthUrl] = useState('');
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
+
+  // Background status polling for social channels connection
+  useEffect(() => {
+    let intervalId: any = null;
+
+    if (showWebView && accessToken && connectingPlatform) {
+      intervalId = setInterval(async () => {
+        try {
+          const accounts = await getSocialAccounts(accessToken);
+          const isConnected = accounts.some(
+            (acc: any) => acc.platform.toLowerCase() === connectingPlatform.toLowerCase()
+          );
+
+          if (isConnected) {
+            // Clear interval immediately
+            if (intervalId) {
+              clearInterval(intervalId);
+              intervalId = null;
+            }
+            // Close the WebView modal
+            setShowWebView(false);
+            setConnectingPlatform(null);
+            // Refresh connection status in UI
+            queryClient.invalidateQueries({ queryKey: ['social-accounts'] });
+            Alert.alert('Success', `${connectingPlatform.charAt(0).toUpperCase() + connectingPlatform.slice(1)} connected successfully.`);
+          }
+        } catch (e) {
+          // Silently swallow polling fetch errors
+        }
+      }, 2000);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [showWebView, accessToken, connectingPlatform]);
 
   const handleNavigationStateChange = (navState: any) => {
     console.log('WebView Navigation URL:', navState.url);
@@ -74,6 +113,7 @@ export default function AccountsScreen() {
     if (navState.url.includes('/social/settings/callback')) {
       console.log('Success detected from URL redirect!');
       setShowWebView(false);
+      setConnectingPlatform(null);
       queryClient.invalidateQueries({ queryKey: ['social-accounts'] });
       Alert.alert('Success', 'Social account connected successfully.');
     }
@@ -153,6 +193,7 @@ export default function AccountsScreen() {
         const data = await response.json();
         console.log("[OAuth] Response Data:", data);
         if (data && data.url) {
+          setConnectingPlatform(activeAccount.id);
           setOauthUrl(data.url);
           setShowWebView(true);
         } else {

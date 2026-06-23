@@ -18,6 +18,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -35,7 +36,6 @@ import {
 } from 'react-native';
 import { Calendar as RNCalendar } from 'react-native-calendars';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as WebBrowser from 'expo-web-browser';
 
 type TabKey = 'calendar' | 'booking' | 'tasks';
 
@@ -100,9 +100,9 @@ export default function CalendarScreen() {
 
   // WebBrowser Redirect Session warm-up
   useEffect(() => {
-    WebBrowser.warmUpAsync().catch(() => {});
+    WebBrowser.warmUpAsync().catch(() => { });
     return () => {
-      WebBrowser.coolDownAsync().catch(() => {});
+      WebBrowser.coolDownAsync().catch(() => { });
     };
   }, []);
 
@@ -221,18 +221,46 @@ export default function CalendarScreen() {
   const handleConnectGoogle = async () => {
     if (!accessToken) return;
     setIsLoadingEvents(true);
+    let pollingInterval: any = null;
+    let browserClosed = false;
+
     try {
       const url = await getGoogleCalendarAuthUrl(accessToken);
+      console.log(url)
       if (url) {
-        // Open secure system browser (ASWebAuthenticationSession / Chrome Custom Tab)
-        // This complies with Google's OAuth secure browser policy and avoids 403 disallowed_useragent
-        await WebBrowser.openBrowserAsync(url, {
-          readerMode: false,
-          enableBarCollapsing: true,
-          dismissButtonStyle: 'close',
-        });
-        
-        // Check updated status on browser close to see if calendar synced successfully
+        // Start polling the Google Calendar status in the background
+        pollingInterval = setInterval(async () => {
+          try {
+            const statusData = await getBackendCalendarStatus(accessToken);
+            if (statusData?.connected === true && !browserClosed) {
+              // 1. Clear interval immediately
+              if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+              }
+              // 2. Programmatically close the in-app browser
+              await WebBrowser.dismissBrowser();
+              // 3. Update connection state and load events
+              setIsConnected(true);
+              await loadSyncSettingsAndEvents();
+              showToast('Google Calendar connected successfully', 'success');
+            }
+          } catch (e) {
+            // Silently swallow polling fetch errors
+          }
+        }, 2000);
+
+        // Open secure system browser (Chrome Custom Tab/Safari View Controller)
+        await WebBrowser.openBrowserAsync(url);
+        browserClosed = true;
+
+        // Clean up interval if browser is manually closed by the user
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+        }
+
+        // Check updated status as fallback when browser is closed manually
         const statusData = await getBackendCalendarStatus(accessToken);
         const connected = statusData?.connected === true;
         setIsConnected(connected);
@@ -248,6 +276,9 @@ export default function CalendarScreen() {
       console.error('Failed to initiate calendar connection:', e);
       Alert.alert('Error', e.message || 'Failed to initiate Google Calendar connection.');
     } finally {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
       setIsLoadingEvents(false);
     }
   };
