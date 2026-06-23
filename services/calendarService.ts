@@ -25,8 +25,11 @@ export interface LocalSyncConfig {
 }
 
 export interface BackendCalendarStatus {
-  connected: boolean;
-  expiresAt?: string;
+  connected?: boolean;
+  googleConnected?: boolean;
+  microsoftConnected?: boolean;
+  googleExpiresAt?: string;
+  microsoftExpiresAt?: string;
 }
 
 export interface BackendTask {
@@ -434,4 +437,20 @@ export const deleteBackendCalendarEvent = async (token: string, eventId: string)
     throw new Error(json.message || 'Failed to delete calendar event');
   }
   return json.ok || json.success || true;
+};
+
+export const getMicrosoftCalendarAuthUrl = async (token: string): Promise<string> => {
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/microsoft/auth-url`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to fetch Microsoft Outlook auth url');
+  }
+  return json.url;
 };

@@ -11,7 +11,8 @@ import {
   getBackendCalendarEvents,
   getBackendCalendarStatus,
   getBackendCalendarTasks,
-  getGoogleCalendarAuthUrl
+  getGoogleCalendarAuthUrl,
+  getMicrosoftCalendarAuthUrl
 } from '@/services/calendarService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -26,6 +27,7 @@ import {
   Animated,
   Dimensions,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -37,7 +39,7 @@ import {
 import { Calendar as RNCalendar } from 'react-native-calendars';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type TabKey = 'calendar' | 'booking' | 'tasks';
+type TabKey = 'calendar' | 'booking' | 'tasks' | 'integrations';
 
 // Shared event color classification (video call / holiday / event) for both themes.
 function getEventVisual(evt: CalendarEvent, isDark: boolean) {
@@ -94,6 +96,9 @@ export default function CalendarScreen() {
 
   // Backend Integration States
   const [isConnected, setIsConnected] = useState(false);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [isMicrosoftConnected, setIsMicrosoftConnected] = useState(false);
+  const [calendarToDisconnect, setCalendarToDisconnect] = useState<'Google' | 'Microsoft'>('Google');
   const [backendEvents, setBackendEvents] = useState<CalendarEvent[]>([]);
   const [backendTasks, setBackendTasks] = useState<BackendTask[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
@@ -186,8 +191,13 @@ export default function CalendarScreen() {
     try {
       // 1. Fetch backend calendar connection status
       const statusData = await getBackendCalendarStatus(accessToken);
-      const connected = statusData?.connected === true;
+      const googleConnected = statusData?.googleConnected === true;
+      const microsoftConnected = statusData?.microsoftConnected === true;
+      const connected = googleConnected || microsoftConnected;
+
       setIsConnected(connected);
+      setIsGoogleConnected(googleConnected);
+      setIsMicrosoftConnected(microsoftConnected);
 
       // 2. Fetch events & tasks if connected, otherwise clear
       if (connected) {
@@ -232,7 +242,7 @@ export default function CalendarScreen() {
         pollingInterval = setInterval(async () => {
           try {
             const statusData = await getBackendCalendarStatus(accessToken);
-            if (statusData?.connected === true && !browserClosed) {
+            if (statusData?.googleConnected === true && !browserClosed) {
               // 1. Clear interval immediately
               if (pollingInterval) {
                 clearInterval(pollingInterval);
@@ -242,6 +252,7 @@ export default function CalendarScreen() {
               await WebBrowser.dismissBrowser();
               // 3. Update connection state and load events
               setIsConnected(true);
+              setIsGoogleConnected(true);
               await loadSyncSettingsAndEvents();
               showToast('Google Calendar connected successfully', 'success');
             }
@@ -262,10 +273,15 @@ export default function CalendarScreen() {
 
         // Check updated status as fallback when browser is closed manually
         const statusData = await getBackendCalendarStatus(accessToken);
-        const connected = statusData?.connected === true;
-        setIsConnected(connected);
+        const googleConnected = statusData?.googleConnected === true;
+        const microsoftConnected = statusData?.microsoftConnected === true;
+        const connected = googleConnected || microsoftConnected;
 
-        if (connected) {
+        setIsConnected(connected);
+        setIsGoogleConnected(googleConnected);
+        setIsMicrosoftConnected(microsoftConnected);
+
+        if (googleConnected) {
           await loadSyncSettingsAndEvents();
           showToast('Google Calendar connected successfully', 'success');
         }
@@ -283,7 +299,79 @@ export default function CalendarScreen() {
     }
   };
 
+  const handleConnectMicrosoft = async () => {
+    if (!accessToken) return;
+    setIsLoadingEvents(true);
+    let pollingInterval: any = null;
+    let browserClosed = false;
+
+    try {
+      const url = await getMicrosoftCalendarAuthUrl(accessToken);
+      console.log(url)
+      if (url) {
+        // Start polling the Microsoft Calendar status in the background
+        pollingInterval = setInterval(async () => {
+          try {
+            const statusData = await getBackendCalendarStatus(accessToken);
+            if (statusData?.microsoftConnected === true && !browserClosed) {
+              // 1. Clear interval immediately
+              if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+              }
+              // 2. Programmatically close the in-app browser
+              await WebBrowser.dismissBrowser();
+              // 3. Update connection state and load events
+              setIsConnected(true);
+              setIsMicrosoftConnected(true);
+              await loadSyncSettingsAndEvents();
+              showToast('Microsoft Outlook connected successfully', 'success');
+            }
+          } catch (e) {
+            // Silently swallow polling fetch errors
+          }
+        }, 2000);
+
+        // Open secure system browser (Chrome Custom Tab/Safari View Controller)
+        await WebBrowser.openBrowserAsync(url);
+        browserClosed = true;
+
+        // Clean up interval if browser is manually closed by the user
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+        }
+
+        // Check updated status as fallback when browser is closed manually
+        const statusData = await getBackendCalendarStatus(accessToken);
+        const googleConnected = statusData?.googleConnected === true;
+        const microsoftConnected = statusData?.microsoftConnected === true;
+        const connected = googleConnected || microsoftConnected;
+
+        setIsConnected(connected);
+        setIsGoogleConnected(googleConnected);
+        setIsMicrosoftConnected(microsoftConnected);
+
+        if (microsoftConnected) {
+          await loadSyncSettingsAndEvents();
+          showToast('Microsoft Outlook connected successfully', 'success');
+        }
+      } else {
+        Alert.alert('Error', 'Failed to retrieve connection URL.');
+      }
+    } catch (e: any) {
+      console.error('Failed to initiate calendar connection:', e);
+      Alert.alert('Error', e.message || 'Failed to initiate Microsoft Outlook connection.');
+    } finally {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+      setIsLoadingEvents(false);
+    }
+  };
+
   const handleDisconnectGoogle = () => {
+    setCalendarToDisconnect('Google');
     setDisconnectModalVisible(true);
   };
 
@@ -298,12 +386,14 @@ export default function CalendarScreen() {
     try {
       await disconnectBackendCalendar(accessToken);
       setIsConnected(false);
+      setIsGoogleConnected(false);
+      setIsMicrosoftConnected(false);
       setBackendEvents([]);
       setBackendTasks([]);
-      showToast('Google Calendar disconnected successfully', 'success');
+      showToast(`${calendarToDisconnect} Calendar disconnected successfully`, 'success');
     } catch (e: any) {
       console.error('Failed to disconnect calendar:', e);
-      showToast(e.message || 'Failed to disconnect calendar', 'error');
+      Alert.alert('Error', e.message || 'Failed to disconnect calendar.');
     } finally {
       setIsLoadingEvents(false);
     }
@@ -702,13 +792,20 @@ export default function CalendarScreen() {
           <View style={styles.syncHeaderRowActive}>
             <View style={styles.activeBadgeRow}>
               <View style={styles.activeDot} />
-              <Text style={styles.syncHeaderTitleActive}>Google Calendar Sync Active</Text>
+              <Text style={styles.syncHeaderTitleActive}>
+                {isGoogleConnected ? 'Google Calendar Sync Active' : 'Microsoft Outlook Sync Active'}
+              </Text>
             </View>
             <Pressable
               style={styles.disconnectBtnHeader}
-              onPress={handleDisconnectGoogle}
+              onPress={() => {
+                setCalendarToDisconnect(isGoogleConnected ? 'Google' : 'Microsoft');
+                setDisconnectModalVisible(true);
+              }}
             >
-              <Text style={styles.disconnectBtnHeaderText}>Disconnect Google Calendar</Text>
+              <Text style={styles.disconnectBtnHeaderText}>
+                Disconnect {isGoogleConnected ? 'Google' : 'Microsoft'}
+              </Text>
             </Pressable>
           </View>
         ) : (
@@ -716,15 +813,24 @@ export default function CalendarScreen() {
             <View style={styles.syncHeaderInfo}>
               <Text style={styles.syncHeaderTitle}>Cloud Calendar Integration</Text>
               <Text style={styles.syncHeaderSubtitle}>
-                Sync with your Google account to view and manage events.
+                Sync with your Google or Outlook account to view and manage events.
               </Text>
-              <Pressable
-                style={styles.connectGoogleBtnHeader}
-                onPress={handleConnectGoogle}
-              >
-                <MaterialCommunityIcons name="google" size={14} color="#FFF" style={{ marginRight: 4 }} />
-                <Text style={styles.connectGoogleBtnHeaderText}>Connect Google</Text>
-              </Pressable>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                <Pressable
+                  style={styles.connectGoogleBtnHeader}
+                  onPress={handleConnectGoogle}
+                >
+                  <MaterialCommunityIcons name="google" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                  <Text style={styles.connectGoogleBtnHeaderText}>Connect Google</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.connectGoogleBtnHeader, { backgroundColor: '#0078D4' }]}
+                  onPress={handleConnectMicrosoft}
+                >
+                  <MaterialCommunityIcons name="microsoft" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                  <Text style={styles.connectGoogleBtnHeaderText}>Connect Outlook</Text>
+                </Pressable>
+              </View>
             </View>
 
           </View>
@@ -1072,6 +1178,107 @@ export default function CalendarScreen() {
     </View>
   );
 
+  const renderIntegrationsTab = () => {
+    return (
+      <View style={styles.integrationsRoot}>
+        <View style={styles.integrationsHeader}>
+          <Text style={styles.integrationsTitle}>Calendar Integrations</Text>
+          <Text style={styles.integrationsSubtitle}>
+            Connect your preferred calendar to sync events and tasks. You can only connect one calendar at a time.
+          </Text>
+        </View>
+
+        <View style={styles.integrationsGrid}>
+          {/* Google Calendar Card */}
+          <View style={[styles.integrationCard, isGoogleConnected && styles.integrationCardConnected]}>
+            <View style={styles.integrationCardHeader}>
+              <View style={styles.integrationLogoBox}>
+                <MaterialCommunityIcons name="google" size={20} color="#4285F4" />
+              </View>
+              <View style={styles.integrationHeaderText}>
+                <Text style={styles.integrationName}>Google Calendar</Text>
+                <Text style={styles.integrationDesc}>Sync with Google Workspace or Gmail</Text>
+              </View>
+            </View>
+
+            <View style={styles.dividerLine} />
+
+            <View style={styles.integrationStatusRow}>
+              <View style={isGoogleConnected ? styles.statusDotGreen : styles.statusDotGray} />
+              <Text style={isGoogleConnected ? styles.statusTextGreen : styles.statusTextGray}>
+                {isGoogleConnected ? 'Connected & Syncing' : 'Not connected'}
+              </Text>
+            </View>
+
+            {isGoogleConnected ? (
+              <Pressable
+                style={styles.disconnectBtn}
+                onPress={() => {
+                  setCalendarToDisconnect('Google');
+                  setDisconnectModalVisible(true);
+                }}
+              >
+                <Text style={styles.disconnectBtnText}>Disconnect</Text>
+              </Pressable>
+            ) : isMicrosoftConnected ? (
+              <Pressable style={styles.disabledBtn} disabled>
+                <Text style={styles.disabledBtnText}>Disconnect Outlook First</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.connectBtn} onPress={handleConnectGoogle}>
+                <MaterialCommunityIcons name="google" size={14} color={colors.cardBackground} />
+                <Text style={styles.connectBtnText}>Connect</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Microsoft Outlook Card */}
+          <View style={[styles.integrationCard, isMicrosoftConnected && styles.integrationCardConnected]}>
+            <View style={styles.integrationCardHeader}>
+              <View style={styles.integrationLogoBox}>
+                <MaterialCommunityIcons name="microsoft-outlook" size={20} color="#0078D4" />
+              </View>
+              <View style={styles.integrationHeaderText}>
+                <Text style={styles.integrationName}>Microsoft Outlook</Text>
+                <Text style={styles.integrationDesc}>Sync with Office 365 or Outlook</Text>
+              </View>
+            </View>
+
+            <View style={styles.dividerLine} />
+
+            <View style={styles.integrationStatusRow}>
+              <View style={isMicrosoftConnected ? styles.statusDotGreen : styles.statusDotGray} />
+              <Text style={isMicrosoftConnected ? styles.statusTextGreen : styles.statusTextGray}>
+                {isMicrosoftConnected ? 'Connected & Syncing' : 'Not connected'}
+              </Text>
+            </View>
+
+            {isMicrosoftConnected ? (
+              <Pressable
+                style={styles.disconnectBtn}
+                onPress={() => {
+                  setCalendarToDisconnect('Microsoft');
+                  setDisconnectModalVisible(true);
+                }}
+              >
+                <Text style={styles.disconnectBtnText}>Disconnect</Text>
+              </Pressable>
+            ) : isGoogleConnected ? (
+              <Pressable style={styles.disabledBtn} disabled>
+                <Text style={styles.disabledBtnText}>Disconnect Google First</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.connectBtn} onPress={handleConnectMicrosoft}>
+                <MaterialCommunityIcons name="microsoft" size={14} color={colors.cardBackground} />
+                <Text style={styles.connectBtnText}>Connect</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   // Rendered directly (not memoized): the calendar view depends on many pieces of
   // state (calendarViewMode, selectedDay, calGridWidth, …). A memo with a partial
   // dependency list previously froze the Month/Day switch until the month changed.
@@ -1080,7 +1287,9 @@ export default function CalendarScreen() {
       ? renderBookingTab()
       : activeTab === 'tasks'
         ? renderTasksTab()
-        : renderCalendarTab();
+        : activeTab === 'integrations'
+          ? renderIntegrationsTab()
+          : renderCalendarTab();
 
   return (
     <LinearGradient
@@ -1116,6 +1325,13 @@ export default function CalendarScreen() {
               Tasks
             </Text>
           </Pressable>
+          <Pressable
+            style={[styles.tab, activeTab === 'integrations' && styles.tabActive]}
+            onPress={() => setActiveTab('integrations')}>
+            <Text style={[styles.tabText, activeTab === 'integrations' && styles.tabTextActive]}>
+              Integrations
+            </Text>
+          </Pressable>
         </View>
       </View>
 
@@ -1127,13 +1343,15 @@ export default function CalendarScreen() {
       </ScrollView>
 
       {/* Floating Add Event Button */}
-      <Pressable
-        style={[styles.absoluteAddBtn, { bottom: insets.bottom + 20 }]}
-        onPress={() => openCreateModal()}
-      >
-        <MaterialCommunityIcons name="plus" size={20} color="#FFF" style={{ marginRight: 6 }} />
-        <Text style={styles.absoluteAddBtnText}>Add Event</Text>
-      </Pressable>
+      {activeTab !== 'integrations' && (
+        <Pressable
+          style={[styles.absoluteAddBtn, { bottom: insets.bottom + 20 }]}
+          onPress={() => openCreateModal()}
+        >
+          <MaterialCommunityIcons name="plus" size={20} color="#FFF" style={{ marginRight: 6 }} />
+          <Text style={styles.absoluteAddBtnText}>Add Event</Text>
+        </Pressable>
+      )}
 
       {/* Create New Item Full-Page Modal */}
       <Modal
@@ -3034,6 +3252,178 @@ function getStyles(colors: any) {
       fontSize: 13,
       fontWeight: '800',
       color: '#FFFFFF',
+    },
+
+    // ── Integrations Tab Styles ──
+    integrationsRoot: {
+      flex: 1,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      padding: 24,
+      ...Platform.select({
+        ios: {
+          shadowColor: colors.cardShadowColor || '#000',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.05,
+          shadowRadius: 16,
+        },
+        android: {
+          elevation: 2,
+        },
+      }),
+    },
+    integrationsHeader: {
+      marginBottom: 24,
+      gap: 6,
+    },
+    integrationsTitle: {
+      fontSize: 20,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.5,
+    },
+    integrationsSubtitle: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
+    integrationsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 16,
+    },
+    integrationCard: {
+      flex: 1,
+      minWidth: 260,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      padding: 20,
+      gap: 16,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.02,
+          shadowRadius: 8,
+        },
+        android: {
+          elevation: 1,
+        },
+      }),
+    },
+    integrationCardConnected: {
+      borderColor: colors.accentTeal + '40',
+    },
+    integrationCardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    integrationLogoBox: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    integrationHeaderText: {
+      flex: 1,
+      gap: 2,
+    },
+    integrationName: {
+      fontSize: 15,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.3,
+    },
+    integrationDesc: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      lineHeight: 16,
+    },
+    integrationStatusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 4,
+    },
+    statusDotGreen: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#10B981',
+    },
+    statusDotGray: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#94A3B8',
+    },
+    statusTextGreen: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#10B981',
+    },
+    statusTextGray: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    dividerLine: {
+      height: 1,
+      backgroundColor: colors.cardBorder,
+      width: '100%',
+    },
+    connectBtn: {
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: colors.textPrimary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 6,
+    },
+    connectBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.cardBackground,
+    },
+    disconnectBtn: {
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: '#FEE2E2',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: '#FCA5A5',
+    },
+    disconnectBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#DC2626',
+    },
+    disabledBtn: {
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    disabledBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.inputPlaceholder,
     },
   });
 }
