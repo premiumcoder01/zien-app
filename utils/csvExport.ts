@@ -56,6 +56,7 @@ export async function exportLeadsToCSV(leads: CSVLeadItem[]) {
   const formattedDate = new Date().toISOString().split('T')[0];
   const filename = `Leads_Export_${formattedDate}.csv`;
   const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+  console.log(fileUri, "vishal")
 
   try {
     // Write CSV content as UTF-8

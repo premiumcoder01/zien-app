@@ -28,6 +28,7 @@ export interface BackendCalendarStatus {
   connected?: boolean;
   googleConnected?: boolean;
   microsoftConnected?: boolean;
+  appleConnected?: boolean;
   googleExpiresAt?: string;
   microsoftExpiresAt?: string;
 }
@@ -307,6 +308,11 @@ export const getBackendCalendarEvents = async (token: string): Promise<CalendarE
     const startDate = evt.start?.dateTime || evt.start?.date || new Date().toISOString();
     const endDate = evt.end?.dateTime || evt.end?.date || new Date().toISOString();
     const allDay = !evt.start?.dateTime;
+    const source = evt.source || 'google';
+    const calendarTitle = evt.calendarTitle || 
+      (source === 'google' ? 'Google Calendar' : source === 'outlook' || source === 'microsoft' ? 'Outlook Calendar' : 'iCloud Calendar');
+    const color = evt.color || 
+      (source === 'google' ? '#EA4335' : source === 'outlook' || source === 'microsoft' ? '#0078D4' : '#5856D6');
     
     return {
       id: evt.id,
@@ -315,11 +321,11 @@ export const getBackendCalendarEvents = async (token: string): Promise<CalendarE
       endDate,
       location: evt.location || undefined,
       notes: evt.description || undefined,
-      calendarId: 'google',
-      calendarTitle: 'Google Calendar',
-      source: 'google',
-      color: '#EA4335',
-      meetingLink: evt.hangoutLink || undefined,
+      calendarId: source,
+      calendarTitle,
+      source: source === 'microsoft' ? 'outlook' : (source === 'apple' || source === 'icloud' ? 'apple' : 'google'),
+      color,
+      meetingLink: evt.hangoutLink || evt.meetingLink || undefined,
       allDay,
     };
   });
@@ -453,4 +459,28 @@ export const getMicrosoftCalendarAuthUrl = async (token: string): Promise<string
     throw new Error(json.message || 'Failed to fetch Microsoft Outlook auth url');
   }
   return json.url;
+};
+
+export const connectAppleCalendar = async (
+  token: string,
+  appleId: string,
+  appSpecificPassword: string
+): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/apple/connect`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      appleId,
+      appSpecificPassword,
+    }),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to connect Apple iCloud calendar');
+  }
+  return json;
 };

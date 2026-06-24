@@ -26,7 +26,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { BarChart } from 'react-native-chart-kit';
 
 const MENU_ITEMS: NavMenuItem[] = [
   { label: 'Dashboard', icon: 'view-grid-outline', route: '/(main)/dashboard' as const },
@@ -560,7 +559,7 @@ export default function DashboardScreen() {
                 <Text style={[styles.segmentText, velocityRange === '30d' && styles.segmentTextActive]}>30 Days</Text>
               </Pressable>
             </View>
-            <View style={styles.chartWrap}>
+            {/* <View style={styles.chartWrap}>
               <BarChart
                 data={leadVelocityData}
                 width={velocityRange === '30d' ? sectionColumnWidth - 60 : sectionColumnWidth - 20}
@@ -579,7 +578,7 @@ export default function DashboardScreen() {
                 }}
                 flatColor={true}
               />
-            </View>
+            </View> */}
           </SectionCard>
 
           <SectionCard

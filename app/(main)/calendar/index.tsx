@@ -4,6 +4,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 import {
   BackendTask,
   CalendarEvent,
+  connectAppleCalendar,
   createBackendCalendarEvent,
   createBackendCalendarTask,
   deleteBackendCalendarEvent,
@@ -26,6 +27,8 @@ import {
   Alert,
   Animated,
   Dimensions,
+  KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -98,7 +101,13 @@ export default function CalendarScreen() {
   const [isConnected, setIsConnected] = useState(false);
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [isMicrosoftConnected, setIsMicrosoftConnected] = useState(false);
-  const [calendarToDisconnect, setCalendarToDisconnect] = useState<'Google' | 'Microsoft'>('Google');
+  const [isAppleConnected, setIsAppleConnected] = useState(false);
+  const [calendarToDisconnect, setCalendarToDisconnect] = useState<'Google' | 'Microsoft' | 'Apple'>('Google');
+  const [appleModalVisible, setAppleModalVisible] = useState(false);
+  const [appleEmail, setAppleEmail] = useState('');
+  const [appSpecificPassword, setAppSpecificPassword] = useState('');
+  const [secureTextEntry, setSecureTextEntry] = useState(true);
+  const [isConnectingApple, setIsConnectingApple] = useState(false);
   const [backendEvents, setBackendEvents] = useState<CalendarEvent[]>([]);
   const [backendTasks, setBackendTasks] = useState<BackendTask[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
@@ -193,11 +202,13 @@ export default function CalendarScreen() {
       const statusData = await getBackendCalendarStatus(accessToken);
       const googleConnected = statusData?.googleConnected === true;
       const microsoftConnected = statusData?.microsoftConnected === true;
-      const connected = googleConnected || microsoftConnected;
+      const appleConnected = statusData?.appleConnected === true;
+      const connected = googleConnected || microsoftConnected || appleConnected;
 
       setIsConnected(connected);
       setIsGoogleConnected(googleConnected);
       setIsMicrosoftConnected(microsoftConnected);
+      setIsAppleConnected(appleConnected);
 
       // 2. Fetch events & tasks if connected, otherwise clear
       if (connected) {
@@ -275,11 +286,13 @@ export default function CalendarScreen() {
         const statusData = await getBackendCalendarStatus(accessToken);
         const googleConnected = statusData?.googleConnected === true;
         const microsoftConnected = statusData?.microsoftConnected === true;
-        const connected = googleConnected || microsoftConnected;
+        const appleConnected = statusData?.appleConnected === true;
+        const connected = googleConnected || microsoftConnected || appleConnected;
 
         setIsConnected(connected);
         setIsGoogleConnected(googleConnected);
         setIsMicrosoftConnected(microsoftConnected);
+        setIsAppleConnected(appleConnected);
 
         if (googleConnected) {
           await loadSyncSettingsAndEvents();
@@ -346,11 +359,13 @@ export default function CalendarScreen() {
         const statusData = await getBackendCalendarStatus(accessToken);
         const googleConnected = statusData?.googleConnected === true;
         const microsoftConnected = statusData?.microsoftConnected === true;
-        const connected = googleConnected || microsoftConnected;
+        const appleConnected = statusData?.appleConnected === true;
+        const connected = googleConnected || microsoftConnected || appleConnected;
 
         setIsConnected(connected);
         setIsGoogleConnected(googleConnected);
         setIsMicrosoftConnected(microsoftConnected);
+        setIsAppleConnected(appleConnected);
 
         if (microsoftConnected) {
           await loadSyncSettingsAndEvents();
@@ -367,6 +382,38 @@ export default function CalendarScreen() {
         clearInterval(pollingInterval);
       }
       setIsLoadingEvents(false);
+    }
+  };
+
+  const handleConnectApple = async () => {
+    if (!accessToken) return;
+    if (!appleEmail.trim() || !appSpecificPassword.trim()) {
+      Alert.alert('Validation Error', 'Please enter your Apple ID and App-Specific Password.');
+      return;
+    }
+
+    setIsConnectingApple(true);
+    try {
+      await connectAppleCalendar(accessToken, appleEmail.trim(), appSpecificPassword.trim());
+      
+      // Close modal and clear inputs
+      setAppleModalVisible(false);
+      setAppleEmail('');
+      setAppSpecificPassword('');
+      
+      // Update local connection states
+      setIsConnected(true);
+      setIsAppleConnected(true);
+      setIsGoogleConnected(false);
+      setIsMicrosoftConnected(false);
+      
+      await loadSyncSettingsAndEvents();
+      showToast('Apple iCloud connected successfully', 'success');
+    } catch (e: any) {
+      console.error('Failed to connect Apple Calendar:', e);
+      Alert.alert('Connection Failed', e.message || 'Please check your Apple ID and App-Specific Password.');
+    } finally {
+      setIsConnectingApple(false);
     }
   };
 
@@ -388,6 +435,7 @@ export default function CalendarScreen() {
       setIsConnected(false);
       setIsGoogleConnected(false);
       setIsMicrosoftConnected(false);
+      setIsAppleConnected(false);
       setBackendEvents([]);
       setBackendTasks([]);
       showToast(`${calendarToDisconnect} Calendar disconnected successfully`, 'success');
@@ -793,18 +841,22 @@ export default function CalendarScreen() {
             <View style={styles.activeBadgeRow}>
               <View style={styles.activeDot} />
               <Text style={styles.syncHeaderTitleActive}>
-                {isGoogleConnected ? 'Google Calendar Sync Active' : 'Microsoft Outlook Sync Active'}
+                {isGoogleConnected 
+                  ? 'Google Calendar Sync Active' 
+                  : isMicrosoftConnected 
+                    ? 'Microsoft Outlook Sync Active' 
+                    : 'Apple iCloud Sync Active'}
               </Text>
             </View>
             <Pressable
               style={styles.disconnectBtnHeader}
               onPress={() => {
-                setCalendarToDisconnect(isGoogleConnected ? 'Google' : 'Microsoft');
+                setCalendarToDisconnect(isGoogleConnected ? 'Google' : isMicrosoftConnected ? 'Microsoft' : 'Apple');
                 setDisconnectModalVisible(true);
               }}
             >
               <Text style={styles.disconnectBtnHeaderText}>
-                Disconnect {isGoogleConnected ? 'Google' : 'Microsoft'}
+                Disconnect {isGoogleConnected ? 'Google' : isMicrosoftConnected ? 'Microsoft' : 'Apple'}
               </Text>
             </Pressable>
           </View>
@@ -813,7 +865,7 @@ export default function CalendarScreen() {
             <View style={styles.syncHeaderInfo}>
               <Text style={styles.syncHeaderTitle}>Cloud Calendar Integration</Text>
               <Text style={styles.syncHeaderSubtitle}>
-                Sync with your Google or Outlook account to view and manage events.
+                Sync with your Google, Outlook, or iCloud account to view and manage events.
               </Text>
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
                 <Pressable
@@ -1224,6 +1276,10 @@ export default function CalendarScreen() {
               <Pressable style={styles.disabledBtn} disabled>
                 <Text style={styles.disabledBtnText}>Disconnect Outlook First</Text>
               </Pressable>
+            ) : isAppleConnected ? (
+              <Pressable style={styles.disabledBtn} disabled>
+                <Text style={styles.disabledBtnText}>Disconnect Apple First</Text>
+              </Pressable>
             ) : (
               <Pressable style={styles.connectBtn} onPress={handleConnectGoogle}>
                 <MaterialCommunityIcons name="google" size={14} color={colors.cardBackground} />
@@ -1267,10 +1323,61 @@ export default function CalendarScreen() {
               <Pressable style={styles.disabledBtn} disabled>
                 <Text style={styles.disabledBtnText}>Disconnect Google First</Text>
               </Pressable>
+            ) : isAppleConnected ? (
+              <Pressable style={styles.disabledBtn} disabled>
+                <Text style={styles.disabledBtnText}>Disconnect Apple First</Text>
+              </Pressable>
             ) : (
               <Pressable style={styles.connectBtn} onPress={handleConnectMicrosoft}>
                 <MaterialCommunityIcons name="microsoft" size={14} color={colors.cardBackground} />
                 <Text style={styles.connectBtnText}>Connect</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Apple iCloud Card */}
+          <View style={[styles.integrationCard, isAppleConnected && styles.integrationCardConnected]}>
+            <View style={styles.integrationCardHeader}>
+              <View style={styles.integrationLogoBox}>
+                <MaterialCommunityIcons name="apple" size={20} color={colors.textPrimary} />
+              </View>
+              <View style={styles.integrationHeaderText}>
+                <Text style={styles.integrationName}>Apple iCloud</Text>
+                <Text style={styles.integrationDesc}>Sync with Apple Calendar & Reminders</Text>
+              </View>
+            </View>
+
+            <View style={styles.dividerLine} />
+
+            <View style={styles.integrationStatusRow}>
+              <View style={isAppleConnected ? styles.statusDotGreen : styles.statusDotGray} />
+              <Text style={isAppleConnected ? styles.statusTextGreen : styles.statusTextGray}>
+                {isAppleConnected ? 'Connected & Syncing' : 'Not connected'}
+              </Text>
+            </View>
+
+            {isAppleConnected ? (
+              <Pressable
+                style={styles.disconnectBtn}
+                onPress={() => {
+                  setCalendarToDisconnect('Apple');
+                  setDisconnectModalVisible(true);
+                }}
+              >
+                <Text style={styles.disconnectBtnText}>Disconnect</Text>
+              </Pressable>
+            ) : isGoogleConnected ? (
+              <Pressable style={styles.disabledBtn} disabled>
+                <Text style={styles.disabledBtnText}>Disconnect Google First</Text>
+              </Pressable>
+            ) : isMicrosoftConnected ? (
+              <Pressable style={styles.disabledBtn} disabled>
+                <Text style={styles.disabledBtnText}>Disconnect Outlook First</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.connectBtn} onPress={() => setAppleModalVisible(true)}>
+                <MaterialCommunityIcons name="apple" size={14} color={colors.cardBackground} />
+                <Text style={styles.connectBtnText}>Connect Apple</Text>
               </Pressable>
             )}
           </View>
@@ -1679,7 +1786,7 @@ export default function CalendarScreen() {
 
             <View style={styles.disconnectModalBody}>
               <Text style={styles.disconnectModalSub}>
-                Are you sure you want to disconnect your Google Calendar?
+                Are you sure you want to disconnect your {calendarToDisconnect} Calendar?
               </Text>
               <Text style={styles.disconnectModalDesc}>
                 This will remove all your upcoming events, event links, and tasks from the Zien dashboard. You can reconnect at any time.
@@ -1696,6 +1803,108 @@ export default function CalendarScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Connect iCloud Custom Modal */}
+      <Modal
+        visible={appleModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAppleModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingContainer}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.appleModalContent}>
+              {/* Header */}
+              <View style={styles.appleModalHeader}>
+                <View style={styles.appleIconWrap}>
+                  <MaterialCommunityIcons name="apple" size={20} color={colors.textPrimary} />
+                </View>
+                <Text style={styles.appleModalTitle}>Connect iCloud</Text>
+                <Pressable onPress={() => setAppleModalVisible(false)} style={styles.appleCloseBtn}>
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+
+              {/* Body */}
+              <View style={styles.appleModalBody}>
+                <View style={styles.appleFormSection}>
+                  <Text style={styles.appleInputLabel}>Apple ID (Email) <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <TextInput
+                    style={styles.appleTextInput}
+                    placeholder="e.g. name@icloud.com"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    value={appleEmail}
+                    onChangeText={setAppleEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
+                </View>
+
+                <View style={styles.appleFormSection}>
+                  <Text style={styles.appleInputLabel}>App-Specific Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                  <View style={styles.applePasswordInputContainer}>
+                    <TextInput
+                      style={styles.applePasswordInput}
+                      placeholder="••••••••••••••••"
+                      placeholderTextColor={colors.inputPlaceholder}
+                      value={appSpecificPassword}
+                      onChangeText={setAppSpecificPassword}
+                      secureTextEntry={secureTextEntry}
+                      autoCapitalize="none"
+                    />
+                    <Pressable
+                      onPress={() => setSecureTextEntry(!secureTextEntry)}
+                      style={styles.applePasswordToggle}
+                    >
+                      <MaterialCommunityIcons
+                        name={secureTextEntry ? 'eye-outline' : 'eye-off-outline'}
+                        size={20}
+                        color={colors.textSecondary}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+
+                <Pressable
+                  onPress={() => Linking.openURL('https://support.apple.com/en-us/102654')}
+                  style={styles.appleHelpLink}
+                >
+                  <Text style={styles.appleHelpLinkText}>
+                    How to generate an App-Specific Password?
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Actions */}
+              <View style={styles.appleModalActions}>
+                <Pressable
+                  style={styles.appleModalCancelBtn}
+                  onPress={() => setAppleModalVisible(false)}
+                >
+                  <Text style={styles.appleModalCancelBtnText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.appleModalConfirmBtn,
+                    (!appleEmail.trim() || !appSpecificPassword.trim() || isConnectingApple) && styles.appleModalConfirmBtnDisabled
+                  ]}
+                  onPress={handleConnectApple}
+                  disabled={!appleEmail.trim() || !appSpecificPassword.trim() || isConnectingApple}
+                >
+                  {isConnectingApple ? (
+                    <ActivityIndicator size="small" color={colors.cardBackground} />
+                  ) : (
+                    <Text style={styles.appleModalConfirmBtnText}>Connect</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Custom Toast Notifications */}
@@ -3424,6 +3633,136 @@ function getStyles(colors: any) {
       fontSize: 13,
       fontWeight: '800',
       color: colors.inputPlaceholder,
+    },
+    // ── Apple iCloud Modal Styles ──
+    appleModalContent: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      width: '100%',
+      maxWidth: 340,
+      shadowColor: '#000',
+      shadowOpacity: 0.1,
+      shadowRadius: 20,
+      elevation: 10,
+      overflow: 'hidden',
+    },
+    appleModalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 24,
+      paddingBottom: 16,
+      gap: 12,
+    },
+    appleIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    appleModalTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    appleCloseBtn: {
+      padding: 4,
+    },
+    appleModalBody: {
+      paddingHorizontal: 20,
+      paddingBottom: 24,
+      gap: 16,
+    },
+    appleFormSection: {
+      gap: 8,
+    },
+    appleInputLabel: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    appleTextInput: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    applePasswordInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      paddingRight: 12,
+    },
+    applePasswordInput: {
+      flex: 1,
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    applePasswordToggle: {
+      padding: 4,
+    },
+    appleHelpLink: {
+      alignSelf: 'flex-start',
+      marginTop: 2,
+    },
+    appleHelpLinkText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#2563EB',
+    },
+    appleModalActions: {
+      flexDirection: 'row',
+      gap: 12,
+      paddingHorizontal: 20,
+      paddingBottom: 24,
+      width: '100%',
+    },
+    appleModalCancelBtn: {
+      flex: 1,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    appleModalCancelBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    appleModalConfirmBtn: {
+      flex: 1,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: colors.textPrimary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    appleModalConfirmBtnDisabled: {
+      opacity: 0.5,
+    },
+    appleModalConfirmBtnText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.cardBackground,
+    },
+    keyboardAvoidingContainer: {
+      flex: 1,
+      width: '100%',
     },
   });
 }
