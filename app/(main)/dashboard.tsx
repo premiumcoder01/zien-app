@@ -8,16 +8,19 @@ import {
 } from '@/components/dashboard';
 import type { NavMenuItem } from '@/components/main';
 import { DashboardLayout } from '@/components/main';
+import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useProfile } from '@/hooks/useProfile';
+import { getSoloInvoices, getSoloSubscription, type SoloSubscriptionResponse } from '@/services/billingService';
 import { formatStatValue } from '@/utils/number-format';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Pressable,
   RefreshControl,
@@ -26,6 +29,8 @@ import {
   Text,
   View,
 } from 'react-native';
+import { BarChart } from 'react-native-chart-kit';
+
 
 const MENU_ITEMS: NavMenuItem[] = [
   { label: 'Dashboard', icon: 'view-grid-outline', route: '/(main)/dashboard' as const },
@@ -317,6 +322,8 @@ export default function DashboardScreen() {
   const [velocityRange, setVelocityRange] = useState<'7d' | '30d'>('30d');
 
   const { data: profile } = useProfile();
+  const { accessToken } = useAuth();
+
 
   const userInitials = useMemo(() => {
     if (!profile) return '';
@@ -329,12 +336,38 @@ export default function DashboardScreen() {
 
   const { data: dashboardData, isLoading: isDashboardLoading, refetch } = useDashboard();
   const [refreshing, setRefreshing] = useState(false);
+  const [subscriptionData, setSubscriptionData] = useState<SoloSubscriptionResponse | null>(null);
+
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   }, [refetch]);
+
+  // Fetch billing and invoice details
+  const fetchBillingData = async (showPulse = false) => {
+    if (showPulse) setRefreshing(true);
+    try {
+      const [subResult, invResult] = await Promise.all([
+        getSoloSubscription(accessToken),
+        getSoloInvoices(accessToken)
+      ]);
+      setSubscriptionData(subResult);
+    } catch (error) {
+      console.error('[BillingUsageScreen] Error fetching billing details:', error);
+      Alert.alert('Connection Alert', 'Using secure offline cache for billing details.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  console.log(subscriptionData, "vishal")
+
+
+  useEffect(() => {
+    fetchBillingData();
+  }, [accessToken]);
 
   const crmCounts = useMemo(() => {
     const counts = { new: 0, negotiation: 0, closing: 0 };
@@ -559,7 +592,7 @@ export default function DashboardScreen() {
                 <Text style={[styles.segmentText, velocityRange === '30d' && styles.segmentTextActive]}>30 Days</Text>
               </Pressable>
             </View>
-            {/* <View style={styles.chartWrap}>
+            <View style={styles.chartWrap}>
               <BarChart
                 data={leadVelocityData}
                 width={velocityRange === '30d' ? sectionColumnWidth - 60 : sectionColumnWidth - 20}
@@ -578,7 +611,7 @@ export default function DashboardScreen() {
                 }}
                 flatColor={true}
               />
-            </View> */}
+            </View>
           </SectionCard>
 
           <SectionCard

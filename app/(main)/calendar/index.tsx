@@ -86,13 +86,20 @@ export default function CalendarScreen() {
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newItemDate, setNewItemDate] = useState('');
   const [newItemTime, setNewItemTime] = useState('');
+  const [newItemEndDate, setNewItemEndDate] = useState('');
+  const [newItemEndTime, setNewItemEndTime] = useState('');
+  const [newItemLocation, setNewItemLocation] = useState('');
   const [newItemType, setNewItemType] = useState('Calendar Event');
   const [newItemNotes, setNewItemNotes] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [dateValue, setDateValue] = useState(new Date());
   const [timeValue, setTimeValue] = useState(new Date());
+  const [endDateValue, setEndDateValue] = useState(new Date());
+  const [endTimeValue, setEndTimeValue] = useState(new Date());
 
   // Month Switcher State (for Event Links tab)
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -470,17 +477,30 @@ export default function CalendarScreen() {
           timeValue.getHours(),
           timeValue.getMinutes()
         );
-        const end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour
+        const end = new Date(
+          endDateValue.getFullYear(),
+          endDateValue.getMonth(),
+          endDateValue.getDate(),
+          endTimeValue.getHours(),
+          endTimeValue.getMinutes()
+        );
+
+        // Description includes location appended per API contract
+        const description = newItemLocation.trim()
+          ? `${newItemNotes}\n\nLocation: ${newItemLocation.trim()}`
+          : newItemNotes;
 
         await createBackendCalendarEvent(accessToken, {
           title: newItemTitle,
-          startDate: start.toISOString(),
-          endDate: end.toISOString(),
-          notes: newItemNotes,
+          description,
+          location: newItemLocation.trim() || undefined,
+          start: start.toISOString(),
+          end: (end > start ? end : new Date(start.getTime() + 60 * 60 * 1000)).toISOString(),
         });
 
-        Alert.alert('Success', 'Event added and synced with Google Calendar!');
-      } else if (newItemType === 'Team Task') {
+        showToast('Event created successfully', 'success');
+
+      } else if (newItemType === 'Appointment') {
         const start = new Date(
           dateValue.getFullYear(),
           dateValue.getMonth(),
@@ -488,16 +508,45 @@ export default function CalendarScreen() {
           timeValue.getHours(),
           timeValue.getMinutes()
         );
+        const end = new Date(
+          endDateValue.getFullYear(),
+          endDateValue.getMonth(),
+          endDateValue.getDate(),
+          endTimeValue.getHours(),
+          endTimeValue.getMinutes()
+        );
+
+        // Appointment: title prefixed, description appended with location
+        const description = newItemLocation.trim()
+          ? `${newItemNotes}\n\nLocation: ${newItemLocation.trim()}`
+          : newItemNotes;
+
+        await createBackendCalendarEvent(accessToken, {
+          title: `[Appointment] ${newItemTitle}`,
+          description,
+          location: newItemLocation.trim() || undefined,
+          start: start.toISOString(),
+          end: (end > start ? end : new Date(start.getTime() + 60 * 60 * 1000)).toISOString(),
+        });
+
+        showToast('Appointment created successfully', 'success');
+
+      } else if (newItemType === 'Team Task') {
+        const due = new Date(
+          dateValue.getFullYear(),
+          dateValue.getMonth(),
+          dateValue.getDate(),
+          23,
+          59
+        );
 
         await createBackendCalendarTask(accessToken, {
           title: newItemTitle,
-          notes: newItemNotes,
-          due: start.toISOString(),
+          notes: newItemNotes || undefined,
+          due: newItemDate ? due.toISOString() : undefined,
         });
 
-        Alert.alert('Success', 'Task created successfully in Google Tasks!');
-      } else {
-        Alert.alert('Success', `${newItemType} created successfully.`);
+        showToast('Task created successfully', 'success');
       }
 
       await loadSyncSettingsAndEvents();
@@ -509,6 +558,9 @@ export default function CalendarScreen() {
       setNewItemTitle('');
       setNewItemDate('');
       setNewItemTime('');
+      setNewItemEndDate('');
+      setNewItemEndTime('');
+      setNewItemLocation('');
       setNewItemNotes('');
       setNewItemType('Calendar Event');
       setIsEditing(false);
@@ -548,14 +600,21 @@ export default function CalendarScreen() {
   };
 
   const openCreateModal = (type: string = 'Calendar Event') => {
+    const now = new Date();
+    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
     setIsEditing(false);
     setNewItemTitle('');
-    setNewItemDate(new Date().toLocaleDateString('en-US'));
-    setNewItemTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+    setNewItemDate(now.toLocaleDateString('en-US'));
+    setNewItemTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+    setNewItemEndDate(oneHourLater.toLocaleDateString('en-US'));
+    setNewItemEndTime(oneHourLater.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+    setNewItemLocation('');
     setNewItemNotes('');
     setNewItemType(type);
-    setDateValue(new Date());
-    setTimeValue(new Date());
+    setDateValue(now);
+    setTimeValue(now);
+    setEndDateValue(oneHourLater);
+    setEndTimeValue(oneHourLater);
     setShowModal(true);
   };
 
@@ -564,10 +623,16 @@ export default function CalendarScreen() {
     setNewItemTitle(item.title);
     setNewItemType(type);
     const parsedDate = new Date(item.startDate || new Date());
+    const parsedEnd = new Date(item.endDate || new Date(parsedDate.getTime() + 60 * 60 * 1000));
     setDateValue(parsedDate);
     setTimeValue(parsedDate);
+    setEndDateValue(parsedEnd);
+    setEndTimeValue(parsedEnd);
     setNewItemDate(parsedDate.toLocaleDateString('en-US'));
     setNewItemTime(parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+    setNewItemEndDate(parsedEnd.toLocaleDateString('en-US'));
+    setNewItemEndTime(parsedEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+    setNewItemLocation(item.location || '');
     setNewItemNotes(item.notes || '');
     setShowModal(true);
   };
@@ -585,6 +650,22 @@ export default function CalendarScreen() {
     if (selectedTime) {
       setTimeValue(selectedTime);
       setNewItemTime(selectedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
+    }
+  };
+
+  const onEndDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowEndDatePicker(false);
+    if (selectedDate) {
+      setEndDateValue(selectedDate);
+      setNewItemEndDate(selectedDate.toLocaleDateString('en-US'));
+    }
+  };
+
+  const onEndTimeChange = (event: DateTimePickerEvent, selectedTime?: Date) => {
+    setShowEndTimePicker(false);
+    if (selectedTime) {
+      setEndTimeValue(selectedTime);
+      setNewItemEndTime(selectedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
     }
   };
 
@@ -867,20 +948,29 @@ export default function CalendarScreen() {
               <Text style={styles.syncHeaderSubtitle}>
                 Sync with your Google, Outlook, or iCloud account to view and manage events.
               </Text>
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+              <View style={{ marginTop: 8, gap: 8 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable
+                    style={[styles.connectGoogleBtnHeader, { flex: 1, justifyContent: 'center' }]}
+                    onPress={handleConnectGoogle}
+                  >
+                    <MaterialCommunityIcons name="google" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                    <Text style={styles.connectGoogleBtnHeaderText}>Connect Google</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.connectGoogleBtnHeader, { flex: 1, justifyContent: 'center', backgroundColor: '#0078D4' }]}
+                    onPress={handleConnectMicrosoft}
+                  >
+                    <MaterialCommunityIcons name="microsoft" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                    <Text style={styles.connectGoogleBtnHeaderText}>Connect Outlook</Text>
+                  </Pressable>
+                </View>
                 <Pressable
-                  style={styles.connectGoogleBtnHeader}
-                  onPress={handleConnectGoogle}
+                  style={[styles.connectGoogleBtnHeader, { justifyContent: 'center', backgroundColor: '#555555', alignSelf: 'stretch' }]}
+                  onPress={() => setAppleModalVisible(true)}
                 >
-                  <MaterialCommunityIcons name="google" size={14} color="#FFF" style={{ marginRight: 4 }} />
-                  <Text style={styles.connectGoogleBtnHeaderText}>Connect Google</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.connectGoogleBtnHeader, { backgroundColor: '#0078D4' }]}
-                  onPress={handleConnectMicrosoft}
-                >
-                  <MaterialCommunityIcons name="microsoft" size={14} color="#FFF" style={{ marginRight: 4 }} />
-                  <Text style={styles.connectGoogleBtnHeaderText}>Connect Outlook</Text>
+                  <MaterialCommunityIcons name="apple" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                  <Text style={styles.connectGoogleBtnHeaderText}>Connect Apple</Text>
                 </Pressable>
               </View>
             </View>
@@ -1460,189 +1550,258 @@ export default function CalendarScreen() {
         </Pressable>
       )}
 
-      {/* Create New Item Full-Page Modal */}
+      {/* Create Event Modal — full screen */}
       <Modal
         visible={showModal}
         animationType="slide"
         presentationStyle="fullScreen"
         onRequestClose={() => setShowModal(false)}
       >
-        <View style={[styles.modalScreen, { paddingTop: insets.top }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{isEditing ? 'Edit Item' : 'Create New Event'}</Text>
-            <Pressable onPress={() => setShowModal(false)} style={styles.closeCircle}>
-              <MaterialCommunityIcons name="close" size={18} color={colors.textPrimary} />
+        <View style={[styles.ceScreen, { paddingTop: insets.top }]}>
+          {/* Header */}
+          <View style={styles.ceHeader}>
+            <Text style={styles.ceTitle}>{isEditing ? 'Edit Event' : 'Create Event'}</Text>
+            <Pressable onPress={() => setShowModal(false)} style={styles.ceCloseBtn}>
+              <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
             </Pressable>
           </View>
 
-          <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
-            <View style={styles.formSection}>
-              <Text style={styles.sectionLabel}>Type</Text>
-              <View style={styles.pillRow}>
-                {(['Calendar Event', 'Booking Link', 'Team Task'] as const).map((type) => (
-                  <Pressable
-                    key={type}
-                    onPress={() => setNewItemType(type)}
-                    style={[
-                      styles.pill,
-                      newItemType === type && styles.pillActive
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name={
-                        type === 'Calendar Event' ? 'calendar-star' :
-                          type === 'Booking Link' ? 'link-variant' : 'calendar-check-outline'
-                      }
-                      size={16}
-                      color={newItemType === type ? '#FFF' : '#64748B'}
-                    />
-                    <Text style={[
-                      styles.pillText,
-                      newItemType === type && styles.pillTextActive
-                    ]}>
-                      {type === 'Calendar Event' ? 'Event' : type === 'Booking Link' ? 'Booking' : 'Task'}
-                    </Text>
-                  </Pressable>
-                ))}
+          {/* Tab Selector */}
+          <View style={styles.ceTabRow}>
+            {(['Calendar Event', 'Team Task', 'Appointment'] as const).map((type) => (
+              <Pressable
+                key={type}
+                style={[styles.ceTab, newItemType === type && styles.ceTabActive]}
+                onPress={() => setNewItemType(type)}
+              >
+                <Text style={[styles.ceTabText, newItemType === type && styles.ceTabTextActive]}>
+                  {type === 'Calendar Event' ? 'Event' : type === 'Team Task' ? 'Task' : 'Appointment'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <ScrollView style={styles.ceForm} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+              {/* Title */}
+              <View style={styles.ceField}>
+                <Text style={styles.ceLabel}>
+                  {newItemType === 'Calendar Event' ? 'EVENT TITLE' : newItemType === 'Team Task' ? 'TASK TITLE' : 'APPOINTMENT TITLE'}
+                  <Text style={styles.ceRequired}> *</Text>
+                </Text>
+                <View style={styles.ceInputRow}>
+                  <MaterialCommunityIcons name="calendar-outline" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.ceInput}
+                    placeholder={
+                      newItemType === 'Calendar Event' ? 'E.g., Property Showing at 123 Main St' :
+                      newItemType === 'Team Task' ? 'E.g., Call the plumber' :
+                      'E.g., Meeting with client'
+                    }
+                    placeholderTextColor={colors.inputPlaceholder}
+                    value={newItemTitle}
+                    onChangeText={setNewItemTitle}
+                  />
+                </View>
               </View>
-            </View>
 
-            <View style={styles.formSection}>
-              <Text style={styles.sectionLabel}>Title</Text>
-              <TextInput
-                style={styles.fullInput}
-                placeholder="e.g. Property Listing with David"
-                placeholderTextColor={colors.inputPlaceholder}
-                value={newItemTitle}
-                onChangeText={setNewItemTitle}
-              />
-            </View>
+              {/* Event / Appointment: Start + End date/time */}
+              {(newItemType === 'Calendar Event' || newItemType === 'Appointment') && (
+                <>
+                  <View style={styles.ceRow}>
+                    <View style={[styles.ceField, { flex: 1 }]}>
+                      <Text style={styles.ceLabel}>START DATE <Text style={styles.ceRequired}>*</Text></Text>
+                      <Pressable style={styles.ceInputRow} onPress={() => setShowDatePicker(true)}>
+                        <TextInput
+                          style={[styles.ceInput, { flex: 1 }]}
+                          placeholder="dd/mm/yyyy"
+                          placeholderTextColor={colors.inputPlaceholder}
+                          value={newItemDate}
+                          editable={false}
+                          pointerEvents="none"
+                        />
+                        <MaterialCommunityIcons name="calendar-month-outline" size={18} color={colors.textSecondary} />
+                      </Pressable>
+                    </View>
+                    <View style={[styles.ceField, { flex: 1 }]}>
+                      <Text style={styles.ceLabel}>START TIME <Text style={styles.ceRequired}>*</Text></Text>
+                      <Pressable style={styles.ceInputRow} onPress={() => setShowTimePicker(true)}>
+                        <TextInput
+                          style={[styles.ceInput, { flex: 1 }]}
+                          placeholder="--:-- --"
+                          placeholderTextColor={colors.inputPlaceholder}
+                          value={newItemTime}
+                          editable={false}
+                          pointerEvents="none"
+                        />
+                        <MaterialCommunityIcons name="clock-outline" size={18} color={colors.textSecondary} />
+                      </Pressable>
+                    </View>
+                  </View>
 
-            <View style={styles.formSection}>
-              <View style={styles.formRow}>
-                <View style={styles.formColumn}>
-                  <Text style={styles.sectionLabel}>Date</Text>
-                  <Pressable
-                    style={styles.inputIconBox}
-                    onPress={() => setShowDatePicker(true)}
-                  >
+                  <View style={styles.ceRow}>
+                    <View style={[styles.ceField, { flex: 1 }]}>
+                      <Text style={styles.ceLabel}>END DATE <Text style={styles.ceRequired}>*</Text></Text>
+                      <Pressable style={styles.ceInputRow} onPress={() => setShowEndDatePicker(true)}>
+                        <TextInput
+                          style={[styles.ceInput, { flex: 1 }]}
+                          placeholder="dd/mm/yyyy"
+                          placeholderTextColor={colors.inputPlaceholder}
+                          value={newItemEndDate}
+                          editable={false}
+                          pointerEvents="none"
+                        />
+                        <MaterialCommunityIcons name="calendar-month-outline" size={18} color={colors.textSecondary} />
+                      </Pressable>
+                    </View>
+                    <View style={[styles.ceField, { flex: 1 }]}>
+                      <Text style={styles.ceLabel}>END TIME <Text style={styles.ceRequired}>*</Text></Text>
+                      <Pressable style={styles.ceInputRow} onPress={() => setShowEndTimePicker(true)}>
+                        <TextInput
+                          style={[styles.ceInput, { flex: 1 }]}
+                          placeholder="--:-- --"
+                          placeholderTextColor={colors.inputPlaceholder}
+                          value={newItemEndTime}
+                          editable={false}
+                          pointerEvents="none"
+                        />
+                        <MaterialCommunityIcons name="clock-outline" size={18} color={colors.textSecondary} />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* Location */}
+                  <View style={styles.ceField}>
+                    <Text style={styles.ceLabel}>LOCATION (OPTIONAL)</Text>
+                    <View style={styles.ceInputRow}>
+                      <MaterialCommunityIcons name="map-marker-outline" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                      <TextInput
+                        style={styles.ceInput}
+                        placeholder="Add address..."
+                        placeholderTextColor={colors.inputPlaceholder}
+                        value={newItemLocation}
+                        onChangeText={setNewItemLocation}
+                      />
+                    </View>
+                  </View>
+                </>
+              )}
+
+              {/* Task: Due Date only */}
+              {newItemType === 'Team Task' && (
+                <View style={styles.ceField}>
+                  <Text style={styles.ceLabel}>DUE DATE (OPTIONAL)</Text>
+                  <Pressable style={styles.ceInputRow} onPress={() => setShowDatePicker(true)}>
                     <TextInput
-                      style={styles.rowInput}
+                      style={[styles.ceInput, { flex: 1 }]}
                       placeholder="dd/mm/yyyy"
                       placeholderTextColor={colors.inputPlaceholder}
                       value={newItemDate}
                       editable={false}
                       pointerEvents="none"
                     />
-                    <MaterialCommunityIcons name="calendar-month-outline" size={18} color="#64748B" />
+                    <MaterialCommunityIcons name="calendar-month-outline" size={18} color={colors.textSecondary} />
                   </Pressable>
                 </View>
-                <View style={styles.formColumn}>
-                  <Text style={styles.sectionLabel}>Time</Text>
-                  <Pressable
-                    style={styles.inputIconBox}
-                    onPress={() => setShowTimePicker(true)}
-                  >
-                    <TextInput
-                      style={styles.rowInput}
-                      placeholder="--:-- --"
-                      placeholderTextColor={colors.inputPlaceholder}
-                      value={newItemTime}
-                      editable={false}
-                      pointerEvents="none"
-                    />
-                    <MaterialCommunityIcons name="clock-outline" size={18} color="#64748B" />
-                  </Pressable>
-                </View>
+              )}
+
+              {/* Description */}
+              <View style={styles.ceField}>
+                <Text style={styles.ceLabel}>DESCRIPTION (OPTIONAL)</Text>
+                <TextInput
+                  style={styles.ceTextarea}
+                  placeholder="Add meeting agenda or notes..."
+                  placeholderTextColor={colors.inputPlaceholder}
+                  value={newItemNotes}
+                  onChangeText={setNewItemNotes}
+                  multiline
+                  numberOfLines={5}
+                  textAlignVertical="top"
+                />
               </View>
-            </View>
 
-            {/* Bottom Sheet for Date Picker */}
-            <Modal
-              visible={showDatePicker}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setShowDatePicker(false)}
-            >
-              <Pressable style={styles.pickerBackdrop} onPress={() => setShowDatePicker(false)}>
-                <View style={styles.pickerSheet}>
-                  <View style={styles.pickerToolbar}>
-                    <Text style={styles.pickerTitle}>Select Date</Text>
-                    <Pressable onPress={() => setShowDatePicker(false)} style={styles.doneBtn}>
-                      <Text style={styles.doneBtnText}>Done</Text>
-                    </Pressable>
-                  </View>
-                  <DateTimePicker
-                    value={dateValue}
-                    mode="date"
-                    display="spinner"
-                    onChange={onDateChange}
-                    textColor={colors.textPrimary}
-                    style={styles.pickerInternal}
-                  />
-                </View>
-              </Pressable>
-            </Modal>
+              <View style={{ height: 120 }} />
+            </ScrollView>
+          </KeyboardAvoidingView>
 
-            {/* Bottom Sheet for Time Picker */}
-            <Modal
-              visible={showTimePicker}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setShowTimePicker(false)}
-            >
-              <Pressable style={styles.pickerBackdrop} onPress={() => setShowTimePicker(false)}>
-                <View style={styles.pickerSheet}>
-                  <View style={styles.pickerToolbar}>
-                    <Text style={styles.pickerTitle}>Select Time</Text>
-                    <Pressable onPress={() => setShowTimePicker(false)} style={styles.doneBtn}>
-                      <Text style={styles.doneBtnText}>Done</Text>
-                    </Pressable>
-                  </View>
-                  <DateTimePicker
-                    value={timeValue}
-                    mode="time"
-                    display="spinner"
-                    is24Hour={false}
-                    onChange={onTimeChange}
-                    textColor={colors.textPrimary}
-                    style={styles.pickerInternal}
-                  />
-                </View>
-              </Pressable>
-            </Modal>
-
-            <View style={styles.formSection}>
-              <Text style={styles.sectionLabel}>Notes</Text>
-              <TextInput
-                style={styles.notesInput}
-                placeholder="Add details..."
-                placeholderTextColor={colors.inputPlaceholder}
-                value={newItemNotes}
-                onChangeText={setNewItemNotes}
-                multiline
-                numberOfLines={6}
-                textAlignVertical="top"
-              />
-            </View>
-
-            <View style={styles.modalActions}>
-              <Pressable
-                style={styles.cancelBtn}
-                onPress={() => setShowModal(false)}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={styles.saveBtnLarge}
-                onPress={handleCreateItem}
-              >
-                <Text style={styles.saveBtnLargeText}>{isEditing ? 'Save Changes' : 'Save'}</Text>
-              </Pressable>
-            </View>
-          </ScrollView>
+          {/* Sticky footer actions */}
+          <View style={[styles.ceFooter, { paddingBottom: insets.bottom + 12 }]}>
+            <Pressable style={styles.ceCancelBtn} onPress={() => setShowModal(false)}>
+              <Text style={styles.ceCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={styles.ceSubmitBtn} onPress={handleCreateItem}>
+              <MaterialCommunityIcons name="calendar-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.ceSubmitText}>
+                {isEditing ? 'Save Changes' :
+                  newItemType === 'Calendar Event' ? 'Create Event' :
+                  newItemType === 'Team Task' ? 'Create Task' : 'Create Appointment'}
+              </Text>
+            </Pressable>
+          </View>
         </View>
+
+        {/* Start Date Picker */}
+        <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
+          <Pressable style={styles.pickerBackdrop} onPress={() => setShowDatePicker(false)}>
+            <View style={styles.pickerSheet}>
+              <View style={styles.pickerToolbar}>
+                <Text style={styles.pickerTitle}>Start Date</Text>
+                <Pressable onPress={() => setShowDatePicker(false)} style={styles.doneBtn}>
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker value={dateValue} mode="date" display="spinner" onChange={onDateChange} textColor={colors.textPrimary} style={styles.pickerInternal} />
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* Start Time Picker */}
+        <Modal visible={showTimePicker} transparent animationType="slide" onRequestClose={() => setShowTimePicker(false)}>
+          <Pressable style={styles.pickerBackdrop} onPress={() => setShowTimePicker(false)}>
+            <View style={styles.pickerSheet}>
+              <View style={styles.pickerToolbar}>
+                <Text style={styles.pickerTitle}>Start Time</Text>
+                <Pressable onPress={() => setShowTimePicker(false)} style={styles.doneBtn}>
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker value={timeValue} mode="time" display="spinner" is24Hour={false} onChange={onTimeChange} textColor={colors.textPrimary} style={styles.pickerInternal} />
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* End Date Picker */}
+        <Modal visible={showEndDatePicker} transparent animationType="slide" onRequestClose={() => setShowEndDatePicker(false)}>
+          <Pressable style={styles.pickerBackdrop} onPress={() => setShowEndDatePicker(false)}>
+            <View style={styles.pickerSheet}>
+              <View style={styles.pickerToolbar}>
+                <Text style={styles.pickerTitle}>End Date</Text>
+                <Pressable onPress={() => setShowEndDatePicker(false)} style={styles.doneBtn}>
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker value={endDateValue} mode="date" display="spinner" onChange={onEndDateChange} textColor={colors.textPrimary} style={styles.pickerInternal} />
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* End Time Picker */}
+        <Modal visible={showEndTimePicker} transparent animationType="slide" onRequestClose={() => setShowEndTimePicker(false)}>
+          <Pressable style={styles.pickerBackdrop} onPress={() => setShowEndTimePicker(false)}>
+            <View style={styles.pickerSheet}>
+              <View style={styles.pickerToolbar}>
+                <Text style={styles.pickerTitle}>End Time</Text>
+                <Pressable onPress={() => setShowEndTimePicker(false)} style={styles.doneBtn}>
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker value={endTimeValue} mode="time" display="spinner" is24Hour={false} onChange={onEndTimeChange} textColor={colors.textPrimary} style={styles.pickerInternal} />
+            </View>
+          </Pressable>
+        </Modal>
       </Modal>
+
 
       {/* Google OAuth is handled securely via system WebBrowser session */}
 
@@ -2338,6 +2497,173 @@ function getStyles(colors: any) {
       fontWeight: '800',
       color: '#FFFFFF',
     },
+
+    // ── Create Event Modal (full screen) ──
+    ceScreen: {
+      flex: 1,
+      backgroundColor: colors.cardBackground,
+    },
+    ceHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 24,
+      paddingVertical: 18,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    ceTitle: {
+      fontSize: 22,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.3,
+    },
+    ceCloseBtn: {
+      padding: 4,
+    },
+    ceTabRow: {
+      flexDirection: 'row',
+      gap: 10,
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    ceTab: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: 10,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.cardBackground,
+    },
+    ceTabActive: {
+      borderColor: '#1D3A6B',
+      backgroundColor: colors.cardBackground,
+    },
+    ceTabText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    ceTabTextActive: {
+      fontWeight: '800',
+      color: '#1D3A6B',
+    },
+    ceForm: {
+      flex: 1,
+      paddingHorizontal: 24,
+      paddingTop: 20,
+    },
+    ceField: {
+      marginBottom: 16,
+    },
+    ceRow: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    ceLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      letterSpacing: 0.5,
+      marginBottom: 6,
+    },
+    ceRequired: {
+      color: '#EF4444',
+    },
+    ceInputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 12,
+      paddingVertical: 13,
+    },
+    ceInput: {
+      flex: 1,
+      fontSize: 14,
+      color: colors.textPrimary,
+      fontWeight: '500',
+    },
+    ceTextarea: {
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 12,
+      paddingVertical: 13,
+      fontSize: 14,
+      color: colors.textPrimary,
+      minHeight: 110,
+    },
+    ceFooter: {
+      flexDirection: 'row',
+      gap: 12,
+      paddingHorizontal: 24,
+      paddingTop: 14,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+      backgroundColor: colors.cardBackground,
+    },
+    ceCancelBtn: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.cardBackground,
+    },
+    ceCancelText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    ceSubmitBtn: {
+      flex: 2,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: '#1D3A6B',
+    },
+    ceSubmitText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+    // legacy overlay styles kept for safety
+    ceOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+    },
+    ceCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      width: '100%',
+      maxHeight: '92%',
+      paddingHorizontal: 24,
+      paddingTop: 24,
+      paddingBottom: 8,
+    },
+    ceActions: {
+      flexDirection: 'row',
+      gap: 10,
+      paddingVertical: 16,
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+    },
+
     loadingContainer: {
       flex: 1,
       padding: 32,

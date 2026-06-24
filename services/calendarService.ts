@@ -1,5 +1,5 @@
-import * as Calendar from 'expo-calendar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Calendar from 'expo-calendar';
 import { Platform } from 'react-native';
 
 const API_BASE_URL = 'https://staging-api.zien.ai/api';
@@ -374,17 +374,14 @@ export const getBackendCalendarTasks = async (token: string): Promise<BackendTas
 
 export const createBackendCalendarEvent = async (
   token: string,
-  event: { title: string; startDate: string; endDate: string; notes?: string }
+  event: { title: string; description?: string; location?: string; start: string; end: string }
 ): Promise<any> => {
   const body = {
-    summary: event.title,
-    description: event.notes,
-    start: {
-      dateTime: event.startDate,
-    },
-    end: {
-      dateTime: event.endDate,
-    },
+    title: event.title,
+    description: event.description,
+    location: event.location,
+    start: event.start,
+    end: event.end,
   };
 
   const response = await fetch(`${API_BASE_URL}/solo/calendar/events`, {
