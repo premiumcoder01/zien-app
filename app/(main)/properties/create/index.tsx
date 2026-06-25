@@ -935,7 +935,7 @@ function StepSuccess({ propertyId, address }: { propertyId: string, address: str
   }, [isMobile]);
 
   return (
-    <View style={{ alignItems: 'center', paddingTop: 20 }}>
+    <View style={{ alignItems: 'center', paddingTop: 20, paddingBottom: 60 }}>
       {/* Icon Circle */}
       <View style={{
         width: 64,

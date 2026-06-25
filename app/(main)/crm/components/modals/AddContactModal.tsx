@@ -367,12 +367,29 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                   defaultValue={phone}
                   defaultCode={countryCodeISO}
                   layout="second"
+                  disabled={isEditing}
                   onChangeText={(t) => { setPhone(t); clearError('phone'); }}
-                  containerStyle={[styles.phoneInputWrapper, errors.phone && styles.inputError]}
-                  textContainerStyle={styles.phoneTextContainer}
-                  textInputStyle={styles.phoneTextInput}
-                  codeTextStyle={styles.phoneCodeText}
-                  flagButtonStyle={styles.phoneFlagButton}
+                  containerStyle={[
+                    styles.phoneInputWrapper,
+                    errors.phone && styles.inputError,
+                    isEditing && { backgroundColor: colors.surfaceIcon }
+                  ]}
+                  textContainerStyle={[
+                    styles.phoneTextContainer,
+                    isEditing && { backgroundColor: colors.surfaceIcon }
+                  ]}
+                  textInputStyle={[
+                    styles.phoneTextInput,
+                    isEditing && { color: colors.textMuted }
+                  ]}
+                  codeTextStyle={[
+                    styles.phoneCodeText,
+                    isEditing && { color: colors.textMuted }
+                  ]}
+                  flagButtonStyle={[
+                    styles.phoneFlagButton,
+                    isEditing && { backgroundColor: colors.surfaceIcon }
+                  ]}
                   placeholder="Phone Number"
                   withDarkTheme={theme === 'dark'}
                   textInputProps={{

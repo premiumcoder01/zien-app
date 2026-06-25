@@ -362,7 +362,6 @@ export default function DashboardScreen() {
     }
   };
 
-  console.log(subscriptionData, "vishal")
 
 
   useEffect(() => {

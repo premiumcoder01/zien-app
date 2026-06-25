@@ -1,12 +1,12 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { createCRMCampaign, CRMCampaign, deleteCRMCampaign, getCRMCampaigns, getCRMTemplates, patchCRMCampaignStatus, updateCRMCampaign, extractContactsWithAI, addCRMTemplate, getCRMCampaignROI } from '@/services/crmService';
+import { addCRMTemplate, createCRMCampaign, CRMCampaign, deleteCRMCampaign, extractContactsWithAI, getCRMCampaigns, getCRMTemplates, patchCRMCampaignStatus, updateCRMCampaign } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -68,6 +68,19 @@ export default function CRMCampaignsScreen() {
   const [selectedChannel, setSelectedChannel] = useState('All Channels');
   const [isChannelDropdownOpen, setChannelDropdownOpen] = useState(false);
   const [newCampaignVisible, setNewCampaignVisible] = useState(false);
+
+  // Filtering Logic
+  const filteredCampaigns = (campaignList || []).filter(campaign => {
+    const matchesSearch = campaign.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+    let matchesChannel = true;
+    if (selectedChannel === 'Email Only') matchesChannel = campaign.channel.toLowerCase() === 'email';
+    else if (selectedChannel === 'SMS Only') matchesChannel = campaign.channel.toLowerCase() === 'sms';
+    else if (selectedChannel === 'WhatsApp Only') matchesChannel = campaign.channel.toLowerCase() === 'whatsapp';
+
+    return matchesSearch && matchesChannel;
+  }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
 
   // New Campaign Form State
   const [formCampaignName, setFormCampaignName] = useState('');
@@ -166,8 +179,14 @@ export default function CRMCampaignsScreen() {
 
         let finalTemplateId = formTemplateId;
 
-        // If the selected template is the dynamically generated AI template, create it on the server first
-        if (formTemplateId && formTemplateId.startsWith('ai-temp-') && aiGeneratedTemplate) {
+        // Only create a new template on the server if this is a temporary AI-generated template
+        // (i.e., user did NOT select an existing template from the Brand Template dropdown)
+        if (
+          formTemplateId &&
+          formTemplateId.startsWith('ai-temp-') &&
+          aiGeneratedTemplate &&
+          aiGeneratedTemplate.id === formTemplateId
+        ) {
           const createdTemplate = await addCRMTemplate(accessToken || '', {
             name: aiGeneratedTemplate.name,
             template_type: aiGeneratedTemplate.template_type,
@@ -217,27 +236,28 @@ export default function CRMCampaignsScreen() {
     setNewCampaignVisible(true);
   };
 
-  // Campaign Intelligence State
-  const [intelligenceVisible, setIntelligenceVisible] = useState(false);
-  const [selectedCampaignForIntelligence, setSelectedCampaignForIntelligence] = useState<Campaign | null>(null);
+  // Batch Selection and Delete State
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const { data: campaignRoiData, isLoading: isLoadingRoi } = useQuery({
-    queryKey: ['campaignRoi', selectedCampaignForIntelligence?.id],
-    queryFn: () => getCRMCampaignROI(accessToken || '', selectedCampaignForIntelligence?.id || ''),
-    enabled: !!accessToken && !!selectedCampaignForIntelligence?.id && intelligenceVisible
-  });
-
-  const getPercentWidth = (pctString?: string): any => {
-    if (!pctString) return '0%';
-    const num = parseFloat(pctString.replace(/[^0-9.]/g, ''));
-    if (isNaN(num)) return '0%';
-    return `${Math.min(100, Math.max(0, num))}%`;
+  const toggleSelectCampaign = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
   };
 
-  const handleOpenIntelligence = (campaign: Campaign) => {
-    setSelectedCampaignForIntelligence(campaign);
-    setIntelligenceVisible(true);
+  const isAllSelected = filteredCampaigns.length > 0 && filteredCampaigns.every(c => selectedIds.includes(c.id));
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      const filteredIds = filteredCampaigns.map(c => c.id);
+      setSelectedIds(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      const filteredIds = filteredCampaigns.map(c => c.id);
+      setSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+    }
   };
+
+
 
   // AI Campaign Form State
   const [aiCampaignVisible, setAiCampaignVisible] = useState(false);
@@ -285,7 +305,7 @@ Based on this, generate a JSON object with exactly the following fields:
       }
 
       const aiResponse = await extractContactsWithAI(accessToken || '', aiDescription.trim(), systemInstruction);
-      
+
       const rawResult = (aiResponse as any).result || '';
       if (!rawResult) {
         throw new Error("AI returned empty content. Please try again.");
@@ -303,11 +323,11 @@ Based on this, generate a JSON object with exactly the following fields:
       const data = JSON.parse(cleanJsonStr);
 
       if (aiTemplateId) {
-        // Use existing template directly
+        // ✅ User selected an EXISTING template — use it directly, no new template creation
+        setAiGeneratedTemplate(null);   // clear any leftover AI-generated template
         setFormTemplateId(aiTemplateId);
-        setAiGeneratedTemplate(null);
       } else {
-        // Generate new temporary AI template with generated email body
+        // ✅ No template selected — AI generates a temporary template body
         const tempId = `ai-temp-${Date.now()}`;
         setAiGeneratedTemplate({
           id: tempId,
@@ -369,32 +389,29 @@ Based on this, generate a JSON object with exactly the following fields:
   };
 
   const confirmDelete = async () => {
-    if (!campaignToDelete) return;
     setIsDeleting(true);
     try {
-      await deleteCRMCampaign(accessToken || '', campaignToDelete);
+      if (campaignToDelete) {
+        await deleteCRMCampaign(accessToken || '', campaignToDelete);
+        setSelectedIds(prev => prev.filter(item => item !== campaignToDelete));
+        setCampaignToDelete(null);
+      } else {
+        await Promise.all(
+          selectedIds.map(id => deleteCRMCampaign(accessToken || '', id))
+        );
+        setSelectedIds([]);
+      }
       refetch();
       setConfirmDeleteVisible(false);
-      setCampaignToDelete(null);
-      Alert.alert("Success", "Campaign deleted successfully.");
+      Alert.alert("Success", "Campaign(s) deleted successfully.");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to delete campaign.");
+      Alert.alert("Error", error.message || "Failed to delete campaign(s).");
     } finally {
       setIsDeleting(false);
     }
   };
 
-  // Filtering Logic
-  const filteredCampaigns = (campaignList || []).filter(campaign => {
-    const matchesSearch = campaign.name.toLowerCase().includes(searchQuery.toLowerCase());
 
-    let matchesChannel = true;
-    if (selectedChannel === 'Email Only') matchesChannel = campaign.channel.toLowerCase() === 'email';
-    else if (selectedChannel === 'SMS Only') matchesChannel = campaign.channel.toLowerCase() === 'sms';
-    else if (selectedChannel === 'WhatsApp Only') matchesChannel = campaign.channel.toLowerCase() === 'whatsapp';
-
-    return matchesSearch && matchesChannel;
-  }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const getChannelIcon = (channel: string) => {
     switch (channel.toLowerCase()) {
@@ -417,6 +434,7 @@ Based on this, generate a JSON object with exactly the following fields:
   const renderCampaignCard = (campaign: Campaign) => {
     const statusInfo = getStatusDisplay(campaign.status);
     const channelColor = campaign.channel.toLowerCase() === 'email' ? '#3B82F6' : campaign.channel.toLowerCase() === 'sms' ? '#0a2341' : '#25D366';
+    const isSelected = selectedIds.includes(campaign.id);
 
     const formatDate = (dateStr: string | null) => {
       if (!dateStr) return 'N/A';
@@ -424,79 +442,62 @@ Based on this, generate a JSON object with exactly the following fields:
     };
 
     return (
-      <View key={campaign.id} style={styles.modernCampaignCard}>
-        {/* Sidebar Channel Indicator */}
-        <View style={[styles.cardSidebar, { backgroundColor: channelColor }]} />
+      <Pressable
+        key={campaign.id}
+        style={[styles.webRowCard, isSelected && { borderColor: colors.accentTeal, borderWidth: 1.5 }]}
+        onPress={() => toggleSelectCampaign(campaign.id)}
+      >
+        <View style={styles.webRowHeader}>
+          <View style={styles.webRowLeft}>
+            <MaterialCommunityIcons
+              name={isSelected ? "checkbox-marked" : "checkbox-blank-outline"}
+              size={18}
+              color={isSelected ? colors.accentTeal : "#94A3B8"}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.webRowCampaignName} numberOfLines={1}>{campaign.name}</Text>
+          </View>
+          <View style={styles.webRowActions}>
+            <Pressable style={styles.webRowActionBtn} onPress={() => handleEditCampaign(campaign)}>
+              <MaterialCommunityIcons name="pencil-outline" size={18} color="#64748B" />
+            </Pressable>
+            <Pressable style={styles.webRowActionBtn} onPress={() => handleDeleteCampaign(campaign.id)}>
+              <MaterialCommunityIcons name="trash-can-outline" size={18} color="#EF4444" style={{ marginLeft: 12 }} />
+            </Pressable>
+          </View>
+        </View>
 
-
-        <View style={styles.modernCardContent}>
-          <View style={styles.modernHeader}>
-            <View style={styles.modernTitleGroup}>
-              <Text style={styles.modernCampaignName}>{campaign.name}</Text>
-              <View style={styles.modernMetaRow}>
-                <MaterialCommunityIcons name={getChannelIcon(campaign.channel)} size={14} color={channelColor} />
-                <Text style={[styles.modernChannelLabel, { color: channelColor }]}>{campaign.channel.toUpperCase()}</Text>
-                <View style={styles.modernDot} />
-                <Text style={styles.modernDateLabel}>{formatDate(campaign.sent_at || campaign.created_at)}</Text>
-                <View style={styles.modernDot} />
-                {/* Minimalist Status Badge */}
-                <View style={[styles.statusMinimalistBadgeInline, { backgroundColor: `${statusInfo.text}10`, borderColor: `${statusInfo.text}30` }]}>
-                  <View style={[styles.statusIndicatorDot, { backgroundColor: statusInfo.text }]} />
-                  <Text style={[styles.statusMinimalistText, { color: statusInfo.text }]}>{statusInfo.label}</Text>
-                </View>
-              </View>
+        <View style={styles.webRowDetails}>
+          <View style={styles.webRowDetailCol}>
+            <Text style={styles.webRowDetailLabel}>CHANNEL</Text>
+            <View style={styles.webRowChannelVal}>
+              <MaterialCommunityIcons name={getChannelIcon(campaign.channel)} size={14} color={channelColor} style={{ marginRight: 4 }} />
+              <Text style={styles.webRowChannelText}>{campaign.channel}</Text>
             </View>
           </View>
 
-          <View style={styles.modernTargetBox}>
-            <MaterialCommunityIcons name="account-group-outline" size={14} color={colors.textSecondary} />
-            <Text style={styles.modernTargetText} numberOfLines={1}>{campaign.target_segment}</Text>
-          </View>
-
-          <View style={styles.modernStatsRow}>
-            <View style={styles.modernStatBox}>
-              <Text style={styles.modernStatLabel}>OPENS</Text>
-              <Text style={styles.modernStatValue}>{parseFloat(campaign.open_rate).toFixed(1)}%</Text>
-            </View>
-            <View style={styles.modernStatBox}>
-              <Text style={styles.modernStatLabel}>CLK.</Text>
-              <Text style={styles.modernStatValue}>{parseFloat(campaign.click_rate).toFixed(1)}%</Text>
-            </View>
-            <View style={styles.modernStatBox}>
-              <Text style={styles.modernStatLabel}>RPL.</Text>
-              <Text style={[styles.modernStatValue, { color: '#F59E0B' }]}>{parseFloat(campaign.reply_rate).toFixed(1)}%</Text>
-            </View>
-            <View style={styles.modernStatBox}>
-              <Text style={styles.modernStatLabel}>CONV.</Text>
-              <Text style={[styles.modernStatValue, { color: '#10B981' }]}>{parseFloat(campaign.conversion_rate).toFixed(1)}%</Text>
-            </View>
-          </View>
-
-          <View style={styles.modernActionRow}>
-            <View style={styles.modernActionGroup}>
-              <Pressable style={styles.compactIconBtn} onPress={() => handleOpenIntelligence(campaign)}>
-                <MaterialCommunityIcons name="chart-bar" size={20} color="#3B82F6" />
-              </Pressable>
-
-              <Pressable style={styles.compactIconBtn} onPress={() => handleToggleStatus(campaign.id, campaign.status)}>
-                <MaterialCommunityIcons
-                  name={campaign.status === 2 ? "play" : "pause"}
-                  size={20}
-                  color={campaign.status === 2 ? "#10B981" : colors.textPrimary}
-                />
-              </Pressable>
-
-              <Pressable style={styles.compactIconBtn} onPress={() => handleEditCampaign(campaign)}>
-                <MaterialCommunityIcons name="pencil-outline" size={20} color={colors.textSecondary} />
-              </Pressable>
-
-              <Pressable style={styles.compactIconBtn} onPress={() => handleDeleteCampaign(campaign.id)}>
-                <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
-              </Pressable>
+          <View style={styles.webRowDetailCol}>
+            <Text style={styles.webRowDetailLabel}>AUDIENCE</Text>
+            <View style={[styles.webRowAudienceBadge, { backgroundColor: '#EFF6FF' }]}>
+              <Text style={styles.webRowAudienceText}>{campaign.target_segment.toUpperCase()}</Text>
             </View>
           </View>
         </View>
-      </View>
+
+        <View style={styles.webRowFooter}>
+          <View style={styles.webRowDetailCol}>
+            <Text style={styles.webRowDetailLabel}>DATE</Text>
+            <Text style={styles.webRowDateText}>{formatDate(campaign.sent_at || campaign.created_at)}</Text>
+          </View>
+
+          <View style={styles.webRowDetailCol}>
+            <Text style={styles.webRowDetailLabel}>STATUS</Text>
+            <View style={[styles.webRowStatusBadge, { backgroundColor: `${statusInfo.text}15` }]}>
+              <Text style={[styles.webRowStatusText, { color: statusInfo.text }]}>{statusInfo.label.toUpperCase()}</Text>
+            </View>
+          </View>
+        </View>
+      </Pressable>
     );
   };
 
@@ -513,36 +514,58 @@ Based on this, generate a JSON object with exactly the following fields:
         onBack={() => router.back()}
       />
 
-      <View style={styles.topActionsRow}>
+      <View style={styles.webTopButtonsRow}>
         <Pressable
-          style={styles.aiCampaignBtn}
+          style={styles.webAiCampaignBtn}
           onPress={() => setAiCampaignVisible(true)}
         >
-          <MaterialCommunityIcons name="creation" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.aiCampaignBtnText}>AI Campaign</Text>
+          <MaterialCommunityIcons name="star-four-points-outline" size={16} color="#0B2340" style={{ marginRight: 6 }} />
+          <Text style={styles.webAiCampaignBtnText}>AI Campaign</Text>
         </Pressable>
 
-        <View style={styles.channelFilterWrapper}>
+        <Pressable
+          style={styles.webLaunchCampaignBtn}
+          onPress={openNewCampaignModal}
+        >
+          <MaterialCommunityIcons name="plus" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+          <Text style={styles.webLaunchCampaignBtnText}>Launch New Campaign</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.webFilterRow}>
+        <View style={styles.webSearchBar}>
+          <MaterialCommunityIcons name="magnify" size={18} color="#94A3B8" style={{ marginRight: 6 }} />
+          <TextInput
+            style={styles.webSearchInput}
+            placeholder="Search campaigns or segments..."
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+
+        <View style={styles.webChannelFilterWrapper}>
           <Pressable
-            style={styles.channelSelector}
+            style={styles.webChannelSelector}
             onPress={() => setChannelDropdownOpen(!isChannelDropdownOpen)}
           >
-            <Text style={styles.channelSelectorText}>{selectedChannel}</Text>
-            <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+            <MaterialCommunityIcons name="filter-variant" size={16} color="#64748B" style={{ marginRight: 4 }} />
+            <Text style={styles.webChannelSelectorText} numberOfLines={1}>{selectedChannel}</Text>
+            <MaterialCommunityIcons name="chevron-down" size={16} color="#64748B" style={{ marginLeft: 2 }} />
           </Pressable>
 
           {isChannelDropdownOpen && (
-            <View style={styles.dropdownMenu}>
+            <View style={styles.webDropdownMenu}>
               {['All Channels', 'Email Only', 'SMS Only', 'WhatsApp Only'].map((opt) => (
                 <Pressable
                   key={opt}
-                  style={styles.dropdownItem}
+                  style={styles.webDropdownItem}
                   onPress={() => {
                     setSelectedChannel(opt);
                     setChannelDropdownOpen(false);
                   }}
                 >
-                  <Text style={[styles.dropdownItemText, selectedChannel === opt && { fontWeight: '700' }]}>
+                  <Text style={[styles.webDropdownItemText, selectedChannel === opt && { fontWeight: '700' }]}>
                     {opt}
                   </Text>
                 </Pressable>
@@ -552,18 +575,34 @@ Based on this, generate a JSON object with exactly the following fields:
         </View>
       </View>
 
-      <View style={styles.filterSection}>
-        <View style={styles.searchBar}>
-          <MaterialCommunityIcons name="magnify" size={20} color="#94A3B8" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search campaigns or segments..."
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+      {filteredCampaigns.length > 0 && (
+        <View style={styles.selectionBar}>
+          <Pressable style={styles.selectionLeft} onPress={handleSelectAll}>
+            <MaterialCommunityIcons
+              name={isAllSelected ? "checkbox-marked" : "checkbox-blank-outline"}
+              size={18}
+              color={isAllSelected ? colors.accentTeal : "#94A3B8"}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.selectionText}>
+              {selectedIds.length > 0 ? `${selectedIds.length} selected` : 'Select All'}
+            </Text>
+          </Pressable>
+
+          {selectedIds.length > 0 && (
+            <Pressable
+              style={styles.bulkDeleteBtn}
+              onPress={() => {
+                setCampaignToDelete(null);
+                setConfirmDeleteVisible(true);
+              }}
+            >
+              <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" style={{ marginRight: 4 }} />
+              <Text style={styles.bulkDeleteText}>Delete Selected</Text>
+            </Pressable>
+          )}
         </View>
-      </View>
+      )}
 
       <ScrollView
         style={styles.content}
@@ -588,15 +627,6 @@ Based on this, generate a JSON object with exactly the following fields:
           </View>
         )}
       </ScrollView>
-
-      {/* Floating Action Button */}
-      <Pressable
-        style={[styles.fab, { bottom: 24 + insets.bottom }]}
-        onPress={openNewCampaignModal}
-      >
-        <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
-        <Text style={styles.fabText}>New Campaign</Text>
-      </Pressable>
 
       {/* ── Launch New Campaign Modal ── */}
       <Modal
@@ -1186,502 +1216,278 @@ Based on this, generate a JSON object with exactly the following fields:
         </Modal>
       </Modal>
 
-      {/* ── Campaign Intelligence Modal ── */}
-      <Modal
-        visible={intelligenceVisible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setIntelligenceVisible(false)}
-      >
-        <LinearGradient
-          colors={colors.backgroundGradient as any}
-          style={{ flex: 1, paddingTop: insets.top }}
-        >
-          {/* Intelligence Header */}
-          <View style={styles.modalHeader}>
-            <View style={styles.modalHeaderTitleBox}>
-              <Text style={styles.modalTitle}>Campaign Intelligence</Text>
-              <Text style={styles.modalSubtitle}>ROI & Conversion Attribution for {campaignRoiData?.name || selectedCampaignForIntelligence?.name || selectedCampaignForIntelligence?.id.substring(0, 8)}</Text>
-            </View>
-            <Pressable
-              onPress={() => setIntelligenceVisible(false)}
-              hitSlop={12}
-            >
-              <MaterialCommunityIcons name="close" size={28} color={colors.textPrimary} />
-            </Pressable>
-          </View>
 
-          <ScrollView
-            style={styles.modalScroll}
-            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-            showsVerticalScrollIndicator={false}
-          >
-            {isLoadingRoi ? (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 300, paddingTop: 100 }}>
-                <ActivityIndicator size="large" color={colors.accentTeal} />
-                <Text style={{ marginTop: 16, color: colors.textSecondary, fontSize: 14, fontWeight: '500' }}>Loading Campaign Intelligence...</Text>
-              </View>
-            ) : (
-              <>
-                {/* Top Stats Grid */}
-                <View style={styles.intelStatsGrid}>
-                  <View style={styles.intelStatCard}>
-                    <View style={styles.intelStatHeader}>
-                      <MaterialCommunityIcons name="email-outline" size={16} color="#64748B" />
-                      <View style={[styles.intelBadge, { backgroundColor: '#ECFDF5' }]}>
-                        <Text style={[styles.intelBadgeText, { color: '#10B981' }]}>Actual</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.intelStatLabel}>DELIVERED</Text>
-                    <Text style={styles.intelStatLargeValue}>{campaignRoiData?.delivered || '0%'}</Text>
-                  </View>
-
-                  <View style={styles.intelStatCard}>
-                    <View style={styles.intelStatHeader}>
-                      <MaterialCommunityIcons name="near-me" size={16} color="#64748B" />
-                      <View style={[styles.intelBadge, { backgroundColor: '#ECFDF5' }]}>
-                        <Text style={[styles.intelBadgeText, { color: '#10B981' }]}>Actual</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.intelStatLabel}>OPEN RATE</Text>
-                    <Text style={styles.intelStatLargeValue}>{campaignRoiData?.open_rate || '0.00%'}</Text>
-                  </View>
-
-                  <View style={styles.intelStatCard}>
-                    <View style={styles.intelStatHeader}>
-                      <MaterialCommunityIcons name="lightning-bolt-outline" size={16} color="#64748B" />
-                      <View style={[styles.intelBadge, { backgroundColor: '#ECFDF5' }]}>
-                        <Text style={[styles.intelBadgeText, { color: '#10B981' }]}>Actual</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.intelStatLabel}>REPLY RATE</Text>
-                    <Text style={styles.intelStatLargeValue}>{campaignRoiData?.reply_rate || '0.00%'}</Text>
-                  </View>
-
-                  <View style={styles.intelStatCard}>
-                    <View style={styles.intelStatHeader}>
-                      <MaterialCommunityIcons name="target" size={16} color="#64748B" />
-                      <View style={[styles.intelBadge, { backgroundColor: '#ECFDF5' }]}>
-                        <Text style={[styles.intelBadgeText, { color: '#10B981' }]}>Actual</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.intelStatLabel}>CONVERSION</Text>
-                    <Text style={styles.intelStatLargeValue}>{campaignRoiData?.conversion_rate || '0.00%'}</Text>
-                  </View>
-                </View>
-
-                {/* Live Attribution Stream */}
-                <View style={styles.streamCard}>
-                  <View style={styles.streamHeader}>
-                    <Text style={styles.streamTitle}>Live Attribution Stream</Text>
-                    <View style={styles.liveIndicator}>
-                      <View style={styles.liveDot} />
-                      <Text style={styles.liveText}>LIVE PIPELINE</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.streamTable}>
-                    {/* Column Headers */}
-                    <View style={styles.streamTableHead}>
-                      <Text style={[styles.streamHeadText, { flex: 2 }]}>LEAD CONTACT</Text>
-                      <Text style={[styles.streamHeadText, { flex: 1.5 }]}>ACTIVITY</Text>
-                      <Text style={[styles.streamHeadText, { flex: 1 }]}>SCORE</Text>
-                    </View>
-
-                    {/* Rows */}
-                    {(campaignRoiData?.stream || []).map((row, idx) => {
-                      const isPositive = row.score.startsWith('+') || parseFloat(row.score) > 0;
-                      const scoreColor = isPositive ? '#10B981' : colors.textPrimary;
-                      return (
-                        <View key={idx} style={styles.streamRow}>
-                          <View style={{ flex: 2 }}>
-                            <Text style={styles.rowName}>{row.name}</Text>
-                            <Text style={styles.rowSub}>
-                              {row.time} • {row.channel.charAt(0).toUpperCase() + row.channel.slice(1).toLowerCase()}
-                            </Text>
-                          </View>
-                          <View style={{ flex: 1.5, alignItems: 'flex-start' }}>
-                            <View style={[styles.actionBadge, { backgroundColor: colors.surfaceSoft }]}>
-                              <Text style={styles.actionBadgeText}>{row.action.toUpperCase()}</Text>
-                            </View>
-                          </View>
-                          <Text style={[styles.rowScore, { flex: 1, color: scoreColor }]}>{row.score}</Text>
-                        </View>
-                      );
-                    })}
-
-                    {(!campaignRoiData?.stream || campaignRoiData.stream.length === 0) && (
-                      <View style={{ paddingVertical: 32, alignItems: 'center' }}>
-                        <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '500' }}>No activity recorded yet.</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-
-                {/* Pipeline Engagement */}
-                <View style={styles.engagementCard}>
-                  <Text style={styles.cardTitle}>Pipeline Engagement</Text>
-
-                  <View style={styles.progressItem}>
-                    <View style={styles.progressLabelRow}>
-                      <Text style={styles.progressLabel}>Click Through Rate</Text>
-                      <Text style={styles.progressValue}>{campaignRoiData?.click_rate || '0.00%'}</Text>
-                    </View>
-                    <View style={styles.progressBarBg}>
-                      <View style={[styles.progressBarFill, { width: getPercentWidth(campaignRoiData?.click_rate), backgroundColor: colors.accentTeal }]} />
-                    </View>
-                  </View>
-
-                  <View style={styles.progressItem}>
-                    <View style={styles.progressLabelRow}>
-                      <Text style={styles.progressLabel}>Reply Velocity</Text>
-                      <Text style={styles.progressValue}>Fast</Text>
-                    </View>
-                    <View style={styles.progressBarBg}>
-                      <View style={[styles.progressBarFill, { width: '85%', backgroundColor: '#2DD4BF' }]} />
-                    </View>
-                  </View>
-
-                  <View style={styles.progressItem}>
-                    <View style={styles.progressLabelRow}>
-                      <Text style={styles.progressLabel}>Direct Conversion</Text>
-                      <Text style={styles.progressValue}>{campaignRoiData?.conversion_rate || '0.00%'}</Text>
-                    </View>
-                    <View style={styles.progressBarBg}>
-                      <View style={[styles.progressBarFill, { width: getPercentWidth(campaignRoiData?.conversion_rate), backgroundColor: '#F97316' }]} />
-                    </View>
-                  </View>
-
-                  <View style={styles.progressItem}>
-                    <View style={styles.progressLabelRow}>
-                      <Text style={styles.progressLabel}>Unsubscribe Rate</Text>
-                      <Text style={styles.progressValue}>0.04%</Text>
-                    </View>
-                    <View style={styles.progressBarBg}>
-                      <View style={[styles.progressBarFill, { width: '5%', backgroundColor: '#10B981' }]} />
-                    </View>
-                  </View>
-
-                  <View style={styles.optimizedWindowBox}>
-                    <Text style={styles.windowLabel}>NEXT OPTIMIZED SEND WINDOW</Text>
-                    <View style={styles.windowTimeRow}>
-                      <MaterialCommunityIcons name="clock-outline" size={20} color="#FFFFFF" />
-                      <Text style={styles.windowTime}>Friday @ 09:15 EST</Text>
-                    </View>
-                    <Text style={styles.windowSub}>Based on past engagement patterns.</Text>
-                  </View>
-                </View>
-
-                {/* A/B Testing Outcome */}
-                <View style={styles.abOutcomeCard}>
-                  <Text style={styles.cardTitle}>A/B testing Outcome</Text>
-                  <View style={styles.winnerBox}>
-                    <View style={styles.winnerHeader}>
-                      <Text style={styles.winnerTopic}>Subject Line "Malibu..."</Text>
-                      <Text style={styles.winnerLabel}>WINNER</Text>
-                    </View>
-                    <Text style={styles.winnerStat}>+45% Open Rate</Text>
-                  </View>
-                </View>
-              </>
-            )}
-          </ScrollView>
-        </LinearGradient>
-      </Modal>
 
       <Modal
         visible={aiCampaignVisible}
-        transparent={true}
-        animationType="fade"
+        transparent={false}
+        animationType="slide"
         onRequestClose={() => setAiCampaignVisible(false)}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
+          style={{ flex: 1, backgroundColor: '#F8FAFC' }}
         >
-          <Pressable 
-            style={{
-              flex: 1,
-              backgroundColor: 'rgba(0, 0, 0, 0.4)',
-              justifyContent: 'center',
-              alignItems: 'center',
-              paddingHorizontal: 20
-            }}
-            onPress={() => setAiCampaignVisible(false)}
-          >
-          <Pressable
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: 28,
-              width: '100%',
-              maxWidth: 540,
+          {/* Full-page Header */}
+          <View style={{
+            backgroundColor: '#FFFFFF',
+            paddingTop: insets.top,
+            paddingHorizontal: 20,
+            paddingBottom: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottomWidth: 1,
+            borderBottomColor: '#E2E8F0',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 8,
+            elevation: 3,
+          }}>
+            <Pressable
+              onPress={() => {
+                setAiCampaignVisible(false);
+                setAiTemplateId(null);
+                setAiDescription('');
+                setAiSegment('All Contacts');
+              }}
+              hitSlop={12}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: '#F1F5F9',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="close" size={22} color="#0A2341" />
+            </Pressable>
+            <Text style={{
+              fontSize: 18,
+              fontWeight: '900',
+              color: '#0A2341',
+              letterSpacing: -0.3,
+            }}>AI Campaign</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <ScrollView
+            contentContainerStyle={{
               padding: 24,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 10 },
-              shadowOpacity: 0.15,
-              shadowRadius: 20,
-              elevation: 10
+              paddingBottom: insets.bottom + 40,
             }}
-            onPress={e => e.stopPropagation()}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            {/* Modal Header */}
-            <View style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 20
-            }}>
+            {/* Target Segment */}
+            <View style={{ marginBottom: 20, zIndex: aiSegmentDropdown ? 30 : 1 }}>
               <Text style={{
-                fontSize: 22,
-                fontWeight: '900',
-                color: '#0A2341'
-              }}>AI Campaign</Text>
+                fontSize: 11,
+                fontWeight: '800',
+                color: '#94A3B8',
+                marginBottom: 8,
+                letterSpacing: 0.5
+              }}>TARGET SEGMENT</Text>
               <Pressable
-                onPress={() => setAiCampaignVisible(false)}
-                hitSlop={12}
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: '#F8FAFC',
+                  flexDirection: 'row',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'space-between',
+                  backgroundColor: '#FFFFFF',
+                  borderWidth: 1.5,
+                  borderColor: '#CBD5E1',
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  height: 50,
+                }}
+                onPress={() => {
+                  setAiSegmentDropdown(!aiSegmentDropdown);
+                  setAiTemplateDropdown(false);
                 }}
               >
-                <MaterialCommunityIcons name="close" size={20} color="#0A2341" />
+                <Text style={{ fontSize: 14, color: '#0F172A', fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                  {aiSegment}
+                </Text>
+                <MaterialCommunityIcons name="chevron-down" size={20} color="#0F172A" />
               </Pressable>
+              {aiSegmentDropdown && (
+                <View style={{
+                  position: 'absolute',
+                  top: 80,
+                  left: 0,
+                  right: 0,
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 14,
+                  borderWidth: 1.5,
+                  borderColor: '#CBD5E1',
+                  paddingVertical: 4,
+                  zIndex: 999,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 10 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 12,
+                  elevation: 10,
+                }}>
+                  {['All Contacts', 'Hot Leads', 'New Leads', 'Past Clients', 'Investor Group'].map(opt => {
+                    const isSelected = aiSegment === opt;
+                    return (
+                      <Pressable
+                        key={opt}
+                        style={({ pressed }) => ({
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                          backgroundColor: isSelected
+                            ? 'rgba(59, 130, 246, 0.08)'
+                            : pressed ? '#F1F5F9' : 'transparent',
+                          borderRadius: 10,
+                          marginHorizontal: 4,
+                          marginVertical: 2
+                        })}
+                        onPress={() => { setAiSegment(opt); setAiSegmentDropdown(false); }}
+                      >
+                        <Text style={{
+                          color: isSelected ? '#3B82F6' : '#1E293B',
+                          fontSize: 14,
+                          fontWeight: isSelected ? '700' : '600'
+                        }}>{opt}</Text>
+                        {isSelected && (
+                          <MaterialCommunityIcons name="check" size={16} color="#3B82F6" />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
             </View>
 
-            {/* Selector Column */}
-            <View style={{
-              gap: 16,
-              marginBottom: 20,
-              zIndex: 3000
-            }}>
-              {/* Target Segment */}
-              <View style={{ position: 'relative', zIndex: aiSegmentDropdown ? 2 : 1 }}>
-                <Text style={{
-                  fontSize: 11,
-                  fontWeight: '800',
-                  color: '#94A3B8',
-                  marginBottom: 8,
-                  letterSpacing: 0.5
-                }}>TARGET SEGMENT</Text>
-                <Pressable
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    backgroundColor: '#FFFFFF',
-                    borderWidth: 1,
-                    borderColor: '#CBD5E1',
-                    borderRadius: 12,
-                    paddingHorizontal: 12,
-                    height: 44
-                  }}
-                  onPress={() => {
-                    setAiSegmentDropdown(!aiSegmentDropdown);
-                    setAiTemplateDropdown(false);
-                  }}
-                >
-                  <Text style={{ fontSize: 13, color: '#0F172A', fontWeight: '600', flex: 1 }} numberOfLines={1}>
-                    {aiSegment}
-                  </Text>
-                  <MaterialCommunityIcons name="chevron-down" size={18} color="#0F172A" />
-                </Pressable>
-                {aiSegmentDropdown && (
-                  <View style={{
-                    position: 'absolute',
-                    top: 68,
-                    left: 0,
-                    right: 0,
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: '#CBD5E1',
-                    paddingVertical: 4,
-                    zIndex: 4000,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 10 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 12,
-                    elevation: 5,
-                    maxHeight: 200
-                  }}>
-                    <ScrollView
-                      nestedScrollEnabled={true}
-                      showsVerticalScrollIndicator={true}
+            {/* Brand Template */}
+            <View style={{ marginBottom: 20, zIndex: aiTemplateDropdown ? 20 : 1 }}>
+              <Text style={{
+                fontSize: 11,
+                fontWeight: '800',
+                color: '#94A3B8',
+                marginBottom: 8,
+                letterSpacing: 0.5
+              }}>BRAND TEMPLATE</Text>
+              <Pressable
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: '#FFFFFF',
+                  borderWidth: 1.5,
+                  borderColor: '#CBD5E1',
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  height: 50,
+                }}
+                onPress={() => {
+                  setAiTemplateDropdown(!aiTemplateDropdown);
+                  setAiSegmentDropdown(false);
+                }}
+              >
+                <Text style={{ fontSize: 14, color: '#0F172A', fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                  {aiTemplateId ? (templateList?.find(t => t.id === aiTemplateId)?.name || 'Select template') : 'Select template'}
+                </Text>
+                <MaterialCommunityIcons name="chevron-down" size={20} color="#0F172A" />
+              </Pressable>
+              {aiTemplateDropdown && (
+                <View style={{
+                  position: 'absolute',
+                  top: 80,
+                  left: 0,
+                  right: 0,
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 14,
+                  borderWidth: 1.5,
+                  borderColor: '#CBD5E1',
+                  paddingVertical: 4,
+                  zIndex: 999,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 10 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 12,
+                  elevation: 10,
+                  maxHeight: 220,
+                }}>
+                  <ScrollView nestedScrollEnabled showsVerticalScrollIndicator>
+                    <Pressable
+                      style={({ pressed }) => ({
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        paddingVertical: 12,
+                        paddingHorizontal: 16,
+                        backgroundColor: !aiTemplateId
+                          ? 'rgba(59, 130, 246, 0.08)'
+                          : pressed ? '#F1F5F9' : 'transparent',
+                        borderRadius: 10,
+                        marginHorizontal: 4,
+                        marginVertical: 2
+                      })}
+                      onPress={() => { setAiTemplateId(null); setAiTemplateDropdown(false); }}
                     >
-                      {['All Contacts', 'Hot Leads', 'New Leads', 'Past Clients', 'Investor Group'].map(opt => {
-                        const isSelected = aiSegment === opt;
+                      <Text style={{
+                        color: !aiTemplateId ? '#3B82F6' : '#1E293B',
+                        fontSize: 14,
+                        fontWeight: !aiTemplateId ? '700' : '600'
+                      }}>Select template (Generate New Body)</Text>
+                      {!aiTemplateId && (
+                        <MaterialCommunityIcons name="check" size={16} color="#3B82F6" />
+                      )}
+                    </Pressable>
+                    {(templateList || [])
+                      .filter(t => t.template_type.toLowerCase() === 'email')
+                      .map(opt => {
+                        const isSelected = aiTemplateId === opt.id;
                         return (
                           <Pressable
-                            key={opt}
+                            key={opt.id}
                             style={({ pressed }) => ({
                               flexDirection: 'row',
                               justifyContent: 'space-between',
                               alignItems: 'center',
-                              paddingVertical: 10,
+                              paddingVertical: 12,
                               paddingHorizontal: 16,
                               backgroundColor: isSelected
                                 ? 'rgba(59, 130, 246, 0.08)'
-                                : pressed
-                                  ? '#F1F5F9'
-                                  : 'transparent',
-                              borderRadius: 8,
+                                : pressed ? '#F1F5F9' : 'transparent',
+                              borderRadius: 10,
                               marginHorizontal: 4,
                               marginVertical: 2
                             })}
-                            onPress={() => { setAiSegment(opt); setAiSegmentDropdown(false); }}
+                            onPress={() => { setAiTemplateId(opt.id); setAiTemplateDropdown(false); }}
                           >
                             <Text style={{
                               color: isSelected ? '#3B82F6' : '#1E293B',
-                              fontSize: 13,
-                              fontWeight: isSelected ? '700' : '600'
-                            }}>{opt}</Text>
+                              fontSize: 14,
+                              fontWeight: isSelected ? '700' : '600',
+                              flex: 1,
+                              marginRight: 8
+                            }} numberOfLines={1}>{opt.name}</Text>
                             {isSelected && (
                               <MaterialCommunityIcons name="check" size={16} color="#3B82F6" />
                             )}
                           </Pressable>
                         );
                       })}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
-
-              {/* Brand Template */}
-              <View style={{ position: 'relative', zIndex: aiTemplateDropdown ? 2 : 1 }}>
-                <Text style={{
-                  fontSize: 11,
-                  fontWeight: '800',
-                  color: '#94A3B8',
-                  marginBottom: 8,
-                  letterSpacing: 0.5
-                }}>BRAND TEMPLATE</Text>
-                <Pressable
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    backgroundColor: '#FFFFFF',
-                    borderWidth: 1,
-                    borderColor: '#CBD5E1',
-                    borderRadius: 12,
-                    paddingHorizontal: 12,
-                    height: 44
-                  }}
-                  onPress={() => {
-                    setAiTemplateDropdown(!aiTemplateDropdown);
-                    setAiSegmentDropdown(false);
-                  }}
-                >
-                  <Text style={{ fontSize: 13, color: '#0F172A', fontWeight: '600', flex: 1 }} numberOfLines={1}>
-                    {aiTemplateId ? (templateList?.find(t => t.id === aiTemplateId)?.name || 'Select template') : 'Select template'}
-                  </Text>
-                  <MaterialCommunityIcons name="chevron-down" size={18} color="#0F172A" />
-                </Pressable>
-                {aiTemplateDropdown && (
-                  <View style={{
-                    position: 'absolute',
-                    top: 68,
-                    left: 0,
-                    right: 0,
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: '#CBD5E1',
-                    paddingVertical: 4,
-                    zIndex: 4000,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 10 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 12,
-                    elevation: 5,
-                    maxHeight: 200
-                  }}>
-                    <ScrollView
-                      nestedScrollEnabled={true}
-                      showsVerticalScrollIndicator={true}
-                    >
-                      <Pressable
-                        style={({ pressed }) => ({
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          paddingVertical: 10,
-                          paddingHorizontal: 16,
-                          backgroundColor: !aiTemplateId
-                            ? 'rgba(59, 130, 246, 0.08)'
-                            : pressed
-                              ? '#F1F5F9'
-                              : 'transparent',
-                          borderRadius: 8,
-                          marginHorizontal: 4,
-                          marginVertical: 2
-                        })}
-                        onPress={() => { setAiTemplateId(null); setAiTemplateDropdown(false); }}
-                      >
-                        <Text style={{
-                          color: !aiTemplateId ? '#3B82F6' : '#1E293B',
-                          fontSize: 13,
-                          fontWeight: !aiTemplateId ? '700' : '600'
-                        }}>Select template (Generate New Body)</Text>
-                        {!aiTemplateId && (
-                          <MaterialCommunityIcons name="check" size={16} color="#3B82F6" />
-                        )}
-                      </Pressable>
-
-                      {(templateList || [])
-                        .filter(t => t.template_type.toLowerCase() === 'email')
-                        .map(opt => {
-                          const isSelected = aiTemplateId === opt.id;
-                          return (
-                            <Pressable
-                              key={opt.id}
-                              style={({ pressed }) => ({
-                                flexDirection: 'row',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                paddingVertical: 10,
-                                paddingHorizontal: 16,
-                                backgroundColor: isSelected
-                                  ? 'rgba(59, 130, 246, 0.08)'
-                                  : pressed
-                                    ? '#F1F5F9'
-                                    : 'transparent',
-                                borderRadius: 8,
-                                marginHorizontal: 4,
-                                marginVertical: 2
-                              })}
-                              onPress={() => { setAiTemplateId(opt.id); setAiTemplateDropdown(false); }}
-                            >
-                              <Text style={{
-                                color: isSelected ? '#3B82F6' : '#1E293B',
-                                fontSize: 13,
-                                fontWeight: isSelected ? '700' : '600',
-                                flex: 1,
-                                marginRight: 8
-                              }} numberOfLines={1}>{opt.name}</Text>
-                              {isSelected && (
-                                <MaterialCommunityIcons name="check" size={16} color="#3B82F6" />
-                              )}
-                            </Pressable>
-                          );
-                        })}
-                      {((templateList || []).filter(t => t.template_type.toLowerCase() === 'email').length === 0) && (
-                        <View style={{ padding: 12, alignItems: 'center' }}>
-                          <Text style={{ color: '#94A3B8', fontSize: 12, fontWeight: '600' }}>No templates found</Text>
-                        </View>
-                      )}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
+                    {((templateList || []).filter(t => t.template_type.toLowerCase() === 'email').length === 0) && (
+                      <View style={{ padding: 12, alignItems: 'center' }}>
+                        <Text style={{ color: '#94A3B8', fontSize: 13, fontWeight: '600' }}>No templates found</Text>
+                      </View>
+                    )}
+                  </ScrollView>
+                </View>
+              )}
             </View>
 
             {/* Campaign Objective */}
-            <View style={{ marginBottom: 24 }}>
+            <View style={{ marginBottom: 32 }}>
               <Text style={{
                 fontSize: 11,
                 fontWeight: '800',
@@ -1692,16 +1498,16 @@ Based on this, generate a JSON object with exactly the following fields:
               <TextInput
                 style={{
                   backgroundColor: '#FFFFFF',
-                  borderWidth: 1,
+                  borderWidth: 1.5,
                   borderColor: '#E2E8F0',
-                  borderRadius: 12,
+                  borderRadius: 14,
                   padding: 16,
-                  height: 120,
+                  minHeight: 140,
                   fontSize: 14,
                   color: '#0F172A',
-                  lineHeight: 20
+                  lineHeight: 22,
                 }}
-                multiline={true}
+                multiline
                 placeholder="Describe the campaign you want to generate. e.g., 'Re-engage buyers who looked at luxury condos in West Hollywood last month with a price drop alert.'"
                 placeholderTextColor="#94A3B8"
                 value={aiDescription}
@@ -1715,9 +1521,9 @@ Based on this, generate a JSON object with exactly the following fields:
               <Pressable
                 style={{
                   flex: 1,
-                  height: 48,
-                  borderRadius: 12,
-                  borderWidth: 1,
+                  height: 54,
+                  borderRadius: 14,
+                  borderWidth: 1.5,
                   borderColor: '#E2E8F0',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1731,22 +1537,18 @@ Based on this, generate a JSON object with exactly the following fields:
                 }}
                 disabled={isGeneratingAI}
               >
-                <Text style={{
-                  fontSize: 14,
-                  fontWeight: '700',
-                  color: '#0A2341'
-                }}>Cancel</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#0A2341' }}>Cancel</Text>
               </Pressable>
-              
+
               <Pressable
                 style={{
                   flex: 1.5,
-                  height: 48,
-                  borderRadius: 12,
-                  backgroundColor: '#5A6E7D',
+                  height: 54,
+                  borderRadius: 14,
+                  backgroundColor: '#0A2341',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  opacity: isGeneratingAI ? 0.7 : 1
+                  opacity: isGeneratingAI ? 0.7 : 1,
                 }}
                 onPress={handleGenerateAICampaign}
                 disabled={isGeneratingAI}
@@ -1754,16 +1556,11 @@ Based on this, generate a JSON object with exactly the following fields:
                 {isGeneratingAI ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={{
-                    fontSize: 14,
-                    fontWeight: '700',
-                    color: '#FFFFFF'
-                  }}>Generate campaign</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF' }}>Generate campaign</Text>
                 )}
               </Pressable>
             </View>
-          </Pressable>
-        </Pressable>
+          </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -1772,16 +1569,30 @@ Based on this, generate a JSON object with exactly the following fields:
         visible={confirmDeleteVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setConfirmDeleteVisible(false)}
+        onRequestClose={() => {
+          setConfirmDeleteVisible(false);
+          setCampaignToDelete(null);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.confirmModal}>
-            <Text style={styles.confirmTitle}>Delete Campaign</Text>
+            <Text style={styles.confirmTitle}>
+              {campaignToDelete ? 'Delete Campaign' : 'Delete Selected Campaigns'}
+            </Text>
             <Text style={styles.confirmSubtitle}>
-              Are you sure you want to delete this campaign? This action cannot be undone.
+              {campaignToDelete
+                ? 'Are you sure you want to delete this campaign? This action cannot be undone.'
+                : `Are you sure you want to delete the ${selectedIds.length} selected campaign(s)? This action cannot be undone.`}
             </Text>
             <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setConfirmDeleteVisible(false)} disabled={isDeleting}>
+              <Pressable
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setConfirmDeleteVisible(false);
+                  setCampaignToDelete(null);
+                }}
+                disabled={isDeleting}
+              >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </Pressable>
               <Pressable style={styles.deleteBtn} onPress={confirmDelete} disabled={isDeleting}>
@@ -1812,6 +1623,216 @@ function getStyles(colors: any, theme?: string) {
       marginBottom: 16,
       zIndex: 100,
     },
+    webTopButtonsRow: {
+      flexDirection: 'row',
+      paddingHorizontal: 20,
+      gap: 12,
+      marginBottom: 16,
+    },
+    webAiCampaignBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      backgroundColor: colors.cardBackground,
+      height: 44,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: '#E2E8F0',
+    },
+    webAiCampaignBtnText: {
+      color: '#0B2340',
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    webLaunchCampaignBtn: {
+      flex: 1.2,
+      flexDirection: 'row',
+      backgroundColor: '#0B2340',
+      height: 44,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    webLaunchCampaignBtnText: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    webFilterRow: {
+      flexDirection: 'row',
+      paddingHorizontal: 20,
+      gap: 10,
+      marginBottom: 20,
+      zIndex: 999,
+    },
+    webSearchBar: {
+      flex: 1.4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardBackground,
+      height: 44,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    webSearchInput: {
+      flex: 1,
+      fontSize: 13,
+      color: colors.textPrimary,
+      padding: 0,
+    },
+    webChannelFilterWrapper: {
+      flex: 1,
+      position: 'relative',
+    },
+    webChannelSelector: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.cardBackground,
+      height: 44,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    webChannelSelectorText: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      textAlign: 'center',
+    },
+    webDropdownMenu: {
+      position: 'absolute',
+      top: 48,
+      left: 0,
+      right: 0,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      padding: 4,
+      zIndex: 10000,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.1,
+      shadowRadius: 10,
+      elevation: 6,
+    },
+    webDropdownItem: {
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+    },
+    webDropdownItemText: {
+      fontSize: 12,
+      color: colors.textPrimary,
+    },
+    webRowCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      padding: 16,
+      marginBottom: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.03,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    webRowHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
+    webRowLeft: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginRight: 10,
+    },
+    webRowCampaignName: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#0b2341',
+    },
+    webRowActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    webRowActionBtn: {
+      padding: 4,
+    },
+    webRowDetails: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 12,
+    },
+    webRowDetailCol: {
+      flex: 1,
+    },
+    webRowDetailLabel: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: '#94A3B8',
+      letterSpacing: 0.8,
+      marginBottom: 4,
+    },
+    webRowChannelVal: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    webRowChannelText: {
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    webRowAudienceBadge: {
+      alignSelf: 'flex-start',
+      backgroundColor: '#EFF6FF',
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 6,
+    },
+    webRowAudienceText: {
+      fontSize: 10.5,
+      fontWeight: '800',
+      color: '#1E40AF',
+    },
+    webRowFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      borderTopWidth: 1,
+      borderTopColor: '#F1F5F9',
+      paddingTop: 12,
+    },
+    webRowDateText: {
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    webRowStatusBadge: {
+      alignSelf: 'flex-start',
+      paddingVertical: 3,
+      paddingHorizontal: 8,
+      borderRadius: 6,
+    },
+    webRowStatusText: {
+      fontSize: 10.5,
+      fontWeight: '800',
+    },
+    channelFilterWrapper: {
+      flex: 1,
+      flexDirection: 'row',
+      backgroundColor: '#0B2D3E',
+      height: 48,
+      borderRadius: 10,
+    },
     aiCampaignBtn: {
       flex: 1,
       flexDirection: 'row',
@@ -1831,9 +1852,7 @@ function getStyles(colors: any, theme?: string) {
       fontSize: 12.5,
       fontWeight: '800',
     },
-    channelFilterWrapper: {
-      flex: 1,
-    },
+
     channelSelector: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2870,241 +2889,6 @@ function getStyles(colors: any, theme?: string) {
       fontSize: 12,
       fontWeight: '800',
     },
-    // Campaign Intelligence Dashboard Styles
-    intelStatsGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 12,
-      marginBottom: 20,
-    },
-    intelStatCard: {
-      flex: 1,
-      minWidth: '45%',
-      backgroundColor: colors.cardBackground,
-      borderRadius: 16,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 10,
-      elevation: 2,
-    },
-    intelStatHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    intelBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      borderRadius: 6,
-    },
-    intelBadgeText: {
-      fontSize: 10,
-      fontWeight: '800',
-    },
-    intelStatLabel: {
-      fontSize: 10,
-      fontWeight: '800',
-      color: colors.textSecondary,
-      marginBottom: 4,
-    },
-    intelStatLargeValue: {
-      fontSize: 22,
-      fontWeight: '900',
-      color: colors.textPrimary,
-    },
-    streamCard: {
-      backgroundColor: colors.cardBackground,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 20,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-    },
-    streamHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    streamTitle: {
-      fontSize: 16,
-      fontWeight: '900',
-      color: colors.textPrimary,
-    },
-    liveIndicator: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-    liveDot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
-      backgroundColor: '#10B981',
-    },
-    liveText: {
-      fontSize: 10,
-      fontWeight: '800',
-      color: '#10B981',
-    },
-    streamTable: {
-      gap: 12,
-    },
-    streamTableHead: {
-      flexDirection: 'row',
-      borderBottomWidth: 1,
-      borderBottomColor: colors.cardBorder,
-      paddingBottom: 8,
-    },
-    streamHeadText: {
-      fontSize: 10,
-      fontWeight: '800',
-      color: colors.inputPlaceholder,
-    },
-    streamRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 4,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.cardBorder,
-    },
-    rowName: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: colors.textPrimary,
-    },
-    rowSub: {
-      fontSize: 10,
-      color: colors.textSecondary,
-    },
-    actionBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
-    actionBadgeText: {
-      fontSize: 9,
-      fontWeight: '700',
-      color: '#475569',
-    },
-    rowScore: {
-      fontSize: 13,
-      fontWeight: '800',
-      textAlign: 'right',
-    },
-    engagementCard: {
-      backgroundColor: colors.cardBackground,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 20,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-    },
-    cardTitle: {
-      fontSize: 16,
-      fontWeight: '900',
-      color: colors.textPrimary,
-      marginBottom: 16,
-    },
-    progressItem: {
-      marginBottom: 16,
-    },
-    progressLabelRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: 6,
-    },
-    progressLabel: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: '#475569',
-    },
-    progressValue: {
-      fontSize: 12,
-      fontWeight: '800',
-      color: colors.textPrimary,
-    },
-    progressBarBg: {
-      height: 6,
-      backgroundColor: colors.surfaceSoft,
-      borderRadius: 3,
-      overflow: 'hidden',
-    },
-    progressBarFill: {
-      height: '100%',
-      borderRadius: 3,
-    },
-    optimizedWindowBox: {
-      backgroundColor: colors.accentTeal,
-      borderRadius: 12,
-      padding: 16,
-      marginTop: 8,
-    },
-    windowLabel: {
-      fontSize: 9,
-      fontWeight: '800',
-      color: colors.inputPlaceholder,
-      marginBottom: 8,
-    },
-    windowTimeRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 4,
-    },
-    windowTime: {
-      fontSize: 16,
-      fontWeight: '900',
-      color: '#FFFFFF',
-    },
-    windowSub: {
-      fontSize: 10,
-      color: colors.inputPlaceholder,
-    },
-    abOutcomeCard: {
-      backgroundColor: colors.cardBackground,
-      borderRadius: 16,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-    },
-    winnerBox: {
-      borderWidth: 1,
-      borderColor: '#10B981',
-      backgroundColor: colors.surfaceSoft,
-      borderRadius: 12,
-      padding: 16,
-    },
-    winnerHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    winnerTopic: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: '#0F766E',
-    },
-    winnerLabel: {
-      fontSize: 9,
-      fontWeight: '900',
-      color: '#FFFFFF',
-      backgroundColor: '#10B981',
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      borderRadius: 4,
-    },
-    winnerStat: {
-      fontSize: 20,
-      fontWeight: '900',
-      color: '#0D9488',
-    },
     dateTimeRow: {
       flexDirection: 'row',
       gap: 12,
@@ -3249,6 +3033,41 @@ function getStyles(colors: any, theme?: string) {
     },
     deleteBtnText: {
       fontSize: 14,
+      fontWeight: '700',
+      color: '#EF4444',
+    },
+    selectionBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      // backgroundColor: colors.cardBackground,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+      marginBottom: 10,
+    },
+    selectionLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    selectionText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    bulkDeleteBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      backgroundColor: '#FEF2F2',
+      borderWidth: 1,
+      borderColor: '#FEE2E2',
+    },
+    bulkDeleteText: {
+      fontSize: 12,
       fontWeight: '700',
       color: '#EF4444',
     },

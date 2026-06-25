@@ -3,15 +3,13 @@ import { CardAnalytics, DigitalCard, getCardAnalytics } from '@/services/digital
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
-import { BarChart, LineChart } from 'react-native-chart-kit';
 
 interface AnalyticsSectionProps {
   onSectionChange?: (section: string) => void;
@@ -27,9 +25,6 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<CardAnalytics | null>(null);
-
-  const { width } = Dimensions.get('window');
-  const chartWidth = width - 18 * 2 - 32;
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -64,28 +59,30 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
 
   const monthlyChartData = useMemo(() => {
     if (!data || !data.monthly.length) {
-      return { labels: [''], datasets: [{ data: [0] }] };
+      const months: { label: string; count: number }[] = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({
+          label: d.toLocaleString('default', { month: 'short' }),
+          count: 0,
+        });
+      }
+      return months;
     }
 
-    // Dynamic mapping from API
-    return {
-      labels: data.monthly.slice(-6).map(m => {
-        const d = new Date(m.month);
-        return d.toLocaleString('default', { month: 'short' }) + ' ' + d.getFullYear().toString().slice(-2);
-      }),
-      datasets: [
-        {
-          data: data.monthly.slice(-6).map(m => Number(m.count)),
-          color: () => '#3B82F6'
-        }
-      ]
-    };
+    return data.monthly.slice(-6).map(m => {
+      const d = new Date(m.month);
+      return {
+        label: d.toLocaleString('default', { month: 'short' }),
+        count: Number(m.count),
+      };
+    });
   }, [data]);
 
   const dailyChartData = useMemo(() => {
     const daysToShow = 14;
-    const labels: string[] = [];
-    const counts: number[] = [];
+    const result: { label: string; count: number }[] = [];
 
     for (let i = daysToShow - 1; i >= 0; i--) {
       const d = new Date();
@@ -93,32 +90,12 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
       const dateStr = d.toISOString().split('T')[0];
       const label = d.getDate() + '/' + (d.getMonth() + 1);
 
-      labels.push(label);
-
       const match = data?.daily.find(item => item.date === dateStr);
-      counts.push(match ? Number(match.count) : 0);
+      result.push({ label, count: match ? Number(match.count) : 0 });
     }
 
-    return {
-      labels: labels.filter((_, i) => i % 2 === 0), // Show every 2nd label to avoid crowding
-      datasets: [{ data: counts }]
-    };
+    return result;
   }, [data]);
-
-  const chartConfig = {
-    backgroundGradientFrom: colors.cardBackground,
-    backgroundGradientTo: colors.cardBackground,
-    backgroundGradientFromOpacity: 0,
-    backgroundGradientToOpacity: 0,
-    color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-    labelColor: (opacity = 1) => colors.textSecondary,
-    decimalPlaces: 0,
-    propsForBackgroundLines: {
-      strokeWidth: 0, // Remove grid lines for web look
-    },
-    barPercentage: 0.7,
-    useShadowColorFromDataset: false,
-  };
 
   if (loading) {
     return (
@@ -155,22 +132,32 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
             </View>
           </View>
         </View>
-        <BarChart
-          data={monthlyChartData}
-          width={chartWidth}
-          height={220}
-          yAxisLabel=""
-          yAxisSuffix=""
-          chartConfig={{
-            ...chartConfig,
-            color: () => '#3B82F6',
-          }}
-          style={styles.chart}
-          verticalLabelRotation={0}
-          fromZero
-          showBarTops={false}
-          withInnerLines={false}
-        />
+        <View style={styles.customChartContainer}>
+          {monthlyChartData.map((item, idx) => {
+            const maxVal = Math.max(...monthlyChartData.map(m => m.count), 1);
+            const barHeight = item.count > 0 ? Math.max((item.count / maxVal) * 120, 20) : 6;
+
+            return (
+              <View key={idx} style={styles.chartColumn}>
+                <Text style={styles.chartValueLabel}>{item.count}</Text>
+                <View style={styles.barOuter}>
+                  <View
+                    style={[
+                      styles.barFill,
+                      {
+                        height: barHeight,
+                        backgroundColor: item.count > 0
+                          ? (isDark ? colors.accentTeal : '#0A2341')
+                          : (isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0'),
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.chartMonthLabel}>{item.label}</Text>
+              </View>
+            );
+          })}
+        </View>
       </View>
 
       {/* KPI Cards Grid */}
@@ -189,23 +176,32 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
       {/* Daily Activity */}
       <View style={styles.chartCard}>
         <Text style={styles.chartLabel}>Daily Activity (Last 14 Days)</Text>
-        <LineChart
-          data={dailyChartData}
-          width={chartWidth}
-          height={200}
-          chartConfig={{
-            ...chartConfig,
-            color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-            fillShadowGradientFrom: '#3B82F6',
-            fillShadowGradientTo: '#3B82F6',
-            fillShadowGradientOpacity: 0.2,
-          }}
-          bezier
-          style={styles.chart}
-          withDots
-          fromZero
-          withInnerLines={false}
-        />
+        <View style={styles.customChartContainer}>
+          {dailyChartData.filter((_, i) => i % 2 === 0).map((item, idx) => {
+            const maxVal = Math.max(...dailyChartData.map(d => d.count), 1);
+            const barHeight = item.count > 0 ? Math.max((item.count / maxVal) * 120, 20) : 6;
+
+            return (
+              <View key={idx} style={styles.chartColumn}>
+                <Text style={styles.chartValueLabel}>{item.count}</Text>
+                <View style={styles.barOuter}>
+                  <View
+                    style={[
+                      styles.barFill,
+                      {
+                        height: barHeight,
+                        backgroundColor: item.count > 0
+                          ? '#3B82F6'
+                          : (isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0'),
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.chartMonthLabel}>{item.label}</Text>
+              </View>
+            );
+          })}
+        </View>
       </View>
 
       {/* Events Summary */}
@@ -250,7 +246,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    padding: 16,
+    padding: 20,
     marginBottom: 16,
   },
   chartHeader: {
@@ -286,7 +282,39 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '700',
     color: colors.textSecondary
   },
-  chart: { marginVertical: 8, borderRadius: 16, marginLeft: -16 },
+  customChartContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    width: '100%',
+    height: 170,
+  },
+  chartColumn: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  chartValueLabel: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    marginBottom: 8,
+  },
+  barOuter: {
+    height: 120,
+    width: 32,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  barFill: {
+    width: '100%',
+    borderRadius: 6,
+  },
+  chartMonthLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
   miniCard: {
     padding: 16,

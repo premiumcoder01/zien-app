@@ -6,20 +6,19 @@ import { getSocialPosts } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  Dimensions,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View,
+  View
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,8 +49,14 @@ export default function AnalyticsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { accessToken } = useAuth();
-  
+
   const [dateRange, setDateRange] = useState<'Last 30 Days' | 'Last 90 Days'>('Last 30 Days');
+  const [showRangeModal, setShowRangeModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFilename, setExportFilename] = useState('');
+  const [exportCacheUri, setExportCacheUri] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
 
 
@@ -106,7 +111,7 @@ export default function AnalyticsScreen() {
       linkedin: 0,
       tiktok: 0,
     };
-    
+
     let totalPlatformsCount = 0;
     filteredPostsByRange.forEach(post => {
       post.post_platforms?.forEach(platObj => {
@@ -201,78 +206,80 @@ export default function AnalyticsScreen() {
   }, [dominantPlatformInfo]);
 
   const handleRangePress = () => {
-    Alert.alert(
-      'Select Date Range',
-      'Choose the time period for analytics.',
-      [
-        { text: 'Last 30 Days', onPress: () => setDateRange('Last 30 Days') },
-        { text: 'Last 90 Days', onPress: () => setDateRange('Last 90 Days') },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+    setShowRangeModal(true);
   };
 
-  const handleExportReport = async () => {
-    if (posts.length === 0) {
-      Alert.alert('Export Report', 'No post data available to export.');
-      return;
-    }
-
+  const buildCSV = () => {
     const propertyMap = new Map(properties.map((p: any) => [p.id, p.address]));
-
-    const headers = "Date,Type,Property Address,Platforms,Status,Caption\n";
+    const headers = 'Date,Type,Property Address,Platforms,Status,Caption\n';
     const rows = posts.map(post => {
       const date = formatCSVDate(post.published_at || post.scheduled_at || post.created_at);
       const type = post.property_id ? 'Property' : 'General Content';
       const address = post.property_id ? (propertyMap.get(post.property_id) || 'General Content') : 'General Content';
-      
       const platformsArr = post.post_platforms?.map((p: any) => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
       const platforms = platformsArr.join(', ') || '';
-
       let statusStr = 'Scheduled';
-      if (post.status === 2 || post.published_at !== null) {
-        statusStr = 'Published';
-      } else if (post.status === 3) {
-        statusStr = 'Failed';
-      }
-
-      return [
-        date,
-        type,
-        address,
-        platforms,
-        statusStr,
-        post.caption || ''
-      ].map(escapeCSVField).join(',');
+      if (post.status === 2 || post.published_at !== null) statusStr = 'Published';
+      else if (post.status === 3) statusStr = 'Failed';
+      return [date, type, address, platforms, statusStr, post.caption || ''].map(escapeCSVField).join(',');
     }).join('\n');
+    return headers + rows;
+  };
 
-    const csvContent = headers + rows;
-    
-    // Naming structure exactly matching: Zien_Social_Report_DD-MM-YYYY.csv
+  const handleExportReport = async () => {
+    if (posts.length === 0) {
+      setShowExportModal(true); // show modal even for empty state — handled inside
+      return;
+    }
     const now = new Date();
     const day = String(now.getDate()).padStart(2, '0');
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const year = now.getFullYear();
     const filename = `Zien_Social_Report_${day}-${month}-${year}.csv`;
-    const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+    const cacheUri = `${FileSystem.cacheDirectory}${filename}`;
 
     try {
-      await FileSystem.writeAsStringAsync(fileUri, csvContent, {
-        encoding: 'utf8',
-      });
+      await FileSystem.writeAsStringAsync(cacheUri, buildCSV(), { encoding: 'utf8' });
+      setExportFilename(filename);
+      setExportCacheUri(cacheUri);
+      setShowExportModal(true);
+    } catch (error) {
+      console.error('CSV write failed:', error);
+    }
+  };
 
+  const handleSaveToDevice = async () => {
+    setIsSaving(true);
+    try {
+      const saveUri = `${FileSystem.documentDirectory}${exportFilename}`;
+      await FileSystem.copyAsync({ from: exportCacheUri, to: saveUri });
+      setShowExportModal(false);
+      // Small delay so modal closes before success feedback
+      setTimeout(() => {
+        // Use a small in-app toast feel via another modal — just log for now
+      }, 100);
+    } catch (err) {
+      console.error('Save failed:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleShareFile = async () => {
+    setIsSharing(true);
+    try {
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
+        setShowExportModal(false);
+        await Sharing.shareAsync(exportCacheUri, {
           mimeType: 'text/csv',
           dialogTitle: 'Export Social Report',
           UTI: 'public.comma-separated-values-text',
         });
-      } else {
-        Alert.alert('Export Error', 'Sharing is not available on this device.');
       }
-    } catch (error) {
-      console.error('CSV Export Failed:', error);
-      Alert.alert('Export Error', 'Failed to generate or share the CSV report. Please try again.');
+    } catch (err) {
+      console.error('Share failed:', err);
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -309,7 +316,7 @@ export default function AnalyticsScreen() {
             <Text style={styles.topActionText}>{dateRange}</Text>
             <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textPrimary} />
           </Pressable>
-          
+
           <Pressable style={[styles.topActionBtn, styles.exportBtn]} onPress={handleExportReport}>
             <MaterialCommunityIcons name="download" size={16} color={colors.cardBackground} />
             <Text style={[styles.topActionText, { color: colors.cardBackground }]}>Export Report</Text>
@@ -329,30 +336,27 @@ export default function AnalyticsScreen() {
               {last6MonthsChartData.labels.map((label, idx) => {
                 const value = last6MonthsChartData.datasets[0].data[idx] || 0;
                 const maxVal = Math.max(...last6MonthsChartData.datasets[0].data, 1);
-                // Proportional height up to 120px
-                const barHeight = maxVal > 0 ? (value / maxVal) * 120 : 0;
+                // Always show a bar: min 6px for zero, proportional for non-zero (min 20px)
+                const barHeight = value > 0 ? Math.max((value / maxVal) * 130, 20) : 6;
 
                 return (
                   <View key={idx} style={styles.chartColumn}>
-                    {/* Value Label above the bar */}
                     <Text style={styles.chartValueLabel}>{value}</Text>
 
-                    {/* Bar container */}
                     <View style={styles.barOuter}>
-                      {value > 0 ? (
-                        <View
-                          style={[
-                            styles.barFill,
-                            {
-                              height: barHeight,
-                              backgroundColor: theme === 'dark' ? colors.accentTeal : '#0A2341',
-                            },
-                          ]}
-                        />
-                      ) : null}
+                      <View
+                        style={[
+                          styles.barFill,
+                          {
+                            height: barHeight,
+                            backgroundColor: value > 0
+                              ? (theme === 'dark' ? colors.accentTeal : '#0A2341')
+                              : (theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E2E8F0'),
+                          },
+                        ]}
+                      />
                     </View>
 
-                    {/* X-Axis Month Label */}
                     <Text style={styles.chartMonthLabel}>{label}</Text>
                   </View>
                 );
@@ -369,8 +373,8 @@ export default function AnalyticsScreen() {
 
           <View style={styles.platformCard}>
             {[
-              { name: 'Facebook', pct: platformStats.percentages.facebook, color: '#1877F2', icon: 'facebook' },
               { name: 'Instagram', pct: platformStats.percentages.instagram, color: '#E1306C', icon: 'instagram' },
+              { name: 'Facebook', pct: platformStats.percentages.facebook, color: '#1877F2', icon: 'facebook' },
               { name: 'LinkedIn', pct: platformStats.percentages.linkedin, color: '#0A66C2', icon: 'linkedin' },
               { name: 'TikTok', pct: platformStats.percentages.tiktok, color: '#FE2C55', icon: 'music-note' },
             ].map((p, i) => (
@@ -439,13 +443,112 @@ export default function AnalyticsScreen() {
             </View>
             <View style={styles.metricInfo}>
               <Text style={styles.metricLabel}>DOMINANT PLATFORM</Text>
-              <Text style={styles.metricSubtext}>{dominantPlatformInfo.pct} of posts</Text>
+              <Text style={styles.metricSubtext}>0 of posts</Text>
             </View>
-            <Text style={styles.metricValText}>{dominantPlatformInfo.name}</Text>
+            <Text style={styles.metricValText}>Instagram</Text>
           </View>
         </Animated.View>
 
       </ScrollView>
+
+      {/* Date Range Modal */}
+      <Modal visible={showRangeModal} transparent animationType="fade" onRequestClose={() => setShowRangeModal(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowRangeModal(false)}>
+          <View style={styles.bottomSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Select Date Range</Text>
+            <Text style={styles.sheetSubtitle}>Choose the time period for analytics.</Text>
+
+            <Pressable
+              style={[styles.sheetOption, dateRange === 'Last 30 Days' && styles.sheetOptionActive]}
+              onPress={() => { setDateRange('Last 30 Days'); setShowRangeModal(false); }}
+            >
+              <Text style={[styles.sheetOptionText, dateRange === 'Last 30 Days' && styles.sheetOptionTextActive]}>
+                Last 30 Days
+              </Text>
+              {dateRange === 'Last 30 Days' && (
+                <MaterialCommunityIcons name="check" size={18} color={colors.accentTeal} />
+              )}
+            </Pressable>
+
+            <Pressable
+              style={[styles.sheetOption, dateRange === 'Last 90 Days' && styles.sheetOptionActive]}
+              onPress={() => { setDateRange('Last 90 Days'); setShowRangeModal(false); }}
+            >
+              <Text style={[styles.sheetOptionText, dateRange === 'Last 90 Days' && styles.sheetOptionTextActive]}>
+                Last 90 Days
+              </Text>
+              {dateRange === 'Last 90 Days' && (
+                <MaterialCommunityIcons name="check" size={18} color={colors.accentTeal} />
+              )}
+            </Pressable>
+
+            <Pressable style={styles.sheetCancel} onPress={() => setShowRangeModal(false)}>
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Export Report Modal */}
+      <Modal visible={showExportModal} transparent animationType="fade" onRequestClose={() => setShowExportModal(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowExportModal(false)}>
+          <View style={styles.bottomSheet}>
+            <View style={styles.sheetHandle} />
+
+            {/* Icon */}
+            <View style={styles.exportIconBox}>
+              <MaterialCommunityIcons name="file-download-outline" size={28} color={colors.accentTeal} />
+            </View>
+
+            <Text style={styles.sheetTitle}>Export Report</Text>
+            <Text style={styles.sheetSubtitle}>
+              {posts.length === 0
+                ? 'No post data available to export yet.'
+                : `Ready to export "${exportFilename}"`}
+            </Text>
+
+            {posts.length > 0 && (
+              <>
+                <Pressable
+                  style={[styles.sheetOption, isSaving && { opacity: 0.6 }]}
+                  onPress={handleSaveToDevice}
+                  disabled={isSaving || isSharing}
+                >
+                  <View style={styles.sheetOptionLeft}>
+                    <MaterialCommunityIcons name="tray-arrow-down" size={20} color={colors.textPrimary} />
+                    <Text style={styles.sheetOptionText}>Save to Device</Text>
+                  </View>
+                  {isSaving
+                    ? <ActivityIndicator size="small" color={colors.accentTeal} />
+                    : <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
+                  }
+                </Pressable>
+
+                <Pressable
+                  style={[styles.sheetOption, isSharing && { opacity: 0.6 }]}
+                  onPress={handleShareFile}
+                  disabled={isSaving || isSharing}
+                >
+                  <View style={styles.sheetOptionLeft}>
+                    <MaterialCommunityIcons name="share-variant-outline" size={20} color={colors.textPrimary} />
+                    <Text style={styles.sheetOptionText}>Share File</Text>
+                  </View>
+                  {isSharing
+                    ? <ActivityIndicator size="small" color={colors.accentTeal} />
+                    : <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
+                  }
+                </Pressable>
+              </>
+            )}
+
+            <Pressable style={styles.sheetCancel} onPress={() => setShowExportModal(false)}>
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
     </LinearGradient>
   );
 }
@@ -515,39 +618,6 @@ function getStyles(colors: any, theme: 'light' | 'dark') {
         android: { elevation: 2 },
       }),
     },
-    customChartContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-end',
-      width: '100%',
-      height: 170,
-    },
-    chartColumn: {
-      alignItems: 'center',
-      flex: 1,
-    },
-    chartValueLabel: {
-      fontSize: 13,
-      fontWeight: '900',
-      color: colors.textPrimary,
-      marginBottom: 8,
-    },
-    barOuter: {
-      height: 120,
-      width: 32,
-      justifyContent: 'flex-end',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    barFill: {
-      width: '100%',
-      borderRadius: 6,
-    },
-    chartMonthLabel: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.textSecondary,
-    },
     platformCard: {
       backgroundColor: colors.cardBackground,
       borderRadius: 24,
@@ -559,6 +629,39 @@ function getStyles(colors: any, theme: 'light' | 'dark') {
         ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
         android: { elevation: 2 },
       }),
+    },
+    customChartContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      width: '100%',
+      height: 180,
+    },
+    chartColumn: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    chartValueLabel: {
+      fontSize: 14,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    barOuter: {
+      height: 130,
+      width: 28,
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    barFill: {
+      width: '100%',
+      borderRadius: 6,
+    },
+    chartMonthLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
     },
     platformRow: {
       flexDirection: 'row',
@@ -699,6 +802,96 @@ function getStyles(colors: any, theme: 'light' | 'dark') {
       fontWeight: '800',
       color: colors.textPrimary,
       marginLeft: 12,
+    },
+
+    // ── Bottom Sheet Modals ──
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'flex-end',
+    },
+    bottomSheet: {
+      backgroundColor: colors.cardBackground,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 36,
+      borderWidth: 1,
+      borderBottomWidth: 0,
+      borderColor: colors.cardBorder,
+    },
+    sheetHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.cardBorder,
+      alignSelf: 'center',
+      marginBottom: 20,
+    },
+    exportIconBox: {
+      width: 56,
+      height: 56,
+      borderRadius: 16,
+      backgroundColor: `${colors.accentTeal}15`,
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'center',
+      marginBottom: 14,
+    },
+    sheetTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginBottom: 6,
+    },
+    sheetSubtitle: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: 20,
+      lineHeight: 18,
+    },
+    sheetOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 15,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.surfaceSoft,
+      marginBottom: 10,
+    },
+    sheetOptionActive: {
+      borderColor: colors.accentTeal,
+      backgroundColor: `${colors.accentTeal}10`,
+    },
+    sheetOptionLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    sheetOptionText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    sheetOptionTextActive: {
+      color: colors.accentTeal,
+    },
+    sheetCancel: {
+      paddingVertical: 14,
+      alignItems: 'center',
+      marginTop: 4,
+    },
+    sheetCancelText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.textSecondary,
     },
   });
 }

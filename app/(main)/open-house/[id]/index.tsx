@@ -10,6 +10,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useRef, useState } from 'react';
@@ -309,6 +310,28 @@ export default function EventDashboardScreen() {
         });
     };
 
+    const handleSaveQR = () => {
+        if (!qrRef.current) {
+            Alert.alert('Not Ready', 'QR code is not ready yet. Please try again.');
+            return;
+        }
+        qrRef.current.toDataURL(async (data: string) => {
+            try {
+                const { status } = await MediaLibrary.requestPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('Permission Required', 'Please allow access to your photo library to save the QR code.');
+                    return;
+                }
+                const filePath = `${FileSystem.cacheDirectory}qrcode-${id}.png`;
+                await FileSystem.writeAsStringAsync(filePath, data, { encoding: FileSystem.EncodingType.Base64 });
+                await MediaLibrary.saveToLibraryAsync(filePath);
+                Alert.alert('Saved', 'QR code has been saved to your photo library.');
+            } catch (e) {
+                Alert.alert('Error', 'Failed to save QR code to your library.');
+            }
+        });
+    };
+
     const renderHeader = () => (
         <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
             <View style={styles.headerTop}>
@@ -470,10 +493,18 @@ export default function EventDashboardScreen() {
                 <View style={styles.qrDarkBtnsRow}>
                     <Pressable
                         style={({ pressed }) => [styles.qrDarkBtn, pressed && { opacity: 0.75 }]}
+                        onPress={handleSaveQR}
+                    >
+                        <MaterialCommunityIcons name="tray-arrow-down" size={16} color="#FFFFFF" />
+                        <Text style={styles.qrDarkBtnText}>Save</Text>
+                    </Pressable>
+                    <View style={styles.qrDarkBtnDivider} />
+                    <Pressable
+                        style={({ pressed }) => [styles.qrDarkBtn, pressed && { opacity: 0.75 }]}
                         onPress={handleDownloadQR}
                     >
                         <MaterialCommunityIcons name="download-outline" size={16} color="#FFFFFF" />
-                        <Text style={styles.qrDarkBtnText}>Download</Text>
+                        <Text style={styles.qrDarkBtnText}>Share</Text>
                     </Pressable>
                     <View style={styles.qrDarkBtnDivider} />
                     <Pressable
@@ -788,10 +819,16 @@ export default function EventDashboardScreen() {
                         />
                     </View>
                 </View>
-                <Pressable style={styles.downloadQrBtnFilled} onPress={handleDownloadQR} android_ripple={{ color: 'rgba(255,255,255,0.1)' }}>
-                    <MaterialCommunityIcons name="qrcode" size={16} color="#FFFFFF" />
-                    <Text style={styles.downloadQrTextFilled}>Download QR Code</Text>
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <Pressable style={[styles.downloadQrBtnFilled, { flex: 1 }]} onPress={handleSaveQR} android_ripple={{ color: 'rgba(255,255,255,0.1)' }}>
+                        <MaterialCommunityIcons name="tray-arrow-down" size={16} color="#FFFFFF" />
+                        <Text style={styles.downloadQrTextFilled}>Save to Library</Text>
+                    </Pressable>
+                    <Pressable style={[styles.downloadQrBtnFilled, { flex: 1 }]} onPress={handleDownloadQR} android_ripple={{ color: 'rgba(255,255,255,0.1)' }}>
+                        <MaterialCommunityIcons name="share-variant-outline" size={16} color="#FFFFFF" />
+                        <Text style={styles.downloadQrTextFilled}>Share QR Code</Text>
+                    </Pressable>
+                </View>
             </View>
 
             {/* Data & Privacy Actions */}

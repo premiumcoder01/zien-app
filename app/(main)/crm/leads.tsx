@@ -4,8 +4,10 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { addCRMGroup, addCRMLead, addCRMTag, convertCRMLead, CRMLead, deleteCRMLead, getCRMLeads, getCRMMeta, updateCRMLead } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -532,6 +534,55 @@ export default function LeadsScreen() {
     }
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportLeads = async () => {
+    if (!filteredLeads || filteredLeads.length === 0) {
+      Alert.alert('No Data', 'There are no leads to export.');
+      return;
+    }
+    try {
+      setIsExporting(true);
+      const csvHeader = ['First Name', 'Last Name', 'Email', 'Country Code', 'Phone', 'Source', 'Score', 'Status', 'Group', 'Tag', 'Date Label', 'Created At'];
+      const csvRows = filteredLeads.map((l: CRMLead) => [
+        l.first_name,
+        l.last_name,
+        l.email,
+        l.country_code || '',
+        l.phone || '',
+        l.source || '',
+        l.score?.toString() || '0',
+        l.status === 1 ? 'Active' : 'Inactive',
+        l.group?.name || '',
+        l.tag?.name || '',
+        l.lead_date_label || '',
+        new Date(l.created_at).toLocaleDateString(),
+      ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','));
+
+      const csvString = [csvHeader.join(','), ...csvRows].join('\n');
+      const dateStr = new Date().toISOString().split('T')[0];
+      const fileName = `Leads_Export_${dateStr}.csv`;
+      const fileUri = FileSystem.documentDirectory + fileName;
+
+      await FileSystem.writeAsStringAsync(fileUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Export Leads',
+          UTI: 'public.comma-separated-values-text',
+        });
+      } else {
+        Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+      }
+    } catch (error) {
+      console.error('Error exporting leads:', error);
+      Alert.alert('Export Failed', 'Failed to export leads.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <LinearGradient
       colors={colors.backgroundGradient as any}
@@ -542,6 +593,8 @@ export default function LeadsScreen() {
         title="Leads"
         subtitle="Incoming inquiries and potential opportunities."
         onBack={() => router.back()}
+        rightIcon="tray-arrow-down"
+        onRightPress={handleExportLeads}
       />
 
       <ScrollView

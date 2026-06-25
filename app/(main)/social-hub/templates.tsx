@@ -47,6 +47,8 @@ export default function SocialTemplatesScreen() {
     enabled: !!accessToken,
   });
 
+  console.log(apiTemplates)
+
   const confirmDelete = async () => {
     if (!templateToDelete || !accessToken) return;
     setIsDeleting(true);
@@ -117,6 +119,17 @@ export default function SocialTemplatesScreen() {
           </View>
         </View>
 
+        {/* Preview image */}
+        {!!item.content?.preview_image_url && (
+          <View style={styles.cardImageContainer}>
+            <RNImage
+              source={{ uri: item.content.preview_image_url }}
+              style={styles.cardImage}
+              resizeMode="cover"
+            />
+          </View>
+        )}
+
         <View style={styles.cardBody}>
           <Text style={styles.templateTitle}>{item.name}</Text>
           <Text style={styles.templateMeta}>
@@ -164,7 +177,7 @@ export default function SocialTemplatesScreen() {
         )}
 
         <Pressable
-          style={styles.fab}
+          style={[styles.fab, { bottom: Math.max(insets.bottom + 16, 28) }]}
           onPress={() => setWebOnlyModalVisible(true)}
         >
           <LinearGradient
@@ -269,7 +282,20 @@ const getStyles = (colors: any, theme: 'light' | 'dark') => StyleSheet.create({
     justifyContent: 'center',
   },
   cardBody: {
-    marginBottom: 20,
+    marginBottom: 4,
+    marginTop: 12,
+  },
+  cardImageContainer: {
+    width: '100%',
+    height: 160,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 4,
+    backgroundColor: colors.surfaceSoft,
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
   },
   templateTitle: {
     fontSize: 22,
@@ -330,7 +356,7 @@ const getStyles = (colors: any, theme: 'light' | 'dark') => StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 20,
     right: 25,
     borderRadius: 28,
     elevation: 8,
@@ -642,7 +668,7 @@ function TemplatePreviewModal({
             }}>
               {/* Image */}
               <RNImage
-                source={{ uri: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80' }}
+                source={{ uri: template.content?.preview_image_url || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80' }}
                 style={{ width: '100%', height: '100%' }}
                 resizeMode="cover"
               />

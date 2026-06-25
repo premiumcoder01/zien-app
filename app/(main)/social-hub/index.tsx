@@ -81,30 +81,81 @@ export default function SocialHubScreen() {
     enabled: !!accessToken,
   });
 
+  // Fetch ALL posts to compute dynamic stats
+  const { data: allPosts = [] } = useQuery({
+    queryKey: ['social-posts-all-index'],
+    queryFn: () => getSocialPosts(accessToken || ''),
+    enabled: !!accessToken,
+  });
+
+  // --- Dynamic stat computations ---
+
+  // Published count (30D) from overview
+  const publishedCount = overview?.published_posts_count ?? 0;
+
+  // Published % change: published vs total posts ratio as a percentage
+  const totalPostsCount = allPosts.length;
+  const publishedMeta = totalPostsCount > 0
+    ? `${Math.round((publishedCount / totalPostsCount) * 100)}% of total`
+    : '0% of total';
+
+  // Engagement rate: published posts / total posts (as a proxy since no likes/comments in API)
+  const engagementRate = totalPostsCount > 0
+    ? ((publishedCount / totalPostsCount) * 100).toFixed(1) + '%'
+    : '0.0%';
+
+  // Posts with media vs without (as engagement quality proxy)
+  const withMediaCount = allPosts.filter(p => p.media && p.media.length > 0).length;
+  const engagementMeta = totalPostsCount > 0
+    ? `${Math.round((withMediaCount / totalPostsCount) * 100)}% with media`
+    : '0% with media';
+
+  // Best platform from post_platforms
+  const platformCounts: Record<string, number> = {};
+  allPosts.forEach(post => {
+    post.post_platforms?.forEach((pp: any) => {
+      const name = pp.account?.platform || pp.platform || '';
+      if (name) platformCounts[name.toLowerCase()] = (platformCounts[name.toLowerCase()] || 0) + 1;
+    });
+  });
+  const totalPlatformPosts = Object.values(platformCounts).reduce((a, b) => a + b, 0);
+  const bestPlatformKey = Object.entries(platformCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const bestPlatformName = bestPlatformKey
+    ? bestPlatformKey.charAt(0).toUpperCase() + bestPlatformKey.slice(1)
+    : 'None';
+  const bestPlatformPct = bestPlatformKey && totalPlatformPosts > 0
+    ? `${Math.round((platformCounts[bestPlatformKey] / totalPlatformPosts) * 100)}% reach`
+    : '—';
+  const bestPlatformIcon: any = bestPlatformKey === 'instagram' ? 'instagram'
+    : bestPlatformKey === 'facebook' ? 'facebook'
+    : bestPlatformKey === 'linkedin' ? 'linkedin'
+    : bestPlatformKey === 'tiktok' ? 'music-note'
+    : 'trophy-outline';
+
   const statCards = [
     {
       title: 'SCHEDULED POSTS',
       value: overview ? String(overview.scheduled_posts?.length ?? 0) : '0',
-      meta: '0',
+      meta: `${upcomingPosts?.length ?? 0} upcoming`,
       icon: 'calendar-clock-outline' as const
     },
     {
       title: 'PUBLISHED (30D)',
-      value: overview ? String(overview.published_posts_count ?? 0) : '0',
-      meta: '+15%',
+      value: String(publishedCount),
+      meta: publishedMeta,
       icon: 'share-outline' as const
     },
     {
       title: 'ENGAGEMENT RATE',
-      value: '5.0%',
-      meta: '+0.5%',
+      value: engagementRate,
+      meta: engagementMeta,
       icon: 'heart-outline' as const
     },
     {
       title: 'BEST PLATFORM',
-      value: 'Instagram',
-      meta: '92% reach',
-      icon: 'instagram' as const
+      value: bestPlatformName,
+      meta: bestPlatformPct,
+      icon: bestPlatformIcon
     },
   ];
 

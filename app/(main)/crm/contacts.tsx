@@ -5,8 +5,10 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { addCRMContact, AddCRMContactPayload, CRMContact, deleteCRMContact, getCRMContacts, getCRMMeta, updateCRMContact, updateCRMContactStatus } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -292,6 +294,58 @@ export default function ContactsScreen() {
     return typeof val === 'number' ? `$${val.toLocaleString()}` : val;
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportContacts = async () => {
+    if (!contactsList || contactsList.length === 0) {
+      Alert.alert('No Data', 'There are no contacts to export.');
+      return;
+    }
+    try {
+      setIsExporting(true);
+      const csvHeader = ['First Name', 'Last Name', 'Email', 'Country Code', 'Phone', 'Group', 'Tag', 'Status', 'Heat Index', 'Source', 'Pipeline Stage', 'Budget', 'Timeline', 'Pre-Approved', 'Created At'];
+      const csvRows = contactsList.map((c: CRMContact) => [
+        c.first_name,
+        c.last_name,
+        c.email,
+        c.country_code || '',
+        c.phone || '',
+        c.group?.name || '',
+        c.tag?.name || '',
+        c.status === 1 ? 'Active' : 'Inactive',
+        c.heat_index?.toString() || '0',
+        c.source || '',
+        c.pipeline_stage || '',
+        c.budget || '',
+        c.timeline || '',
+        c.pre_approved !== null ? (c.pre_approved ? 'Yes' : 'No') : '',
+        new Date(c.created_at).toLocaleDateString(),
+      ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','));
+
+      const csvString = [csvHeader.join(','), ...csvRows].join('\n');
+      const dateStr = new Date().toISOString().split('T')[0];
+      const fileName = `Contacts_Export_${dateStr}.csv`;
+      const fileUri = FileSystem.documentDirectory + fileName;
+
+      await FileSystem.writeAsStringAsync(fileUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Export Contacts',
+          UTI: 'public.comma-separated-values-text',
+        });
+      } else {
+        Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+      }
+    } catch (error) {
+      console.error('Error exporting contacts:', error);
+      Alert.alert('Export Failed', 'Failed to export contacts.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <LinearGradient
       colors={colors.backgroundGradient as any}
@@ -302,6 +356,8 @@ export default function ContactsScreen() {
         title="Contacts"
         subtitle="Unified database with full attribution and grouped automation."
         onBack={() => router.back()}
+        rightIcon="tray-arrow-down"
+        onRightPress={handleExportContacts}
       />
 
       <ScrollView
@@ -510,7 +566,7 @@ export default function ContactsScreen() {
                   </View>
                   <View style={styles.contactMain}>
                     <View style={styles.nameRow}>
-                      <Text style={styles.contactName} numberOfLines={1}>{fullName}</Text>
+                      <Text style={styles.contactName}>{fullName}</Text>
                       <View style={[styles.heatBadge, { backgroundColor: contact.heat_index > 70 ? (theme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2') : colors.surfaceIcon }]}>
                         <MaterialCommunityIcons name="fire" size={13} color={contact.heat_index > 70 ? '#EF4444' : colors.iconMuted} />
                         <Text style={[styles.heatValue, { color: contact.heat_index > 70 ? '#EF4444' : colors.textPrimary }]}>{contact.heat_index}</Text>
@@ -518,12 +574,12 @@ export default function ContactsScreen() {
                     </View>
                     <View style={styles.contactSubInfo}>
                       <MaterialCommunityIcons name="email-outline" size={12} color={colors.textMuted} />
-                      <Text style={styles.contactEmail} numberOfLines={1} ellipsizeMode="tail">{contact.email}</Text>
+                      <Text style={styles.contactEmail}>{contact.email}</Text>
                     </View>
                     {contact.phone && (
                       <View style={styles.contactSubInfo}>
                         <MaterialCommunityIcons name="phone-outline" size={12} color={colors.textMuted} />
-                        <Text style={styles.contactEmail} numberOfLines={1} ellipsizeMode="tail">{phoneNumber}</Text>
+                        <Text style={styles.contactEmail}>{phoneNumber}</Text>
                       </View>
                     )}
                   </View>
@@ -533,20 +589,20 @@ export default function ContactsScreen() {
                 <View style={styles.tagsRow}>
                   <View style={[styles.statusBadge, { backgroundColor: contact.status === 1 ? '#10B98115' : '#64748B15' }]}>
                     <View style={[styles.statusDotSmall, { backgroundColor: contact.status === 1 ? '#10B981' : '#64748B' }]} />
-                    <Text style={[styles.statusText, { color: contact.status === 1 ? '#10B981' : '#64748B' }]} numberOfLines={1} ellipsizeMode="tail">
+                    <Text style={[styles.statusText, { color: contact.status === 1 ? '#10B981' : '#64748B' }]}>
                       {contact.status === 1 ? 'ACTIVE' : 'INACTIVE'}
                     </Text>
                   </View>
                   <View style={styles.dataBadge}>
                     <MaterialCommunityIcons name="account-group-outline" size={12} color={colors.textSecondary} />
-                    <Text style={styles.dataBadgeText} numberOfLines={1} ellipsizeMode="tail">{groupName}</Text>
+                    <Text style={styles.dataBadgeText}>{groupName}</Text>
                   </View>
                   <View style={[styles.dataBadge, { backgroundColor: getBadgeBgColor(tagColor) }]}>
-                    <Text style={[styles.dataBadgeText, { color: tagColor }]} numberOfLines={1} ellipsizeMode="tail">{tagName}</Text>
+                    <Text style={[styles.dataBadgeText, { color: tagColor }]}>{tagName}</Text>
                   </View>
                   {contact.pipeline_stage && (
                     <View style={[styles.dataBadge, { backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.15)' : '#F0F9FA' }]}>
-                      <Text style={[styles.dataBadgeText, { color: theme === 'dark' ? '#00a7b5' : '#0a2341' }]} numberOfLines={1} ellipsizeMode="tail">{contact.pipeline_stage}</Text>
+                      <Text style={[styles.dataBadgeText, { color: theme === 'dark' ? '#00a7b5' : '#0a2341' }]}>{contact.pipeline_stage}</Text>
                     </View>
                   )}
                 </View>
@@ -1010,19 +1066,20 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
   tagsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
     width: '100%',
     marginBottom: 16,
   },
   statusBadge: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 28,
-    paddingHorizontal: 6,
+    height: 26,
+    paddingHorizontal: 8,
     borderRadius: 8,
     gap: 4,
+    flexShrink: 0,
   },
   statusDotSmall: {
     width: 6,
@@ -1035,12 +1092,11 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     letterSpacing: 0.3,
   },
   dataBadge: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 28,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: 8,
     gap: 4,
     backgroundColor: 'rgba(100, 116, 139, 0.08)',

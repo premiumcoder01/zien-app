@@ -1,24 +1,24 @@
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { generateAiText } from '@/services/aiContentService';
 import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
 import { getProperties, RawPropertyItem, uploadPropertyImage } from '@/services/propertyService';
-import { generateAiText } from '@/services/aiContentService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState, useRef } from 'react';
-import PhoneInput from 'react-native-phone-number-input';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
-import QRCode from 'react-native-qrcode-svg';
+import * as MediaLibrary from 'expo-media-library';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Clipboard,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -27,11 +27,11 @@ import {
   Text,
   TextInput,
   useWindowDimensions,
-  View,
-  Keyboard,
-  KeyboardAvoidingView
+  View
 } from 'react-native';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
+import PhoneInput from 'react-native-phone-number-input';
+import QRCode from 'react-native-qrcode-svg';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 
@@ -42,14 +42,16 @@ import OutlineButton from '@/components/ui/OutlineButton';
 import { ProgressStep, ProgressSteps } from 'react-native-progress-steps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function formatDisplayDate(d: Date): string {
+function formatDisplayDate(d: Date | null): string {
+  if (!d) return '--/--/----';
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
   return `${day}/${month}/${year}`;
 }
 
-function formatDisplayTime(d: Date): string {
+function formatDisplayTime(d: Date | null): string {
+  if (!d) return '--:-- --';
   const h = d.getHours();
   const m = d.getMinutes();
   const am = h < 12;
@@ -182,12 +184,12 @@ const getCallingCodeForISO = (iso: string) => {
 
 const parseRawPhone = (rawPhone: string) => {
   if (!rawPhone) return { countryCodeISO: 'US', nationalNumber: '' };
-  
+
   const cleaned = rawPhone.trim();
   if (!cleaned.startsWith('+')) {
     return { countryCodeISO: 'US', nationalNumber: cleaned };
   }
-  
+
   let matchedKey = '';
   for (const key of Object.keys(COUNTRY_CODE_TO_ISO)) {
     if (cleaned.startsWith(key)) {
@@ -196,7 +198,7 @@ const parseRawPhone = (rawPhone: string) => {
       }
     }
   }
-  
+
   if (matchedKey) {
     const national = cleaned.slice(matchedKey.length).replace(/[^0-9]/g, '');
     return {
@@ -204,7 +206,7 @@ const parseRawPhone = (rawPhone: string) => {
       nationalNumber: national
     };
   }
-  
+
   return { countryCodeISO: 'US', nationalNumber: cleaned.replace(/[^0-9]/g, '') };
 };
 
@@ -989,6 +991,7 @@ function Step2Details({
                   maxLength: 15,
                   keyboardType: 'phone-pad',
                   placeholderTextColor: theme === 'dark' ? '#94A3B8' : '#9CA3AF',
+
                 }}
                 countryPickerProps={{
                   withFilter: true,
@@ -1133,9 +1136,9 @@ function Step4Customization({
   selectedPropertyId: string | null;
   properties: RawPropertyItem[];
   agentName: string;
-  eventDate: Date;
-  startTimeDate: Date;
-  endTimeDate: Date;
+  eventDate: Date | null;
+  startTimeDate: Date | null;
+  endTimeDate: Date | null;
   accentIndex: number;
   setAccentIndex: (i: number) => void;
   brandColors: string[];
@@ -1595,18 +1598,25 @@ function Step5SheetReady({
     );
   };
 
-  const handleDownloadQR = () => {
+  const handleDownloadQR = async () => {
     if (!qrRef.current) {
       Alert.alert('Not Ready', 'QR code is not ready yet. Please try again.');
       return;
     }
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow access to your photo library to save the QR code.');
+      return;
+    }
     qrRef.current.toDataURL(async (data: string) => {
       try {
-        const filePath = `${FileSystem.documentDirectory}qrcode-${createdId || 'temp'}.png`;
+        const filePath = `${FileSystem.cacheDirectory}qrcode-${createdId || 'temp'}.png`;
         await FileSystem.writeAsStringAsync(filePath, data, { encoding: FileSystem.EncodingType.Base64 });
-        await Sharing.shareAsync(filePath, { mimeType: 'image/png', UTI: 'public.png', dialogTitle: 'Save QR Code' });
+        const asset = await MediaLibrary.createAssetAsync(filePath);
+        await MediaLibrary.createAlbumAsync('Zien', asset, false);
+        Alert.alert('Downloaded!', 'QR Code saved to your Photos.');
       } catch (e) {
-        Alert.alert('Error', 'Failed to download QR code.');
+        Alert.alert('Error', 'Failed to save QR code.');
       }
     });
   };
@@ -2527,20 +2537,22 @@ function getStyles(colors: any) {
       paddingVertical: 0,
       paddingHorizontal: 0,
       height: '100%',
+
     },
     phoneTextInput: {
       fontSize: 13,
-      marginLeft: 10,
       color: colors.textPrimary,
       fontWeight: '600',
       backgroundColor: 'transparent',
       padding: 0,
+
     },
     phoneCodeText: {
       fontSize: 13,
       fontWeight: '600',
       color: colors.textPrimary,
-      paddingHorizontal: 10,
+      paddingLeft: 10,
+
     },
     phoneFlagButton: {
       width: 60,
@@ -3466,7 +3478,7 @@ function getStyles(colors: any) {
       paddingVertical: 0,
     },
     fixedBtnText: {
-      fontSize: 13.5,
+      fontSize: 10,
     },
     detailsScroll: {
       flex: 1,

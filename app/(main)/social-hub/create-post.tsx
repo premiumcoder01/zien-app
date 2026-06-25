@@ -16,7 +16,6 @@ import {
   Alert,
   Dimensions,
   Image,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -26,6 +25,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import Animated, {
   FadeInRight,
   useAnimatedStyle,
@@ -640,7 +640,7 @@ export default function CreatePostScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
       style={[styles.container, { backgroundColor: colors.surfaceSoft }]}
     >
       <LinearGradient colors={colors.backgroundGradient as any} style={StyleSheet.absoluteFill} />
