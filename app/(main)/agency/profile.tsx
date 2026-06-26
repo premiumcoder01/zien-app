@@ -268,7 +268,7 @@ export default function AgencyProfile() {
                     <Pressable
                         style={({ pressed }) => [
                             styles.saveBtnContainer,
-                            { transform: [{ scale: pressed ? 0.98 : 1 }] }
+                            { shadowColor: colors.accentTeal || '#0a2341', transform: [{ scale: pressed ? 0.98 : 1 }] }
                         ]}
                         onPress={() => console.log('Saved Profile:', { fullName, email, phone, website, address, regNo, taxId })}
                     >

@@ -33,8 +33,24 @@ type NavDrawerProps = {
   onItemPress: (route?: Href) => void;
   customLogo?: React.ReactNode;
   customBackground?: string;
+  customTextColor?: string;
   backToMainRoute?: Href;
   isLoading?: boolean;
+};
+
+const getAlphaColor = (color: string, opacity: number) => {
+  if (!color) return undefined;
+  if (color.startsWith('#')) {
+    let hex = color.slice(1);
+    if (hex.length === 3) {
+      hex = hex.split('').map(char => char + char).join('');
+    }
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return `rgba(${isNaN(r) ? 255 : r}, ${isNaN(g) ? 255 : g}, ${isNaN(b) ? 255 : b}, ${opacity})`;
+  }
+  return color;
 };
 
 function NavDrawerComponent({
@@ -48,6 +64,7 @@ function NavDrawerComponent({
   onItemPress,
   customLogo,
   customBackground,
+  customTextColor,
   backToMainRoute,
   isLoading,
 }: NavDrawerProps) {
@@ -90,15 +107,23 @@ function NavDrawerComponent({
             />
           )}
           <Pressable
-            style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [
+              styles.closeBtn,
+              customBackground ? { backgroundColor: 'rgba(255, 255, 255, 0.1)', borderColor: 'rgba(255, 255, 255, 0.15)' } : {},
+              pressed && { opacity: 0.7 }
+            ]}
             onPress={onClose}
           >
-            <MaterialCommunityIcons name="close" size={18} color={customBackground ? '#5B6B7A' : colors.textSecondary} />
+            <MaterialCommunityIcons
+              name="close"
+              size={18}
+              color={customTextColor || (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary)}
+            />
           </Pressable>
         </View>
 
         {/* Divider */}
-        <View style={styles.headerDivider} />
+        <View style={[styles.headerDivider, customBackground ? { backgroundColor: 'rgba(255, 255, 255, 0.15)' } : {}]} />
 
         {/* Nav Items */}
         <ScrollView
@@ -117,29 +142,28 @@ function NavDrawerComponent({
                 (itemRoute.includes('(main)') && currentRoute === itemRoute.replace('/(main)', '')) ||
                 (currentRoute === '/dashboard' && itemRoute.includes('dashboard'));
 
+              const activeColor = customTextColor || (theme === 'dark' ? '#FFFFFF' : '#00a7b5');
+              const inactiveColor = customTextColor ? getAlphaColor(customTextColor, 0.7) : (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary);
+
               return (
                 <Pressable
                   key={item.label}
                   style={({ pressed }) => [
                     styles.item,
-                    isActive && styles.itemActive,
+                    isActive && [styles.itemActive, customTextColor ? { backgroundColor: getAlphaColor(customTextColor, theme === 'dark' ? 0.18 : 0.10) } : {}],
                     pressed && !isActive && styles.itemPressed,
                     item.marginTop ? { marginTop: item.marginTop } : {},
                   ]}
                   onPress={() => handlePress(item.route)}
                   disabled={!item.route}
                 >
-                  {isActive && <View style={styles.activeIndicator} />}
+                  {isActive && <View style={[styles.activeIndicator, customTextColor ? { backgroundColor: customTextColor } : {}]} />}
 
                   <View style={styles.iconWrap}>
                     <MaterialCommunityIcons
                       name={item.icon as any}
                       size={20}
-                      color={
-                        isActive
-                          ? (theme === 'dark' ? '#FFFFFF' : '#00a7b5')
-                          : (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary)
-                      }
+                      color={isActive ? activeColor : inactiveColor}
                     />
                   </View>
 
@@ -148,7 +172,7 @@ function NavDrawerComponent({
                       styles.itemText,
                       isActive ? styles.itemTextActive : {},
                       !item.route ? styles.itemTextDisabled : {},
-                      customBackground ? { color: isActive ? '#00a7b5' : 'rgba(255,255,255,0.7)' } : {},
+                      { color: isActive ? activeColor : inactiveColor },
                     ]}
                   >
                     {item.label}

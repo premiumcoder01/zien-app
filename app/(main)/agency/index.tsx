@@ -24,6 +24,7 @@ import {
     ActivityIndicator,
     Dimensions,
     Image,
+    Platform,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -96,7 +97,7 @@ const StatCard = ({ stat, index }: { stat: AgencyStat, index: number }) => {
 
     // Choose a gradient based on index for variety
     const gradients = [
-        ['#0a2341', '#065F6B'],
+        [colors.accentTeal || '#0a2341', '#065F6B'],
         ['#F37021', '#C2410C'],
         ['#6366F1', '#4338CA'],
         ['#10B981', '#047857']
@@ -230,11 +231,30 @@ export default function AgencyDashboard() {
                 isAgency={true}
             >
                 <View style={styles.errorContainer}>
-                    <MaterialCommunityIcons name="alert-circle-outline" size={48} color={colors.danger} />
-                    <Text style={[styles.errorText, { color: colors.textPrimary }]}>Failed to load dashboard</Text>
-                    <TouchableOpacity onPress={() => refetch()} style={[styles.retryBtn, { backgroundColor: colors.accentTeal }]}>
-                        <Text style={styles.retryBtnText}>Retry</Text>
-                    </TouchableOpacity>
+                    <View style={[styles.errorCard, { backgroundColor: colors.cardBackground }]}>
+                        <View style={styles.errorIconWrap}>
+                            <MaterialCommunityIcons name="cloud-off-outline" size={42} color={colors.accentTeal || '#0B2341'} />
+                        </View>
+                        <Text style={[styles.errorTitle, { color: colors.textPrimary }]}>Connection Error</Text>
+                        <Text style={[styles.errorSubtitle, { color: colors.textSecondary }]}>
+                            We're having trouble connecting to the server (503 Service Unavailable). Please check your connection or try again.
+                        </Text>
+                        <TouchableOpacity 
+                            onPress={() => refetch()} 
+                            style={styles.retryBtnWrapper}
+                            activeOpacity={0.8}
+                        >
+                            <LinearGradient
+                                colors={(colors.brandGradient || [colors.accentTeal || '#0B2341', '#1A365D']) as [string, string, ...string[]]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.retryBtnInner}
+                            >
+                                <MaterialCommunityIcons name="refresh" size={16} color="#FFFFFF" />
+                                <Text style={styles.retryBtnText}>Try Again</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </DashboardLayout>
         );
@@ -636,18 +656,55 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 40,
-        gap: 16,
+        padding: 24,
     },
-    errorText: {
-        fontSize: 16,
-        fontWeight: '700',
+    errorCard: {
+        padding: 30,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        maxWidth: 340,
+        borderWidth: 1,
+        borderColor: '#E9EEF4',
+        ...Platform.select({
+            ios: { shadowColor: '#0B2341', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.06, shadowRadius: 16 },
+            android: { elevation: 3 },
+        }),
+    },
+    errorIconWrap: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        backgroundColor: '#F1F5F9',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    errorTitle: {
+        fontSize: 18,
+        fontWeight: '900',
+        marginBottom: 8,
         textAlign: 'center',
     },
-    retryBtn: {
-        paddingHorizontal: 24,
-        paddingVertical: 12,
+    errorSubtitle: {
+        fontSize: 13,
+        fontWeight: '500',
+        textAlign: 'center',
+        lineHeight: 19,
+        marginBottom: 20,
+    },
+    retryBtnWrapper: {
         borderRadius: 12,
+        overflow: 'hidden',
+        width: '100%',
+    },
+    retryBtnInner: {
+        height: 48,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
     },
     retryBtnText: {
         color: '#fff',

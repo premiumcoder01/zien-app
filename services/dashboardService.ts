@@ -1,6 +1,15 @@
 const API_BASE_URL = 'https://staging-api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
+/** Thrown when the server responds with HTTP 503 (Service Unavailable / maintenance). */
+export class ServiceUnavailableError extends Error {
+  readonly statusCode = 503;
+  constructor(message = 'Service temporarily unavailable. We\'ll be back shortly!') {
+    super(message);
+    this.name = 'ServiceUnavailableError';
+  }
+}
+
 export interface StatItem {
   value: string;
   trend: string;
@@ -82,6 +91,7 @@ export interface TeamProfile {
   mailgun_from_email?: string | null;
   sendgrid_api_key?: string | null;
   sendgrid_from_email?: string | null;
+  notification_preferences?: Record<string, boolean> | null;
 }
 
 export interface Employee {
@@ -231,6 +241,10 @@ export const getDashboardOverview = async (accessToken: string): Promise<Dashboa
 
     const data = await response.json().catch(() => ({}));
 
+    if (response.status === 503) {
+      throw new ServiceUnavailableError(data.message);
+    }
+
     if (!response.ok) {
       throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
     }
@@ -297,6 +311,44 @@ export const updateTeamProfile = async (accessToken: string, data: any): Promise
   });
   if (!response.ok) throw new Error('Failed to update team profile');
   return response.json();
+};
+
+export const updateTeamSecurity = async (accessToken: string, data: any): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/teams/settings/security`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.message || 'Failed to update security settings');
+  }
+  return response.json();
+};
+
+export const uploadTeamProfileImage = async (accessToken: string, fileUri: string): Promise<{ url: string }> => {
+  const formData = new FormData();
+  const filename = fileUri.split('/').pop() || 'upload.jpg';
+  const match = /\.(\w+)$/.exec(filename);
+  const fileType = match ? `image/${match[1]}` : 'image/jpeg';
+  // @ts-ignore
+  formData.append('file', { uri: fileUri, name: filename, type: fileType });
+  formData.append('type', 'profile');
+
+  const response = await fetch(`${API_BASE_URL}/shared/upload/card-asset`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    },
+    body: formData,
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Image upload failed');
+  return data;
 };
 
 export const getTeamEmployees = async (accessToken: string, companyId: number): Promise<EmployeeResponse> => {
@@ -487,12 +539,15 @@ export const getTeamLogs = async (accessToken: string, companyId: number): Promi
 
 export interface TeamBrandingSettings {
   legal_name: string;
-  logo_url: string;
+  logo_url: string | null;
+  theme_color: string | null;
+  text_color: string | null;
   website: string | null;
-  description: string;
+  description: string | null;
   support_email: string;
   public_phone: string;
-  address: string;
+  address: string | null;
+  signature_image: string | null;
   slug: string;
 }
 
@@ -518,7 +573,7 @@ export const updateTeamBrandingSettings = async (
   data: Partial<TeamBrandingSettings>
 ): Promise<TeamBrandingSettings> => {
   const response = await fetch(`${API_BASE_URL}/teams/settings/branding`, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -527,6 +582,31 @@ export const updateTeamBrandingSettings = async (
   });
   if (!response.ok) throw new Error('Failed to update team branding settings');
   return response.json();
+};
+
+export const uploadBrandingLogo = async (
+  accessToken: string,
+  fileUri: string
+): Promise<{ url: string; key: string }> => {
+  const formData = new FormData();
+  const filename = fileUri.split('/').pop() || 'logo.jpg';
+  const match = /\.(\w+)$/.exec(filename);
+  const fileType = match ? `image/${match[1]}` : 'image/jpeg';
+  // @ts-ignore
+  formData.append('file', { uri: fileUri, name: filename, type: fileType });
+  formData.append('type', 'logo');
+
+  const response = await fetch(`${API_BASE_URL}/shared/upload/card-asset`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    },
+    body: formData,
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Logo upload failed');
+  return data;
 };
 
 export const getTeamPaymentMethods = async (accessToken: string): Promise<PaymentMethodDetail[]> => {

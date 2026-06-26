@@ -273,7 +273,7 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                                 <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>Assign Role <Text style={{ color: '#EF4444' }}>*</Text></Text>
                                 <TouchableOpacity
                                     activeOpacity={0.8}
-                                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 48, borderWidth: 1, borderColor: errors.role_id ? '#EF4444' : (showRolePicker ? '#0a2341' : '#E2E8F0'), borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}
+                                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 48, borderWidth: 1, borderColor: errors.role_id ? '#EF4444' : (showRolePicker ? colors.accentTeal : '#E2E8F0'), borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}
                                     onPress={() => setShowRolePicker(!showRolePicker)}
                                 >
                                     <Text style={{ fontSize: 14, color: form.role_id ? '#0D1B2A' : '#94A3B8' }}>
@@ -359,8 +359,8 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
                 {/* Header Area */}
                 <View style={{ backgroundColor: '#fff', padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 24, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
                     <TouchableOpacity onPress={onClose} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 }}>
-                        <MaterialCommunityIcons name="arrow-left" size={16} color="#0a2341" />
-                        <Text style={{ color: '#0a2341', fontSize: 13, fontWeight: '700' }}>Back to team members</Text>
+                        <MaterialCommunityIcons name="arrow-left" size={16} color={colors.accentTeal} />
+                        <Text style={{ color: colors.accentTeal, fontSize: 13, fontWeight: '700' }}>Back to team members</Text>
                     </TouchableOpacity>
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -425,7 +425,7 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
                             <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '500' }}>Status</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                                 {isUpdating ? (
-                                    <ActivityIndicator size="small" color="#0a2341" />
+                                    <ActivityIndicator size="small" color={colors.accentTeal} />
                                 ) : (
                                     <Switch
                                         value={agent.status === 1}
@@ -574,8 +574,8 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
                         <Text style={[styles.agentEmail, { color: '#64748B' }]} numberOfLines={1}>{agent.user.email || '—'}</Text>
                         {/* Role badge */}
                         <View style={styles.roleBadge}>
-                            <MaterialCommunityIcons name="shield-half-full" size={10} color="#0a2341" />
-                            <Text style={styles.roleBadgeText}>{agent.role?.name || 'No Role Assigned'}</Text>
+                            <MaterialCommunityIcons name="shield-half-full" size={10} color={colors.accentTeal} />
+                            <Text style={[styles.roleBadgeText, { color: colors.accentTeal }]}>{agent.role?.name || 'No Role Assigned'}</Text>
                         </View>
                     </View>
 
@@ -586,7 +586,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
                             <Text style={[styles.statusChipText, { color: sc.color }]}>{sc.label.toUpperCase()}</Text>
                         </View>
                         {isUpdating ? (
-                            <ActivityIndicator size="small" color="#0a2341" style={{ marginRight: 2 }} />
+                            <ActivityIndicator size="small" color={colors.accentTeal} style={{ marginRight: 2 }} />
                         ) : (
                             <Switch
                                 value={agent.status === 1}
@@ -606,7 +606,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
                 <View style={styles.metaGrid}>
                     <View style={styles.metaCell}>
                         <View style={styles.metaIconWrap}>
-                            <MaterialCommunityIcons name="card-account-details-outline" size={13} color="#0a2341" />
+                            <MaterialCommunityIcons name="card-account-details-outline" size={13} color={colors.accentTeal} />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.metaLabel}>LICENSE</Text>
@@ -649,7 +649,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
 
                     <View style={styles.iconActions}>
                         <TouchableOpacity style={styles.iconActionBtn} onPress={onView}>
-                            <MaterialCommunityIcons name="eye-outline" size={16} color="#0a2341" />
+                            <MaterialCommunityIcons name="eye-outline" size={16} color={colors.accentTeal} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.iconActionBtn} onPress={() => onChangePassword(agent)}>
                             <MaterialCommunityIcons name="key-variant" size={16} color="#8B5CF6" />
@@ -711,7 +711,7 @@ export default function TeamManagement() {
     const inactiveCount = employees.length - activeCount;
 
     const stats = [
-        { icon: 'account-group', value: `${employees.length} / ${maxMembers}`, label: 'TEAM CAPACITY', color: '#0a2341' },
+        { icon: 'account-group', value: `${employees.length} / ${maxMembers}`, label: 'TEAM CAPACITY', color: colors.accentTeal || '#0a2341' },
         { icon: 'account-check', value: activeCount.toString(), label: 'ACTIVE AGENTS', color: '#10B981' },
         { icon: 'account-off', value: inactiveCount.toString(), label: 'INACTIVE AGENTS', color: '#F97316' },
         { icon: 'shield-check', value: (roles?.length || 0).toString(), label: 'ROLES DEFINED', color: '#8B5CF6' },
@@ -918,7 +918,7 @@ export default function TeamManagement() {
                     if (loadingEmployees) {
                         return (
                             <View style={styles.emptyState}>
-                                <ActivityIndicator size="large" color="#0a2341" />
+                                <ActivityIndicator size="large" color={colors.accentTeal} />
                                 <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>Loading team members...</Text>
                             </View>
                         );
@@ -948,7 +948,7 @@ export default function TeamManagement() {
                                 </Text>
                                 {isSearching && (
                                     <TouchableOpacity style={styles.emptyStateCta} onPress={() => setSearchQuery('')}>
-                                        <Text style={{ color: '#0a2341', fontWeight: '700', fontSize: 13 }}>Clear Search</Text>
+                                        <Text style={{ color: colors.accentTeal, fontWeight: '700', fontSize: 13 }}>Clear Search</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>

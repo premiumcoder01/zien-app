@@ -8,11 +8,13 @@ import {
 } from '@/components/dashboard';
 import type { NavMenuItem } from '@/components/main';
 import { DashboardLayout } from '@/components/main';
+import { MaintenanceBanner } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useProfile } from '@/hooks/useProfile';
 import { getSoloInvoices, getSoloSubscription, type SoloSubscriptionResponse } from '@/services/billingService';
+import { ServiceUnavailableError } from '@/services/dashboardService';
 import { formatStatValue } from '@/utils/number-format';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -334,8 +336,11 @@ export default function DashboardScreen() {
 
   const firstName = profile?.first_name || '';
 
-  const { data: dashboardData, isLoading: isDashboardLoading, refetch } = useDashboard();
+  const { data: dashboardData, isLoading: isDashboardLoading, isError, error, refetch } = useDashboard();
   const [refreshing, setRefreshing] = useState(false);
+
+  // Detect 503 maintenance mode
+  const isMaintenanceMode = isError && error instanceof ServiceUnavailableError;
   const [subscriptionData, setSubscriptionData] = useState<SoloSubscriptionResponse | null>(null);
 
 
@@ -483,6 +488,19 @@ export default function DashboardScreen() {
   // Format current date
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  // ── Maintenance / 503 screen ──────────────────────────────────
+  if (isMaintenanceMode) {
+    return (
+      <DashboardLayout menuItems={MENU_ITEMS} userInitials={userInitials}>
+        <MaintenanceBanner
+          message={(error as ServiceUnavailableError).message}
+          onRetry={refetch}
+          isRetrying={isDashboardLoading}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout menuItems={MENU_ITEMS} userInitials={userInitials}>

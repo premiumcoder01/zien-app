@@ -103,7 +103,7 @@ const LogItem = ({ log }: { log: TeamLogEntry }) => {
                 <View style={styles.detailCol}>
                     <Text style={styles.detailLabel}>PERFORMED BY</Text>
                     <View style={styles.detailUserCell}>
-                        <MaterialCommunityIcons name="account-outline" size={14} color="#0a2341" />
+                        <MaterialCommunityIcons name="account-outline" size={14} color={colors.accentTeal} />
                         <Text style={[styles.detailValue, { color: '#334155' }]} numberOfLines={1} ellipsizeMode="tail">
                             {log.user_name || `User #${log.user_id}`}
                         </Text>
@@ -279,7 +279,7 @@ export default function ActivityLogs() {
 
                 {isPageLoading ? (
                     <View style={styles.loadingWrapper}>
-                        <ActivityIndicator size="large" color="#0a2341" />
+                        <ActivityIndicator size="large" color={colors.accentTeal} />
                         <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading secure trails...</Text>
                     </View>
                 ) : (
@@ -311,7 +311,7 @@ export default function ActivityLogs() {
                             {/* Card 3: Secure Auth */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
                                 <View style={[styles.statIconBox, { backgroundColor: '#F0F9FF' }]}>
-                                    <MaterialCommunityIcons name="fingerprint" size={20} color="#0a2341" />
+                                    <MaterialCommunityIcons name="fingerprint" size={20} color={colors.accentTeal} />
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.auth_events}</Text>
@@ -353,7 +353,7 @@ export default function ActivityLogs() {
                                         styles.filterBtn,
                                         {
                                             backgroundColor: colors.surfaceSoft,
-                                            borderColor: isSeverityDropdownOpen ? '#0a2341' : colors.cardBorder,
+                                            borderColor: isSeverityDropdownOpen ? colors.accentTeal : colors.cardBorder,
                                             flex: 1
                                         }
                                     ]}

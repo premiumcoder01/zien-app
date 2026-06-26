@@ -1,12 +1,23 @@
 import { DashboardLayout } from '@/components/main';
+import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import {
+    useConversations,
+    useLoadConversation,
+    useCreateConversation,
+    useSendMessage,
+    useDeleteConversation,
+} from '@/hooks/useChat';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Modal,
     Platform,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -95,27 +106,213 @@ const CustomPicker = ({ label, value, options, onSelect, icon }: any) => {
     );
 };
 
+interface ChatMessage {
+    id: string;
+    text: string;
+    isUser: boolean;
+}
+
 const VirtualAssistant = () => {
     const { colors } = useAppTheme();
+    const { accessToken } = useAuth();
+    const [inputText, setInputText] = useState('');
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
     const [isChatFocused, setIsChatFocused] = useState(false);
+    const [isAiTyping, setIsAiTyping] = useState(false);
+    const [isHistoryVisible, setIsHistoryVisible] = useState(false);
+
+    // Queries & mutations
+    const createConversationMutation = useCreateConversation();
+    const sendMessageMutation = useSendMessage();
+    const loadConversationMutation = useLoadConversation();
+    const deleteConversationMutation = useDeleteConversation();
+    const { data: conversations = [], isLoading: isLoadingHistory, refetch: refetchConversations } = useConversations();
+
+    const chatScrollRef = useRef<ScrollView>(null);
+
+    const handleSend = async () => {
+        if (!inputText.trim()) return;
+        const text = inputText.trim();
+        setInputText('');
+
+        // 1. Add user message locally
+        const userMsg: ChatMessage = {
+            id: `user-${Date.now()}`,
+            text,
+            isUser: true,
+        };
+        setMessages(prev => [...prev, userMsg]);
+        setIsAiTyping(true);
+
+        try {
+            let convId = activeConversationId;
+            // 2. If no active conversation, create one
+            if (!convId) {
+                const title = text.length > 25 ? text.substring(0, 25) + '...' : text;
+                const newConv = await createConversationMutation.mutateAsync({ title });
+                convId = newConv.id;
+                setActiveConversationId(convId);
+                refetchConversations();
+            }
+
+            // 3. Send message
+            const res = await sendMessageMutation.mutateAsync({ conversationId: convId, content: text });
+            
+            // 4. Add AI message
+            const aiMsg: ChatMessage = {
+                id: `ai-${Date.now()}`,
+                text: res.aiMessage.content,
+                isUser: false,
+            };
+            setMessages(prev => [...prev, aiMsg]);
+        } catch (error: any) {
+            const errMsg: ChatMessage = {
+                id: `err-${Date.now()}`,
+                text: error?.message || 'Failed to send message. Please try again.',
+                isUser: false,
+            };
+            setMessages(prev => [...prev, errMsg]);
+        } finally {
+            setIsAiTyping(false);
+        }
+    };
+
+    const loadConversationMessages = async (conversationId: number) => {
+        try {
+            setMessages([]);
+            setIsAiTyping(true);
+            setIsHistoryVisible(false);
+            const conv = await loadConversationMutation.mutateAsync({ conversationId });
+            setActiveConversationId(conv.id);
+            const loadedMessages: ChatMessage[] = conv.messages.map((msg, idx) => ({
+                id: `loaded-${conv.id}-${idx}`,
+                text: msg.content,
+                isUser: msg.role === 'user',
+            }));
+            setMessages(loadedMessages);
+            setIsAiTyping(false);
+        } catch (error: any) {
+            setIsAiTyping(false);
+            const errMsg: ChatMessage = {
+                id: `err-load-${Date.now()}`,
+                text: error?.message || 'Failed to load conversation.',
+                isUser: false,
+            };
+            setMessages([errMsg]);
+        }
+    };
+
+    const handleNewChat = () => {
+        setMessages([]);
+        setActiveConversationId(null);
+        setIsHistoryVisible(false);
+    };
+
+    const handleDelete = (convId: number) => {
+        Alert.alert(
+            'Delete Conversation',
+            'Are you sure you want to delete this conversation?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteConversationMutation.mutateAsync({ conversationId: convId });
+                            if (activeConversationId === convId) {
+                                handleNewChat();
+                            }
+                            refetchConversations();
+                        } catch (err) {
+                            Alert.alert('Error', 'Failed to delete conversation.');
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     return (
         <View style={styles.tabContent}>
-            <View style={[styles.chatContainer, { backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' }]}>
-                <View style={styles.emptyChat}>
-                    <View style={[styles.chatIconWrap, { backgroundColor: '#F0FDFA' }]}>
-                        <MaterialCommunityIcons name="robot-outline" size={32} color="#0a2341" />
-                    </View>
-                    <Text style={[styles.chatTitle, { color: colors.textPrimary }]}>How can I help you today?</Text>
-                    <Text style={[styles.chatDesc, { color: colors.textSecondary }]}>
-                        Our AI assistant is trained on all Zien documentation and can resolve 85% of queries instantly.
-                    </Text>
+            {/* Header with History Button */}
+            <View style={styles.chatCardHeader}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={[styles.chatCardTitle, { color: colors.textPrimary }]}>Zien Intelligence Support</Text>
+                    <Text style={[styles.chatCardSubtitle, { color: colors.textSecondary }]}>Our AI assistant is trained on Zien docs and can resolve queries instantly.</Text>
                 </View>
+                <TouchableOpacity
+                    style={[styles.historyBtn, { borderColor: '#E2E8F0', backgroundColor: '#F8FAFC' }]}
+                    activeOpacity={0.8}
+                    onPress={() => setIsHistoryVisible(true)}
+                >
+                    <MaterialCommunityIcons name="message-text-outline" size={16} color="#0F172A" />
+                    <Text style={styles.historyBtnText}>History</Text>
+                </TouchableOpacity>
             </View>
 
+            {/* Chat Container */}
+            <View style={[styles.chatContainer, { backgroundColor: '#FFFFFF', borderColor: '#E2E8F0', height: 420, justifyContent: 'flex-start', alignItems: 'stretch', padding: 0, overflow: 'hidden' }]}>
+                {messages.length === 0 ? (
+                    <View style={[styles.emptyChat, { flex: 1, justifyContent: 'center' }]}>
+                        <View style={[styles.chatIconWrap, { backgroundColor: '#F0FDFA' }]}>
+                            <MaterialCommunityIcons name="robot-outline" size={32} color={colors.accentTeal} />
+                        </View>
+                        <Text style={[styles.chatTitle, { color: colors.textPrimary }]}>How can I help you today?</Text>
+                        <Text style={[styles.chatDesc, { color: colors.textSecondary, paddingHorizontal: 28 }]}>
+                            Our AI assistant is trained on all Zien documentation and can resolve 85% of queries instantly.
+                        </Text>
+                    </View>
+                ) : (
+                    <ScrollView
+                        ref={chatScrollRef}
+                        contentContainerStyle={{ padding: 16, gap: 12 }}
+                        showsVerticalScrollIndicator={false}
+                        onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
+                    >
+                        {messages.map((msg) => (
+                            <View
+                                key={msg.id}
+                                style={[
+                                    styles.msgRow,
+                                    msg.isUser ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' }
+                                ]}
+                            >
+                                <View
+                                    style={[
+                                        styles.msgBubble,
+                                        msg.isUser
+                                            ? { backgroundColor: colors.accentTeal, borderBottomRightRadius: 4 }
+                                            : { backgroundColor: '#F1F5F9', borderBottomLeftRadius: 4 }
+                                    ]}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.msgText,
+                                            msg.isUser ? { color: '#FFFFFF' } : { color: colors.textPrimary }
+                                        ]}
+                                    >
+                                        {msg.text}
+                                    </Text>
+                                </View>
+                            </View>
+                        ))}
+                        {isAiTyping && (
+                            <View style={styles.msgRow}>
+                                <View style={[styles.msgBubble, { backgroundColor: '#F1F5F9', borderBottomLeftRadius: 4, paddingVertical: 10, paddingHorizontal: 16 }]}>
+                                    <ActivityIndicator size="small" color={colors.accentTeal} />
+                                </View>
+                            </View>
+                        )}
+                    </ScrollView>
+                )}
+            </View>
+
+            {/* Input Row */}
             <View style={[
                 styles.chatInputRow,
-                { backgroundColor: '#F8FAFC', borderColor: isChatFocused ? '#0a2341' : '#E2E8F0' }
+                { backgroundColor: '#F8FAFC', borderColor: isChatFocused ? colors.accentTeal : '#E2E8F0' }
             ]}>
                 <TextInput
                     placeholder="Type your message..."
@@ -123,8 +320,11 @@ const VirtualAssistant = () => {
                     style={[styles.chatInput, { color: colors.textPrimary }]}
                     onFocus={() => setIsChatFocused(true)}
                     onBlur={() => setIsChatFocused(false)}
+                    value={inputText}
+                    onChangeText={setInputText}
+                    onSubmitEditing={handleSend}
                 />
-                <TouchableOpacity style={styles.sendBtn} activeOpacity={0.85}>
+                <TouchableOpacity style={styles.sendBtn} activeOpacity={0.85} onPress={handleSend}>
                     <LinearGradient
                         colors={['#F97316', '#EA580C']}
                         style={styles.sendBtnGradient}
@@ -133,6 +333,86 @@ const VirtualAssistant = () => {
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
+
+            {/* Chat History Sidebar Modal */}
+            <Modal
+                visible={isHistoryVisible}
+                transparent
+                animationType="none"
+                onRequestClose={() => setIsHistoryVisible(false)}
+            >
+                <View style={styles.historyOverlay}>
+                    {/* Backdrop */}
+                    <Pressable style={styles.historyBackdrop} onPress={() => setIsHistoryVisible(false)} />
+                    
+                    {/* Drawer Content */}
+                    <View style={[styles.historyDrawer, { backgroundColor: '#FFFFFF' }]}>
+                        {/* Header */}
+                        <View style={styles.historyHeader}>
+                            <Text style={styles.historyTitle}>Chat History</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                <TouchableOpacity 
+                                    style={styles.newChatHeaderBtn} 
+                                    onPress={handleNewChat}
+                                    activeOpacity={0.8}
+                                >
+                                    <MaterialCommunityIcons name="plus" size={14} color={colors.accentTeal} />
+                                    <Text style={[styles.newChatHeaderText, { color: colors.accentTeal }]}>New Chat</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={styles.closeHeaderBtn} 
+                                    onPress={() => setIsHistoryVisible(false)}
+                                >
+                                    <MaterialCommunityIcons name="close" size={18} color="#64748B" />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        {/* Divider */}
+                        <View style={styles.historyDivider} />
+
+                        {/* List */}
+                        {isLoadingHistory ? (
+                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                <ActivityIndicator size="small" color={colors.accentTeal} />
+                            </View>
+                        ) : conversations.length === 0 ? (
+                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                                <Text style={{ fontSize: 13, color: '#94A3B8', fontWeight: '600' }}>No history found</Text>
+                            </View>
+                        ) : (
+                            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 8 }}>
+                                {conversations.map((item) => (
+                                    <TouchableOpacity
+                                        key={item.id}
+                                        style={[
+                                            styles.historyItemCard,
+                                            activeConversationId === item.id && { backgroundColor: '#F1F5F9' }
+                                        ]}
+                                        onPress={() => loadConversationMessages(item.id)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <MaterialCommunityIcons name="forum-outline" size={18} color="#64748B" style={{ marginRight: 10 }} />
+                                        <View style={{ flex: 1 }}>
+                                            <Text numberOfLines={1} style={styles.historyItemTitle}>{item.title}</Text>
+                                            <Text style={styles.historyItemTime}>
+                                                {new Date(item.updated_at).toLocaleDateString()}
+                                            </Text>
+                                        </View>
+                                        <TouchableOpacity 
+                                            onPress={() => handleDelete(item.id)}
+                                            hitSlop={8}
+                                            style={{ padding: 4 }}
+                                        >
+                                            <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
+                                        </TouchableOpacity>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        )}
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -180,12 +460,12 @@ const SubmittedTicket = () => {
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Subject</Text>
                     <View style={[
                         styles.inputContainerRow,
-                        { backgroundColor: '#F8FAFC', borderColor: isSubjectFocused ? '#0a2341' : '#E2E8F0' }
+                        { backgroundColor: '#F8FAFC', borderColor: isSubjectFocused ? colors.accentTeal : '#E2E8F0' }
                     ]}>
                         <MaterialCommunityIcons
                             name="pencil-outline"
                             size={18}
-                            color={isSubjectFocused ? '#0a2341' : '#64748B'}
+                            color={isSubjectFocused ? colors.accentTeal : '#64748B'}
                         />
                         <TextInput
                             style={[styles.textInputStyle, { color: colors.textPrimary }]}
@@ -204,12 +484,12 @@ const SubmittedTicket = () => {
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Detailed Description</Text>
                     <View style={[
                         styles.textAreaContainerRow,
-                        { backgroundColor: '#F8FAFC', borderColor: isDescFocused ? '#0a2341' : '#E2E8F0' }
+                        { backgroundColor: '#F8FAFC', borderColor: isDescFocused ? colors.accentTeal : '#E2E8F0' }
                     ]}>
                         <MaterialCommunityIcons
                             name="text-box-outline"
                             size={18}
-                            color={isDescFocused ? '#0a2341' : '#64748B'}
+                            color={isDescFocused ? colors.accentTeal : '#64748B'}
                             style={{ marginTop: 2 }}
                         />
                         <TextInput
@@ -287,7 +567,7 @@ const EmailSupport = () => {
 
 export default function Support() {
     const { colors } = useAppTheme();
-    const [activeTab, setActiveTab] = useState('Submitted Ticket'); // Matches screenshot default
+    const [activeTab, setActiveTab] = useState('Virtual Assistant');
 
     return (
         <DashboardLayout
@@ -727,5 +1007,123 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '600',
         color: '#334155',
+    },
+    // Chat & History Styles
+    chatCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    chatCardTitle: {
+        fontSize: 16,
+        fontWeight: '900',
+    },
+    chatCardSubtitle: {
+        fontSize: 11,
+        fontWeight: '500',
+        marginTop: 2,
+    },
+    historyBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    historyBtnText: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: '#0F172A',
+    },
+    msgRow: {
+        flexDirection: 'row',
+        width: '100%',
+        marginVertical: 4,
+    },
+    msgBubble: {
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        borderRadius: 14,
+        maxWidth: '80%',
+    },
+    msgText: {
+        fontSize: 13,
+        fontWeight: '600',
+        lineHeight: 18,
+    },
+    historyOverlay: {
+        flex: 1,
+        flexDirection: 'row',
+    },
+    historyBackdrop: {
+        flex: 0.15,
+        backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    },
+    historyDrawer: {
+        flex: 0.85,
+        height: '100%',
+        paddingVertical: 20,
+    },
+    historyHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        marginBottom: 12,
+        marginTop: Platform.OS === 'ios' ? 40 : 10,
+    },
+    historyTitle: {
+        fontSize: 15,
+        fontWeight: '900',
+        color: '#0F172A',
+    },
+    newChatHeaderBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    newChatHeaderText: {
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    closeHeaderBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#F1F5F9',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    historyDivider: {
+        height: 1,
+        backgroundColor: '#F1F5F9',
+        marginBottom: 8,
+    },
+    historyItemCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F8FAFC',
+    },
+    historyItemTitle: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: '#1E293B',
+    },
+    historyItemTime: {
+        fontSize: 10,
+        color: '#94A3B8',
+        marginTop: 2,
+        fontWeight: '600',
     },
 });

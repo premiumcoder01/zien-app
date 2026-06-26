@@ -1,9 +1,12 @@
+import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { useMyMenus } from '@/hooks/useMyMenus';
+import { getTeamBrandingSettings } from '@/services/dashboardService';
+import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { Href } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Image, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MainHeader } from './MainHeader';
 import type { NavMenuItem } from './NavDrawer';
@@ -38,7 +41,8 @@ export function DashboardLayout({
   backToMainRoute,
   isAgency = false,
 }: DashboardLayoutProps) {
-  const { colors } = useAppTheme();
+  const { accessToken } = useAuth();
+  const { colors, setBranding } = useAppTheme();
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -49,6 +53,70 @@ export function DashboardLayout({
 
   // If agency page, keep agency menu items. Otherwise, use dynamic menus (fall back to empty list while loading/error)
   const finalMenuItems = isAgency ? menuItems : (dynamicMenuItems || []);
+
+  const { data: brandingData } = useQuery({
+    queryKey: ['teamBrandingSettings'],
+    queryFn: () => getTeamBrandingSettings(accessToken!),
+    enabled: !!accessToken && isAgency,
+  });
+
+  useEffect(() => {
+    if (isAgency && brandingData) {
+      setBranding({
+        theme_color: brandingData.theme_color,
+        text_color: brandingData.text_color,
+      });
+    } else if (!isAgency) {
+      setBranding(null);
+    }
+    return () => {
+      setBranding(null);
+    };
+  }, [isAgency, brandingData, setBranding]);
+
+  const customLogoNode = useMemo(() => {
+    if (!isAgency) return customLogo;
+    const txtColor = brandingData?.text_color || '#FFFFFF';
+    if (brandingData?.logo_url) {
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Image
+            source={{ uri: brandingData.logo_url }}
+            style={{ width: 32, height: 32, borderRadius: 6 }}
+            resizeMode="contain"
+          />
+          <View style={{ flexShrink: 1 }}>
+            <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '800', color: txtColor }}>
+              {brandingData.legal_name || 'Agency'}
+            </Text>
+            <Text style={{ fontSize: 9, fontWeight: '700', color: txtColor + 'B3', letterSpacing: 0.5 }}>
+              AGENCY CONTROL
+            </Text>
+          </View>
+        </View>
+      );
+    }
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Image
+          source={require('@/assets/appImages/nlogo.png')}
+          style={{ width: 32, height: 32 }}
+          resizeMode="contain"
+        />
+        <View style={{ flexShrink: 1 }}>
+          <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '800', color: txtColor }}>
+            {brandingData?.legal_name || 'maxx'}
+          </Text>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: txtColor + 'B3', letterSpacing: 0.5 }}>
+            AGENCY CONTROL
+          </Text>
+        </View>
+      </View>
+    );
+  }, [isAgency, brandingData, customLogo]);
+
+  const drawerBg = isAgency ? (brandingData?.theme_color || undefined) : customBackground;
+  const drawerTextColor = isAgency ? (brandingData?.text_color || undefined) : undefined;
 
   const openMenu = useMemo(
     () => () => {
@@ -82,7 +150,7 @@ export function DashboardLayout({
     [closeMenu]
   );
 
-  const finalProfileRoute = profileRoute || (isAgency ? '/(main)/agency/profile' : '/(main)/profile');
+  const finalProfileRoute = profileRoute || (isAgency ? '/(main)/agency/settings' : '/(main)/profile');
 
   return (
     <View style={styles.wrapper}>
@@ -112,8 +180,9 @@ export function DashboardLayout({
         menuItems={finalMenuItems}
         onClose={closeMenu}
         onItemPress={handleMenuPress}
-        customLogo={customLogo}
-        customBackground={customBackground}
+        customLogo={customLogoNode}
+        customBackground={drawerBg}
+        customTextColor={drawerTextColor}
         backToMainRoute={backToMainRoute}
         isLoading={!isAgency && isMenusLoading}
       />

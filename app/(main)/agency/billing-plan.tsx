@@ -120,7 +120,7 @@ export default function BillingPlan() {
                 isAgency={true}
             >
                 <View style={styles.loadingWrapper}>
-                    <ActivityIndicator size="large" color="#0a2341" />
+                    <ActivityIndicator size="large" color={colors.accentTeal} />
                     <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
                         Retrieving subscription packages...
                     </Text>
@@ -397,7 +397,7 @@ export default function BillingPlan() {
 
                     {isLoadingPlans ? (
                         <View style={styles.modalLoadingWrapper}>
-                            <ActivityIndicator size="large" color="#0a2341" />
+                            <ActivityIndicator size="large" color={colors.accentTeal} />
                             <Text style={styles.modalLoadingText}>Loading available agency plans...</Text>
                         </View>
                     ) : (
@@ -414,7 +414,7 @@ export default function BillingPlan() {
                                     <TouchableOpacity
                                         style={[
                                             styles.toggleSwitchBg,
-                                            { backgroundColor: isYearly ? '#0a2341' : '#CBD5E1' }
+                                            { backgroundColor: isYearly ? colors.accentTeal : '#CBD5E1' }
                                         ]}
                                         activeOpacity={0.9}
                                         onPress={() => setIsYearly(!isYearly)}
@@ -494,7 +494,7 @@ export default function BillingPlan() {
                                                         return (
                                                             <View key={addon.id} style={styles.modalEnhancementItemRow}>
                                                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                                                                    <View style={[styles.addonCheckbox, activeAddon && styles.addonCheckboxChecked]}>
+                                                                    <View style={[styles.addonCheckbox, activeAddon && [styles.addonCheckboxChecked, { backgroundColor: colors.accentTeal, borderColor: colors.accentTeal }]]}>
                                                                         {activeAddon && (
                                                                             <MaterialCommunityIcons name="check" size={8} color="#FFFFFF" />
                                                                         )}
@@ -521,8 +521,8 @@ export default function BillingPlan() {
                                                     <Text style={styles.modalCurrentPlanBtnText}>Current Plan</Text>
                                                 </View>
                                             ) : (
-                                                <TouchableOpacity style={styles.modalSelectPlanBtn} activeOpacity={0.8}>
-                                                    <Text style={styles.modalSelectPlanBtnText}>Select Plan</Text>
+                                                <TouchableOpacity style={[styles.modalSelectPlanBtn, { borderColor: colors.accentTeal }]} activeOpacity={0.8}>
+                                                    <Text style={[styles.modalSelectPlanBtnText, { color: colors.accentTeal }]}>Select Plan</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </View>

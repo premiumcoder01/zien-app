@@ -21,6 +21,7 @@ type ColorPickerModalProps = {
   onClose: () => void;
   initialColor: string;
   onSelectColor: (color: string) => void;
+  title?: string;
 };
 
 // Conversions
@@ -79,6 +80,7 @@ export default function ColorPickerModal({
   onClose,
   initialColor,
   onSelectColor,
+  title,
 }: ColorPickerModalProps) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
