@@ -9,9 +9,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
+import { Bar, CartesianChart } from 'victory-native';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Platform,
   Pressable,
@@ -43,6 +45,25 @@ const formatCSVDate = (dateString?: string): string => {
   }
 };
 
+const PointsTracker = ({ points, onChange }: { points: any; onChange: (p: any) => void }) => {
+  const lastPointsStr = React.useRef<string>("");
+
+  React.useEffect(() => {
+    if (!points) return;
+    const currentStr = JSON.stringify({
+      active: (points.activeCount || []).map((p: any) => ({ x: p?.x, y: p?.y })),
+      inactive: (points.inactiveCount || []).map((p: any) => ({ x: p?.x, y: p?.y }))
+    });
+
+    if (currentStr !== lastPointsStr.current) {
+      lastPointsStr.current = currentStr;
+      onChange(points);
+    }
+  }, [points, onChange]);
+
+  return null;
+};
+
 export default function AnalyticsScreen() {
   const { colors, theme } = useAppTheme();
   const styles = getStyles(colors, theme);
@@ -57,6 +78,7 @@ export default function AnalyticsScreen() {
   const [exportCacheUri, setExportCacheUri] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [chartPoints, setChartPoints] = useState<any>(null);
 
 
 
@@ -190,6 +212,19 @@ export default function AnalyticsScreen() {
     };
   }, [publishedPosts]);
 
+  const victoryChartData = useMemo(() => {
+    const maxVal = Math.max(...last6MonthsChartData.datasets[0].data, 1);
+    return last6MonthsChartData.labels.map((label, idx) => {
+      const realValue = last6MonthsChartData.datasets[0].data[idx] || 0;
+      return {
+        month: label,
+        activeCount: realValue > 0 ? realValue : 0,
+        inactiveCount: realValue === 0 ? maxVal * 0.04 : 0,
+        realCount: realValue,
+      };
+    });
+  }, [last6MonthsChartData]);
+
   // Dynamic AI Insight based on dominant platform
   const aiInsightMessage = useMemo(() => {
     const p = dominantPlatformInfo.name.toLowerCase();
@@ -248,39 +283,80 @@ export default function AnalyticsScreen() {
     }
   };
 
-  const handleSaveToDevice = async () => {
-    setIsSaving(true);
-    try {
-      const saveUri = `${FileSystem.documentDirectory}${exportFilename}`;
-      await FileSystem.copyAsync({ from: exportCacheUri, to: saveUri });
-      setShowExportModal(false);
-      // Small delay so modal closes before success feedback
-      setTimeout(() => {
-        // Use a small in-app toast feel via another modal — just log for now
-      }, 100);
-    } catch (err) {
-      console.error('Save failed:', err);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleShareFile = async () => {
-    setIsSharing(true);
+  const handleShareFileDirectly = async () => {
     try {
       if (await Sharing.isAvailableAsync()) {
-        setShowExportModal(false);
         await Sharing.shareAsync(exportCacheUri, {
           mimeType: 'text/csv',
           dialogTitle: 'Export Social Report',
           UTI: 'public.comma-separated-values-text',
         });
+      } else {
+        Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
       }
     } catch (err) {
       console.error('Share failed:', err);
-    } finally {
-      setIsSharing(false);
+      Alert.alert('Share Failed', 'An error occurred while sharing the file.');
     }
+  };
+
+  const handleSaveToDevice = async () => {
+    setIsSaving(true);
+    setShowExportModal(false);
+
+    // Wait for native modal dismissal animation to complete
+    setTimeout(async () => {
+      try {
+        if (Platform.OS === 'android') {
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (permissions.granted) {
+            const safUri = await FileSystem.StorageAccessFramework.createFileAsync(
+              permissions.directoryUri,
+              exportFilename,
+              'text/csv'
+            );
+            const fileContent = await FileSystem.readAsStringAsync(exportCacheUri, { encoding: 'utf8' });
+            await FileSystem.writeAsStringAsync(safUri, fileContent, {
+              encoding: FileSystem.EncodingType.UTF8,
+            });
+            Alert.alert(
+              "Download Complete",
+              `"${exportFilename}" has been saved to your selected folder.`
+            );
+          } else {
+            // User cancelled/denied SAF directory picker, fallback to share sheet
+            await handleShareFileDirectly();
+          }
+        } else {
+          // iOS: Save directly to document directory (exposed in the Files app)
+          const docUri = `${FileSystem.documentDirectory}${exportFilename}`;
+          await FileSystem.copyAsync({ from: exportCacheUri, to: docUri });
+          Alert.alert(
+            "Download Complete",
+            `"${exportFilename}" has been saved directly to the 'Zien' folder in your Files app.`
+          );
+        }
+      } catch (err) {
+        console.error('Save failed:', err);
+        Alert.alert('Save Failed', 'Could not save the report to your device.');
+      } finally {
+        setIsSaving(false);
+      }
+    }, 450);
+  };
+
+  const handleShareFile = async () => {
+    setIsSharing(true);
+    setShowExportModal(false);
+
+    // Wait for native modal dismissal animation to complete
+    setTimeout(async () => {
+      try {
+        await handleShareFileDirectly();
+      } finally {
+        setIsSharing(false);
+      }
+    }, 450);
   };
 
 
@@ -332,35 +408,86 @@ export default function AnalyticsScreen() {
           </View>
 
           <View style={styles.chartCard}>
-            <View style={styles.customChartContainer}>
-              {last6MonthsChartData.labels.map((label, idx) => {
-                const value = last6MonthsChartData.datasets[0].data[idx] || 0;
-                const maxVal = Math.max(...last6MonthsChartData.datasets[0].data, 1);
-                // Always show a bar: min 6px for zero, proportional for non-zero (min 20px)
-                const barHeight = value > 0 ? Math.max((value / maxVal) * 130, 20) : 6;
-
-                return (
-                  <View key={idx} style={styles.chartColumn}>
-                    <Text style={styles.chartValueLabel}>{value}</Text>
-
-                    <View style={styles.barOuter}>
-                      <View
-                        style={[
-                          styles.barFill,
-                          {
-                            height: barHeight,
-                            backgroundColor: value > 0
-                              ? (theme === 'dark' ? colors.accentTeal : '#0A2341')
-                              : (theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E2E8F0'),
-                          },
-                        ]}
+            <View style={{ height: 180, width: '100%', position: 'relative' }}>
+              <CartesianChart
+                data={victoryChartData}
+                xKey="month"
+                yKeys={["activeCount", "inactiveCount"]}
+                domainPadding={{ left: 24, right: 24, top: 30, bottom: 20 }}
+              >
+                {({ points, chartBounds }) => {
+                  return (
+                    <>
+                      <Bar
+                        chartBounds={chartBounds}
+                        points={points.activeCount}
+                        color={theme === 'dark' ? colors.accentTeal : '#0A2341'}
+                        roundedCorners={{ topLeft: 8, topRight: 8, bottomLeft: 8, bottomRight: 8 }}
+                        innerPadding={0.4}
                       />
-                    </View>
+                      <Bar
+                        chartBounds={chartBounds}
+                        points={points.inactiveCount}
+                        color={theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E2E8F0'}
+                        roundedCorners={{ topLeft: 8, topRight: 8, bottomLeft: 8, bottomRight: 8 }}
+                        innerPadding={0.4}
+                      />
+                      <PointsTracker points={points} onChange={setChartPoints} />
+                    </>
+                  );
+                }}
+              </CartesianChart>
 
-                    <Text style={styles.chartMonthLabel}>{label}</Text>
-                  </View>
-                );
-              })}
+              {/* Custom labels overlay */}
+              {chartPoints && (
+                <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+                  {chartPoints.activeCount.map((point: any, idx: number) => {
+                    const realValue = victoryChartData[idx]?.realCount || 0;
+                    const label = point.xValue;
+                    const isActive = realValue > 0;
+                    const activePoint = chartPoints.activeCount[idx];
+                    const inactivePoint = chartPoints.inactiveCount[idx];
+                    const x = activePoint?.x ?? 0;
+                    const y = (isActive ? activePoint?.y : inactivePoint?.y) ?? 0;
+
+                    return (
+                      <React.Fragment key={idx}>
+                        {/* Value label centered on top of bar */}
+                        <Text
+                          style={{
+                            position: 'absolute',
+                            left: x - 25,
+                            top: Math.max(y - 22, 5),
+                            width: 50,
+                            textAlign: 'center',
+                            fontSize: 14,
+                            fontWeight: '900',
+                            color: colors.textPrimary,
+                          }}
+                        >
+                          {realValue}
+                        </Text>
+
+                        {/* Month label centered at the bottom of the chart */}
+                        <Text
+                          style={{
+                            position: 'absolute',
+                            left: x - 25,
+                            bottom: 0,
+                            width: 50,
+                            textAlign: 'center',
+                            fontSize: 12,
+                            fontWeight: '700',
+                            color: colors.textSecondary,
+                          }}
+                        >
+                          {label}
+                        </Text>
+                      </React.Fragment>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           </View>
         </Animated.View>
@@ -629,39 +756,6 @@ function getStyles(colors: any, theme: 'light' | 'dark') {
         ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
         android: { elevation: 2 },
       }),
-    },
-    customChartContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-end',
-      width: '100%',
-      height: 180,
-    },
-    chartColumn: {
-      alignItems: 'center',
-      flex: 1,
-    },
-    chartValueLabel: {
-      fontSize: 14,
-      fontWeight: '900',
-      color: colors.textPrimary,
-      marginBottom: 8,
-    },
-    barOuter: {
-      height: 130,
-      width: 28,
-      justifyContent: 'flex-end',
-      alignItems: 'center',
-      marginBottom: 10,
-    },
-    barFill: {
-      width: '100%',
-      borderRadius: 6,
-    },
-    chartMonthLabel: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.textSecondary,
     },
     platformRow: {
       flexDirection: 'row',

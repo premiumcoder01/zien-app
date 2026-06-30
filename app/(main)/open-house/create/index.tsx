@@ -266,7 +266,7 @@ export default function OpenHouseCreateScreen() {
 
   const { height: kbAnimHeight } = useReanimatedKeyboardAnimation();
   const animatedBottomBarStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: kbAnimHeight.value }],
+    transform: [{ translateY: Platform.OS === 'ios' ? kbAnimHeight.value : 0 }],
   }));
 
   useEffect(() => {

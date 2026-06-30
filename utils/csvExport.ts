@@ -87,22 +87,13 @@ export async function exportLeadsToCSV(leads: CSVLeadItem[]) {
         await fallbackShare(cacheUri);
       }
     } else {
-      // iOS: Save to the document directory and then use share to save to Files
+      // iOS: Save directly to the document directory (exposed in the Files app)
       const docUri = `${FileSystem.documentDirectory}${filename}`;
       await FileSystem.copyAsync({ from: cacheUri, to: docUri });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(docUri, {
-          mimeType: 'text/csv',
-          dialogTitle: 'Save Leads Export',
-          UTI: 'public.comma-separated-values-text',
-        });
-      } else {
-        Alert.alert(
-          "Download Complete",
-          `"${filename}" has been saved to the app's documents.`
-        );
-      }
+      Alert.alert(
+        "Download Complete",
+        `"${filename}" has been saved directly to the 'Zien' folder in your Files app.`
+      );
     }
   } catch (error) {
     console.error("CSV Export Failed:", error);

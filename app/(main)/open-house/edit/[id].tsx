@@ -9,20 +9,19 @@ import { RawPropertyItem, uploadPropertyImage } from '@/services/propertyService
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState, useRef } from 'react';
-import PhoneInput from 'react-native-phone-number-input';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import QRCode from 'react-native-qrcode-svg';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Clipboard,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -32,12 +31,13 @@ import {
   Text,
   TextInput,
   useWindowDimensions,
-  View,
-  KeyboardAvoidingView
+  View
 } from 'react-native';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import PhoneInput from 'react-native-phone-number-input';
 import { ProgressStep, ProgressSteps } from 'react-native-progress-steps';
+import QRCode from 'react-native-qrcode-svg';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function formatDisplayDate(d: Date): string {
@@ -179,12 +179,12 @@ const getCallingCodeForISO = (iso: string) => {
 
 const parseRawPhone = (rawPhone: string) => {
   if (!rawPhone) return { countryCodeISO: 'US', nationalNumber: '' };
-  
+
   const cleaned = rawPhone.trim();
   if (!cleaned.startsWith('+')) {
     return { countryCodeISO: 'US', nationalNumber: cleaned };
   }
-  
+
   let matchedKey = '';
   for (const key of Object.keys(COUNTRY_CODE_TO_ISO)) {
     if (cleaned.startsWith(key)) {
@@ -193,7 +193,7 @@ const parseRawPhone = (rawPhone: string) => {
       }
     }
   }
-  
+
   if (matchedKey) {
     const national = cleaned.slice(matchedKey.length).replace(/[^0-9]/g, '');
     return {
@@ -201,7 +201,7 @@ const parseRawPhone = (rawPhone: string) => {
       nationalNumber: national
     };
   }
-  
+
   return { countryCodeISO: 'US', nationalNumber: cleaned.replace(/[^0-9]/g, '') };
 };
 
@@ -243,7 +243,7 @@ export default function OpenHouseEditScreen() {
 
   const { height: kbAnimHeight } = useReanimatedKeyboardAnimation();
   const animatedBottomBarStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: kbAnimHeight.value }],
+    transform: [{ translateY: Platform.OS === 'ios' ? kbAnimHeight.value : 0 }],
   }));
 
   useEffect(() => {
@@ -472,6 +472,7 @@ export default function OpenHouseEditScreen() {
             completedCheckColor={colors.cardBackground}
             labelFontSize={10}
             activeLabelFontSize={10}
+
           >
             <ProgressStep label="Event Details" removeBtnRow>
               <Step2Details

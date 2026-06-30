@@ -8,7 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -240,7 +240,7 @@ export default function SocialPostLabScreen() {
 
                 <ScrollView
                     style={styles.scroll}
-                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 450 }]}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
@@ -282,6 +282,7 @@ export default function SocialPostLabScreen() {
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         style={styles.propertySelectorScroll}
+                        nestedScrollEnabled
                         contentContainerStyle={styles.propertySelectorContent}
                     >
                         {/* CUSTOM INPUT Card */}
@@ -376,7 +377,7 @@ export default function SocialPostLabScreen() {
                             </Pressable>
                         </View>
 
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.styleList} scrollEnabled={false}>
+                        <View style={styles.styleList}>
                             {STYLE_OPTIONS.map((style) => {
                                 const isActive = selectedStyle === style;
                                 return (
@@ -400,7 +401,7 @@ export default function SocialPostLabScreen() {
                                     </Pressable>
                                 );
                             })}
-                        </ScrollView>
+                        </View>
                     </View>
 
                     {/* Preview & Multimedia Card */}
@@ -577,16 +578,16 @@ function getStyles(colors: any) {
         styleList: {
             flexDirection: 'row',
             flexWrap: 'wrap',
-            gap: 8,
+            gap: 6,
             marginTop: 16,
         },
         stylePill: {
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 20,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 16,
             alignItems: 'center',
             justifyContent: 'center',
-            marginRight: 8,
+            marginBottom: 4,
         },
         stylePillActive: {
             backgroundColor: '#0D9488',
@@ -597,7 +598,7 @@ function getStyles(colors: any) {
             borderColor: colors.cardBorder,
         },
         stylePillText: {
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: '700',
         },
         stylePillTextActive: {

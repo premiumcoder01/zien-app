@@ -9,7 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import PhoneInput from "react-native-phone-number-input";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -185,6 +185,21 @@ export default function LeadsScreen() {
   const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
   const [leadsList, setLeadsList] = useState<CRMLead[]>([]);
@@ -905,15 +920,15 @@ export default function LeadsScreen() {
                     <Text style={styles.convertLabel}>Email <Text style={{ color: '#E11D48' }}>*</Text></Text>
                     <TextInput
                       style={[
-                        styles.convertInput, 
+                        styles.convertInput,
                         errors.email && styles.inputError,
-                        !!leadToEdit && { backgroundColor: colors.surfaceSoft, color: colors.textMuted }
+                        // !!leadToEdit && { backgroundColor: colors.surfaceSoft, color: colors.textMuted }
                       ]}
                       value={email}
                       onChangeText={(t) => { setEmail(t); if (errors.email) setErrors(prev => ({ ...prev, email: '' })); }}
                       placeholder="john@example.com"
                       placeholderTextColor={colors.textMuted || "#8DA4B5"}
-                      editable={!leadToEdit}
+                    // editable={!leadToEdit}
                     />
                     {errors.email ? <Text style={styles.inlineError}>{errors.email}</Text> : null}
                   </View>
@@ -926,25 +941,25 @@ export default function LeadsScreen() {
                       layout="second"
                       disabled={!!leadToEdit}
                       containerStyle={[
-                        styles.phoneInputWrapper, 
+                        styles.phoneInputWrapper,
                         errors.phone && styles.inputError,
-                        !!leadToEdit && { backgroundColor: colors.surfaceSoft }
+                        // !!leadToEdit && { backgroundColor: colors.surfaceSoft }
                       ]}
                       textContainerStyle={[
                         styles.phoneTextContainer,
-                        !!leadToEdit && { backgroundColor: colors.surfaceSoft }
+                        // !!leadToEdit && { backgroundColor: colors.surfaceSoft }
                       ]}
                       textInputStyle={[
                         styles.phoneTextInput,
-                        !!leadToEdit && { color: colors.textMuted }
+                        // !!leadToEdit && { color: colors.textMuted }
                       ]}
                       codeTextStyle={[
                         styles.phoneCodeText,
-                        !!leadToEdit && { color: colors.textMuted }
+                        // !!leadToEdit && { color: colors.textMuted }
                       ]}
                       flagButtonStyle={[
                         styles.phoneFlagButton,
-                        !!leadToEdit && { backgroundColor: colors.surfaceSoft }
+                        // !!leadToEdit && { backgroundColor: colors.surfaceSoft }
                       ]}
                       onChangeText={(text) => { setPhone(text); if (errors.phone) setErrors(prev => ({ ...prev, phone: '' })); }}
                       onChangeFormattedText={(text) => setFormattedPhone(text)}
@@ -1130,7 +1145,10 @@ export default function LeadsScreen() {
             />
 
             {/* Fixed Bottom Actions */}
-            <View style={[styles.convertActions, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+            <View style={[
+              styles.convertActions,
+              { paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 24) }
+            ]}>
               <Pressable style={styles.convertCancelBtn} onPress={() => { setIsEditModalVisible(false); setLeadToEdit(null); }}>
                 <Text style={styles.convertCancelBtnText}>Cancel</Text>
               </Pressable>

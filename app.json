@@ -13,6 +13,8 @@
       "bundleIdentifier": "com.propfyi",
       "buildNumber": "13",
       "infoPlist": {
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true,
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,

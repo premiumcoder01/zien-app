@@ -21,6 +21,7 @@ import {
     TextInput,
     View
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PropertyDescriptionLabScreen() {
@@ -187,213 +188,213 @@ export default function PropertyDescriptionLabScreen() {
                     onBack={() => router.back()}
                 />
 
-                <ScrollView
-                    ref={scrollRef}
-                    style={styles.scroll}
-                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
+                <KeyboardAvoidingView
+                    behavior="padding"
+                    style={{ flex: 1 }}
                 >
-                    {/* Horizontal Property Selector */}
                     <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.propertySelectorScroll}
-                        contentContainerStyle={styles.propertySelectorContent}
+                        ref={scrollRef}
+                        style={styles.scroll}
+                        contentContainerStyle={[styles.scrollContent, { paddingBottom: 400 }]}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode='on-drag'
                     >
-                        {/* CUSTOM INPUT Card */}
-                        <Pressable
-                            style={[
-                                styles.selectorCard,
-                                selectedPropertyId === 'custom' && styles.selectorCardActive
-                            ]}
-                            onPress={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                setSelectedPropertyId('custom');
-                                setInputFeatures(prefill || '');
-                            }}
+                        {/* Horizontal Property Selector */}
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.propertySelectorScroll}
+                            contentContainerStyle={styles.propertySelectorContent}
                         >
-                            <View style={styles.selectorCardIconContainer}>
-                                <MaterialCommunityIcons name="cube-outline" size={20} color={colors.accentTeal} />
-                            </View>
-                            <View style={styles.selectorCardTextContainer}>
-                                <Text style={styles.selectorCardTitle} numberOfLines={1}>CUSTOM INPUT</Text>
-                                <Text style={styles.selectorCardSubtitle}>Manual Entry</Text>
-                            </View>
-                        </Pressable>
+                            {/* CUSTOM INPUT Card */}
+                            <Pressable
+                                style={[
+                                    styles.selectorCard,
+                                    selectedPropertyId === 'custom' && styles.selectorCardActive
+                                ]}
+                                onPress={() => {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    setSelectedPropertyId('custom');
+                                    setInputFeatures(prefill || '');
+                                }}
+                            >
+                                <View style={styles.selectorCardIconContainer}>
+                                    <MaterialCommunityIcons name="cube-outline" size={20} color={colors.accentTeal} />
+                                </View>
+                                <View style={styles.selectorCardTextContainer}>
+                                    <Text style={styles.selectorCardTitle} numberOfLines={1}>CUSTOM INPUT</Text>
+                                    <Text style={styles.selectorCardSubtitle}>Manual Entry</Text>
+                                </View>
+                            </Pressable>
 
-                        {/* Property Cards */}
-                        {properties.map((prop) => {
-                            const isSelected = selectedPropertyId === prop.id;
-                            const firstImage = prop.data?.Media?.[0]?.MediaURL || prop.data?.user_images?.[0];
-                            const propTitle = prop.address.split(',')[0];
+                            {/* Property Cards */}
+                            {properties.map((prop) => {
+                                const isSelected = selectedPropertyId === prop.id;
+                                const firstImage = prop.data?.Media?.[0]?.MediaURL || prop.data?.user_images?.[0];
+                                const propTitle = prop.address.split(',')[0];
 
-                            return (
-                                <Pressable
-                                    key={prop.id}
-                                    style={[
-                                        styles.selectorCard,
-                                        isSelected && styles.selectorCardActive
-                                    ]}
-                                    onPress={() => {
-                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                        setSelectedPropertyId(prop.id);
-                                        // Auto-populate the narrative context with remarks/details
-                                        const remarks = prop.data?.publicRemarks || prop.data?.privateRemarks || '';
-                                        const details = `Property details for ${prop.address}:\nPrice: ${prop.data?.price || prop.data?.ListPrice || 'N/A'}\nBeds/Baths: ${prop.data?.beds || prop.data?.BedroomsTotal || 'N/A'}/${prop.data?.bathsFull || prop.data?.BathroomsFull || 'N/A'}\nSqft: ${prop.data?.sqft || prop.data?.LivingArea || 'N/A'}\nRemarks: ${remarks}`;
-                                        setInputFeatures(remarks || details);
-                                    }}
-                                >
-                                    {firstImage ? (
-                                        <Image source={{ uri: firstImage }} style={styles.selectorCardImage} />
-                                    ) : (
-                                        <View style={styles.selectorCardIconContainer}>
-                                            <MaterialCommunityIcons name="home-outline" size={20} color={colors.textSecondary} />
-                                        </View>
-                                    )}
-                                    <View style={styles.selectorCardTextContainer}>
-                                        <Text style={styles.selectorCardTitle} numberOfLines={1}>{propTitle}</Text>
-                                        <Text style={styles.selectorCardSubtitle} numberOfLines={1}>
-                                            Active Property
-                                        </Text>
-                                    </View>
-                                </Pressable>
-                            );
-                        })}
-                    </ScrollView>
-
-                    {/* Narrative Context Card */}
-                    <View style={styles.inputCard}>
-                        <Text style={styles.cardTitle}>Narrative Context</Text>
-                        <Text style={styles.cardSubtitle}>
-                            Describe the property, key features, architectural style, or the mood you want to convey.
-                        </Text>
-
-                        <TextInput
-                            style={styles.textArea}
-                            multiline
-                            placeholder="e.g. Modern Malibu mansion with sunrise lighting, architectural pool shot. Mention the 5 bed, 7 bath features..."
-                            placeholderTextColor="#94A3B8"
-                            value={inputFeatures}
-                            onChangeText={setInputFeatures}
-                            textAlignVertical="top"
-                        />
-
-                        <Pressable
-                            style={[styles.generateBtn, !inputFeatures.trim() && styles.generateBtnDisabled]}
-                            onPress={handleGenerate}
-                            disabled={isGenerating || !inputFeatures.trim()}
-                        >
-                            {isGenerating ? (
-                                <ActivityIndicator size="small" color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.generateBtnText}>Generate</Text>
-                            )}
-                        </Pressable>
-
-                        {/* Tone Selector Pills */}
-                        <View style={styles.toneContainer}>
-                            {[
-                                { id: 'seo-optimized', label: 'SEO Optimized' },
-                                { id: 'luxury-tone', label: 'Luxury Tone' },
-                                { id: 'concise', label: 'Concise' },
-                                { id: 'storytelling', label: 'Storytelling' }
-                            ].map((tone) => {
-                                const isActive = selectedTone === tone.id;
                                 return (
                                     <Pressable
-                                        key={tone.id}
+                                        key={prop.id}
                                         style={[
-                                            styles.tonePill,
-                                            isActive ? styles.tonePillActive : styles.tonePillInactive
+                                            styles.selectorCard,
+                                            isSelected && styles.selectorCardActive
                                         ]}
                                         onPress={() => {
                                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                            setSelectedTone(tone.id);
+                                            setSelectedPropertyId(prop.id);
+                                            // Auto-populate the narrative context with remarks/details
+                                            const remarks = prop.data?.publicRemarks || prop.data?.privateRemarks || '';
+                                            const details = `Property details for ${prop.address}:\nPrice: ${prop.data?.price || prop.data?.ListPrice || 'N/A'}\nBeds/Baths: ${prop.data?.beds || prop.data?.BedroomsTotal || 'N/A'}/${prop.data?.bathsFull || prop.data?.BathroomsFull || 'N/A'}\nSqft: ${prop.data?.sqft || prop.data?.LivingArea || 'N/A'}\nRemarks: ${remarks}`;
+                                            setInputFeatures(remarks || details);
                                         }}
                                     >
-                                        <Text
-                                            style={[
-                                                styles.tonePillText,
-                                                isActive ? styles.tonePillTextActive : styles.tonePillTextInactive
-                                            ]}
-                                        >
-                                            {tone.label}
-                                        </Text>
+                                        {firstImage ? (
+                                            <Image source={{ uri: firstImage }} style={styles.selectorCardImage} />
+                                        ) : (
+                                            <View style={styles.selectorCardIconContainer}>
+                                                <MaterialCommunityIcons name="home-outline" size={20} color={colors.textSecondary} />
+                                            </View>
+                                        )}
+                                        <View style={styles.selectorCardTextContainer}>
+                                            <Text style={styles.selectorCardTitle} numberOfLines={1}>{propTitle}</Text>
+                                            <Text style={styles.selectorCardSubtitle} numberOfLines={1}>
+                                                Active Property
+                                            </Text>
+                                        </View>
                                     </Pressable>
                                 );
                             })}
-                        </View>
-                    </View>
+                        </ScrollView>
 
-                    {/* Preview & Multimedia — Dark Output Card */}
-                    <View style={styles.outputCard}>
-                        <View style={styles.outputHeader}>
-                            <View style={styles.outputHeaderLeft}>
-                                <View style={styles.outputDot} />
-                                <Text style={styles.outputHeaderTitle}>PREVIEW & MULTIMEDIA</Text>
-                            </View>
-                            <View style={styles.outputHeaderActions}>
-                                <Pressable
-                                    style={[styles.copyIconBtn, !output && styles.btnDisabledDark]}
-                                    onPress={handleCopy}
-                                    disabled={!output}
-                                >
-                                    <MaterialCommunityIcons
-                                        name={copied ? "check-all" : "content-copy"}
-                                        size={16}
-                                        color={output ? "#94A3B8" : "#334155"}
-                                    />
-                                </Pressable>
-                                <Pressable
-                                    style={[styles.exportBtn, (!output || isSaving) && styles.btnDisabledExport]}
-                                    onPress={handleExportNarrative}
-                                    disabled={!output || isSaving}
-                                >
-                                    {isSaving ? (
-                                        <ActivityIndicator size="small" color="#FFFFFF" />
-                                    ) : (
-                                        <>
-                                            <MaterialCommunityIcons name="content-save-outline" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-                                            <Text style={styles.exportBtnText}>SAVE TO LIBRARY</Text>
-                                        </>
-                                    )}
-                                </Pressable>
+                        {/* Narrative Context Card */}
+                        <View style={styles.inputCard}>
+                            <Text style={styles.cardTitle}>Narrative Context</Text>
+                            <Text style={styles.cardSubtitle}>
+                                Describe the property, key features, architectural style, or the mood you want to convey.
+                            </Text>
+
+                            <TextInput
+                                style={styles.textArea}
+                                multiline
+                                placeholder="e.g. Modern Malibu mansion with sunrise lighting, architectural pool shot. Mention the 5 bed, 7 bath features..."
+                                placeholderTextColor="#94A3B8"
+                                value={inputFeatures}
+                                onChangeText={setInputFeatures}
+                                textAlignVertical="top"
+                            />
+
+                            <Pressable
+                                style={[styles.generateBtn, !inputFeatures.trim() && styles.generateBtnDisabled]}
+                                onPress={handleGenerate}
+                                disabled={isGenerating || !inputFeatures.trim()}
+                            >
+                                {isGenerating ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <Text style={styles.generateBtnText}>Generate</Text>
+                                )}
+                            </Pressable>
+
+                            {/* Tone Selector Pills */}
+                            <View style={styles.toneContainer}>
+                                {[
+                                    { id: 'seo-optimized', label: 'SEO Optimized' },
+                                    { id: 'luxury-tone', label: 'Luxury Tone' },
+                                    { id: 'concise', label: 'Concise' },
+                                    { id: 'storytelling', label: 'Storytelling' }
+                                ].map((tone) => {
+                                    const isActive = selectedTone === tone.id;
+                                    return (
+                                        <Pressable
+                                            key={tone.id}
+                                            style={[
+                                                styles.tonePill,
+                                                isActive ? styles.tonePillActive : styles.tonePillInactive
+                                            ]}
+                                            onPress={() => {
+                                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                                setSelectedTone(tone.id);
+                                            }}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.tonePillText,
+                                                    isActive ? styles.tonePillTextActive : styles.tonePillTextInactive
+                                                ]}
+                                            >
+                                                {tone.label}
+                                            </Text>
+                                        </Pressable>
+                                    );
+                                })}
                             </View>
                         </View>
 
-                        <View style={styles.outputBody}>
-                            {isGenerating ? (
-                                <View style={styles.outputPlaceholder}>
-                                    <ActivityIndicator size="large" color="#0a2341" />
-                                    <Text style={styles.outputPlaceholderTitle}>AI is Synthesizing...</Text>
-                                    <Text style={styles.outputPlaceholderSub}>Crafting your premium narrative</Text>
+                        {/* Preview & Multimedia — Dark Output Card */}
+                        <View style={styles.outputCard}>
+                            <View style={styles.outputHeader}>
+                                <View style={styles.outputHeaderLeft}>
+                                    <View style={styles.outputDot} />
+                                    <Text style={styles.outputHeaderTitle}>PREVIEW & MULTIMEDIA</Text>
                                 </View>
-                            ) : hasGenerated ? (
-                                <ScrollView
-                                    nestedScrollEnabled
-                                    showsVerticalScrollIndicator={false}
-                                    style={styles.outputScrollArea}
-                                >
+                                <View style={styles.outputHeaderActions}>
+                                    <Pressable
+                                        style={[styles.copyIconBtn, !output && styles.btnDisabledDark]}
+                                        onPress={handleCopy}
+                                        disabled={!output}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name={copied ? "check-all" : "content-copy"}
+                                            size={16}
+                                            color={output ? "#94A3B8" : "#334155"}
+                                        />
+                                    </Pressable>
+                                    <Pressable
+                                        style={[styles.exportBtn, (!output || isSaving) && styles.btnDisabledExport]}
+                                        onPress={handleExportNarrative}
+                                        disabled={!output || isSaving}
+                                    >
+                                        {isSaving ? (
+                                            <ActivityIndicator size="small" color="#FFFFFF" />
+                                        ) : (
+                                            <>
+                                                <MaterialCommunityIcons name="content-save-outline" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                                                <Text style={styles.exportBtnText}>SAVE TO LIBRARY</Text>
+                                            </>
+                                        )}
+                                    </Pressable>
+                                </View>
+                            </View>
+
+                            <View style={styles.outputBody}>
+                                {isGenerating ? (
+                                    <View style={styles.outputPlaceholder}>
+                                        <ActivityIndicator size="large" color="#0a2341" />
+                                        <Text style={styles.outputPlaceholderTitle}>AI is Synthesizing...</Text>
+                                        <Text style={styles.outputPlaceholderSub}>Crafting your premium narrative</Text>
+                                    </View>
+                                ) : hasGenerated ? (
                                     <TextInput
-                                        style={styles.outputText}
+                                        style={[styles.outputText, styles.outputScrollArea]}
                                         multiline
                                         value={output}
                                         onChangeText={setOutput}
                                         textAlignVertical="top"
-                                        scrollEnabled={false}
+                                        scrollEnabled={true}
                                     />
-                                </ScrollView>
-                            ) : (
-                                <View style={styles.outputPlaceholder}>
-                                    <MaterialCommunityIcons name="lightning-bolt-outline" size={44} color="#334155" />
-                                    <Text style={styles.outputPlaceholderTitle}>Creative Studio Ready</Text>
-                                    <Text style={styles.outputPlaceholderSub}>Select a context to begin synthesis</Text>
-                                </View>
-                            )}
+                                ) : (
+                                    <View style={styles.outputPlaceholder}>
+                                        <MaterialCommunityIcons name="lightning-bolt-outline" size={44} color="#334155" />
+                                        <Text style={styles.outputPlaceholderTitle}>Creative Studio Ready</Text>
+                                        <Text style={styles.outputPlaceholderSub}>Select a context to begin synthesis</Text>
+                                    </View>
+                                )}
+                            </View>
                         </View>
-                    </View>
-                </ScrollView>
+                    </ScrollView>
+                </KeyboardAvoidingView>
             </LinearGradient>
         </View>
     );
@@ -625,12 +626,11 @@ function getStyles(colors: any) {
             opacity: 0.5,
         },
         outputBody: {
-            flex: 1,
+            height: 300,
             backgroundColor: '#162234',
             borderRadius: 16,
             borderWidth: 1,
             borderColor: '#1E3045',
-            minHeight: 260,
         },
         outputScrollArea: {
             flex: 1,

@@ -3,6 +3,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -164,8 +165,22 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   const [pickerSearch, setPickerSearch] = useState('');
   const [modalOpenKey, setModalOpenKey] = useState(0);
   const hasInitializedRef = React.useRef(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
-  console.log(initialData)
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
 
   useEffect(() => {
     if (!activePicker) {
@@ -346,7 +361,6 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                   style={[
                     styles.input,
                     errors.email && styles.inputError,
-                    isEditing && { backgroundColor: colors.surfaceIcon, color: colors.textMuted }
                   ]}
                   value={email}
                   onChangeText={(t) => { setEmail(t); clearError('email'); }}
@@ -354,7 +368,6 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                   placeholderTextColor={colors.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  editable={!isEditing}
                 />
                 {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
               </View>
@@ -367,28 +380,28 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                   defaultValue={phone}
                   defaultCode={countryCodeISO}
                   layout="second"
-                  disabled={isEditing}
+                  // disabled={isEditing}
                   onChangeText={(t) => { setPhone(t); clearError('phone'); }}
                   containerStyle={[
                     styles.phoneInputWrapper,
                     errors.phone && styles.inputError,
-                    isEditing && { backgroundColor: colors.surfaceIcon }
+                    // isEditing && { backgroundColor: colors.surfaceIcon }
                   ]}
                   textContainerStyle={[
                     styles.phoneTextContainer,
-                    isEditing && { backgroundColor: colors.surfaceIcon }
+                    // isEditing && { backgroundColor: colors.surfaceIcon }
                   ]}
                   textInputStyle={[
                     styles.phoneTextInput,
-                    isEditing && { color: colors.textMuted }
+                    // isEditing && { color: colors.textMuted }
                   ]}
                   codeTextStyle={[
                     styles.phoneCodeText,
-                    isEditing && { color: colors.textMuted }
+                    // isEditing && { color: colors.textMuted }
                   ]}
                   flagButtonStyle={[
                     styles.phoneFlagButton,
-                    isEditing && { backgroundColor: colors.surfaceIcon }
+                    // isEditing && { backgroundColor: colors.surfaceIcon }
                   ]}
                   placeholder="Phone Number"
                   withDarkTheme={theme === 'dark'}
@@ -464,7 +477,10 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
             </ScrollView>
 
             {/* Footer */}
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+            <View style={[
+              styles.footer,
+              { paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 24) }
+            ]}>
               <Pressable style={styles.cancelBtn} onPress={onClose}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </Pressable>

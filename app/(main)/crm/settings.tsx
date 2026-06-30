@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const TABS = ['General', 'Email Delivery', 'Automation Rules', 'Zien Extension'] as const;
+const TABS = ['General', 'Email Delivery', 'Automation Rules'] as const;
 type Tab = (typeof TABS)[number];
 
 const LEAD_DISTRIBUTION_OPTIONS = [
@@ -784,67 +784,7 @@ export default function CRMSettingsScreen() {
           </View>
         )}
 
-        {activeTab === 'Zien Extension' && (
-          <View style={styles.tabPanel}>
-            <View style={styles.premiumCard}>
-              <View style={styles.extensionHero}>
-                <LinearGradient
-                  colors={['rgba(11, 160, 178, 0.2)', 'rgba(11, 160, 178, 0.05)']}
-                  style={styles.extensionIconLarge}
-                >
-                  <MaterialCommunityIcons name="google-chrome" size={40} color="#0a2341" />
-                </LinearGradient>
-                <View style={styles.extensionHeaderInfo}>
-                  <Text style={styles.extensionTitlePremium}>ZIEN AI Chrome Extension</Text>
-                  <View style={styles.phaseBadge}>
-                    <Text style={styles.phaseBadgeText}>PHASE 3 COMPLETED</Text>
-                  </View>
-                </View>
-              </View>
 
-              <Text style={styles.extensionDescriptionPremium}>
-                Bridge the gap between public listing portals and your private CRM. Import leads and listings with a single click.
-              </Text>
-
-              <Pressable style={({ pressed }) => [styles.downloadBtnPremium, pressed && { opacity: 0.9 }]}>
-                <LinearGradient
-                  colors={['#0a2341', '#0891B2']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.downloadGradiant}
-                >
-                  <MaterialCommunityIcons name="download" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.downloadBtnTextPremium}>Download Extension</Text>
-                </LinearGradient>
-              </Pressable>
-
-              <View style={styles.howItWorksPremium}>
-                <Text style={styles.howTitlePremium}>How it Works</Text>
-
-                <View style={styles.stepRowPremium}>
-                  <View style={styles.stepNumber}>
-                    <Text style={styles.stepNumberText}>1</Text>
-                  </View>
-                  <Text style={styles.stepTextPremium}>Search any listing on Zillow or Redfin.</Text>
-                </View>
-
-                <View style={styles.stepRowPremium}>
-                  <View style={styles.stepNumber}>
-                    <Text style={styles.stepNumberText}>2</Text>
-                  </View>
-                  <Text style={styles.stepTextPremium}>Click "Add to Zien" in the Extension panel.</Text>
-                </View>
-
-                <View style={styles.stepRowPremium}>
-                  <View style={styles.stepNumber}>
-                    <Text style={styles.stepNumberText}>3</Text>
-                  </View>
-                  <Text style={styles.stepTextPremium}>Zien dynamically reads the browser tab for effortless integration.</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
       </ScrollView>
 
       {/* Milestone Modal */}
@@ -1670,112 +1610,7 @@ function getStyles(colors: any, theme: string) {
     premiumSegmentBtnTextActive: {
       color: '#FFFFFF',
     },
-    extensionHero: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 16,
-      marginBottom: 20,
-    },
-    extensionIconLarge: {
-      width: 72,
-      height: 72,
-      borderRadius: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: 'rgba(11, 160, 178, 0.2)',
-    },
-    extensionHeaderInfo: {
-      flex: 1,
-    },
-    extensionTitlePremium: {
-      fontSize: 18,
-      fontWeight: '900',
-      color: colors.textPrimary,
-      letterSpacing: -0.4,
-    },
-    phaseBadge: {
-      alignSelf: 'flex-start',
-      backgroundColor: 'rgba(11, 160, 178, 0.1)',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
-      marginTop: 6,
-    },
-    phaseBadgeText: {
-      fontSize: 10,
-      fontWeight: '900',
-      color: '#0a2341',
-      letterSpacing: 0.5,
-    },
-    extensionDescriptionPremium: {
-      fontSize: 15,
-      color: colors.textSecondary,
-      lineHeight: 22,
-      marginBottom: 24,
-      fontWeight: '500',
-    },
-    downloadBtnPremium: {
-      height: 56,
-      borderRadius: 16,
-      overflow: 'hidden',
-      marginBottom: 32,
-      shadowColor: '#0a2341',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    downloadGradiant: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    downloadBtnTextPremium: {
-      fontSize: 16,
-      fontWeight: '800',
-      color: '#FFFFFF',
-    },
-    howItWorksPremium: {
-      backgroundColor: 'rgba(148, 163, 184, 0.05)',
-      borderRadius: 20,
-      padding: 20,
-    },
-    howTitlePremium: {
-      fontSize: 13,
-      fontWeight: '900',
-      color: colors.textPrimary,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginBottom: 20,
-    },
-    stepRowPremium: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 16,
-      marginBottom: 16,
-    },
-    stepNumber: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: '#0a2341',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    stepNumberText: {
-      fontSize: 14,
-      fontWeight: '900',
-      color: '#FFFFFF',
-    },
-    stepTextPremium: {
-      flex: 1,
-      fontSize: 14,
-      color: colors.textSecondary,
-      fontWeight: '600',
-      lineHeight: 20,
-    },
+
     modalHeaderRow: {
       flexDirection: 'row',
       alignItems: 'center',

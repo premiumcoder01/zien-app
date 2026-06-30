@@ -7,10 +7,11 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Dimensions,
+  FlatList,
   Image,
   Modal,
   Pressable,
@@ -96,6 +97,17 @@ export default function AiContentScreen() {
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [deleteItemAddress, setDeleteItemAddress] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'tools' | 'library'>('tools');
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setToastVisible(true);
+    setTimeout(() => {
+      setToastVisible(false);
+    }, 3000);
+  };
 
   // Fetch AI content helper
   const fetchLibrary = useCallback(async (isRefresh = false) => {
@@ -350,152 +362,203 @@ export default function AiContentScreen() {
         colors={colors.backgroundGradient as any}
         style={[styles.background, { paddingTop: insets.top }]}
       >
+        {toastVisible && (
+          <View style={[styles.toastContainer, { top: insets.top + 8 }]}>
+            <MaterialCommunityIcons name="check-circle" size={18} color="#FFFFFF" />
+            <Text style={styles.toastText}>{toastMessage}</Text>
+          </View>
+        )}
+
         <PageHeader
           title="AI Sweep"
           subtitle="Your 24/7 autonomous marketing engine for the modern real estate professional."
           onBack={() => router.back()}
         />
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => fetchLibrary(true)}
-              tintColor={colors.accentTeal}
-              colors={[colors.accentTeal]}
-            />
-          }
-        >
-          {/* Featured Virtual Staging Tool */}
+        {/* Tab Switcher */}
+        <View style={styles.tabContainer}>
           <Pressable
-            style={styles.featuredCard}
-            onPress={() => router.push('/(main)/ai-content/virtual-staging')}
+            style={[styles.tabButton, activeTab === 'tools' && styles.tabButtonActive]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setActiveTab('tools');
+            }}
           >
-            <LinearGradient
-              colors={['#083344', '#0891B2']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.featuredGradient}
-            >
-              <View style={styles.featuredRight}>
-                {/* Side-by-Side Images */}
-                <Image
-                  source={{ uri: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=400&q=80' }}
-                  style={styles.halfImage}
-                />
-                <Image
-                  source={{ uri: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=400&q=80' }}
-                  style={styles.halfImage}
-                />
-                <View style={styles.labelBefore}><Text style={styles.labelText}>Before</Text></View>
-                <View style={styles.labelAfter}><Text style={styles.labelText}>After</Text></View>
-              </View>
-
-              <View style={styles.featuredLeft}>
-                <Text style={styles.featuredBadge}>Premiere Innovation</Text>
-                <Text style={styles.featuredTitle}>Virtual Staging</Text>
-                <Text style={styles.featuredSubtitle}>
-                  Turn cold, empty architectural shells into warm, hyper-realistic spaces.
-                </Text>
-                <View style={styles.tryBtn}>
-                  <Text style={styles.tryBtnText}>Try this</Text>
-                </View>
-              </View>
-            </LinearGradient>
+            <MaterialCommunityIcons
+              name="lightning-bolt-outline"
+              size={16}
+              color={activeTab === 'tools' ? '#FFFFFF' : colors.textSecondary}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.tabButtonText, activeTab === 'tools' && styles.tabButtonTextActive]}>AI Engines</Text>
           </Pressable>
+          <Pressable
+            style={[styles.tabButton, activeTab === 'library' && styles.tabButtonActive]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setActiveTab('library');
+            }}
+          >
+            <MaterialCommunityIcons
+              name="folder-multiple-outline"
+              size={16}
+              color={activeTab === 'library' ? '#FFFFFF' : colors.textSecondary}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.tabButtonText, activeTab === 'library' && styles.tabButtonTextActive]}>Content Library</Text>
+          </Pressable>
+        </View>
 
-          {/* Strategic Content Engines Section */}
-          <Text style={styles.sectionTitle}>Strategic Content Engines</Text>
-          <View style={styles.toolsGrid}>
-            {contentTools.map((tool) => (
-              <Pressable
-                key={tool.id}
-                style={styles.toolCard}
-                onPress={() => {
-                  if (tool.id === 'property-description') router.push('/(main)/ai-content/property-description');
-                  else if (tool.id === 'social-media') router.push('/(main)/ai-content/social-media-posts');
-                  else if (tool.id === 'email-templates') router.push('/(main)/ai-content/email-templates');
-                  else if (tool.id === 'image-enhancer') router.push('/(main)/ai-content/image-enhancer');
-                  else if (tool.id === 'presentation-builder') router.push('/(main)/ai-content/presentation-builder');
-                }}
+        {activeTab === 'tools' ? (
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Featured Virtual Staging Tool */}
+            <Pressable
+              style={styles.featuredCard}
+              onPress={() => router.push('/(main)/ai-content/virtual-staging')}
+            >
+              <LinearGradient
+                colors={['#083344', '#0891B2']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.featuredGradient}
               >
-                <View style={[styles.toolIconBox, { backgroundColor: `${tool.color}10` }]}>
-                  <MaterialCommunityIcons name={tool.icon as any} size={22} color={tool.color} />
+                <View style={styles.featuredRight}>
+                  {/* Side-by-Side Images */}
+                  <Image
+                    source={{ uri: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=400&q=80' }}
+                    style={styles.halfImage}
+                  />
+                  <Image
+                    source={{ uri: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=400&q=80' }}
+                    style={styles.halfImage}
+                  />
+                  <View style={styles.labelBefore}><Text style={styles.labelText}>Before</Text></View>
+                  <View style={styles.labelAfter}><Text style={styles.labelText}>After</Text></View>
                 </View>
-                <View style={styles.toolContent}>
-                  <Text style={styles.toolTitle}>{tool.title}</Text>
-                  <Text style={styles.toolDesc} numberOfLines={2}>{tool.description}</Text>
+
+                <View style={styles.featuredLeft}>
+                  <Text style={styles.featuredBadge}>Premiere Innovation</Text>
+                  <Text style={styles.featuredTitle}>Virtual Staging</Text>
+                  <Text style={styles.featuredSubtitle}>
+                    Turn cold, empty architectural shells into warm, hyper-realistic spaces.
+                  </Text>
+                  <View style={styles.tryBtn}>
+                    <Text style={styles.tryBtnText}>Try this</Text>
+                  </View>
                 </View>
-              </Pressable>
-            ))}
-          </View>
+              </LinearGradient>
+            </Pressable>
 
-          {/* Library Section */}
-          <View style={styles.libraryHeader}>
-            <Text style={styles.sectionTitle}>Content Library</Text>
-
-            <View style={styles.searchBar}>
-              <MaterialCommunityIcons name="magnify" size={18} color="#94A3B8" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search your library..."
-                placeholderTextColor="#94A3B8"
-                value={search}
-                onChangeText={setSearch}
-              />
-              {search.length > 0 && (
-                <Pressable onPress={() => setSearch('')}>
-                  <MaterialCommunityIcons name="close-circle" size={18} color="#94A3B8" />
+            {/* Strategic Content Engines Section */}
+            <Text style={styles.sectionTitle}>Strategic content engines</Text>
+            <View style={styles.toolsGrid}>
+              {contentTools.map((tool) => (
+                <Pressable
+                  key={tool.id}
+                  style={styles.toolCard}
+                  onPress={() => {
+                    if (tool.id === 'property-description') router.push('/(main)/ai-content/property-description');
+                    else if (tool.id === 'social-media') router.push('/(main)/ai-content/social-media-posts');
+                    else if (tool.id === 'email-templates') router.push('/(main)/ai-content/email-templates');
+                    else if (tool.id === 'image-enhancer') router.push('/(main)/ai-content/image-enhancer');
+                    else if (tool.id === 'presentation-builder') router.push('/(main)/ai-content/presentation-builder');
+                  }}
+                >
+                  <View style={[styles.toolIconBox, { backgroundColor: `${tool.color}10` }]}>
+                    <MaterialCommunityIcons name={tool.icon as any} size={22} color={tool.color} />
+                  </View>
+                  <View style={styles.toolContent}>
+                    <Text style={styles.toolTitle}>{tool.title}</Text>
+                    <Text style={styles.toolDesc} numberOfLines={2}>{tool.description}</Text>
+                  </View>
                 </Pressable>
-              )}
+              ))}
             </View>
-          </View>
-
-          {/* Library Content */}
-          <View style={styles.libraryList}>
-            {loading ? (
-              renderSkeletons()
-            ) : error ? (
-              <View style={styles.errorContainer}>
-                <MaterialCommunityIcons name="alert-circle-outline" size={40} color={colors.danger} />
-                <Text style={styles.errorText}>{error}</Text>
-                <Pressable style={styles.retryBtn} onPress={() => fetchLibrary()}>
-                  <Text style={styles.retryBtnText}>Retry</Text>
-                </Pressable>
+          </ScrollView>
+        ) : (
+          <View style={styles.libraryContainer}>
+            {/* Fixed Search Area */}
+            <View style={styles.fixedSearchArea}>
+              <View style={styles.libraryHeader}>
+                <Text style={styles.sectionTitle}>Content library</Text>
               </View>
-            ) : filteredEntries.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <View style={styles.emptyIconCircle}>
-                  <MaterialCommunityIcons name="folder-open-outline" size={40} color={colors.textMuted} />
-                </View>
-                <Text style={styles.emptyTitle}>No content found</Text>
-                <Text style={styles.emptySubtitle}>
-                  {search
-                    ? "We couldn't find matches for your search. Try adjusting terms."
-                    : "Your autonomous library is empty. Generate content to see it listed here!"}
-                </Text>
-                {!search && (
-                  <Pressable
-                    style={styles.emptyActionBtn}
-                    onPress={() => router.push('/(main)/ai-content/property-description')}
-                  >
-                    <Text style={styles.emptyActionBtnText}>Generate listing description</Text>
+
+              <View style={styles.searchBar}>
+                <MaterialCommunityIcons name="magnify" size={18} color="#94A3B8" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search your library..."
+                  placeholderTextColor="#94A3B8"
+                  value={search}
+                  onChangeText={setSearch}
+                />
+                {search.length > 0 && (
+                  <Pressable onPress={() => setSearch('')}>
+                    <MaterialCommunityIcons name="close-circle" size={18} color="#94A3B8" />
                   </Pressable>
                 )}
               </View>
-            ) : (
-              filteredEntries.map((item) => {
-                const details = getTypeDetails(item.type);
+            </View>
 
+            {/* Scrollable Library List */}
+            <FlatList
+              data={filteredEntries}
+              keyExtractor={(item) => item.id.toString()}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[styles.libraryScrollContent, { paddingBottom: insets.bottom + 300 }]}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => fetchLibrary(true)}
+                  tintColor={colors.accentTeal}
+                  colors={[colors.accentTeal]}
+                />
+              }
+              ListEmptyComponent={() => (
+                loading ? (
+                  <View style={{ gap: 16, marginTop: 10 }}>{renderSkeletons()}</View>
+                ) : error ? (
+                  <View style={styles.errorContainer}>
+                    <MaterialCommunityIcons name="alert-circle-outline" size={40} color={colors.danger} />
+                    <Text style={styles.errorText}>{error}</Text>
+                    <Pressable style={styles.retryBtn} onPress={() => fetchLibrary()}>
+                      <Text style={styles.retryBtnText}>Retry</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={styles.emptyContainer}>
+                    <View style={styles.emptyIconCircle}>
+                      <MaterialCommunityIcons name="folder-open-outline" size={40} color={colors.textMuted} />
+                    </View>
+                    <Text style={styles.emptyTitle}>No content found</Text>
+                    <Text style={styles.emptySubtitle}>
+                      {search
+                        ? "We couldn't find matches for your search. Try adjusting terms."
+                        : "Your autonomous library is empty. Generate content to see it listed here!"}
+                    </Text>
+                    {!search && (
+                      <Pressable
+                        style={styles.emptyActionBtn}
+                        onPress={() => router.push('/(main)/ai-content/property-description')}
+                      >
+                        <Text style={styles.emptyActionBtnText}>Generate listing description</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )
+              )}
+              renderItem={({ item }) => {
+                const details = getTypeDetails(item.type);
                 return (
                   <Pressable
                     key={item.id}
                     style={({ pressed }) => [
                       styles.contentCard,
-                      { borderLeftWidth: 4, borderLeftColor: details.color },
+                      { borderLeftWidth: 4, borderLeftColor: details.color, marginBottom: 16 },
                       pressed && { opacity: 0.95, transform: [{ scale: 0.99 }] }
                     ]}
                     onPress={() => {
@@ -595,10 +658,10 @@ export default function AiContentScreen() {
                     </View>
                   </Pressable>
                 );
-              })
-            )}
+              }}
+            />
           </View>
-        </ScrollView>
+        )}
       </LinearGradient>
       {/* Premium Preview Modal / Sheet */}
       {selectedItem && (
@@ -653,7 +716,7 @@ export default function AiContentScreen() {
               </View>
 
               <Text style={styles.deleteModalTitle}>Confirm Deletion</Text>
-              
+
               <Text style={styles.deleteModalText}>
                 Are you sure you want to delete this architectural narrative for{' '}
                 <Text style={styles.deleteModalTextBold}>
@@ -678,6 +741,7 @@ export default function AiContentScreen() {
                     // Optimistic update
                     setEntries((prev) => prev.filter((item) => item.id.toString() !== id));
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    showToast('Content deleted successfully.');
 
                     if (accessToken) {
                       try {
@@ -688,7 +752,7 @@ export default function AiContentScreen() {
                     }
                   }}
                 >
-                  <Text style={styles.deleteConfirmBtnText}>Delete Asset</Text>
+                  <Text style={styles.deleteConfirmBtnText}>Delete</Text>
                 </Pressable>
               </View>
             </View>
@@ -705,12 +769,55 @@ function getStyles(colors: any) {
     background: { flex: 1 },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 20, paddingTop: 10 },
+    tabContainer: {
+      flexDirection: 'row',
+      backgroundColor: colors.surfaceSoft || 'rgba(0,0,0,0.03)',
+      borderRadius: 12,
+      padding: 4,
+      marginHorizontal: 20,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    tabButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+      borderRadius: 9,
+    },
+    tabButtonActive: {
+      backgroundColor: colors.accentTeal || '#0D9488',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    tabButtonText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    tabButtonTextActive: {
+      color: '#FFFFFF',
+    },
+    libraryContainer: {
+      flex: 1,
+    },
+    fixedSearchArea: {
+      paddingHorizontal: 20,
+      paddingBottom: 12,
+    },
+    libraryScrollContent: {
+      paddingHorizontal: 20,
+    },
     sectionTitle: {
       fontSize: 14,
       fontWeight: '900',
       color: colors.textPrimary,
       marginBottom: 16,
-      textTransform: 'uppercase',
       letterSpacing: 0.8,
     },
     featuredCard: {
@@ -839,7 +946,7 @@ function getStyles(colors: any) {
       lineHeight: 16,
     },
     libraryHeader: {
-      marginBottom: 16,
+      // marginBottom: 16,
     },
     searchBar: {
       flexDirection: 'row',
@@ -1287,6 +1394,29 @@ function getStyles(colors: any) {
       fontWeight: '700',
       color: '#FFFFFF',
       fontSize: 14,
+    },
+    toastContainer: {
+      position: 'absolute',
+      left: 20,
+      right: 20,
+      zIndex: 9999,
+      backgroundColor: '#10B981',
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      shadowColor: '#10B981',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    toastText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '700',
     },
   });
 }

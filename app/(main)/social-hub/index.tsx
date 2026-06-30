@@ -128,9 +128,9 @@ export default function SocialHubScreen() {
     : '—';
   const bestPlatformIcon: any = bestPlatformKey === 'instagram' ? 'instagram'
     : bestPlatformKey === 'facebook' ? 'facebook'
-    : bestPlatformKey === 'linkedin' ? 'linkedin'
-    : bestPlatformKey === 'tiktok' ? 'music-note'
-    : 'trophy-outline';
+      : bestPlatformKey === 'linkedin' ? 'linkedin'
+        : bestPlatformKey === 'tiktok' ? 'music-note'
+          : 'trophy-outline';
 
   const statCards = [
     {
@@ -193,6 +193,13 @@ export default function SocialHubScreen() {
                     <View style={styles.statIconBox}>
                       <MaterialCommunityIcons name={card.icon} size={16} color={theme === 'dark' ? '#FFFFFF' : colors.accentTeal} />
                     </View>
+                    <Text style={{
+                      fontSize: 10,
+                      fontWeight: '800',
+                      color: metaColor,
+                    }}>
+                      {card.meta}
+                    </Text>
                   </View>
                   <View style={styles.statCardBody}>
                     <Text style={styles.statLabelPremium} numberOfLines={1}>
@@ -208,13 +215,7 @@ export default function SocialHubScreen() {
                       >
                         {card.value}
                       </Text>
-                      <Text style={{
-                        fontSize: 11,
-                        fontWeight: '800',
-                        color: metaColor,
-                      }}>
-                        {card.meta}
-                      </Text>
+
                     </View>
                   </View>
                 </View>
@@ -416,7 +417,7 @@ function getStyles(colors: any, theme: string) {
     sectionLinkPremium: { fontSize: 13, fontWeight: '800', color: accentColor },
     statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
     statCardPremium: { width: (SCREEN_WIDTH - 52) / 2, backgroundColor: colors.cardBackground, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: colors.cardBorder, flexDirection: 'column', alignItems: 'stretch', gap: 12 },
-    statCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    statCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     statCardBody: { gap: 4 },
     statIconBox: { width: 32, height: 32, borderRadius: 8, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' },
     statLabelPremium: { fontSize: 9, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.3 },
