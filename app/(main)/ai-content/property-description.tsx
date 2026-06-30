@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { generateAiText, saveAiContent } from '@/services/aiContentService';
+import { generateAiText, saveAiContent, updateAiContent } from '@/services/aiContentService';
 import { getProperties, RawPropertyItem } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Dimensions,
     Image,
     Keyboard,
     Pressable,
@@ -24,6 +25,12 @@ import {
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
+const STYLE_LABELS = ['SEO Optimized', 'Luxury Tone', 'Concise', 'Storytelling'];
+
+const MOCK_IMAGE = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80';
+
 export default function PropertyDescriptionLabScreen() {
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
@@ -31,7 +38,7 @@ export default function PropertyDescriptionLabScreen() {
 
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { prefill, content, address } = useLocalSearchParams<{ prefill?: string; content?: string; address?: string }>();
+    const { id, prefill, content, address } = useLocalSearchParams<{ id?: string; prefill?: string; content?: string; address?: string }>();
 
     // Generator states
     const [inputFeatures, setInputFeatures] = useState(prefill || '');
@@ -42,6 +49,9 @@ export default function PropertyDescriptionLabScreen() {
     const [isSaving, setIsSaving] = useState(false);
     const [selectedTone, setSelectedTone] = useState('seo-optimized');
 
+    // Sub-tab workspace view controller
+    const [activeViewTab, setActiveViewTab] = useState<'form' | 'preview'>('form');
+
     // Properties list states
     const [properties, setProperties] = useState<RawPropertyItem[]>([]);
     const [propertiesLoading, setPropertiesLoading] = useState(true);
@@ -49,7 +59,6 @@ export default function PropertyDescriptionLabScreen() {
 
     // Scroll ref
     const scrollRef = useRef<ScrollView>(null);
-
 
     // Fetch properties helper
     const fetchProperties = useCallback(async () => {
@@ -88,17 +97,17 @@ export default function PropertyDescriptionLabScreen() {
         if (content) {
             setOutput(content);
             setHasGenerated(true);
+            setActiveViewTab('preview'); // Instantly view preview when editing
         }
     }, [prefill, content]);
 
-    // Generate narrative via real AI API
+    // Generate narrative via AI API
     const handleGenerate = async () => {
         if (!inputFeatures.trim() || !accessToken) return;
         Keyboard.dismiss();
 
         setIsGenerating(true);
-        setHasGenerated(false);
-        setOutput('');
+        setActiveViewTab('preview'); // Instantly go to preview loader
 
         try {
             let promptFeatures = inputFeatures.trim();
@@ -122,7 +131,7 @@ export default function PropertyDescriptionLabScreen() {
             }
         } catch (err: any) {
             console.error('[PropertyDescription] Generation failed:', err);
-            setHasGenerated(false);
+            setActiveViewTab('form'); // Fallback to form tab on failure
             Alert.alert('Generation Failed', err?.message || 'Could not generate narrative. Please try again.');
         } finally {
             setIsGenerating(false);
@@ -144,17 +153,20 @@ export default function PropertyDescriptionLabScreen() {
         setIsSaving(true);
         try {
             const prop = selectedPropertyId !== 'custom' ? properties.find((p) => p.id === selectedPropertyId) : null;
-            await saveAiContent(
-                {
-                    type: 'property-description',
-                    content: output,
-                    metadata: {
-                        input_details: inputFeatures || '',
-                        address: prop ? prop.address : '',
-                    },
+            const payload = {
+                type: 'property-description',
+                content: output,
+                metadata: {
+                    input_details: inputFeatures || '',
+                    address: prop ? prop.address : '',
                 },
-                accessToken
-            );
+            };
+
+            if (id) {
+                await updateAiContent(id, payload, accessToken);
+            } else {
+                await saveAiContent(payload, accessToken);
+            }
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             Alert.alert(
                 'Success',
@@ -163,7 +175,7 @@ export default function PropertyDescriptionLabScreen() {
                     {
                         text: 'OK',
                         onPress: () => {
-                            router.back()
+                            router.replace('/(main)/ai-content');
                         }
                     }
                 ]
@@ -174,6 +186,86 @@ export default function PropertyDescriptionLabScreen() {
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const renderListingPreview = () => {
+        const prop = selectedPropertyId !== 'custom' ? properties.find((p) => p.id === selectedPropertyId) : null;
+        const firstImage = prop ? (prop.data?.Media?.[0]?.MediaURL || prop.data?.user_images?.[0]) : null;
+        const activeImage = firstImage || MOCK_IMAGE;
+        
+        const propertyTitle = prop ? prop.address.split(',')[0] : 'Luxury Estate Listing';
+        const propertyLocation = prop ? prop.address.split(',').slice(1).join(',').trim() : 'Premium Real Estate';
+        const price = prop?.data?.price || prop?.data?.ListPrice || '$1,295,000';
+        const beds = prop?.data?.beds || prop?.data?.BedroomsTotal || '4';
+        const baths = prop?.data?.bathsFull || prop?.data?.BathroomsFull || '3.5';
+        const sqft = prop?.data?.sqft || prop?.data?.LivingArea || '3,200';
+
+        if (isGenerating) {
+            return (
+                <View style={styles.previewLoadingContainer}>
+                    <ActivityIndicator size="large" color={colors.accentTeal} />
+                    <Text style={styles.previewLoadingText}>Synthesizing property description...</Text>
+                </View>
+            );
+        }
+
+        if (!output.trim()) {
+            return (
+                <View style={styles.previewPlaceholderContainer}>
+                    <View style={styles.previewPlaceholderIcon}>
+                        <MaterialCommunityIcons name="lightning-bolt-outline" size={32} color={colors.textMuted} />
+                    </View>
+                    <Text style={styles.previewPlaceholderTitle}>No description generated yet</Text>
+                    <Text style={styles.previewPlaceholderDesc}>
+                        Go to the "Configure Post" tab to generate a custom property description.
+                    </Text>
+                    <Pressable
+                        style={styles.previewGenerateShortcutBtn}
+                        onPress={() => setActiveViewTab('form')}
+                    >
+                        <Text style={styles.previewGenerateShortcutBtnText}>Configure & Generate</Text>
+                    </Pressable>
+                </View>
+            );
+        }
+
+        return (
+            <View style={styles.listingCard}>
+                {/* Image Section with Stats Overlay */}
+                <View style={styles.listingImageContainer}>
+                    <Image source={{ uri: activeImage }} style={styles.listingImage} />
+                    <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.85)']}
+                        style={styles.listingStatsOverlay}
+                    >
+                        <Text style={styles.listingPrice}>{typeof price === 'number' ? `$${price.toLocaleString()}` : price}</Text>
+                        <Text style={styles.listingSpecs}>
+                            {beds} Beds  •  {baths} Baths  •  {sqft} Sq Ft
+                        </Text>
+                    </LinearGradient>
+                </View>
+
+                {/* Details Section */}
+                <View style={styles.listingDetails}>
+                    <Text style={styles.listingAddressTitle}>{propertyTitle}</Text>
+                    <Text style={styles.listingAddressSub}>{propertyLocation}</Text>
+                    
+                    <View style={styles.listingDivider} />
+                    
+                    <Text style={styles.listingSectionTitle}>Property Overview</Text>
+                    
+                    {/* Editable Description Text Input */}
+                    <TextInput
+                        style={styles.listingDescriptionInput}
+                        multiline
+                        scrollEnabled={false}
+                        value={output}
+                        onChangeText={setOutput}
+                        textAlignVertical="top"
+                    />
+                </View>
+            </View>
+        );
     };
 
     return (
@@ -188,6 +280,56 @@ export default function PropertyDescriptionLabScreen() {
                     onBack={() => router.back()}
                 />
 
+                {/* Sub-tab view switcher */}
+                <View style={styles.viewTabContainer}>
+                    <Pressable
+                        style={[
+                            styles.viewTabButton,
+                            activeViewTab === 'form' && styles.viewTabButtonActive,
+                        ]}
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setActiveViewTab('form');
+                        }}
+                    >
+                        <MaterialCommunityIcons
+                            name="pencil-box-outline"
+                            size={16}
+                            color={activeViewTab === 'form' ? '#FFFFFF' : colors.textSecondary}
+                            style={{ marginRight: 6 }}
+                        />
+                        <Text style={[
+                            styles.viewTabButtonText,
+                            activeViewTab === 'form' && styles.viewTabButtonTextActive,
+                        ]}>
+                            Configure Post
+                        </Text>
+                    </Pressable>
+                    <Pressable
+                        style={[
+                            styles.viewTabButton,
+                            activeViewTab === 'preview' && styles.viewTabButtonActive,
+                        ]}
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setActiveViewTab('preview');
+                        }}
+                    >
+                        <MaterialCommunityIcons
+                            name="eye-outline"
+                            size={16}
+                            color={activeViewTab === 'preview' ? '#FFFFFF' : colors.textSecondary}
+                            style={{ marginRight: 6 }}
+                        />
+                        <Text style={[
+                            styles.viewTabButtonText,
+                            activeViewTab === 'preview' && styles.viewTabButtonTextActive,
+                        ]}>
+                            Live Preview
+                        </Text>
+                    </Pressable>
+                </View>
+
                 <KeyboardAvoidingView
                     behavior="padding"
                     style={{ flex: 1 }}
@@ -195,204 +337,207 @@ export default function PropertyDescriptionLabScreen() {
                     <ScrollView
                         ref={scrollRef}
                         style={styles.scroll}
-                        contentContainerStyle={[styles.scrollContent, { paddingBottom: 400 }]}
+                        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
                         showsVerticalScrollIndicator={false}
                         keyboardShouldPersistTaps="handled"
-                        keyboardDismissMode='on-drag'
+                        keyboardDismissMode="on-drag"
                     >
-                        {/* Horizontal Property Selector */}
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            style={styles.propertySelectorScroll}
-                            contentContainerStyle={styles.propertySelectorContent}
-                        >
-                            {/* CUSTOM INPUT Card */}
-                            <Pressable
-                                style={[
-                                    styles.selectorCard,
-                                    selectedPropertyId === 'custom' && styles.selectorCardActive
-                                ]}
-                                onPress={() => {
-                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                    setSelectedPropertyId('custom');
-                                    setInputFeatures(prefill || '');
-                                }}
-                            >
-                                <View style={styles.selectorCardIconContainer}>
-                                    <MaterialCommunityIcons name="cube-outline" size={20} color={colors.accentTeal} />
-                                </View>
-                                <View style={styles.selectorCardTextContainer}>
-                                    <Text style={styles.selectorCardTitle} numberOfLines={1}>CUSTOM INPUT</Text>
-                                    <Text style={styles.selectorCardSubtitle}>Manual Entry</Text>
-                                </View>
-                            </Pressable>
-
-                            {/* Property Cards */}
-                            {properties.map((prop) => {
-                                const isSelected = selectedPropertyId === prop.id;
-                                const firstImage = prop.data?.Media?.[0]?.MediaURL || prop.data?.user_images?.[0];
-                                const propTitle = prop.address.split(',')[0];
-
-                                return (
+                        {activeViewTab === 'form' ? (
+                            <>
+                                {/* Horizontal Property Selector */}
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    style={styles.propertySelectorScroll}
+                                    contentContainerStyle={styles.propertySelectorContent}
+                                >
+                                    {/* CUSTOM INPUT Card */}
                                     <Pressable
-                                        key={prop.id}
                                         style={[
                                             styles.selectorCard,
-                                            isSelected && styles.selectorCardActive
+                                            selectedPropertyId === 'custom' && styles.selectorCardActive
                                         ]}
                                         onPress={() => {
                                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                            setSelectedPropertyId(prop.id);
-                                            // Auto-populate the narrative context with remarks/details
-                                            const remarks = prop.data?.publicRemarks || prop.data?.privateRemarks || '';
-                                            const details = `Property details for ${prop.address}:\nPrice: ${prop.data?.price || prop.data?.ListPrice || 'N/A'}\nBeds/Baths: ${prop.data?.beds || prop.data?.BedroomsTotal || 'N/A'}/${prop.data?.bathsFull || prop.data?.BathroomsFull || 'N/A'}\nSqft: ${prop.data?.sqft || prop.data?.LivingArea || 'N/A'}\nRemarks: ${remarks}`;
-                                            setInputFeatures(remarks || details);
+                                            setSelectedPropertyId('custom');
+                                            setInputFeatures(prefill || '');
                                         }}
                                     >
-                                        {firstImage ? (
-                                            <Image source={{ uri: firstImage }} style={styles.selectorCardImage} />
-                                        ) : (
-                                            <View style={styles.selectorCardIconContainer}>
-                                                <MaterialCommunityIcons name="home-outline" size={20} color={colors.textSecondary} />
-                                            </View>
-                                        )}
+                                        <View style={styles.selectorCardIconContainer}>
+                                            <MaterialCommunityIcons name="cube-outline" size={20} color={colors.accentTeal} />
+                                        </View>
                                         <View style={styles.selectorCardTextContainer}>
-                                            <Text style={styles.selectorCardTitle} numberOfLines={1}>{propTitle}</Text>
-                                            <Text style={styles.selectorCardSubtitle} numberOfLines={1}>
-                                                Active Property
-                                            </Text>
+                                            <Text style={styles.selectorCardTitle} numberOfLines={1}>CUSTOM INPUT</Text>
+                                            <Text style={styles.selectorCardSubtitle}>Manual Entry</Text>
                                         </View>
                                     </Pressable>
-                                );
-                            })}
-                        </ScrollView>
 
-                        {/* Narrative Context Card */}
-                        <View style={styles.inputCard}>
-                            <Text style={styles.cardTitle}>Narrative Context</Text>
-                            <Text style={styles.cardSubtitle}>
-                                Describe the property, key features, architectural style, or the mood you want to convey.
-                            </Text>
+                                    {/* Property Cards */}
+                                    {properties.map((prop) => {
+                                        const isSelected = selectedPropertyId === prop.id;
+                                        const firstImage = prop.data?.Media?.[0]?.MediaURL || prop.data?.user_images?.[0];
+                                        const propTitle = prop.address.split(',')[0];
 
-                            <TextInput
-                                style={styles.textArea}
-                                multiline
-                                placeholder="e.g. Modern Malibu mansion with sunrise lighting, architectural pool shot. Mention the 5 bed, 7 bath features..."
-                                placeholderTextColor="#94A3B8"
-                                value={inputFeatures}
-                                onChangeText={setInputFeatures}
-                                textAlignVertical="top"
-                            />
-
-                            <Pressable
-                                style={[styles.generateBtn, !inputFeatures.trim() && styles.generateBtnDisabled]}
-                                onPress={handleGenerate}
-                                disabled={isGenerating || !inputFeatures.trim()}
-                            >
-                                {isGenerating ? (
-                                    <ActivityIndicator size="small" color="#FFFFFF" />
-                                ) : (
-                                    <Text style={styles.generateBtnText}>Generate</Text>
-                                )}
-                            </Pressable>
-
-                            {/* Tone Selector Pills */}
-                            <View style={styles.toneContainer}>
-                                {[
-                                    { id: 'seo-optimized', label: 'SEO Optimized' },
-                                    { id: 'luxury-tone', label: 'Luxury Tone' },
-                                    { id: 'concise', label: 'Concise' },
-                                    { id: 'storytelling', label: 'Storytelling' }
-                                ].map((tone) => {
-                                    const isActive = selectedTone === tone.id;
-                                    return (
-                                        <Pressable
-                                            key={tone.id}
-                                            style={[
-                                                styles.tonePill,
-                                                isActive ? styles.tonePillActive : styles.tonePillInactive
-                                            ]}
-                                            onPress={() => {
-                                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                                setSelectedTone(tone.id);
-                                            }}
-                                        >
-                                            <Text
+                                        return (
+                                            <Pressable
+                                                key={prop.id}
                                                 style={[
-                                                    styles.tonePillText,
-                                                    isActive ? styles.tonePillTextActive : styles.tonePillTextInactive
+                                                    styles.selectorCard,
+                                                    isSelected && styles.selectorCardActive
                                                 ]}
+                                                onPress={() => {
+                                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                                    setSelectedPropertyId(prop.id);
+                                                    // Auto-populate the narrative context with remarks/details
+                                                    const remarks = prop.data?.publicRemarks || prop.data?.privateRemarks || '';
+                                                    const details = `Property details for ${prop.address}:\nPrice: ${prop.data?.price || prop.data?.ListPrice || 'N/A'}\nBeds/Baths: ${prop.data?.beds || prop.data?.BedroomsTotal || 'N/A'}/${prop.data?.bathsFull || prop.data?.BathroomsFull || 'N/A'}\nSqft: ${prop.data?.sqft || prop.data?.LivingArea || 'N/A'}\nRemarks: ${remarks}`;
+                                                    setInputFeatures(remarks || details);
+                                                }}
                                             >
-                                                {tone.label}
-                                            </Text>
-                                        </Pressable>
-                                    );
-                                })}
-                            </View>
-                        </View>
+                                                {firstImage ? (
+                                                    <Image source={{ uri: firstImage }} style={styles.selectorCardImage} />
+                                                ) : (
+                                                    <View style={styles.selectorCardIconContainer}>
+                                                        <MaterialCommunityIcons name="home-outline" size={20} color={colors.textSecondary} />
+                                                    </View>
+                                                )}
+                                                <View style={styles.selectorCardTextContainer}>
+                                                    <Text style={styles.selectorCardTitle} numberOfLines={1}>{propTitle}</Text>
+                                                    <Text style={styles.selectorCardSubtitle} numberOfLines={1}>
+                                                        Active Property
+                                                    </Text>
+                                                </View>
+                                            </Pressable>
+                                        );
+                                    })}
+                                </ScrollView>
 
-                        {/* Preview & Multimedia — Dark Output Card */}
-                        <View style={styles.outputCard}>
-                            <View style={styles.outputHeader}>
-                                <View style={styles.outputHeaderLeft}>
-                                    <View style={styles.outputDot} />
-                                    <Text style={styles.outputHeaderTitle}>PREVIEW & MULTIMEDIA</Text>
-                                </View>
-                                <View style={styles.outputHeaderActions}>
+                                {/* Narrative Context Card */}
+                                <View style={styles.inputCard}>
+                                    <Text style={styles.cardTitle}>Narrative Context</Text>
+                                    <Text style={styles.cardSubtitle}>
+                                        Describe the property, key features, architectural style, or the mood you want to convey.
+                                    </Text>
+
+                                    <TextInput
+                                        style={styles.textArea}
+                                        multiline
+                                        placeholder="e.g. Modern Malibu mansion with sunrise lighting, architectural pool shot. Mention the 5 bed, 7 bath features..."
+                                        placeholderTextColor="#94A3B8"
+                                        value={inputFeatures}
+                                        onChangeText={setInputFeatures}
+                                        textAlignVertical="top"
+                                    />
+
                                     <Pressable
-                                        style={[styles.copyIconBtn, !output && styles.btnDisabledDark]}
-                                        onPress={handleCopy}
-                                        disabled={!output}
+                                        style={[styles.generateBtn, !inputFeatures.trim() && styles.generateBtnDisabled]}
+                                        onPress={handleGenerate}
+                                        disabled={isGenerating || !inputFeatures.trim()}
                                     >
-                                        <MaterialCommunityIcons
-                                            name={copied ? "check-all" : "content-copy"}
-                                            size={16}
-                                            color={output ? "#94A3B8" : "#334155"}
-                                        />
-                                    </Pressable>
-                                    <Pressable
-                                        style={[styles.exportBtn, (!output || isSaving) && styles.btnDisabledExport]}
-                                        onPress={handleExportNarrative}
-                                        disabled={!output || isSaving}
-                                    >
-                                        {isSaving ? (
+                                        {isGenerating ? (
                                             <ActivityIndicator size="small" color="#FFFFFF" />
                                         ) : (
-                                            <>
-                                                <MaterialCommunityIcons name="content-save-outline" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-                                                <Text style={styles.exportBtnText}>SAVE TO LIBRARY</Text>
-                                            </>
+                                            <Text style={styles.generateBtnText}>Generate</Text>
                                         )}
                                     </Pressable>
-                                </View>
-                            </View>
 
-                            <View style={styles.outputBody}>
-                                {isGenerating ? (
-                                    <View style={styles.outputPlaceholder}>
-                                        <ActivityIndicator size="large" color="#0a2341" />
-                                        <Text style={styles.outputPlaceholderTitle}>AI is Synthesizing...</Text>
-                                        <Text style={styles.outputPlaceholderSub}>Crafting your premium narrative</Text>
+                                    {/* Tone Selector Pills */}
+                                    <View style={styles.toneContainer}>
+                                        {[
+                                            { id: 'seo-optimized', label: 'SEO Optimized' },
+                                            { id: 'luxury-tone', label: 'Luxury Tone' },
+                                            { id: 'concise', label: 'Concise' },
+                                            { id: 'storytelling', label: 'Storytelling' }
+                                        ].map((tone) => {
+                                            const isActive = selectedTone === tone.id;
+                                            return (
+                                                <Pressable
+                                                    key={tone.id}
+                                                    style={[
+                                                        styles.tonePill,
+                                                        isActive ? styles.tonePillActive : styles.tonePillInactive
+                                                    ]}
+                                                    onPress={() => {
+                                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                                        setSelectedTone(tone.id);
+                                                    }}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.tonePillText,
+                                                            isActive ? styles.tonePillTextActive : styles.tonePillTextInactive
+                                                        ]}
+                                                    >
+                                                        {tone.label}
+                                                    </Text>
+                                                </Pressable>
+                                            );
+                                        })}
                                     </View>
-                                ) : hasGenerated ? (
-                                    <TextInput
-                                        style={[styles.outputText, styles.outputScrollArea]}
-                                        multiline
-                                        value={output}
-                                        onChangeText={setOutput}
-                                        textAlignVertical="top"
-                                        scrollEnabled={true}
-                                    />
-                                ) : (
-                                    <View style={styles.outputPlaceholder}>
-                                        <MaterialCommunityIcons name="lightning-bolt-outline" size={44} color="#334155" />
-                                        <Text style={styles.outputPlaceholderTitle}>Creative Studio Ready</Text>
-                                        <Text style={styles.outputPlaceholderSub}>Select a context to begin synthesis</Text>
+                                </View>
+                            </>
+                        ) : (
+                            <View style={styles.previewContainer}>
+                                {/* Listing card mock layout preview */}
+                                {renderListingPreview()}
+
+                                {/* Symmetrical Action Row buttons */}
+                                {output.trim().length > 0 && (
+                                    <View style={styles.previewActionsRow}>
+                                        <Pressable
+                                            style={[
+                                                styles.previewActionBtn,
+                                                styles.previewCopyBtn,
+                                                copied && styles.previewCopyBtnSuccess
+                                            ]}
+                                            onPress={handleCopy}
+                                        >
+                                            <MaterialCommunityIcons
+                                                name={copied ? "check-circle" : "content-copy"}
+                                                size={18}
+                                                color={copied ? "#10B981" : colors.textPrimary}
+                                                style={{ marginRight: 8 }}
+                                            />
+                                            <Text style={[
+                                                styles.previewActionBtnText,
+                                                { color: colors.textPrimary }
+                                            ]}>
+                                                {copied ? "Copied" : "Copy Description"}
+                                            </Text>
+                                        </Pressable>
+
+                                        <Pressable
+                                            style={[
+                                                styles.previewActionBtn,
+                                                styles.previewSaveBtn,
+                                                isSaving && styles.previewSaveBtnDisabled
+                                            ]}
+                                            onPress={handleExportNarrative}
+                                            disabled={isSaving}
+                                        >
+                                            {isSaving ? (
+                                                <ActivityIndicator size="small" color="#FFFFFF" />
+                                            ) : (
+                                                <>
+                                                    <MaterialCommunityIcons
+                                                        name="content-save-outline"
+                                                        size={18}
+                                                        color="#FFFFFF"
+                                                        style={{ marginRight: 8 }}
+                                                    />
+                                                    <Text style={[
+                                                        styles.previewActionBtnText,
+                                                        { color: "#FFFFFF" }
+                                                    ]}>
+                                                        Save to Library
+                                                    </Text>
+                                                </>
+                                            )}
+                                        </Pressable>
                                     </View>
                                 )}
                             </View>
-                        </View>
+                        )}
                     </ScrollView>
                 </KeyboardAvoidingView>
             </LinearGradient>
@@ -493,12 +638,11 @@ function getStyles(colors: any) {
             borderColor: colors.cardBorder,
             borderRadius: 14,
             padding: 16,
-            height: 140,
+            height: 180,
             fontSize: 14,
             color: colors.textPrimary,
             fontWeight: '500',
             marginBottom: 16,
-            fontFamily: 'monospace',
         },
         generateBtn: {
             flexDirection: 'row',
@@ -550,116 +694,223 @@ function getStyles(colors: any) {
             color: colors.textSecondary,
         },
 
-        // Dark Output Card
-        outputCard: {
-            backgroundColor: '#0F1D2E',
-            borderRadius: 24,
-            padding: 20,
-            minHeight: 360,
-            marginBottom: 32,
-            shadowColor: '#000',
-            shadowOpacity: 0.2,
-            shadowOffset: { width: 0, height: 10 },
-            shadowRadius: 30,
-            elevation: 8,
-            borderWidth: 1,
-            borderColor: '#1E3045',
-        },
-        outputHeader: {
+        // Workspace sub-tabs switcher
+        viewTabContainer: {
             flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            backgroundColor: colors.surfaceSoft || 'rgba(0,0,0,0.03)',
+            borderRadius: 12,
+            padding: 4,
+            marginHorizontal: 20,
             marginBottom: 16,
-            flexWrap: 'wrap',
-            gap: 10,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
         },
-        outputHeaderLeft: {
+        viewTabButton: {
+            flex: 1,
             flexDirection: 'row',
-            alignItems: 'center',
-        },
-        outputDot: {
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            backgroundColor: '#0a2341',
-            marginRight: 10,
-        },
-        outputHeaderTitle: {
-            fontSize: 12,
-            fontWeight: '900',
-            color: '#E2E8F0',
-            letterSpacing: 0.8,
-        },
-        outputHeaderActions: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-        },
-        copyIconBtn: {
-            width: 34,
-            height: 34,
-            borderRadius: 8,
-            backgroundColor: '#1E3045',
             alignItems: 'center',
             justifyContent: 'center',
-            borderWidth: 1,
-            borderColor: '#2D4156',
+            paddingVertical: 10,
+            borderRadius: 9,
         },
-        exportBtn: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: colors.accentTeal,
-            paddingHorizontal: 14,
-            paddingVertical: 8,
-            borderRadius: 8,
+        viewTabButtonActive: {
+            backgroundColor: colors.accentTeal || '#0D9488',
         },
-        exportBtnText: {
+        viewTabButtonText: {
+            fontSize: 13,
+            fontWeight: '700',
+            color: colors.textSecondary,
+        },
+        viewTabButtonTextActive: {
             color: '#FFFFFF',
-            fontSize: 10,
-            fontWeight: '900',
-            letterSpacing: 0.5,
+            fontWeight: '800',
         },
-        btnDisabledDark: {
-            opacity: 0.4,
+
+        // Preview general container
+        previewContainer: {
+            marginHorizontal: 0,
+            marginBottom: 20,
+            gap: 16,
         },
-        btnDisabledExport: {
-            opacity: 0.5,
-        },
-        outputBody: {
-            height: 300,
-            backgroundColor: '#162234',
-            borderRadius: 16,
+        previewLoadingContainer: {
+            height: 320,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: colors.cardBackground,
+            borderRadius: 24,
             borderWidth: 1,
-            borderColor: '#1E3045',
+            borderColor: colors.cardBorder,
         },
-        outputScrollArea: {
-            flex: 1,
-            padding: 18,
+        previewLoadingText: {
+            marginTop: 12,
+            color: colors.textSecondary,
+            fontSize: 13,
+            fontWeight: '600',
         },
-        outputText: {
-            fontSize: 15,
-            color: '#CBD5E1',
-            lineHeight: 26,
-            fontWeight: '500',
-        },
-        outputPlaceholder: {
-            flex: 1,
+        previewPlaceholderContainer: {
+            padding: 32,
             alignItems: 'center',
             justifyContent: 'center',
-            paddingVertical: 60,
+            backgroundColor: colors.cardBackground,
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            minHeight: 320,
         },
-        outputPlaceholderTitle: {
+        previewPlaceholderIcon: {
+            width: 60,
+            height: 60,
+            borderRadius: 30,
+            backgroundColor: colors.surfaceSoft,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 16,
+        },
+        previewPlaceholderTitle: {
             fontSize: 16,
             fontWeight: '800',
-            color: '#475569',
-            marginTop: 14,
-            fontStyle: 'italic',
+            color: colors.textPrimary,
+            textAlign: 'center',
+            marginBottom: 8,
         },
-        outputPlaceholderSub: {
+        previewPlaceholderDesc: {
             fontSize: 13,
-            color: '#334155',
+            color: colors.textSecondary,
+            textAlign: 'center',
+            lineHeight: 18,
+            marginBottom: 24,
+        },
+        previewGenerateShortcutBtn: {
+            backgroundColor: colors.accentTeal,
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            borderRadius: 12,
+        },
+        previewGenerateShortcutBtnText: {
+            color: '#FFFFFF',
+            fontSize: 13,
+            fontWeight: '800',
+        },
+
+        // Action Buttons underneath mockup card
+        previewActionsRow: {
+            flexDirection: 'row',
+            gap: 12,
+            paddingHorizontal: 4,
+            marginTop: 8,
+        },
+        previewActionBtn: {
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingVertical: 14,
+            borderRadius: 14,
+            borderWidth: 1,
+        },
+        previewCopyBtn: {
+            backgroundColor: colors.cardBackground,
+            borderColor: colors.cardBorder,
+        },
+        previewCopyBtnSuccess: {
+            borderColor: '#10B981',
+            backgroundColor: 'rgba(16, 185, 129, 0.05)',
+        },
+        previewSaveBtn: {
+            backgroundColor: '#0a2341',
+            borderColor: '#0a2341',
+        },
+        previewSaveBtnDisabled: {
+            opacity: 0.5,
+        },
+        previewActionBtnText: {
+            fontSize: 14,
+            fontWeight: '800',
+        },
+
+        // Premium simulated Listing Details page mockup
+        listingCard: {
+            backgroundColor: colors.cardBackground,
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            overflow: 'hidden',
+            shadowColor: '#000',
+            shadowOpacity: 0.05,
+            shadowOffset: { width: 0, height: 8 },
+            shadowRadius: 16,
+            elevation: 4,
+        },
+        listingImageContainer: {
+            width: '100%',
+            height: 220,
+            backgroundColor: colors.surfaceSoft,
+            position: 'relative',
+        },
+        listingImage: {
+            width: '100%',
+            height: '100%',
+            resizeMode: 'cover',
+        },
+        listingStatsOverlay: {
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            padding: 16,
+            paddingTop: 30,
+        },
+        listingPrice: {
+            color: '#FFFFFF',
+            fontSize: 22,
+            fontWeight: '900',
+            textShadowColor: 'rgba(0, 0, 0, 0.5)',
+            textShadowOffset: { width: -1, height: 1 },
+            textShadowRadius: 4,
+        },
+        listingSpecs: {
+            color: 'rgba(255, 255, 255, 0.9)',
+            fontSize: 12,
+            fontWeight: '700',
             marginTop: 4,
+            textShadowColor: 'rgba(0, 0, 0, 0.5)',
+            textShadowOffset: { width: -1, height: 1 },
+            textShadowRadius: 4,
+        },
+        listingDetails: {
+            padding: 20,
+        },
+        listingAddressTitle: {
+            fontSize: 18,
+            fontWeight: '800',
+            color: colors.textPrimary,
+        },
+        listingAddressSub: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            marginTop: 4,
+        },
+        listingDivider: {
+            height: 1,
+            backgroundColor: colors.cardBorder,
+            marginVertical: 16,
+        },
+        listingSectionTitle: {
+            fontSize: 13,
+            fontWeight: '800',
+            color: colors.textSecondary,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+            marginBottom: 10,
+        },
+        listingDescriptionInput: {
+            fontSize: 14,
+            color: colors.textPrimary,
+            lineHeight: 22,
             fontWeight: '500',
+            padding: 0,
+            margin: 0,
+            textAlignVertical: 'top',
         },
     });
 }

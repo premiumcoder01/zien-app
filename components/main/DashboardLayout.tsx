@@ -51,8 +51,8 @@ export function DashboardLayout({
   // Fetch dynamic menu items from the API hook
   const { data: dynamicMenuItems, isLoading: isMenusLoading } = useMyMenus();
 
-  // If agency page, keep agency menu items. Otherwise, use dynamic menus (fall back to empty list while loading/error)
-  const finalMenuItems = isAgency ? menuItems : (dynamicMenuItems || []);
+  // If agency page, keep agency menu items. Otherwise, use dynamic menus (fall back to static menu items if loading/error/empty)
+  const finalMenuItems = isAgency ? menuItems : (dynamicMenuItems && dynamicMenuItems.length > 0 ? dynamicMenuItems : menuItems);
 
   const { data: brandingData } = useQuery({
     queryKey: ['teamBrandingSettings'],

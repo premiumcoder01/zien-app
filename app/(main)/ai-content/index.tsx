@@ -307,27 +307,33 @@ export default function AiContentScreen() {
     if (item.type === 'property-description') {
       router.push({
         pathname: '/(main)/ai-content/property-description',
-        params: { prefill, content, address: item.metadata?.address || '' }
+        params: { id: item.id.toString(), prefill, content, address: item.metadata?.address || '' }
       });
     } else if (item.type === 'social-media' || item.type === 'social-posts') {
       router.push({
         pathname: '/(main)/ai-content/social-media-posts',
-        params: { prefill, content, address: item.metadata?.address || '' }
+        params: { 
+          id: item.id.toString(),
+          prefill, 
+          content, 
+          address: item.metadata?.address || '',
+          platform: item.metadata?.platform || '' 
+        }
       });
     } else if (item.type === 'email-templates') {
       router.push({
         pathname: '/(main)/ai-content/email-templates',
-        params: { prefill, content, address: item.metadata?.address || '' }
+        params: { id: item.id.toString(), prefill, content, address: item.metadata?.address || '' }
       });
     } else if (item.type === 'image-enhancer') {
       router.push({
         pathname: '/(main)/ai-content/image-enhancer',
-        params: { prefill, content }
+        params: { id: item.id.toString(), prefill, content }
       });
     } else if (item.type === 'presentation-builder') {
       router.push({
         pathname: '/(main)/ai-content/presentation-builder',
-        params: { prefill, content, address: item.metadata?.address || '' }
+        params: { id: item.id.toString(), prefill, content, address: item.metadata?.address || '' }
       });
     } else {
       // Default fallback: show view modal
@@ -584,7 +590,7 @@ export default function AiContentScreen() {
                         <View style={styles.headerBadgeRow}>
                           <View style={[styles.typeBadge, { backgroundColor: details.bg }]}>
                             <MaterialCommunityIcons name={details.icon as any} size={11} color={details.color} style={{ marginRight: 6 }} />
-                            <Text style={[styles.typeBadgeText, { color: details.color }]}>{details.label.toUpperCase()}</Text>
+                            <Text style={[styles.typeBadgeText, { color: details.color }]}>{details.label}</Text>
                           </View>
                         </View>
                       </View>
@@ -687,7 +693,7 @@ export default function AiContentScreen() {
             <View style={styles.modalBody}>
               <ScrollView
                 style={styles.modalTextBox}
-                contentContainerStyle={styles.modalTextBoxContent}
+                contentContainerStyle={[styles.modalTextBoxContent, { paddingBottom: insets.bottom + 50 }]}
                 showsVerticalScrollIndicator={false}
               >
                 <Text style={styles.modalContentText}>{selectedItem.content}</Text>

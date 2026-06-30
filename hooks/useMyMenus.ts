@@ -101,7 +101,7 @@ const mapApiRouteToAppRoute = (apiPath: string): string => {
 export function useMyMenus() {
   const { accessToken } = useAuth();
 
-  return useQuery<NavMenuItem[], Error>({
+  const query = useQuery<NavMenuItem[], Error>({
     queryKey: ['myMenus', accessToken],
     queryFn: async () => {
       if (!accessToken) return [];
@@ -121,4 +121,14 @@ export function useMyMenus() {
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  // Fallback to static menu items if query is in error state or returns empty/null/undefined when not loading
+  const data = query.isError || (!query.isLoading && (!query.data || query.data.length === 0))
+    ? STATIC_MENU_ITEMS
+    : (query.data || undefined);
+
+  return {
+    ...query,
+    data,
+  };
 }

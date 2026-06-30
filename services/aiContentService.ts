@@ -145,6 +145,48 @@ export const saveAiContent = async (
 };
 
 /**
+ * Updates an existing AI content item on the server.
+ * PUT /api/solo/ai-content/:id
+ */
+export const updateAiContent = async (
+  id: number | string,
+  payload: SaveAiContentPayload,
+  accessToken: string
+): Promise<{ success: boolean; data: AiContentItem }> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/solo/ai-content/${id}`, {
+      method: 'PUT',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+    }
+
+    return data;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+
+/**
  * Generates AI text content using the shared AI generation endpoint.
  * POST /api/shared/ai/generate-text
  */
