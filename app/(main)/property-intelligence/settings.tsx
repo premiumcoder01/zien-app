@@ -79,7 +79,7 @@ function getStyles(colors: any) {
     return StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: colors.background,
+            backgroundColor: colors.cardBackground,
         },
         content: {
             padding: 24,

@@ -5,7 +5,7 @@ import { useLeadEnquiries } from '@/hooks/useLeadEnquiries';
 import { CreateDigitalCardPayload, DigitalCard, createDigitalCard, deleteDigitalCard } from '@/services/digitalCardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, Clipboard, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Clipboard, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { CreateCardModal } from '../_components/CreateCardModal';
 import { DeleteCardModal } from '../_components/DeleteCardModal';
 import { ProfileCard, type ProfileCardData } from '../_components/ProfileCard';
@@ -54,6 +54,7 @@ export function DashboardSection({
 
   const [mainTab, setMainTab] = useState<'mycard' | 'enquiries'>('mycard');
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isFullPageModalVisible, setIsFullPageModalVisible] = useState(false);
   const [modalInitialType, setModalInitialType] = useState<'work' | 'personal'>('work');
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -246,177 +247,280 @@ export function DashboardSection({
         isDeleting={isDeleting}
       />
 
-      {/* Main: Digital Cards + Tabs */}
+      {/* Main: Digital Cards Preview Widget */}
       <View style={styles.mainSection}>
         <Text style={styles.mainTitle}>Digital Cards</Text>
-        <View style={styles.tabsContainer}>
-          <Pressable
-            style={[styles.tab, mainTab === 'mycard' && styles.tabActive]}
-            onPress={() => setMainTab('mycard')}>
-            <Text style={[styles.tabText, mainTab === 'mycard' && styles.tabTextActive]}>My Card</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tab, mainTab === 'enquiries' && styles.tabActive]}
-            onPress={() => setMainTab('enquiries')}>
-            <Text style={[styles.tabText, mainTab === 'enquiries' && styles.tabTextActive]}>Enquiries</Text>
-            <View style={[styles.enquiryBadge, mainTab === 'enquiries' && styles.enquiryBadgeActive]}>
-              <Text style={[styles.enquiryBadgeText, mainTab === 'enquiries' && styles.enquiryBadgeTextActive]}>{enquiryCount}</Text>
-            </View>
-          </Pressable>
-        </View>
-
-        {mainTab === 'mycard' && (
-          <>
-            <View style={[styles.workCardTag, { backgroundColor: activeCard.card_color || colors.accentTeal }]}>
-              <Text style={styles.workCardTagText}>{activeCard?.profile_type} card</Text>
-            </View>
-
-            <View style={styles.profileCardWrap}>
-              <ProfileCard
-                card={mapToCardData(activeCard)}
-                accentColor={activeCard.card_color || undefined}
-                template={(activeCard.template as any) || 'modern'}
-                avatarUri={activeCard.image || undefined}
-                companyLogoUri={activeCard.logo || undefined}
-                cardUrl={profileUrl}
+        <Pressable
+          style={styles.cardPreviewSectionWidget}
+          onPress={() => setIsFullPageModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Open digital card manager">
+          
+          {/* Card Mockup Container */}
+          <View style={[styles.mockupCard, { backgroundColor: activeCard.card_color || colors.accentTeal }]}>
+            {/* Top Row: Symbol + Template Badge */}
+            <View style={styles.mockupCardTop}>
+              <MaterialCommunityIcons 
+                name={activeCard.profile_type === 'personal' ? 'account-circle-outline' : 'briefcase-outline'} 
+                size={22} 
+                color="#FFFFFF" 
               />
-            </View>
-
-            {/* Quick Actions */}
-            <View style={styles.quickActionsCard}>
-              <Text style={styles.quickActionsTitle}>Quick Actions</Text>
-              <Text style={styles.quickActionsSub}>Manage and share your card.</Text>
-
-              <Pressable
-                style={({ pressed }) => [styles.shareProfileBtn, pressed && styles.shareProfileBtnPressed]}
-                onPress={handleShare}>
-                <MaterialCommunityIcons name="share-variant" size={22} color="#FFFFFF" />
-                <Text style={styles.shareProfileBtnText}>Share Profile</Text>
-              </Pressable>
-
-              <View style={styles.secondaryActionsRow}>
-                <ExternalLink
-                  href={profileUrl}
-                  style={styles.secondaryBtn}>
-                  <View style={styles.secondaryBtnInner}>
-                    <MaterialCommunityIcons name="eye-outline" size={22} color={colors.textPrimary} />
-                    <Text style={styles.secondaryBtnText}>Preview</Text>
-                  </View>
-                </ExternalLink>
-                <Pressable
-                  style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
-                  onPress={handleCopyLink}>
-                  <MaterialCommunityIcons name="link-variant" size={22} color={colors.textPrimary} />
-                  <Text style={styles.secondaryBtnText}>Copy Link</Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.inputFieldBlock}>
-                <Text style={styles.inputFieldLabel}>PROFILE NAME</Text>
-                <View style={styles.inputFieldContainer}>
-                  <Text style={styles.inputFieldText}>{activeCard?.profile_name}</Text>
-                </View>
-              </View>
-
-              <View style={styles.leadsBlock}>
-                <View style={styles.leadsIconWrap}>
-                  <MaterialCommunityIcons name="account-group-outline" size={22} color={colors.accentTeal} />
-                </View>
-                <View style={styles.leadsTextWrap}>
-                  <Text style={styles.leadsLabel}>TOTAL LEADS Enquiries</Text>
-                  <Text style={styles.leadsMeta}>All time</Text>
-                </View>
-                <Text style={styles.leadsValue}>{enquiryCount}</Text>
-              </View>
-            </View>
-
-            <Pressable style={styles.deleteCardAction} onPress={handleDeleteCard}>
-              <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
-              <Text style={styles.deleteCardText}>Delete this card</Text>
-            </Pressable>
-
-          </>
-        )}
-
-        {mainTab === 'enquiries' && (
-          <View style={styles.enquiriesSection}>
-            <Text style={styles.enquiriesHeading}>Enquiries</Text>
-            <Text style={styles.enquiriesSubheading}>
-              Manage leads and contacts collected from your "{activeCard?.profile_name || 'active'}" card.
-            </Text>
-
-            {cardLeads.length > 0 ? (
-              cardLeads.map((lead) => (
-                <View key={lead.id} style={styles.leadCard}>
-                  <View style={styles.leadHeader}>
-                    <View style={styles.leadInfo}>
-                      <View style={[styles.avatar, { backgroundColor: '#3B82F620' }]}>
-                        <Text style={[styles.avatarText, { color: '#3B82F6' }]}>
-                          {lead.name ? lead.name[0].toUpperCase() : '?'}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.leadName} numberOfLines={1}>{lead.name}</Text>
-                        <Text style={styles.leadDate} numberOfLines={1}>
-                          {formatLeadDate(lead.created_at)}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: '#3B82F615' }]}>
-                      <View style={[styles.statusDot, { backgroundColor: '#3B82F6' }]} />
-                      <Text style={[styles.statusText, { color: '#3B82F6' }]}>New</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.divider} />
-
-                  <View style={styles.leadBody}>
-                    <View style={styles.contactItem}>
-                      <MaterialCommunityIcons name="email-outline" size={16} color="#9AA7B6" />
-                      <Text style={styles.contactText} numberOfLines={1}>{lead.email}</Text>
-                    </View>
-                    <View style={styles.contactItem}>
-                      <MaterialCommunityIcons name="phone-outline" size={16} color="#9AA7B6" />
-                      <Text style={styles.contactText}>{lead.phone}</Text>
-                    </View>
-                    {lead.message ? (
-                      <View style={[styles.contactItem, { alignItems: 'flex-start', marginTop: 4 }]}>
-                        <MaterialCommunityIcons name="message-outline" size={16} color="#9AA7B6" style={{ marginTop: 2 }} />
-                        <Text style={[styles.contactText, { fontWeight: '400', fontSize: 13, color: '#64748B' }]}>
-                          "{lead.message}"
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-
-                  <View style={styles.leadActions}>
-                    <Pressable
-                      style={[styles.actionBtn, { backgroundColor: '#10B981' }]}
-                      onPress={() => Linking.openURL(`tel:${lead.phone}`)}>
-                      <MaterialCommunityIcons name="phone" size={18} color="#FFFFFF" />
-                      <Text style={styles.actionBtnText}>Call</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.actionBtn, { backgroundColor: colors.accentTeal }]}
-                      onPress={() => Linking.openURL(`mailto:${lead.email}`)}>
-                      <MaterialCommunityIcons name="email" size={18} color="#FFFFFF" />
-                      <Text style={styles.actionBtnText}>Email</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))
-            ) : (
-              <View style={styles.enquiriesEmptyCard}>
-                <MaterialCommunityIcons name="account-group-outline" size={64} color={colors.textSecondary} />
-                <Text style={styles.enquiriesEmptyTitle}>No Data Yet</Text>
-                <Text style={styles.enquiriesEmptyText}>
-                  Share your card QR code to start collecting enquiries. When someone scans and shares their info, it will appear here.
+              <View style={styles.mockupTemplateBadge}>
+                <Text style={styles.mockupTemplateText}>
+                  {String(activeCard.template || 'modern').toUpperCase()}
                 </Text>
               </View>
-            )}
+            </View>
+
+            {/* Middle Row: Name & Title */}
+            <View style={styles.mockupCardMiddle}>
+              <Text style={styles.mockupCardName} numberOfLines={1}>
+                {activeCard.name || activeCard.full_name || activeCard.profile_name}
+              </Text>
+              <Text style={styles.mockupCardTitle} numberOfLines={1}>
+                {activeCard.title || 'Professional Profile'}
+              </Text>
+            </View>
+
+            {/* Bottom Row: Tap to Expand indicator */}
+            <View style={styles.mockupCardBottom}>
+              <Text style={styles.mockupTapIndicator}>Tap to view & manage</Text>
+              <MaterialCommunityIcons name="arrow-expand" size={18} color="#FFFFFF" />
+            </View>
           </View>
-        )}
+          
+          {/* Info Card underneath with lead counts and basic actions */}
+          <View style={styles.widgetInfoCard}>
+            <View style={styles.widgetInfoItem}>
+              <MaterialCommunityIcons name="account-group-outline" size={20} color={colors.textSecondary} />
+              <Text style={styles.widgetInfoText}>
+                <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{enquiryCount}</Text> Enquiries
+              </Text>
+            </View>
+            <View style={styles.widgetInfoDivider} />
+            <View style={styles.widgetInfoItem}>
+              <MaterialCommunityIcons name="eye-outline" size={20} color={colors.textSecondary} />
+              <Text style={styles.widgetInfoText}>View Card</Text>
+            </View>
+          </View>
+        </Pressable>
       </View>
+
+      {/* Full Page Modal for Digital Card details and Enquiries */}
+      <Modal
+        visible={isFullPageModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsFullPageModalVisible(false)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.cardBackground }]}>
+          {/* Modal Header */}
+          <View style={[styles.modalHeader, { borderBottomColor: colors.cardBorder }]}>
+            <Pressable
+              onPress={() => setIsFullPageModalVisible(false)}
+              style={styles.modalCloseBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Close page sheet">
+              <MaterialCommunityIcons name="close" size={24} color={colors.textPrimary} />
+            </Pressable>
+            <View style={styles.modalTitleContainer}>
+              <Text style={styles.modalHeaderTitle} numberOfLines={1}>
+                {activeCard?.profile_name}
+              </Text>
+              <Text style={styles.modalHeaderSub}>
+                {activeCard?.profile_type === 'personal' ? 'Personal Card' : 'Work Card'}
+              </Text>
+            </View>
+            <Pressable
+              onPress={handleShare}
+              style={styles.modalShareBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Share profile">
+              <MaterialCommunityIcons name="share-variant" size={20} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+
+          {/* Tab Selector inside Modal */}
+          <View style={styles.modalTabsContainer}>
+            <View style={styles.tabsWrapper}>
+              <Pressable
+                style={[styles.modalTab, mainTab === 'mycard' && styles.modalTabActive]}
+                onPress={() => setMainTab('mycard')}>
+                <Text style={[styles.modalTabText, mainTab === 'mycard' && styles.modalTabTextActive]}>My Card</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalTab, mainTab === 'enquiries' && styles.modalTabActive]}
+                onPress={() => setMainTab('enquiries')}>
+                <Text style={[styles.modalTabText, mainTab === 'enquiries' && styles.modalTabTextActive]}>Enquiries</Text>
+                <View style={[styles.modalEnquiryBadge, mainTab === 'enquiries' && styles.modalEnquiryBadgeActive]}>
+                  <Text style={[styles.modalEnquiryBadgeText, mainTab === 'enquiries' && styles.modalEnquiryBadgeTextActive]}>
+                    {enquiryCount}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Modal Content ScrollView */}
+          <ScrollView
+            style={styles.modalScroll}
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {mainTab === 'mycard' ? (
+              <>
+                <View style={[styles.workCardTag, { backgroundColor: activeCard.card_color || colors.accentTeal }]}>
+                  <Text style={styles.workCardTagText}>{activeCard?.profile_type} card</Text>
+                </View>
+
+                <View style={styles.profileCardWrap}>
+                  <ProfileCard
+                    card={mapToCardData(activeCard)}
+                    accentColor={activeCard.card_color || undefined}
+                    template={(activeCard.template as any) || 'modern'}
+                    avatarUri={activeCard.image || undefined}
+                    companyLogoUri={activeCard.logo || undefined}
+                    cardUrl={profileUrl}
+                  />
+                </View>
+
+                {/* Quick Actions */}
+                <View style={styles.quickActionsCard}>
+                  <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+                  <Text style={styles.quickActionsSub}>Manage and share your card.</Text>
+
+                  <Pressable
+                    style={({ pressed }) => [styles.shareProfileBtn, pressed && styles.shareProfileBtnPressed]}
+                    onPress={handleShare}>
+                    <MaterialCommunityIcons name="share-variant" size={22} color="#FFFFFF" />
+                    <Text style={styles.shareProfileBtnText}>Share Profile</Text>
+                  </Pressable>
+
+                  <View style={styles.secondaryActionsRow}>
+                    <ExternalLink
+                      href={profileUrl}
+                      style={styles.secondaryBtn}>
+                      <View style={styles.secondaryBtnInner}>
+                        <MaterialCommunityIcons name="eye-outline" size={22} color={colors.textPrimary} />
+                        <Text style={styles.secondaryBtnText}>Preview</Text>
+                      </View>
+                    </ExternalLink>
+                    <Pressable
+                      style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
+                      onPress={handleCopyLink}>
+                      <MaterialCommunityIcons name="link-variant" size={22} color={colors.textPrimary} />
+                      <Text style={styles.secondaryBtnText}>Copy Link</Text>
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.inputFieldBlock}>
+                    <Text style={styles.inputFieldLabel}>PROFILE NAME</Text>
+                    <View style={styles.inputFieldContainer}>
+                      <Text style={styles.inputFieldText}>{activeCard?.profile_name}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.leadsBlock}>
+                    <View style={styles.leadsIconWrap}>
+                      <MaterialCommunityIcons name="account-group-outline" size={22} color={colors.accentTeal} />
+                    </View>
+                    <View style={styles.leadsTextWrap}>
+                      <Text style={styles.leadsLabel}>TOTAL LEADS Enquiries</Text>
+                      <Text style={styles.leadsMeta}>All time</Text>
+                    </View>
+                    <Text style={styles.leadsValue}>{enquiryCount}</Text>
+                  </View>
+                </View>
+
+                <Pressable style={styles.deleteCardAction} onPress={() => {
+                  setIsFullPageModalVisible(false);
+                  handleDeleteCard();
+                }}>
+                  <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
+                  <Text style={styles.deleteCardText}>Delete this card</Text>
+                </Pressable>
+              </>
+            ) : (
+              <View style={styles.enquiriesSection}>
+                <Text style={styles.enquiriesHeading}>Enquiries</Text>
+                <Text style={styles.enquiriesSubheading}>
+                  Manage leads and contacts collected from your "{activeCard?.profile_name || 'active'}" card.
+                </Text>
+
+                {cardLeads.length > 0 ? (
+                  cardLeads.map((lead) => (
+                    <View key={lead.id} style={styles.leadCard}>
+                      <View style={styles.leadHeader}>
+                        <View style={styles.leadInfo}>
+                          <View style={[styles.avatar, { backgroundColor: '#3B82F620' }]}>
+                            <Text style={[styles.avatarText, { color: '#3B82F6' }]}>
+                              {lead.name ? lead.name[0].toUpperCase() : '?'}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.leadName} numberOfLines={1}>{lead.name}</Text>
+                            <Text style={styles.leadDate} numberOfLines={1}>
+                              {formatLeadDate(lead.created_at)}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={[styles.statusBadge, { backgroundColor: '#3B82F615' }]}>
+                          <View style={[styles.statusDot, { backgroundColor: '#3B82F6' }]} />
+                          <Text style={[styles.statusText, { color: '#3B82F6' }]}>New</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.divider} />
+
+                      <View style={styles.leadBody}>
+                        <View style={styles.contactItem}>
+                          <MaterialCommunityIcons name="email-outline" size={16} color="#9AA7B6" />
+                          <Text style={styles.contactText} numberOfLines={1}>{lead.email}</Text>
+                        </View>
+                        <View style={styles.contactItem}>
+                          <MaterialCommunityIcons name="phone-outline" size={16} color="#9AA7B6" />
+                          <Text style={styles.contactText}>{lead.phone}</Text>
+                        </View>
+                        {lead.message ? (
+                          <View style={[styles.contactItem, { alignItems: 'flex-start', marginTop: 4 }]}>
+                            <MaterialCommunityIcons name="message-outline" size={16} color="#9AA7B6" style={{ marginTop: 2 }} />
+                            <Text style={[styles.contactText, { fontWeight: '400', fontSize: 13, color: '#64748B' }]}>
+                              "{lead.message}"
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      <View style={styles.leadActions}>
+                        <Pressable
+                          style={[styles.actionBtn, { backgroundColor: '#10B981' }]}
+                          onPress={() => Linking.openURL(`tel:${lead.phone}`)}>
+                          <MaterialCommunityIcons name="phone" size={18} color="#FFFFFF" />
+                          <Text style={styles.actionBtnText}>Call</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.actionBtn, { backgroundColor: colors.accentTeal }]}
+                          onPress={() => Linking.openURL(`mailto:${lead.email}`)}>
+                          <MaterialCommunityIcons name="email" size={18} color="#FFFFFF" />
+                          <Text style={styles.actionBtnText}>Email</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.enquiriesEmptyCard}>
+                    <MaterialCommunityIcons name="account-group-outline" size={64} color={colors.textSecondary} />
+                    <Text style={styles.enquiriesEmptyTitle}>No Data Yet</Text>
+                    <Text style={styles.enquiriesEmptyText}>
+                      Share your card QR code to start collecting enquiries. When someone scans and shares their info, it will appear here.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
 
       <View style={{ height: 100 }} />
     </ScrollView>
@@ -808,7 +912,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.cardBackground,
   },
   loadingText: {
     fontSize: 14,
@@ -998,5 +1102,201 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  cardPreviewSectionWidget: {
+    marginBottom: 24,
+    borderRadius: 24,
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    overflow: 'hidden',
+    shadowColor: colors.cardShadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  mockupCard: {
+    padding: 20,
+    height: 160,
+    justifyContent: 'space-between',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  mockupCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  mockupTemplateBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  mockupTemplateText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  mockupCardMiddle: {
+    marginTop: 10,
+  },
+  mockupCardName: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  mockupCardTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: 2,
+  },
+  mockupCardBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+    paddingTop: 10,
+  },
+  mockupTapIndicator: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  widgetInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: colors.cardBackground,
+  },
+  widgetInfoItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  widgetInfoText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  widgetInfoDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: colors.cardBorder,
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  modalCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalShareBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 8,
+  },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: colors.textPrimary,
+  },
+  modalHeaderSub: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  modalTabsContainer: {
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  tabsWrapper: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    padding: 4,
+    borderRadius: 16,
+    width: '100%',
+  },
+  modalTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  modalTabActive: {
+    backgroundColor: colors.accentTeal,
+    shadowColor: colors.accentTeal,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  modalTabText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textSecondary,
+  },
+  modalTabTextActive: {
+    color: '#FFFFFF',
+  },
+  modalEnquiryBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  modalEnquiryBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  modalEnquiryBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: colors.textSecondary,
+  },
+  modalEnquiryBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+  modalScroll: {
+    flex: 1,
+  },
+  modalScrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 40,
   },
 });

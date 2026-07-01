@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { ProfileCard, type ProfileCardData } from '../_components/ProfileCard';
+import ColorPickerModal from '@/components/ui/ColorPickerModal';
 
 type SelectedFontLabel = 'Inter' | 'Roboto' | 'Playfair' | 'Lato';
 
@@ -95,9 +96,20 @@ export function ThemesColorSection({
     return 'Inter';
   };
 
+  const getInitialColors = (cardColor?: string): string[] => {
+    const base: string[] = [...ACCENT_COLORS];
+    if (cardColor && !base.some(c => c.toUpperCase() === cardColor.toUpperCase())) {
+      base.push(cardColor.toUpperCase());
+    }
+    return base;
+  };
+
   const [template, setTemplate] = useState<TemplateId>(getTemplateId(activeCard?.template ?? undefined));
   const [accentColor, setAccentColor] = useState<string>(activeCard?.card_color || ACCENT_COLORS[0]);
+  const [customAccentColors, setCustomAccentColors] = useState<string[]>(() => getInitialColors(activeCard?.card_color));
+  const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const [selectedFontLabel, setSelectedFontLabel] = useState<SelectedFontLabel>(getFontLabel(activeCard?.font ?? undefined));
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const profileUrl = activeCard ? `https://staging.zien.ai/card/${activeCard.id}` : undefined;
 
@@ -114,8 +126,15 @@ export function ThemesColorSection({
   // Sync state when activeCard changes
   useEffect(() => {
     setTemplate(getTemplateId(activeCard.template ?? undefined));
-    setAccentColor(activeCard.card_color || ACCENT_COLORS[0]);
+    const newColor = activeCard.card_color || ACCENT_COLORS[0];
+    setAccentColor(newColor);
     setSelectedFontLabel(getFontLabel(activeCard.font ?? undefined));
+    setCustomAccentColors(prev => {
+      if (newColor && !prev.some(c => c.toUpperCase() === newColor.toUpperCase())) {
+        return [...prev, newColor.toUpperCase()];
+      }
+      return prev;
+    });
   }, [activeCard]);
 
   // Handle save trigger
@@ -192,21 +211,43 @@ export function ThemesColorSection({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
 
-        {/* Card preview */}
-        <View style={styles.previewWrap}>
-          <View style={styles.cardWrap}>
-            <ProfileCard
-              card={cardData}
-              accentColor={accentColor}
-              template={template}
-              avatarUri={activeCard.image || undefined}
-              companyLogoUri={activeCard.logo || undefined}
-              headingFontFamily={selectedFontFamily}
-              bodyFontFamily={selectedFontFamily}
-              cardUrl={profileUrl}
+        {/* Collapsible Card Preview Accordion */}
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => setIsPreviewExpanded(!isPreviewExpanded)}>
+          <View style={styles.accordionLeft}>
+            <MaterialCommunityIcons
+              name="card-bulleted-outline"
+              size={20}
+              color={colors.accentTeal}
             />
+            <Text style={styles.accordionTitle}>
+              {isPreviewExpanded ? "Hide Card Preview" : "Preview Digital Card"}
+            </Text>
           </View>
-        </View>
+          <MaterialCommunityIcons
+            name={isPreviewExpanded ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={colors.textSecondary}
+          />
+        </Pressable>
+
+        {isPreviewExpanded && (
+          <View style={styles.previewWrap}>
+            <View style={styles.cardWrap}>
+              <ProfileCard
+                card={cardData}
+                accentColor={accentColor}
+                template={template}
+                avatarUri={activeCard.image || undefined}
+                companyLogoUri={activeCard.logo || undefined}
+                headingFontFamily={selectedFontFamily}
+                bodyFontFamily={selectedFontFamily}
+                cardUrl={profileUrl}
+              />
+            </View>
+          </View>
+        )}
 
         {/* Select Template */}
         <Text style={styles.sectionTitle}>Select Template</Text>
@@ -251,23 +292,28 @@ export function ThemesColorSection({
         {/* Accent Color */}
         <Text style={styles.sectionTitle}>Accent Color</Text>
         <View style={styles.colorRow}>
-          {ACCENT_COLORS.map((hex) => (
+          {customAccentColors.map((hex) => (
             <Pressable
               key={hex}
               style={[
                 styles.colorSwatch,
                 { backgroundColor: hex },
-                accentColor === hex && [
+                accentColor.toUpperCase() === hex.toUpperCase() && [
                   styles.colorSwatchSelected,
                   { borderColor: isDark && hex === '#0B2341' ? '#FFFFFF' : hex },
                 ],
               ]}
               onPress={() => setAccentColor(hex)}>
-              {accentColor === hex && (
+              {accentColor.toUpperCase() === hex.toUpperCase() && (
                 <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
               )}
             </Pressable>
           ))}
+          <Pressable
+            style={styles.addColorBtn}
+            onPress={() => setColorPickerVisible(true)}>
+            <Text style={styles.addColorBtnText}>+</Text>
+          </Pressable>
         </View>
 
         {/* Typography */}
@@ -314,6 +360,22 @@ export function ThemesColorSection({
           <Text style={styles.savingText}>Saving changes...</Text>
         </View>
       )}
+
+      <ColorPickerModal
+        visible={colorPickerVisible}
+        onClose={() => setColorPickerVisible(false)}
+        initialColor={accentColor}
+        onSelectColor={(color) => {
+          const cleaned = color.toUpperCase();
+          setAccentColor(cleaned);
+          setCustomAccentColors(prev => {
+            if (!prev.some(c => c.toUpperCase() === cleaned)) {
+              return [...prev, cleaned];
+            }
+            return prev;
+          });
+        }}
+      />
     </View>
   );
 }
@@ -409,6 +471,22 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderColor: 'transparent',
   },
   colorSwatchSelected: {},
+  addColorBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 2,
+    borderColor: colors.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addColorBtnText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
   fontRowSingle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -499,5 +577,31 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: '#0B2D3E',
     fontWeight: '900',
     fontSize: 14,
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: colors.cardShadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  accordionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  accordionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textPrimary,
   },
 });

@@ -43,6 +43,7 @@ const SUPPORT_LINES = [
 
 const CustomPicker = ({ label, value, options, onSelect, icon }: any) => {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const [visible, setVisible] = useState(false);
 
     return (
@@ -50,7 +51,7 @@ const CustomPicker = ({ label, value, options, onSelect, icon }: any) => {
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{label}</Text>
             <TouchableOpacity
                 onPress={() => setVisible(true)}
-                style={[styles.pickerBtn, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}
+                style={[styles.pickerBtn, { backgroundColor: colors.surfaceSoft, borderColor: colors.cardBorder }]}
                 activeOpacity={0.75}
             >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -72,7 +73,7 @@ const CustomPicker = ({ label, value, options, onSelect, icon }: any) => {
                 onRequestClose={() => setVisible(false)}
             >
                 <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+                    <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
                         {/* Grab handle centered at top */}
                         <View style={styles.modalGrabHandle} />
 
@@ -114,6 +115,7 @@ interface ChatMessage {
 
 const VirtualAssistant = () => {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const { accessToken } = useAuth();
     const [inputText, setInputText] = useState('');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -243,17 +245,17 @@ const VirtualAssistant = () => {
                     <Text style={[styles.chatCardSubtitle, { color: colors.textSecondary }]}>Our AI assistant is trained on Zien docs and can resolve queries instantly.</Text>
                 </View>
                 <TouchableOpacity
-                    style={[styles.historyBtn, { borderColor: '#E2E8F0', backgroundColor: '#F8FAFC' }]}
+                    style={[styles.historyBtn, { borderColor: colors.cardBorder, backgroundColor: colors.surfaceSoft }]}
                     activeOpacity={0.8}
                     onPress={() => setIsHistoryVisible(true)}
                 >
-                    <MaterialCommunityIcons name="message-text-outline" size={16} color="#0F172A" />
+                    <MaterialCommunityIcons name="message-text-outline" size={16} color={colors.textPrimary} />
                     <Text style={styles.historyBtnText}>History</Text>
                 </TouchableOpacity>
             </View>
 
             {/* Chat Container */}
-            <View style={[styles.chatContainer, { backgroundColor: '#FFFFFF', borderColor: '#E2E8F0', height: 420, justifyContent: 'flex-start', alignItems: 'stretch', padding: 0, overflow: 'hidden' }]}>
+            <View style={[styles.chatContainer, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, height: 420, justifyContent: 'flex-start', alignItems: 'stretch', padding: 0, overflow: 'hidden' }]}>
                 {messages.length === 0 ? (
                     <View style={[styles.emptyChat, { flex: 1, justifyContent: 'center' }]}>
                         <View style={[styles.chatIconWrap, { backgroundColor: '#F0FDFA' }]}>
@@ -284,7 +286,7 @@ const VirtualAssistant = () => {
                                         styles.msgBubble,
                                         msg.isUser
                                             ? { backgroundColor: colors.accentTeal, borderBottomRightRadius: 4 }
-                                            : { backgroundColor: '#F1F5F9', borderBottomLeftRadius: 4 }
+                                            : { backgroundColor: colors.surfaceSoft, borderBottomLeftRadius: 4 }
                                     ]}
                                 >
                                     <Text
@@ -300,7 +302,7 @@ const VirtualAssistant = () => {
                         ))}
                         {isAiTyping && (
                             <View style={styles.msgRow}>
-                                <View style={[styles.msgBubble, { backgroundColor: '#F1F5F9', borderBottomLeftRadius: 4, paddingVertical: 10, paddingHorizontal: 16 }]}>
+                                <View style={[styles.msgBubble, { backgroundColor: colors.surfaceSoft, borderBottomLeftRadius: 4, paddingVertical: 10, paddingHorizontal: 16 }]}>
                                     <ActivityIndicator size="small" color={colors.accentTeal} />
                                 </View>
                             </View>
@@ -312,7 +314,7 @@ const VirtualAssistant = () => {
             {/* Input Row */}
             <View style={[
                 styles.chatInputRow,
-                { backgroundColor: '#F8FAFC', borderColor: isChatFocused ? colors.accentTeal : '#E2E8F0' }
+                { backgroundColor: colors.surfaceSoft, borderColor: isChatFocused ? colors.accentTeal : '#E2E8F0' }
             ]}>
                 <TextInput
                     placeholder="Type your message..."
@@ -346,7 +348,7 @@ const VirtualAssistant = () => {
                     <Pressable style={styles.historyBackdrop} onPress={() => setIsHistoryVisible(false)} />
                     
                     {/* Drawer Content */}
-                    <View style={[styles.historyDrawer, { backgroundColor: '#FFFFFF' }]}>
+                    <View style={[styles.historyDrawer, { backgroundColor: colors.cardBackground }]}>
                         {/* Header */}
                         <View style={styles.historyHeader}>
                             <Text style={styles.historyTitle}>Chat History</Text>
@@ -378,7 +380,7 @@ const VirtualAssistant = () => {
                             </View>
                         ) : conversations.length === 0 ? (
                             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                                <Text style={{ fontSize: 13, color: '#94A3B8', fontWeight: '600' }}>No history found</Text>
+                                <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: '600' }}>No history found</Text>
                             </View>
                         ) : (
                             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 8 }}>
@@ -387,7 +389,7 @@ const VirtualAssistant = () => {
                                         key={item.id}
                                         style={[
                                             styles.historyItemCard,
-                                            activeConversationId === item.id && { backgroundColor: '#F1F5F9' }
+                                            activeConversationId === item.id && { backgroundColor: colors.surfaceSoft }
                                         ]}
                                         onPress={() => loadConversationMessages(item.id)}
                                         activeOpacity={0.7}
@@ -419,6 +421,7 @@ const VirtualAssistant = () => {
 
 const SubmittedTicket = () => {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const [form, setForm] = useState({
         category: 'Technical Issue',
         priority: 'Low - General Inquiry',
@@ -431,7 +434,7 @@ const SubmittedTicket = () => {
 
     return (
         <View style={styles.tabContent}>
-            <View style={[styles.formCard, { backgroundColor: colors.cardBackground, borderColor: '#F1F5F9' }]}>
+            <View style={[styles.formCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
                 <Text style={[styles.formHeading, { color: colors.textPrimary }]}>Submit a Support Ticket</Text>
 
                 <View style={styles.rowInputs}>
@@ -460,7 +463,7 @@ const SubmittedTicket = () => {
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Subject</Text>
                     <View style={[
                         styles.inputContainerRow,
-                        { backgroundColor: '#F8FAFC', borderColor: isSubjectFocused ? colors.accentTeal : '#E2E8F0' }
+                        { backgroundColor: colors.surfaceSoft, borderColor: isSubjectFocused ? colors.accentTeal : '#E2E8F0' }
                     ]}>
                         <MaterialCommunityIcons
                             name="pencil-outline"
@@ -484,7 +487,7 @@ const SubmittedTicket = () => {
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Detailed Description</Text>
                     <View style={[
                         styles.textAreaContainerRow,
-                        { backgroundColor: '#F8FAFC', borderColor: isDescFocused ? colors.accentTeal : '#E2E8F0' }
+                        { backgroundColor: colors.surfaceSoft, borderColor: isDescFocused ? colors.accentTeal : '#E2E8F0' }
                     ]}>
                         <MaterialCommunityIcons
                             name="text-box-outline"
@@ -523,6 +526,7 @@ const SubmittedTicket = () => {
 
 const EmailSupport = () => {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     return (
         <View style={styles.tabContent}>
             <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>Direct Support Lines</Text>
@@ -536,11 +540,11 @@ const EmailSupport = () => {
                         key={i}
                         style={[
                             styles.supportLineCard,
-                            { backgroundColor: colors.cardBackground, borderColor: '#F1F5F9' }
+                            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }
                         ]}
                     >
                         <View style={styles.supportLineTop}>
-                            <View style={[styles.iconBox, { backgroundColor: '#F0F9FF' }]}>
+                            <View style={[styles.iconBox, { backgroundColor: colors.surfaceSoft }]}>
                                 <MaterialCommunityIcons name={line.icon as any} size={22} color="#0284C7" />
                             </View>
                             <View style={{ flex: 1 }}>
@@ -550,7 +554,7 @@ const EmailSupport = () => {
                             </View>
                         </View>
                         <TouchableOpacity
-                            style={[styles.actionBtn, { borderColor: '#E2E8F0', backgroundColor: '#F8FAFC' }]}
+                            style={[styles.actionBtn, { borderColor: colors.cardBorder, backgroundColor: colors.surfaceSoft }]}
                             activeOpacity={0.8}
                         >
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -567,6 +571,7 @@ const EmailSupport = () => {
 
 export default function Support() {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const [activeTab, setActiveTab] = useState('Virtual Assistant');
 
     return (
@@ -574,7 +579,7 @@ export default function Support() {
             menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
-            customHeaderBackground="#FFFFFF"
+            customHeaderBackground={colors.cardBackground}
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
@@ -605,14 +610,14 @@ export default function Support() {
                                     style={[
                                         styles.tab,
                                         { backgroundColor: colors.surfaceSoft },
-                                        activeTab === tab && { backgroundColor: '#0D1B2A' }
+                                        activeTab === tab && { backgroundColor: colors.accentTeal }
                                     ]}
                                     activeOpacity={0.85}
                                 >
                                     <Text style={[
                                         styles.tabText,
                                         { color: colors.textSecondary },
-                                        activeTab === tab && { color: '#FFFFFF', fontWeight: '900' }
+                                        activeTab === tab && { color: colors.gradientButtonText || '#FFFFFF', fontWeight: '900' }
                                     ]}>
                                         {tab}
                                     </Text>
@@ -636,7 +641,7 @@ export default function Support() {
                                 key={i}
                                 style={[
                                     styles.faqItem,
-                                    { backgroundColor: '#FFFFFF', borderColor: '#F1F5F9' }
+                                    { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }
                                 ]}
                             >
                                 <Text style={[styles.faqQ, { color: colors.textPrimary }]}>{faq.q}</Text>
@@ -652,7 +657,7 @@ export default function Support() {
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
     scrollContent: {
         padding: 24,
     },
@@ -702,7 +707,7 @@ const styles = StyleSheet.create({
         padding: 28,
         ...Platform.select({
             ios: {
-                shadowColor: '#0F172A',
+                shadowColor: colors.cardShadowColor,
                 shadowOffset: { width: 0, height: 6 },
                 shadowOpacity: 0.03,
                 shadowRadius: 12,
@@ -769,7 +774,7 @@ const styles = StyleSheet.create({
         gap: 20,
         ...Platform.select({
             ios: {
-                shadowColor: '#0F172A',
+                shadowColor: colors.cardShadowColor,
                 shadowOffset: { width: 0, height: 8 },
                 shadowOpacity: 0.04,
                 shadowRadius: 15,
@@ -872,7 +877,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         ...Platform.select({
             ios: {
-                shadowColor: '#0F172A',
+                shadowColor: colors.cardShadowColor,
                 shadowOffset: { width: 0, height: 6 },
                 shadowOpacity: 0.02,
                 shadowRadius: 10,
@@ -923,7 +928,7 @@ const styles = StyleSheet.create({
     faqSection: {
         paddingTop: 32,
         borderTopWidth: 1,
-        borderTopColor: '#F1F5F9',
+        borderTopColor: colors.divider,
     },
     faqHeading: {
         fontSize: 16,
@@ -958,7 +963,7 @@ const styles = StyleSheet.create({
         paddingBottom: 40,
         ...Platform.select({
             ios: {
-                shadowColor: '#0F172A',
+                shadowColor: colors.cardShadowColor,
                 shadowOffset: { width: 0, height: -10 },
                 shadowOpacity: 0.1,
                 shadowRadius: 20,
@@ -985,13 +990,13 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 15,
         fontWeight: '900',
-        color: '#0F172A',
+        color: colors.textPrimary,
     },
     modalCloseCircle: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#F1F5F9',
+        backgroundColor: colors.surfaceSoft,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1001,12 +1006,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 15,
         borderBottomWidth: 1,
-        borderBottomColor: '#F1F5F9',
+        borderBottomColor: colors.divider,
     },
     modalOptionText: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#334155',
+        color: colors.textSecondary,
     },
     // Chat & History Styles
     chatCardHeader: {
@@ -1036,7 +1041,7 @@ const styles = StyleSheet.create({
     historyBtnText: {
         fontSize: 12,
         fontWeight: '800',
-        color: '#0F172A',
+        color: colors.textPrimary,
     },
     msgRow: {
         flexDirection: 'row',
@@ -1078,14 +1083,14 @@ const styles = StyleSheet.create({
     historyTitle: {
         fontSize: 15,
         fontWeight: '900',
-        color: '#0F172A',
+        color: colors.textPrimary,
     },
     newChatHeaderBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
         borderWidth: 1,
-        borderColor: '#E2E8F0',
+        borderColor: colors.cardBorder,
         borderRadius: 8,
         paddingHorizontal: 8,
         paddingVertical: 4,
@@ -1098,13 +1103,13 @@ const styles = StyleSheet.create({
         width: 28,
         height: 28,
         borderRadius: 14,
-        backgroundColor: '#F1F5F9',
+        backgroundColor: colors.surfaceSoft,
         alignItems: 'center',
         justifyContent: 'center',
     },
     historyDivider: {
         height: 1,
-        backgroundColor: '#F1F5F9',
+        backgroundColor: colors.surfaceSoft,
         marginBottom: 8,
     },
     historyItemCard: {
@@ -1122,7 +1127,7 @@ const styles = StyleSheet.create({
     },
     historyItemTime: {
         fontSize: 10,
-        color: '#94A3B8',
+        color: colors.textMuted,
         marginTop: 2,
         fontWeight: '600',
     },

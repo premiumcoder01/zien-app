@@ -58,6 +58,7 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
   const insets = useSafeAreaInsets();
   const profileUrl = activeCard ? `https://staging.zien.ai/card/${activeCard.id}` : undefined;
   const [activeTab, setActiveTab] = useState<FormTab>('personal');
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState<DigitalCard>(activeCard);
   const [uploadingField, setUploadingField] = useState<'image' | 'logo' | null>(null);
@@ -276,17 +277,39 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
         contentContainerStyle={[styles.content]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        {/* Card preview */}
-        <View style={styles.cardWrap}>
-          <ProfileCard
-            card={cardData}
-            accentColor={form.card_color || undefined}
-            template={(form.template as any) || 'modern'}
-            avatarUri={localPhotoUri || form.image?.trim() || undefined}
-            companyLogoUri={localLogoUri || form.logo?.trim() || undefined}
-            cardUrl={profileUrl}
+        {/* Collapsible Card Preview Accordion */}
+        <Pressable
+          style={styles.accordionHeader}
+          onPress={() => setIsPreviewExpanded(!isPreviewExpanded)}>
+          <View style={styles.accordionLeft}>
+            <MaterialCommunityIcons
+              name="card-bulleted-outline"
+              size={20}
+              color={colors.accentTeal}
+            />
+            <Text style={styles.accordionTitle}>
+              {isPreviewExpanded ? "Hide Card Preview" : "Preview Digital Card"}
+            </Text>
+          </View>
+          <MaterialCommunityIcons
+            name={isPreviewExpanded ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={colors.textSecondary}
           />
-        </View>
+        </Pressable>
+
+        {isPreviewExpanded && (
+          <View style={styles.cardWrap}>
+            <ProfileCard
+              card={cardData}
+              accentColor={form.card_color || undefined}
+              template={(form.template as any) || 'modern'}
+              avatarUri={localPhotoUri || form.image?.trim() || undefined}
+              companyLogoUri={localLogoUri || form.logo?.trim() || undefined}
+              cardUrl={profileUrl}
+            />
+          </View>
+        )}
 
 
         {/* Tabs */}
@@ -1098,5 +1121,31 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: '#0B2D3E',
     fontWeight: '900',
     fontSize: 14,
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: colors.cardShadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  accordionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  accordionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textPrimary,
   },
 });

@@ -156,6 +156,7 @@ const deleteMenuApi = async (accessToken: string, companyId: number, menuId: num
 
 export default function AccessControl() {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const { accessToken } = useAuth();
     const queryClient = useQueryClient();
 
@@ -535,7 +536,7 @@ export default function AccessControl() {
             menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
-            customHeaderBackground="#FFFFFF"
+            customHeaderBackground={colors.cardBackground}
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
@@ -651,7 +652,7 @@ export default function AccessControl() {
                         </View>
 
                         {loadingRoles ? (
-                            <ActivityIndicator size="large" color="#0a2341" style={{ marginVertical: 40 }} />
+                            <ActivityIndicator size="large" color={colors.accentTeal} style={{ marginVertical: 40 }} />
                         ) : (
                             <View style={styles.listContainer}>
                                 {roles?.map(role => (
@@ -762,7 +763,7 @@ export default function AccessControl() {
                             </TouchableOpacity>
 
                             {loadingPerms || loadingMenus ? (
-                                <ActivityIndicator size="large" color="#0a2341" style={{ marginVertical: 40 }} />
+                                <ActivityIndicator size="large" color={colors.accentTeal} style={{ marginVertical: 40 }} />
                             ) : (
                                 <View style={styles.permissionsGrid}>
                                     {allMenus?.map(mod => {
@@ -846,7 +847,7 @@ export default function AccessControl() {
                         </TouchableOpacity>
 
                         {loadingMenus ? (
-                            <ActivityIndicator size="large" color="#0a2341" style={{ marginVertical: 40 }} />
+                            <ActivityIndicator size="large" color={colors.accentTeal} style={{ marginVertical: 40 }} />
                         ) : (
                             <View style={styles.listContainer}>
                                 {allMenus?.map(menu => (
@@ -1058,9 +1059,9 @@ export default function AccessControl() {
             >
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={{ flex: 1, backgroundColor: '#FFFFFF' }}
+                    style={{ flex: 1, backgroundColor: colors.cardBackground }}
                 >
-                    <View style={{ flex: 1, backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 20, paddingBottom: 24 }}>
+                    <View style={{ flex: 1, backgroundColor: colors.cardBackground, paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 20, paddingBottom: 24 }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <Text style={[styles.modalTitle, { color: colors.textPrimary, fontSize: 22, fontWeight: '900', marginBottom: 0 }]}>Add Menu</Text>
                             <TouchableOpacity
@@ -1155,7 +1156,7 @@ export default function AccessControl() {
                                     style={[
                                         styles.dropdownSelector,
                                         isAddParentDropdownOpen ? {
-                                            borderColor: '#0a2341',
+                                            borderColor: colors.accentTeal,
                                             borderBottomLeftRadius: 0,
                                             borderBottomRightRadius: 0,
                                         } : {}
@@ -1186,7 +1187,7 @@ export default function AccessControl() {
                                             >
                                                 <Text style={[
                                                     styles.dropdownOptionText,
-                                                    !menuParentId && { fontWeight: '700', color: '#0a2341' }
+                                                    !menuParentId && { fontWeight: '700', color: colors.accentTeal }
                                                 ]}>
                                                     No Parent (Root)
                                                 </Text>
@@ -1204,7 +1205,7 @@ export default function AccessControl() {
                                                     >
                                                         <Text style={[
                                                             styles.dropdownOptionText,
-                                                            isOptionSelected && { fontWeight: '700', color: '#0a2341' }
+                                                            isOptionSelected && { fontWeight: '700', color: colors.accentTeal }
                                                         ]}>
                                                             {m.name}
                                                         </Text>
@@ -1250,9 +1251,9 @@ export default function AccessControl() {
             >
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={{ flex: 1, backgroundColor: '#FFFFFF' }}
+                    style={{ flex: 1, backgroundColor: colors.cardBackground }}
                 >
-                    <View style={{ flex: 1, backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 20, paddingBottom: 24 }}>
+                    <View style={{ flex: 1, backgroundColor: colors.cardBackground, paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 20, paddingBottom: 24 }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <Text style={[styles.modalTitle, { color: colors.textPrimary, fontSize: 22, fontWeight: '900', marginBottom: 0 }]}>Edit Menu</Text>
                             <TouchableOpacity
@@ -1347,7 +1348,7 @@ export default function AccessControl() {
                                     style={[
                                         styles.dropdownSelector,
                                         isEditParentDropdownOpen ? {
-                                            borderColor: '#0a2341',
+                                            borderColor: colors.accentTeal,
                                             borderBottomLeftRadius: 0,
                                             borderBottomRightRadius: 0,
                                         } : {}
@@ -1378,7 +1379,7 @@ export default function AccessControl() {
                                             >
                                                 <Text style={[
                                                     styles.dropdownOptionText,
-                                                    !menuParentId && { fontWeight: '700', color: '#0a2341' }
+                                                    !menuParentId && { fontWeight: '700', color: colors.accentTeal }
                                                 ]}>
                                                     No Parent (Root)
                                                 </Text>
@@ -1396,7 +1397,7 @@ export default function AccessControl() {
                                                     >
                                                         <Text style={[
                                                             styles.dropdownOptionText,
-                                                            isOptionSelected && { fontWeight: '700', color: '#0a2341' }
+                                                            isOptionSelected && { fontWeight: '700', color: colors.accentTeal }
                                                         ]}>
                                                             {m.name}
                                                         </Text>
@@ -1436,7 +1437,7 @@ export default function AccessControl() {
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
     scrollContent: {
         padding: 24,
     },
@@ -1458,7 +1459,7 @@ const styles = StyleSheet.create({
         gap: 8,
         marginBottom: 20,
         borderBottomWidth: 1,
-        borderBottomColor: '#E2E8F0',
+        borderBottomColor: colors.cardBorder,
         paddingBottom: 8,
     },
     subTab: {
@@ -1467,7 +1468,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     subTabActive: {
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.accentTeal,
     },
     subTabText: {
         fontSize: 13,
@@ -1477,11 +1478,11 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
     },
     mainCard: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.cardBackground,
         borderRadius: 20,
         borderWidth: 1,
         padding: 24,
-        shadowColor: '#000',
+        shadowColor: colors.cardShadowColor || '#000',
         shadowOpacity: 0.02,
         shadowRadius: 10,
         elevation: 2,
@@ -1506,7 +1507,7 @@ const styles = StyleSheet.create({
     actionBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.accentTeal,
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 12,
@@ -1527,7 +1528,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 16,
         borderWidth: 1,
-        backgroundColor: '#FAFAFA',
+        backgroundColor: colors.surfaceSoft,
     },
     roleNameText: {
         fontSize: 15,
@@ -1549,8 +1550,8 @@ const styles = StyleSheet.create({
         height: 32,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#E2E8F0',
-        backgroundColor: '#FFFFFF',
+        borderColor: colors.cardBorder,
+        backgroundColor: colors.cardBackground,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1568,7 +1569,7 @@ const styles = StyleSheet.create({
         gap: 20,
     },
     sidebarCard: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.cardBackground,
         borderRadius: 20,
         borderWidth: 1,
         padding: 20,
@@ -1577,7 +1578,7 @@ const styles = StyleSheet.create({
     sidebarHeading: {
         fontSize: 10,
         fontWeight: '900',
-        color: '#64748B',
+        color: colors.textSecondary,
         letterSpacing: 1,
         marginBottom: 12,
     },
@@ -1592,10 +1593,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 12,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: colors.surfaceSoft,
     },
     sidebarRoleItemActive: {
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.accentTeal,
     },
     sidebarRoleText: {
         fontSize: 13,
@@ -1606,7 +1607,7 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     mainPermissionsCard: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.cardBackground,
         borderRadius: 20,
         borderWidth: 1,
         padding: 24,
@@ -1615,7 +1616,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.accentTeal,
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 12,
@@ -1636,13 +1637,13 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         borderRadius: 16,
         borderWidth: 1,
-        backgroundColor: '#FAFAFA',
+        backgroundColor: colors.surfaceSoft,
     },
     moduleIconBox: {
         width: 32,
         height: 32,
         borderRadius: 8,
-        backgroundColor: '#F1F5F9',
+        backgroundColor: colors.surfaceSoft,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1652,13 +1653,13 @@ const styles = StyleSheet.create({
     },
     modulePathText: {
         fontSize: 10,
-        color: '#64748B',
+        color: colors.textSecondary,
         fontWeight: '500',
         marginTop: 1,
     },
     menuPathText: {
         fontSize: 11,
-        color: '#64748B',
+        color: colors.textSecondary,
         fontWeight: '500',
         marginTop: 1,
     },
@@ -1670,7 +1671,7 @@ const styles = StyleSheet.create({
     switchLabel: {
         fontSize: 11,
         fontWeight: '700',
-        color: '#64748B',
+        color: colors.textSecondary,
     },
     menuItemCard: {
         flexDirection: 'row',
@@ -1679,9 +1680,9 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: '#F1F5F9',
-        backgroundColor: '#FFFFFF',
-        shadowColor: '#0F172A',
+        borderColor: colors.cardBorder,
+        backgroundColor: colors.cardBackground,
+        shadowColor: colors.cardShadowColor,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.04,
         shadowRadius: 8,
@@ -1691,7 +1692,7 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 8,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: colors.surfaceSoft,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1719,12 +1720,12 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     modalContent: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.cardBackground,
         borderRadius: 24,
         padding: 24,
         width: '100%',
         maxWidth: 480,
-        shadowColor: '#000',
+        shadowColor: colors.cardShadowColor || '#000',
         shadowOpacity: 0.1,
         shadowRadius: 20,
         elevation: 10,
@@ -1740,17 +1741,17 @@ const styles = StyleSheet.create({
     inputLabel: {
         fontSize: 11,
         fontWeight: '800',
-        color: '#64748B',
+        color: colors.textSecondary,
         marginBottom: 6,
     },
     textInput: {
         borderWidth: 1.5,
-        borderColor: '#E2E8F0',
+        borderColor: colors.cardBorder,
         borderRadius: 12,
         paddingHorizontal: 14,
         paddingVertical: 10,
         fontSize: 13,
-        color: '#0F172A',
+        color: colors.textPrimary,
         fontWeight: '600',
     },
     inputRow: {
@@ -1767,20 +1768,20 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#E2E8F0',
+        borderColor: colors.cardBorder,
         justifyContent: 'center',
         alignItems: 'center',
     },
     modalCancelBtnText: {
         fontSize: 13,
         fontWeight: '800',
-        color: '#64748B',
+        color: colors.textSecondary,
     },
     modalSubmitBtn: {
         paddingHorizontal: 18,
         paddingVertical: 12,
         borderRadius: 12,
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.accentTeal,
         justifyContent: 'center',
         alignItems: 'center',
         minWidth: 100,
@@ -1802,7 +1803,7 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 48 : 16,
         paddingBottom: 16,
         borderBottomWidth: 1.5,
-        shadowColor: '#000',
+        shadowColor: colors.cardShadowColor || '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
         shadowRadius: 12,
@@ -1819,8 +1820,8 @@ const styles = StyleSheet.create({
         height: 32,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#E2E8F0',
-        backgroundColor: '#FFFFFF',
+        borderColor: colors.cardBorder,
+        backgroundColor: colors.cardBackground,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1829,11 +1830,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         borderWidth: 1.5,
-        borderColor: '#E2E8F0',
+        borderColor: colors.cardBorder,
         borderRadius: 12,
         paddingHorizontal: 14,
         paddingVertical: 12,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.cardBackground,
     },
     dropdownSelectorText: {
         fontSize: 13,
@@ -1842,10 +1843,10 @@ const styles = StyleSheet.create({
     dropdownOptionsContainer: {
         marginTop: 6,
         borderWidth: 1.5,
-        borderColor: '#E2E8F0',
+        borderColor: colors.cardBorder,
         borderRadius: 12,
-        backgroundColor: '#FFFFFF',
-        shadowColor: '#000',
+        backgroundColor: colors.cardBackground,
+        shadowColor: colors.cardShadowColor || '#000',
         shadowOpacity: 0.05,
         shadowRadius: 10,
         elevation: 4,
@@ -1853,22 +1854,22 @@ const styles = StyleSheet.create({
     },
     dropdownOptionsConnected: {
         borderWidth: 1.5,
-        borderColor: '#0a2341',
+        borderColor: colors.accentTeal,
         borderTopWidth: 0,
         borderBottomLeftRadius: 12,
         borderBottomRightRadius: 12,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.cardBackground,
         overflow: 'hidden',
     },
     dropdownOptionItem: {
         paddingHorizontal: 14,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#F1F5F9',
+        borderBottomColor: colors.divider,
     },
     dropdownOptionText: {
         fontSize: 13,
-        color: '#0F172A',
+        color: colors.textPrimary,
         fontWeight: '500',
     },
     errorText: {

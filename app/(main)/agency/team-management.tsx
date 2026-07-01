@@ -40,6 +40,7 @@ const { width } = Dimensions.get('window');
 
 const StatCard = ({ icon, value, label, color }: any) => {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     return (
         <View style={[styles.statPanel, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
             <View style={[styles.statIconBox, { backgroundColor: `${color}15` }]}>
@@ -55,6 +56,7 @@ const StatCard = ({ icon, value, label, color }: any) => {
 
 const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) => {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const isEdit = !!agent;
     const [form, setForm] = useState<any>({
         first_name: '',
@@ -150,20 +152,20 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
 
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-            <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+            <View style={{ flex: 1, backgroundColor: colors.cardBackground }}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                     <View style={{ flex: 1 }}>
                         {/* Header */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 24, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 24, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
                                 <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}>
-                                    <MaterialCommunityIcons name="arrow-left" size={24} color="#0D1B2A" />
+                                    <MaterialCommunityIcons name="arrow-left" size={24} color={colors.textPrimary} />
                                 </TouchableOpacity>
                                 <View>
-                                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#0D1B2A' }}>
+                                    <Text style={{ fontSize: 18, fontWeight: '900', color: colors.textPrimary }}>
                                         {isEdit ? "Edit Team Member" : "Add New Team Member"}
                                     </Text>
-                                    <Text style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>
+                                    <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 2 }}>
                                         {isEdit ? "Update professional details" : "Register a new agency agent"}
                                     </Text>
                                 </View>
@@ -173,23 +175,23 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, gap: 20 }}>
                             {/* Row 1: Name (Single Column) */}
                             <View style={{ gap: 6 }}>
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>First Name <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                                <TextInput style={{ height: 48, borderWidth: 1, borderColor: errors.first_name ? '#EF4444' : '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: '#0D1B2A', backgroundColor: '#F8FAFC' }}
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>First Name <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                                <TextInput style={{ height: 48, borderWidth: 1, borderColor: errors.first_name ? '#EF4444' : '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: colors.textPrimary, backgroundColor: colors.inputBackground }}
                                     value={form.first_name} onChangeText={t => { setForm({ ...form, first_name: t }); setErrors({ ...errors, first_name: '' }); }} placeholder="John" placeholderTextColor="#94A3B8" />
                                 {errors.first_name && <Text style={{ fontSize: 11, color: '#EF4444' }}>{errors.first_name}</Text>}
                             </View>
 
                             <View style={{ gap: 6 }}>
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>Last Name <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                                <TextInput style={{ height: 48, borderWidth: 1, borderColor: errors.last_name ? '#EF4444' : '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: '#0D1B2A', backgroundColor: '#F8FAFC' }}
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>Last Name <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                                <TextInput style={{ height: 48, borderWidth: 1, borderColor: errors.last_name ? '#EF4444' : '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: colors.textPrimary, backgroundColor: colors.inputBackground }}
                                     value={form.last_name} onChangeText={t => { setForm({ ...form, last_name: t }); setErrors({ ...errors, last_name: '' }); }} placeholder="Doe" placeholderTextColor="#94A3B8" />
                                 {errors.last_name && <Text style={{ fontSize: 11, color: '#EF4444' }}>{errors.last_name}</Text>}
                             </View>
 
                             {/* Row 2: Email */}
                             <View style={{ gap: 6 }}>
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>Email Address <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                                <TextInput style={{ height: 48, borderWidth: 1, borderColor: errors.email ? '#EF4444' : '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: '#0D1B2A', backgroundColor: '#F8FAFC' }}
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>Email Address <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                                <TextInput style={{ height: 48, borderWidth: 1, borderColor: errors.email ? '#EF4444' : '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: colors.textPrimary, backgroundColor: colors.inputBackground }}
                                     value={form.email} onChangeText={t => { setForm({ ...form, email: t }); setErrors({ ...errors, email: '' }); }} placeholder="john.doe@agency.com" placeholderTextColor="#94A3B8" keyboardType="email-address" autoCapitalize="none" />
                                 {errors.email && <Text style={{ fontSize: 11, color: '#EF4444' }}>{errors.email}</Text>}
                             </View>
@@ -198,9 +200,9 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                             {!isEdit && (
                                 <>
                                     <View style={{ gap: 6 }}>
-                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderColor: errors.password ? '#EF4444' : '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}>
-                                            <TextInput style={{ flex: 1, fontSize: 14, color: '#0D1B2A' }} secureTextEntry={!showPassword}
+                                        <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderColor: errors.password ? '#EF4444' : '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, backgroundColor: colors.inputBackground }}>
+                                            <TextInput style={{ flex: 1, fontSize: 14, color: colors.textPrimary }} secureTextEntry={!showPassword}
                                                 value={form.password} onChangeText={t => { setForm({ ...form, password: t }); setErrors({ ...errors, password: '' }); }} placeholder="Min 8 characters" placeholderTextColor="#94A3B8" />
                                             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                                                 <MaterialCommunityIcons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#64748B" />
@@ -210,9 +212,9 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                                     </View>
 
                                     <View style={{ gap: 6 }}>
-                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>Confirm Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderColor: errors.confirm_password ? '#EF4444' : '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}>
-                                            <TextInput style={{ flex: 1, fontSize: 14, color: '#0D1B2A' }} secureTextEntry={!showConfirmPassword}
+                                        <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>Confirm Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderColor: errors.confirm_password ? '#EF4444' : '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, backgroundColor: colors.inputBackground }}>
+                                            <TextInput style={{ flex: 1, fontSize: 14, color: colors.textPrimary }} secureTextEntry={!showConfirmPassword}
                                                 value={form.confirm_password} onChangeText={t => { setForm({ ...form, confirm_password: t }); setErrors({ ...errors, confirm_password: '' }); }} placeholder="Repeat password" placeholderTextColor="#94A3B8" />
                                             <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                                                 <MaterialCommunityIcons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#64748B" />
@@ -225,7 +227,7 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
 
                             {/* Row 4: Phone and License */}
                             <View style={{ gap: 6 }}>
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>Phone Number</Text>
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>Phone Number</Text>
                                 <PhoneInput
                                     ref={phoneInputRef}
                                     defaultValue={form.phone}
@@ -240,11 +242,11 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                                     onChangeCountry={(country) => {
                                         setForm({ ...form, country_code: '+' + country.callingCode[0] });
                                     }}
-                                    containerStyle={[{ width: '100%', height: 48, borderWidth: 1, borderColor: errors.phone ? '#EF4444' : '#E2E8F0', borderRadius: 10, backgroundColor: '#F8FAFC', overflow: 'hidden' }]}
+                                    containerStyle={[{ width: '100%', height: 48, borderWidth: 1, borderColor: errors.phone ? '#EF4444' : '#E2E8F0', borderRadius: 10, backgroundColor: colors.inputBackground, overflow: 'hidden' }]}
                                     textContainerStyle={{ backgroundColor: 'transparent', paddingVertical: 0, paddingHorizontal: 0 }}
-                                    textInputStyle={{ fontSize: 14, color: '#0D1B2A', backgroundColor: 'transparent', marginLeft: 10, fontWeight: '500' }}
-                                    codeTextStyle={{ fontSize: 14, color: '#0D1B2A', paddingHorizontal: 10, fontWeight: '600' }}
-                                    flagButtonStyle={{ width: 60, height: 48, backgroundColor: 'transparent', borderRightWidth: 1, borderRightColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' }}
+                                    textInputStyle={{ fontSize: 14, color: colors.textPrimary, backgroundColor: 'transparent', marginLeft: 10, fontWeight: '500' }}
+                                    codeTextStyle={{ fontSize: 14, color: colors.textPrimary, paddingHorizontal: 10, fontWeight: '600' }}
+                                    flagButtonStyle={{ width: 60, height: 48, backgroundColor: 'transparent', borderRightWidth: 1, borderRightColor: colors.cardBorder, alignItems: 'center', justifyContent: 'center' }}
                                     placeholder="Phone number"
                                     textInputProps={{
                                         placeholderTextColor: '#94A3B8',
@@ -256,41 +258,41 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                             </View>
 
                             <View style={{ gap: 6 }}>
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>License Number</Text>
-                                <TextInput style={{ height: 48, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: '#0D1B2A', backgroundColor: '#F8FAFC' }}
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>License Number</Text>
+                                <TextInput style={{ height: 48, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: colors.textPrimary, backgroundColor: colors.inputBackground }}
                                     value={form.license_number} onChangeText={t => setForm({ ...form, license_number: t })} placeholder="RE-123456" placeholderTextColor="#94A3B8" />
                             </View>
 
                             {/* Row 5: Address */}
                             <View style={{ gap: 6 }}>
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>Address</Text>
-                                <TextInput style={{ height: 48, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: '#0D1B2A', backgroundColor: '#F8FAFC' }}
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>Address</Text>
+                                <TextInput style={{ height: 48, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: colors.textPrimary, backgroundColor: colors.inputBackground }}
                                     value={form.address} onChangeText={t => setForm({ ...form, address: t })} placeholder="123 Agency St, City, State" placeholderTextColor="#94A3B8" />
                             </View>
 
                             {/* Row 6: Assign Role */}
                             <View style={{ gap: 6, zIndex: 10 }}>
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>Assign Role <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>Assign Role <Text style={{ color: '#EF4444' }}>*</Text></Text>
                                 <TouchableOpacity
                                     activeOpacity={0.8}
-                                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 48, borderWidth: 1, borderColor: errors.role_id ? '#EF4444' : (showRolePicker ? colors.accentTeal : '#E2E8F0'), borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}
+                                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 48, borderWidth: 1, borderColor: errors.role_id ? '#EF4444' : (showRolePicker ? colors.accentTeal : '#E2E8F0'), borderRadius: 10, paddingHorizontal: 16, backgroundColor: colors.inputBackground }}
                                     onPress={() => setShowRolePicker(!showRolePicker)}
                                 >
-                                    <Text style={{ fontSize: 14, color: form.role_id ? '#0D1B2A' : '#94A3B8' }}>
+                                    <Text style={{ fontSize: 14, color: form.role_id ? colors.textPrimary : colors.textMuted }}>
                                         {roles?.find((r: any) => r.id === form.role_id)?.name || 'Select a role...'}
                                     </Text>
-                                    <MaterialCommunityIcons name={showRolePicker ? "chevron-up" : "chevron-down"} size={22} color="#0D1B2A" />
+                                    <MaterialCommunityIcons name={showRolePicker ? "chevron-up" : "chevron-down"} size={22} color={colors.textPrimary} />
                                 </TouchableOpacity>
                                 {errors.role_id && <Text style={{ fontSize: 11, color: '#EF4444' }}>{errors.role_id}</Text>}
 
                                 {showRolePicker && (
-                                    <View style={{ position: 'absolute', top: errors.role_id ? 90 : 72, left: 0, right: 0, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, overflow: 'hidden', elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 }}>
+                                    <View style={{ position: 'absolute', top: errors.role_id ? 90 : 72, left: 0, right: 0, backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 10, overflow: 'hidden', elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 }}>
                                         {roles?.map((r: any, idx: number) => {
                                             const isSelected = r.id === form.role_id;
                                             return (
                                                 <TouchableOpacity
                                                     key={r.id}
-                                                    style={{ paddingVertical: 14, paddingHorizontal: 16, backgroundColor: isSelected ? '#3B82F6' : '#fff', borderBottomWidth: idx === roles.length - 1 ? 0 : 1, borderBottomColor: '#F1F5F9' }}
+                                                    style={{ paddingVertical: 14, paddingHorizontal: 16, backgroundColor: isSelected ? '#3B82F6' : '#fff', borderBottomWidth: idx === roles.length - 1 ? 0 : 1, borderBottomColor: colors.divider }}
                                                     onPress={() => { setForm({ ...form, role_id: r.id }); setErrors({ ...errors, role_id: '' }); setShowRolePicker(false); }}
                                                 >
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -306,8 +308,8 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
 
                             {/* Row 7: Description */}
                             <View style={{ gap: 6, zIndex: 1 }}>
-                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0D1B2A' }}>Description</Text>
-                                <TextInput style={{ height: 100, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, paddingTop: 16, fontSize: 14, color: '#0D1B2A', backgroundColor: '#F8FAFC', textAlignVertical: 'top' }}
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>Description</Text>
+                                <TextInput style={{ height: 100, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 10, paddingHorizontal: 16, paddingTop: 16, fontSize: 14, color: colors.textPrimary, backgroundColor: colors.inputBackground, textAlignVertical: 'top' }}
                                     value={form.description} onChangeText={t => setForm({ ...form, description: t })} placeholder="Add notes about this agent..." placeholderTextColor="#94A3B8" multiline />
                             </View>
 
@@ -315,7 +317,7 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                         </ScrollView>
 
                         {/* Footer */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 24, borderTopWidth: 1, borderTopColor: '#F1F5F9', backgroundColor: '#fff', paddingBottom: Platform.OS === 'ios' ? 20 : 24 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 24, borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.cardBackground, paddingBottom: Platform.OS === 'ios' ? 20 : 24 }}>
                             <TouchableOpacity
                                 style={{ flex: 1, height: 48, borderRadius: 12, backgroundColor: '#0D1B2A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', opacity: isSaving ? 0.7 : 1 }}
                                 onPress={handleSubmit}
@@ -338,6 +340,7 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
 
 const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, onDelete, onToggleStatus, isUpdating }: { visible: boolean; onClose: () => void; agent: Employee | null; onEdit: (agent: Employee) => void; onChangePassword: (agent: Employee) => void; onDelete: (agent: Employee) => void; onToggleStatus: (agent: Employee) => void; isUpdating?: boolean }) => {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const router = useRouter();
     if (!agent) return null;
 
@@ -347,17 +350,17 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
     const joinedDate = new Date(agent.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     const InfoRow = ({ label, value }: { label: string; value: string | null | undefined }) => (
-        <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '500' }}>{label}</Text>
-            <Text style={{ fontSize: 13, color: '#0D1B2A', fontWeight: '800', flex: 1, textAlign: 'right', marginLeft: 20 }}>{value || '-'}</Text>
+        <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.divider, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: '500' }}>{label}</Text>
+            <Text style={{ fontSize: 13, color: colors.textPrimary, fontWeight: '800', flex: 1, textAlign: 'right', marginLeft: 20 }}>{value || '-'}</Text>
         </View>
     );
 
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-            <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+            <View style={{ flex: 1, backgroundColor: colors.inputBackground }}>
                 {/* Header Area */}
-                <View style={{ backgroundColor: '#fff', padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 24, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
+                <View style={{ backgroundColor: colors.cardBackground, padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 24, borderBottomWidth: 1, borderBottomColor: colors.cardBorder }}>
                     <TouchableOpacity onPress={onClose} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 }}>
                         <MaterialCommunityIcons name="arrow-left" size={16} color={colors.accentTeal} />
                         <Text style={{ color: colors.accentTeal, fontSize: 13, fontWeight: '700' }}>Back to team members</Text>
@@ -365,34 +368,34 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <View>
-                            <Text style={{ fontSize: 24, fontWeight: '900', color: '#0D1B2A' }}>Agent Details</Text>
-                            <Text style={{ fontSize: 14, color: '#64748B', marginTop: 4 }}>{fullName}</Text>
+                            <Text style={{ fontSize: 24, fontWeight: '900', color: colors.textPrimary }}>Agent Details</Text>
+                            <Text style={{ fontSize: 14, color: colors.textSecondary, marginTop: 4 }}>{fullName}</Text>
                         </View>
                     </View>
 
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, marginTop: 24 }}>
                         <TouchableOpacity
                             onPress={() => { onClose(); router.push('/(main)/agency/access-control'); }}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0' }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder }}
                         >
-                            <MaterialCommunityIcons name="shield-check-outline" size={16} color="#0D1B2A" />
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0D1B2A' }}>Manage Role Permissions</Text>
+                            <MaterialCommunityIcons name="shield-check-outline" size={16} color={colors.textPrimary} />
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }}>Manage Role Permissions</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
                             onPress={() => onEdit(agent)}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0' }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder }}
                         >
-                            <MaterialCommunityIcons name="pencil-outline" size={16} color="#0D1B2A" />
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0D1B2A' }}>Edit Info</Text>
+                            <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textPrimary} />
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }}>Edit Info</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
                             onPress={() => onChangePassword(agent)}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0' }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder }}
                         >
-                            <MaterialCommunityIcons name="key-variant" size={16} color="#0D1B2A" />
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0D1B2A' }}>Change Password</Text>
+                            <MaterialCommunityIcons name="key-variant" size={16} color={colors.textPrimary} />
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }}>Change Password</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -407,8 +410,8 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
 
                 <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
                     {/* Basic Info Card */}
-                    <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#E2E8F0' }}>
-                        <Text style={{ fontSize: 15, fontWeight: '900', color: '#0D1B2A', marginBottom: 8 }}>Basic Information</Text>
+                    <View style={{ backgroundColor: colors.cardBackground, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.cardBorder }}>
+                        <Text style={{ fontSize: 15, fontWeight: '900', color: colors.textPrimary, marginBottom: 8 }}>Basic Information</Text>
                         <InfoRow label="First Name" value={agent.user.first_name} />
                         <InfoRow label="Last Name" value={agent.user.last_name} />
                         <InfoRow label="Email Address" value={agent.user.email} />
@@ -417,12 +420,12 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
                     </View>
 
                     {/* Role and Access Card */}
-                    <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#E2E8F0' }}>
-                        <Text style={{ fontSize: 15, fontWeight: '900', color: '#0D1B2A', marginBottom: 8 }}>Role and Access</Text>
+                    <View style={{ backgroundColor: colors.cardBackground, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.cardBorder }}>
+                        <Text style={{ fontSize: 15, fontWeight: '900', color: colors.textPrimary, marginBottom: 8 }}>Role and Access</Text>
                         <InfoRow label="Role" value={agent.role?.name} />
 
-                        <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '500' }}>Status</Text>
+                        <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.divider, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: '500' }}>Status</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                                 {isUpdating ? (
                                     <ActivityIndicator size="small" color={colors.accentTeal} />
@@ -452,6 +455,8 @@ const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, 
 };
 
 const ChangePasswordModal = ({ visible, onClose, agent, onUpdate, isUpdating }: { visible: boolean; onClose: () => void; agent: Employee | null; onUpdate: (password: string) => void; isUpdating: boolean }) => {
+    const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const [passwords, setPasswords] = useState({ new: '', confirm: '' });
     const [showPass, setShowPass] = useState({ new: false, confirm: false });
 
@@ -473,9 +478,9 @@ const ChangePasswordModal = ({ visible, onClose, agent, onUpdate, isUpdating }: 
     return (
         <Modal visible={visible} transparent={true} animationType="fade">
             <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-                <View style={{ width: '90%', backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden' }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
-                        <Text style={{ fontSize: 18, fontWeight: '900', color: '#0D1B2A' }}>Change Password</Text>
+                <View style={{ width: '90%', backgroundColor: colors.cardBackground, borderRadius: 20, overflow: 'hidden' }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
+                        <Text style={{ fontSize: 18, fontWeight: '900', color: colors.textPrimary }}>Change Password</Text>
                         <TouchableOpacity onPress={onClose}>
                             <MaterialCommunityIcons name="close" size={24} color="#64748B" />
                         </TouchableOpacity>
@@ -483,10 +488,10 @@ const ChangePasswordModal = ({ visible, onClose, agent, onUpdate, isUpdating }: 
 
                     <View style={{ padding: 20, gap: 16 }}>
                         <View style={{ gap: 6 }}>
-                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#0D1B2A' }}>New Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary }}>New Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 10, paddingHorizontal: 16, backgroundColor: colors.inputBackground }}>
                                 <TextInput
-                                    style={{ flex: 1, fontSize: 14, color: '#0D1B2A' }}
+                                    style={{ flex: 1, fontSize: 14, color: colors.textPrimary }}
                                     secureTextEntry={!showPass.new}
                                     value={passwords.new}
                                     onChangeText={t => setPasswords({ ...passwords, new: t })}
@@ -499,10 +504,10 @@ const ChangePasswordModal = ({ visible, onClose, agent, onUpdate, isUpdating }: 
                         </View>
 
                         <View style={{ gap: 6 }}>
-                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#0D1B2A' }}>Confirm New Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 16, backgroundColor: '#F8FAFC' }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary }}>Confirm New Password <Text style={{ color: '#EF4444' }}>*</Text></Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderColor: colors.cardBorder, borderRadius: 10, paddingHorizontal: 16, backgroundColor: colors.inputBackground }}>
                                 <TextInput
-                                    style={{ flex: 1, fontSize: 14, color: '#0D1B2A' }}
+                                    style={{ flex: 1, fontSize: 14, color: colors.textPrimary }}
                                     secureTextEntry={!showPass.confirm}
                                     value={passwords.confirm}
                                     onChangeText={t => setPasswords({ ...passwords, confirm: t })}
@@ -515,12 +520,12 @@ const ChangePasswordModal = ({ visible, onClose, agent, onUpdate, isUpdating }: 
                         </View>
                     </View>
 
-                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, padding: 20, backgroundColor: '#F8FAFC', borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, padding: 20, backgroundColor: colors.inputBackground, borderTopWidth: 1, borderTopColor: colors.divider }}>
                         <TouchableOpacity
                             style={{ height: 44, paddingHorizontal: 24, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
                             onPress={onClose}
                         >
-                            <Text style={{ fontSize: 14, fontWeight: '700', color: '#64748B' }}>Cancel</Text>
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.textSecondary }}>Cancel</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={{ height: 44, paddingHorizontal: 24, borderRadius: 10, backgroundColor: '#0D1B2A', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}
@@ -547,6 +552,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 
 const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggleStatus, isUpdating }: { agent: Employee; onDelete: (agent: Employee) => void; onEdit: (agent: Employee) => void; onView: () => void; onChangePassword: (agent: Employee) => void; onToggleStatus: (agent: Employee) => void; isUpdating?: boolean }) => {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
 
     const statusKey = agent.status === 1 ? 'active' : agent.status === 2 ? 'pending' : 'inactive';
     const sc = STATUS_CONFIG[statusKey];
@@ -570,8 +576,8 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
                     </View>
 
                     <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={[styles.agentName, { color: '#0D1B2A' }]} numberOfLines={1}>{fullName || 'Unknown Agent'}</Text>
-                        <Text style={[styles.agentEmail, { color: '#64748B' }]} numberOfLines={1}>{agent.user.email || '—'}</Text>
+                        <Text style={[styles.agentName, { color: colors.textPrimary }]} numberOfLines={1}>{fullName || 'Unknown Agent'}</Text>
+                        <Text style={[styles.agentEmail, { color: colors.textSecondary }]} numberOfLines={1}>{agent.user.email || '—'}</Text>
                         {/* Role badge */}
                         <View style={styles.roleBadge}>
                             <MaterialCommunityIcons name="shield-half-full" size={10} color={colors.accentTeal} />
@@ -610,7 +616,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.metaLabel}>LICENSE</Text>
-                            <Text style={[styles.metaValue, { color: '#0D1B2A' }]} numberOfLines={1} ellipsizeMode="tail">
+                            <Text style={[styles.metaValue, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
                                 {agent.user.license_number || '—'}
                             </Text>
                         </View>
@@ -622,7 +628,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.metaLabel}>JOINED</Text>
-                            <Text style={[styles.metaValue, { color: '#0D1B2A' }]} numberOfLines={1}>{joinedDate}</Text>
+                            <Text style={[styles.metaValue, { color: colors.textPrimary }]} numberOfLines={1}>{joinedDate}</Text>
                         </View>
                     </View>
 
@@ -632,7 +638,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.metaLabel}>MEMBER ID</Text>
-                            <Text style={[styles.metaValue, { color: '#0D1B2A' }]} numberOfLines={1}>#{agent.id}</Text>
+                            <Text style={[styles.metaValue, { color: colors.textPrimary }]} numberOfLines={1}>#{agent.id}</Text>
                         </View>
                     </View>
                 </View>
@@ -666,6 +672,7 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
 
 export default function TeamManagement() {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const { accessToken } = useAuth();
     const queryClient = useQueryClient();
     const [selectedTab, setSelectedTab] = useState('All Agents');
@@ -831,7 +838,7 @@ export default function TeamManagement() {
             menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
-            customHeaderBackground="#FFFFFF"
+            customHeaderBackground={colors.cardBackground}
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
@@ -1016,25 +1023,25 @@ export default function TeamManagement() {
                 {/* Delete Confirmation Modal */}
                 <Modal visible={!!agentToDelete} transparent={true} animationType="fade">
                     <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-                        <View style={{ width: '85%', backgroundColor: '#fff', borderRadius: 24, padding: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 8 }}>
+                        <View style={{ width: '85%', backgroundColor: colors.cardBackground, borderRadius: 24, padding: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 8 }}>
                             <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                                 <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
                                     <MaterialCommunityIcons name="alert-outline" size={24} color="#EF4444" />
                                 </View>
                             </View>
 
-                            <Text style={{ fontSize: 18, fontWeight: '800', color: '#0D1B2A', marginBottom: 8, textAlign: 'center' }}>Remove Team Member?</Text>
-                            <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19, marginBottom: 24, paddingHorizontal: 10 }}>
-                                Are you sure you want to remove <Text style={{ fontWeight: '700', color: '#0D1B2A' }}>{agentToDelete?.user?.first_name} {agentToDelete?.user?.last_name}</Text> from your agency? This action cannot be undone.
+                            <Text style={{ fontSize: 18, fontWeight: '800', color: colors.textPrimary, marginBottom: 8, textAlign: 'center' }}>Remove Team Member?</Text>
+                            <Text style={{ fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 19, marginBottom: 24, paddingHorizontal: 10 }}>
+                                Are you sure you want to remove <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{agentToDelete?.user?.first_name} {agentToDelete?.user?.last_name}</Text> from your agency? This action cannot be undone.
                             </Text>
 
                             <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
                                 <TouchableOpacity
-                                    style={{ flex: 1, height: 46, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' }}
+                                    style={{ flex: 1, height: 46, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cardBackground }}
                                     onPress={() => setAgentToDelete(null)}
                                     disabled={deleteEmployeeMutation.isPending}
                                 >
-                                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#64748B' }}>Cancel</Text>
+                                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>Cancel</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={{ flex: 1.2, height: 46, borderRadius: 12, backgroundColor: '#EF4444', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#EF4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 2 }}
@@ -1063,7 +1070,7 @@ export default function TeamManagement() {
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
     scrollContent: {
         padding: 24,
     },
@@ -1125,7 +1132,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        backgroundColor: '#EFF9FA',
+        backgroundColor: colors.surfaceSoft,
         alignSelf: 'flex-start',
         paddingHorizontal: 8,
         paddingVertical: 3,
@@ -1135,7 +1142,7 @@ const styles = StyleSheet.create({
     roleBadgeText: {
         fontSize: 10,
         fontWeight: '800',
-        color: '#0a2341',
+        color: colors.accentTeal,
         letterSpacing: 0.2,
     },
     statusChip: {
@@ -1158,7 +1165,7 @@ const styles = StyleSheet.create({
     },
     agentCardDivider: {
         height: 1,
-        backgroundColor: 'rgba(0,0,0,0.05)',
+        backgroundColor: colors.divider,
         marginVertical: 13,
     },
     metaGrid: {
@@ -1176,7 +1183,7 @@ const styles = StyleSheet.create({
         width: 26,
         height: 26,
         borderRadius: 8,
-        backgroundColor: '#F1F5F9',
+        backgroundColor: colors.surfaceSoft,
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
@@ -1184,7 +1191,7 @@ const styles = StyleSheet.create({
     metaLabel: {
         fontSize: 8,
         fontWeight: '900',
-        color: '#94A3B8',
+        color: colors.textMuted,
         letterSpacing: 0.8,
         textTransform: 'uppercase',
     },
@@ -1202,7 +1209,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: '#0D1B2A',
+        backgroundColor: colors.accentTeal,
         paddingHorizontal: 14,
         paddingVertical: 9,
         borderRadius: 12,
@@ -1221,7 +1228,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 11,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: colors.inputBackground,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -1237,7 +1244,7 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 24,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: colors.inputBackground,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 6,
@@ -1270,7 +1277,7 @@ const styles = StyleSheet.create({
         borderRadius: 30,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#0D1B2A',
+        shadowColor: colors.cardShadowColor,
         shadowOpacity: 0.3,
         shadowRadius: 12,
         elevation: 8,
@@ -1347,7 +1354,7 @@ const styles = StyleSheet.create({
     },
     tabActive: {
         borderBottomWidth: 3,
-        borderBottomColor: '#0D1B2A',
+        borderBottomColor: colors.accentTeal,
     },
     tabText: {
         fontSize: 13,

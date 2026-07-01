@@ -47,6 +47,8 @@ const formatLogTimestamp = (isoString: string) => {
 };
 
 const SeverityBadge = ({ severity }: { severity: string }) => {
+    const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const sev = (severity || '').toUpperCase();
     let bgColor = '#ECFEFF';
     let borderColor = '#A5F3FC';
@@ -75,6 +77,7 @@ const SeverityBadge = ({ severity }: { severity: string }) => {
 
 const LogItem = ({ log }: { log: TeamLogEntry }) => {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     return (
         <View style={[styles.logCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
             {/* Header: ID, Severity & Source IP */}
@@ -94,7 +97,7 @@ const LogItem = ({ log }: { log: TeamLogEntry }) => {
 
             {/* Action performed */}
             <View style={styles.cardActionRow}>
-                <Text style={[styles.cardAction, { color: '#0F172A' }]}>{log.action}</Text>
+                <Text style={[styles.cardAction, { color: colors.textPrimary }]}>{log.action}</Text>
             </View>
 
             {/* Details: User and Target Column */}
@@ -104,7 +107,7 @@ const LogItem = ({ log }: { log: TeamLogEntry }) => {
                     <Text style={styles.detailLabel}>PERFORMED BY</Text>
                     <View style={styles.detailUserCell}>
                         <MaterialCommunityIcons name="account-outline" size={14} color={colors.accentTeal} />
-                        <Text style={[styles.detailValue, { color: '#334155' }]} numberOfLines={1} ellipsizeMode="tail">
+                        <Text style={[styles.detailValue, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
                             {log.user_name || `User #${log.user_id}`}
                         </Text>
                     </View>
@@ -113,7 +116,7 @@ const LogItem = ({ log }: { log: TeamLogEntry }) => {
                 {/* Target Column */}
                 <View style={styles.detailCol}>
                     <Text style={styles.detailLabel}>TARGET</Text>
-                    <Text style={[styles.detailValue, { color: '#334155' }]} numberOfLines={1} ellipsizeMode="tail">
+                    <Text style={[styles.detailValue, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
                         {log.target || '-'}
                     </Text>
                 </View>
@@ -125,7 +128,7 @@ const LogItem = ({ log }: { log: TeamLogEntry }) => {
             {/* Footer: Localized Timestamp */}
             <View style={styles.cardFooter}>
                 <MaterialCommunityIcons name="clock-outline" size={13} color="#64748B" />
-                <Text style={[styles.cardTimestamp, { color: '#64748B' }]}>
+                <Text style={[styles.cardTimestamp, { color: colors.textSecondary }]}>
                     {formatLogTimestamp(log.timestamp)}
                 </Text>
             </View>
@@ -135,6 +138,7 @@ const LogItem = ({ log }: { log: TeamLogEntry }) => {
 
 export default function ActivityLogs() {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const { accessToken } = useAuth();
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -234,7 +238,7 @@ export default function ActivityLogs() {
             menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
-            customHeaderBackground="#FFFFFF"
+            customHeaderBackground={colors.cardBackground}
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
@@ -270,8 +274,8 @@ export default function ActivityLogs() {
                 {/* --- TITLE & SUBTITLE --- */}
                 <View style={styles.header}>
                     <View style={{ flex: 1 }}>
-                        <Text style={[styles.title, { color: '#0F172A' }]}>Audit & Security Trail</Text>
-                        <Text style={[styles.subtitle, { color: '#64748B' }]}>
+                        <Text style={[styles.title, { color: colors.textPrimary }]}>Audit & Security Trail</Text>
+                        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                             Complete history of actions performed within your agency. Use filters to drill down into specific events.
                         </Text>
                     </View>
@@ -321,7 +325,7 @@ export default function ActivityLogs() {
 
                             {/* Card 4: Team Members */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
-                                <View style={[styles.statIconBox, { backgroundColor: '#F8FAFC' }]}>
+                                <View style={[styles.statIconBox, { backgroundColor: colors.surfaceSoft }]}>
                                     <MaterialCommunityIcons name="database" size={20} color="#475569" />
                                 </View>
                                 <View style={styles.statInfo}>
@@ -476,7 +480,7 @@ export default function ActivityLogs() {
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
     },
@@ -517,7 +521,7 @@ const styles = StyleSheet.create({
     },
     statCard: {
         width: 220,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.cardBackground,
         borderRadius: 16,
         borderWidth: 1,
         paddingHorizontal: 16,
@@ -525,7 +529,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        shadowColor: '#000',
+        shadowColor: colors.cardShadowColor || '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.02,
         shadowRadius: 6,
@@ -545,12 +549,12 @@ const styles = StyleSheet.create({
     statValue: {
         fontSize: 20,
         fontWeight: '900',
-        color: '#0F172A',
+        color: colors.textPrimary,
     },
     statLabel: {
         fontSize: 9,
         fontWeight: '900',
-        color: '#64748B',
+        color: colors.textSecondary,
         letterSpacing: 0.5,
     },
     filterBar: {
@@ -601,7 +605,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         width: 170,
         zIndex: 10000,
-        shadowColor: '#000',
+        shadowColor: colors.cardShadowColor || '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 10,
@@ -645,7 +649,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         borderWidth: 1,
         padding: 16,
-        shadowColor: '#0F172A',
+        shadowColor: colors.cardShadowColor,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.03,
         shadowRadius: 10,
@@ -664,7 +668,7 @@ const styles = StyleSheet.create({
     cardLogId: {
         fontSize: 13,
         fontWeight: '900',
-        color: '#0F172A',
+        color: colors.textPrimary,
         letterSpacing: -0.2,
     },
     cardHeaderRight: {
@@ -700,7 +704,7 @@ const styles = StyleSheet.create({
     detailLabel: {
         fontSize: 8.5,
         fontWeight: '900',
-        color: '#94A3B8',
+        color: colors.textMuted,
         letterSpacing: 0.8,
     },
     detailUserCell: {
@@ -746,7 +750,7 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 48 : 16,
         paddingBottom: 16,
         borderBottomWidth: 1.5,
-        shadowColor: '#000',
+        shadowColor: colors.cardShadowColor || '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
         shadowRadius: 12,

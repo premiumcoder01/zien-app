@@ -10,8 +10,8 @@ import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider as AppThemeProvider, useAppTheme } from '@/context/ThemeContext';
-
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { NetworkStatusAlert } from '@/components/ui';
 
 const queryClient = new QueryClient();
 
@@ -71,6 +71,7 @@ function InnerLayout() {
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <NetworkStatusAlert />
     </ThemeProvider>
   );
 }

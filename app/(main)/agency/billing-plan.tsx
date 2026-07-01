@@ -73,6 +73,8 @@ const parsePlanDescription = (descString: string | null): string[] => {
 };
 
 const PlanMetricRow = ({ label, value, icon }: { label: string; value: string; icon: any }) => {
+    const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     return (
         <View style={styles.metricItemRow}>
             <View style={styles.metricIconWrap}>
@@ -88,6 +90,7 @@ const PlanMetricRow = ({ label, value, icon }: { label: string; value: string; i
 
 export default function BillingPlan() {
     const { colors } = useAppTheme();
+    const styles = getStyles(colors);
     const { accessToken } = useAuth();
     const router = useRouter();
 
@@ -115,7 +118,7 @@ export default function BillingPlan() {
                 menuItems={AGENCY_MENU_ITEMS}
                 customLogo={<AgencyLogo />}
                 customBackground={AGENCY_BG}
-                customHeaderBackground="#FFFFFF"
+                customHeaderBackground={colors.cardBackground}
                 backToMainRoute="/(main)/dashboard"
                 isAgency={true}
             >
@@ -179,7 +182,7 @@ export default function BillingPlan() {
             menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
-            customHeaderBackground="#FFFFFF"
+            customHeaderBackground={colors.cardBackground}
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
@@ -191,8 +194,8 @@ export default function BillingPlan() {
             >
                 {/* --- HEADER TITLE & SUBTITLE --- */}
                 <View style={styles.header}>
-                    <Text style={[styles.mainTitle, { color: '#0F172A' }]}>My Subscription Packages</Text>
-                    <Text style={[styles.mainSubtitle, { color: '#64748B' }]}>
+                    <Text style={[styles.mainTitle, { color: colors.textPrimary }]}>My Subscription Packages</Text>
+                    <Text style={[styles.mainSubtitle, { color: colors.textSecondary }]}>
                         Overview of your current plan, active modules, and usage
                     </Text>
                 </View>
@@ -307,7 +310,7 @@ export default function BillingPlan() {
 
                 {/* --- ACTIVE PLAN BENEFITS (Structured grid matching mockup) --- */}
                 <View style={styles.benefitsSectionHeader}>
-                    <Text style={[styles.sectionTitleText, { color: '#0F172A' }]}>Active Plan Benefits</Text>
+                    <Text style={[styles.sectionTitleText, { color: colors.textPrimary }]}>Active Plan Benefits</Text>
                     <View style={[styles.totalFeaturesBadge, { backgroundColor: '#DCFCE7' }]}>
                         <Text style={styles.totalFeaturesBadgeText}>{totalFeaturesActive} Features Active</Text>
                     </View>
@@ -329,7 +332,7 @@ export default function BillingPlan() {
                                 {planFeatures.map((feat, idx) => (
                                     <View key={idx} style={styles.bulletItemRow}>
                                         <Text style={styles.bulletMarker}>•</Text>
-                                        <Text style={[styles.bulletContentText, { color: '#64748B' }]}>{feat}</Text>
+                                        <Text style={[styles.bulletContentText, { color: colors.textSecondary }]}>{feat}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -353,7 +356,7 @@ export default function BillingPlan() {
                                     {addonFeatures.map((feat, idx) => (
                                         <View key={idx} style={styles.bulletItemRow}>
                                             <Text style={styles.bulletMarker}>•</Text>
-                                            <Text style={[styles.bulletContentText, { color: '#64748B' }]}>{feat}</Text>
+                                            <Text style={[styles.bulletContentText, { color: colors.textSecondary }]}>{feat}</Text>
                                         </View>
                                     ))}
                                 </View>
@@ -372,7 +375,7 @@ export default function BillingPlan() {
                 transparent={false}
                 onRequestClose={() => setIsUpgradeModalVisible(false)}
             >
-                <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+                <SafeAreaView style={{ flex: 1, backgroundColor: colors.cardBackground }}>
                     {/* Modal Header */}
                     <View style={styles.modalHeaderRow}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
@@ -457,7 +460,7 @@ export default function BillingPlan() {
                                             {/* Plan Identity Block */}
                                             <View style={styles.modalPlanIdentityHeader}>
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                    <MaterialCommunityIcons name="account-multiple-outline" size={16} color="#0F172A" />
+                                                    <MaterialCommunityIcons name="account-multiple-outline" size={16} color={colors.textPrimary} />
                                                     <Text style={styles.modalPlanNameText}>{itemPlan.name}</Text>
                                                     <MaterialCommunityIcons name="information-outline" size={12} color="#94A3B8" />
                                                 </View>
@@ -538,7 +541,7 @@ export default function BillingPlan() {
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
     scrollContent: {
         padding: 20,
     },
@@ -573,7 +576,7 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         ...Platform.select({
             ios: {
-                shadowColor: '#0F172A',
+                shadowColor: colors.cardShadowColor,
                 shadowOffset: { width: 0, height: 6 },
                 shadowOpacity: 0.1,
                 shadowRadius: 15,
@@ -660,7 +663,7 @@ const styles = StyleSheet.create({
     metricLabel: {
         fontSize: 11,
         fontWeight: '700',
-        color: '#94A3B8',
+        color: colors.textMuted,
     },
     metricValue: {
         fontSize: 12,
@@ -676,7 +679,7 @@ const styles = StyleSheet.create({
     addonsSectionTitle: {
         fontSize: 9,
         fontWeight: '900',
-        color: '#64748B',
+        color: colors.textSecondary,
         letterSpacing: 0.8,
         marginBottom: 10,
     },
@@ -755,13 +758,13 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     benefitBlockCard: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.cardBackground,
         borderRadius: 20,
         borderWidth: 1,
         padding: 16,
         ...Platform.select({
             ios: {
-                shadowColor: '#0F172A',
+                shadowColor: colors.cardShadowColor,
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.02,
                 shadowRadius: 8,
@@ -787,7 +790,7 @@ const styles = StyleSheet.create({
     benefitBlockTitleText: {
         fontSize: 14,
         fontWeight: '900',
-        color: '#0F172A',
+        color: colors.textPrimary,
     },
     benefitsBulletsWrap: {
         gap: 8,
@@ -800,7 +803,7 @@ const styles = StyleSheet.create({
     },
     bulletMarker: {
         fontSize: 12,
-        color: '#94A3B8',
+        color: colors.textMuted,
         lineHeight: 18,
     },
     bulletContentText: {
@@ -818,7 +821,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 14,
         borderBottomWidth: 1,
-        borderBottomColor: '#F1F5F9',
+        borderBottomColor: colors.divider,
     },
     orangeFlashBox: {
         width: 36,
@@ -831,19 +834,19 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 14,
         fontWeight: '900',
-        color: '#0F172A',
+        color: colors.textPrimary,
     },
     modalSubtitle: {
         fontSize: 10,
         fontWeight: '600',
-        color: '#64748B',
+        color: colors.textSecondary,
         marginTop: 2,
     },
     modalCloseBtn: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#F1F5F9',
+        backgroundColor: colors.surfaceSoft,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -856,7 +859,7 @@ const styles = StyleSheet.create({
     modalLoadingText: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#64748B',
+        color: colors.textSecondary,
     },
     modalScrollContent: {
         paddingBottom: 40,
@@ -873,10 +876,10 @@ const styles = StyleSheet.create({
     toggleLabel: {
         fontSize: 12,
         fontWeight: '800',
-        color: '#64748B',
+        color: colors.textSecondary,
     },
     toggleLabelActive: {
-        color: '#0F172A',
+        color: colors.textPrimary,
     },
     toggleSwitchBg: {
         width: 44,
@@ -889,7 +892,7 @@ const styles = StyleSheet.create({
         width: 20,
         height: 20,
         borderRadius: 10,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.cardBackground,
     },
     toggleThumbLeft: {
         alignSelf: 'flex-start',
@@ -904,7 +907,7 @@ const styles = StyleSheet.create({
         borderRadius: 6,
     },
     saveBadgeText: {
-        color: '#0F172A',
+        color: colors.textPrimary,
         fontSize: 9,
         fontWeight: '900',
     },
@@ -913,10 +916,10 @@ const styles = StyleSheet.create({
         gap: 24,
     },
     planOutlineCard: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.cardBackground,
         borderRadius: 20,
         borderWidth: 1.5,
-        borderColor: '#E2E8F0',
+        borderColor: colors.cardBorder,
         padding: 20,
         position: 'relative',
         marginTop: 10,
@@ -928,7 +931,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: -11,
         alignSelf: 'center',
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.accentTeal,
         paddingHorizontal: 12,
         paddingVertical: 4,
         borderRadius: 6,
@@ -947,17 +950,17 @@ const styles = StyleSheet.create({
     modalPlanNameText: {
         fontSize: 14,
         fontWeight: '900',
-        color: '#0F172A',
+        color: colors.textPrimary,
     },
     modalPlanPriceValue: {
         fontSize: 28,
         fontWeight: '900',
-        color: '#0F172A',
+        color: colors.textPrimary,
     },
     modalPlanPricePeriod: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#64748B',
+        color: colors.textSecondary,
     },
     modalFeaturesListWrap: {
         gap: 10,
@@ -971,13 +974,13 @@ const styles = StyleSheet.create({
     modalFeatureBulletText: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#334155',
+        color: colors.textSecondary,
         lineHeight: 18,
         flex: 1,
     },
     modalCardDivider: {
         height: 1,
-        backgroundColor: '#F1F5F9',
+        backgroundColor: colors.surfaceSoft,
         marginVertical: 20,
     },
     modalEnhancementsSection: {
@@ -986,7 +989,7 @@ const styles = StyleSheet.create({
     modalEnhancementsTitle: {
         fontSize: 9,
         fontWeight: '900',
-        color: '#64748B',
+        color: colors.textSecondary,
         letterSpacing: 0.8,
         marginBottom: 14,
     },
@@ -1008,13 +1011,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     addonCheckboxChecked: {
-        backgroundColor: '#0a2341',
-        borderColor: '#0a2341',
+        backgroundColor: colors.accentTeal,
+        borderColor: colors.accentTeal,
     },
     modalEnhancementName: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#334155',
+        color: colors.textSecondary,
     },
     addonActiveBadge: {
         backgroundColor: '#DCFCE7',
@@ -1030,34 +1033,34 @@ const styles = StyleSheet.create({
     modalEnhancementPrice: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#64748B',
+        color: colors.textSecondary,
     },
     modalEnhancementPriceActive: {
         color: '#16A34A',
         fontWeight: '900',
     },
     modalCurrentPlanBtn: {
-        backgroundColor: '#F1F5F9',
+        backgroundColor: colors.surfaceSoft,
         height: 48,
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
     },
     modalCurrentPlanBtnText: {
-        color: '#94A3B8',
+        color: colors.textMuted,
         fontSize: 13,
         fontWeight: '800',
     },
     modalSelectPlanBtn: {
         borderWidth: 1.5,
-        borderColor: '#0a2341',
+        borderColor: colors.accentTeal,
         height: 48,
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
     },
     modalSelectPlanBtnText: {
-        color: '#0a2341',
+        color: colors.accentTeal,
         fontSize: 13,
         fontWeight: '800',
     },

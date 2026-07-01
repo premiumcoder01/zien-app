@@ -1,94 +1,207 @@
 import { ExternalLink } from '@/components/external-link';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { useAppTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
     Alert,
-    FlatList,
     Modal,
     Pressable,
     StyleSheet,
     Text,
-    View
+    View,
+    ScrollView,
+    ActivityIndicator,
+    RefreshControl,
+    useWindowDimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type LeadCaptureItem = {
+export interface LandingPageElement {
     id: string;
-    title: string;
+    landing_page_id: string;
     type: string;
-    visitorDensity: string;
-    trend: string;
-    trendType: 'up' | 'down';
-    conversion: string;
-    leads: number;
-    status: 'LIVE' | 'OPTIMIZING' | 'DRAFT';
-    icon: keyof typeof MaterialCommunityIcons.glyphMap;
-    color: string;
-    url: string;
-};
+    data: any;
+    styles: any;
+    sort_order: number;
+    created_at: string;
+    updated_at: string;
+}
 
-const CAPTURE_HISTORY: LeadCaptureItem[] = [
-    {
-        id: '1',
-        title: 'Malibu Villa Listing',
-        type: 'Property Page',
-        visitorDensity: '1.4k',
-        trend: '+12%',
-        trendType: 'up',
-        conversion: '3.0%',
-        leads: 42,
-        status: 'LIVE',
-        icon: 'home-city-outline',
-        color: '#6366F1',
-        url: 'https://zien.com/preview/malibu-villa',
-    },
-    {
-        id: '2',
-        title: 'Beverly Hills Open House',
-        type: 'Check-In Page',
-        visitorDensity: '856',
-        trend: '+24%',
-        trendType: 'up',
-        conversion: '14.9%',
-        leads: 128,
-        status: 'LIVE',
-        icon: 'account-group-outline',
-        color: '#0EA5E9',
-        url: 'https://zien.com/preview/beverly-hills',
-    },
-    {
-        id: '3',
-        title: 'Agent Bio - Becker',
-        type: 'Bio-Link Page',
-        visitorDensity: '2.1k',
-        trend: '-2%',
-        trendType: 'down',
-        conversion: '0.7%',
-        leads: 15,
-        status: 'OPTIMIZING',
-        icon: 'account-badge-outline',
-        color: '#F97316',
-        url: 'https://zien.com/preview/agent-becker',
-    },
-];
-
-const METRICS = [
-    { label: 'TOTAL REACH', value: '4.3k', icon: 'account-group' },
-    { label: 'CAPTURE RATE', value: '18.4%', icon: 'chart-arc' },
-    { label: 'AVG. ENGAGEMENT', value: '2m 14s', icon: 'clock-outline' },
-];
+export interface LandingPageItem {
+    id: string;
+    user_id: number;
+    category: string;
+    name: string;
+    slug: string;
+    status: number;
+    bg_color: string;
+    text_color: string;
+    theme_color: string;
+    logo_url: string | null;
+    created_at: string;
+    updated_at: string;
+    elements: LandingPageElement[];
+    stats: any[];
+    leads_count?: number;
+    visitor_count?: number;
+}
 
 export default function LeadsCaptureScreen() {
     const { colors, theme } = useAppTheme();
     const isDark = theme === 'dark';
-    const styles = getStyles(colors);
+    const { width: windowWidth } = useWindowDimensions();
+    const isTablet = windowWidth >= 768;
+    const styles = getStyles(colors, isDark, isTablet);
 
     const router = useRouter();
+    const { accessToken } = useAuth();
+
+    const [landingPages, setLandingPages] = useState<LandingPageItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
     const [showModal, setShowModal] = useState(false);
-    const [captureHistory, setCaptureHistory] = useState<LeadCaptureItem[]>(CAPTURE_HISTORY);
+    const [selectedPageForLeads, setSelectedPageForLeads] = useState<LandingPageItem | null>(null);
+    const [leads, setLeads] = useState<any[]>([]);
+    const [isLeadsLoading, setIsLeadsLoading] = useState(false);
+    const [leadsError, setLeadsError] = useState<string | null>(null);
+
+    const fetchLeads = async (page: LandingPageItem) => {
+        if (!accessToken) return;
+        setSelectedPageForLeads(page);
+        setIsLeadsLoading(true);
+        setLeadsError(null);
+        setLeads([]);
+        try {
+            const response = await fetch(`https://staging.zien.ai/api/solo/landing-pages/${page.id}/leads`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || `Server error: ${response.status}`);
+            }
+            const leadsArray = Array.isArray(data) ? data : (data.leads || data.data || []);
+            setLeads(leadsArray);
+        } catch (err: any) {
+            console.error('Error fetching page leads:', err);
+            setLeadsError(err.message || 'Failed to load leads');
+        } finally {
+            setIsLeadsLoading(false);
+        }
+    };
+
+    // Helpers to safely count leads and visitors
+    const getPageLeadsCount = (page: any): number => {
+        if (typeof page.leads_count === 'number') return page.leads_count;
+        if (typeof page.leads === 'number') return page.leads;
+        if (Array.isArray(page.stats)) {
+            return page.stats.reduce((acc: number, s: any) => acc + (s.leads || s.leads_count || 0), 0);
+        }
+        if (page.stats && typeof page.stats === 'object') {
+            return page.stats.leads || page.stats.leads_count || 0;
+        }
+        return 0;
+    };
+
+    const getPageVisitorsCount = (page: any): number => {
+        if (typeof page.visitor_count === 'number') return page.visitor_count;
+        if (typeof page.visitors === 'number') return page.visitors;
+        if (Array.isArray(page.stats)) {
+            return page.stats.reduce((acc: number, s: any) => acc + (s.visitors || s.visitor_count || s.views || 0), 0);
+        }
+        if (page.stats && typeof page.stats === 'object') {
+            return page.stats.visitors || page.stats.visitor_count || page.stats.views || 0;
+        }
+        return 0;
+    };
+
+    const getCategoryLabel = (category: string) => {
+        if (!category) return 'Landing Page';
+        switch (category.toLowerCase()) {
+            case 'property':
+                return 'Property Page';
+            case 'open-house':
+            case 'open_house':
+                return 'Open House Page';
+            case 'bio-link':
+            case 'bio_link':
+                return 'Bio-Link Page';
+            default:
+                return `${category.charAt(0).toUpperCase()}${category.slice(1)} Page`;
+        }
+    };
+
+    const getStatusLabel = (status: number) => {
+        switch (status) {
+            case 1:
+                return 'DRAFT';
+            case 2:
+                return 'LIVE';
+            case 3:
+                return 'OPTIMIZING';
+            default:
+                return 'LIVE';
+        }
+    };
+
+    const fetchLandingPages = async (showLoadingIndicator = true) => {
+        if (!accessToken) return;
+        try {
+            if (showLoadingIndicator) setIsLoading(true);
+            setError(null);
+            const response = await fetch('https://staging-api.zien.ai/api/solo/landing-pages', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || `Server error: ${response.status}`);
+            }
+            setLandingPages(data || []);
+        } catch (err: any) {
+            console.error('Error fetching landing pages:', err);
+            setError(err.message || 'Failed to fetch landing pages');
+        } finally {
+            setIsLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    const deleteLandingPage = async (id: string) => {
+        if (!accessToken) return;
+        try {
+            const response = await fetch(`https://staging-api.zien.ai/api/solo/landing-pages/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || `Server error: ${response.status}`);
+            }
+            // Remove from state
+            setLandingPages(prev => prev.filter(item => item.id !== id));
+            Alert.alert('Success', 'Landing page deleted successfully.');
+        } catch (err: any) {
+            console.error('Error deleting landing page:', err);
+            Alert.alert('Error', err.message || 'Failed to delete landing page.');
+        }
+    };
 
     const handleDelete = (id: string, title: string) => {
         Alert.alert(
@@ -99,143 +212,490 @@ export default function LeadsCaptureScreen() {
                 {
                     text: "Delete",
                     style: "destructive",
-                    onPress: () => {
-                        setCaptureHistory(prev => prev.filter(item => item.id !== id));
-                    }
+                    onPress: () => deleteLandingPage(id)
                 }
             ]
         );
     };
 
-    const renderMetric = (item: typeof METRICS[0], index: number) => (
-        <View key={index} style={styles.metricCard}>
-            <View style={styles.metricIconContainer}>
-                <MaterialCommunityIcons name={item.icon as any} size={18} color={colors.textSecondary} />
-            </View>
-            <View>
-                <Text style={styles.metricLabel}>{item.label}</Text>
-                <Text style={styles.metricValue}>{item.value}</Text>
-            </View>
-        </View>
-    );
+    useEffect(() => {
+        fetchLandingPages();
+    }, [accessToken]);
 
-    const renderItem = ({ item }: { item: LeadCaptureItem }) => (
-        <View style={styles.leadCard}>
-            <View style={styles.leadCardHeader}>
-                <View style={[styles.leadIconBox, { backgroundColor: `${item.color}15` }]}>
-                    <MaterialCommunityIcons name={item.icon} size={20} color={item.color} />
-                </View>
-                <View style={styles.leadTitleContent}>
-                    <Text style={styles.leadTitle}>{item.title}</Text>
-                    <Text style={styles.leadType}>{item.type}</Text>
-                </View>
-                <View style={styles.actionRow}>
-                    <ExternalLink href={item.url}>
-                        <View style={styles.miniActionBtn}>
-                            <MaterialCommunityIcons name="open-in-new" size={16} color={colors.textSecondary} />
-                        </View>
-                    </ExternalLink>
-                    <Pressable style={styles.miniActionBtn} onPress={() => setShowModal(true)}>
-                        <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textSecondary} />
-                    </Pressable>
-                    <Pressable
-                        style={[styles.miniActionBtn, styles.deleteBtn]}
-                        onPress={() => handleDelete(item.id, item.title)}
-                    >
-                        <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
-                    </Pressable>
-                </View>
-            </View>
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchLandingPages(false);
+    };
 
-            <View style={styles.divider} />
+    // Calculate aggregated metrics
+    const activePagesCount = landingPages.length;
+    const totalVisitors = landingPages.reduce((acc, page) => acc + getPageVisitorsCount(page), 0);
+    const totalLeads = landingPages.reduce((acc, page) => acc + getPageLeadsCount(page), 0);
 
-            <View style={styles.leadStatsRow}>
-                <View style={styles.leadStatItem}>
-                    <Text style={styles.leadStatLabel}>VISITOR DENSITY</Text>
-                    <View style={styles.row}>
-                        <Text style={styles.leadStatValue}>{item.visitorDensity}</Text>
-                        <View style={[
-                            styles.trendBadge,
-                            { backgroundColor: item.trendType === 'up' ? '#ECFDF5' : '#FEF2F2' }
-                        ]}>
-                            <Text style={[
-                                styles.trendText,
-                                { color: item.trendType === 'up' ? '#10B981' : '#EF4444' }
-                            ]}>
-                                {item.trend}
-                            </Text>
-                        </View>
-                    </View>
-                </View>
+    const METRICS = [
+        { label: 'ACTIVE PAGES', value: activePagesCount.toString(), icon: 'star-four-points-outline' as const },
+        { label: 'TOTAL VISITORS', value: totalVisitors.toString(), icon: 'account-group-outline' as const },
+        { label: 'TOTAL LEADS CAPTURED', value: totalLeads.toString(), icon: 'flash-outline' as const },
+    ];
 
-                <View style={styles.leadStatItem}>
-                    <Text style={styles.leadStatLabel}>CONVERSION</Text>
-                    <Text style={styles.leadStatValue}>
-                        {item.conversion} <Text style={styles.leadsCount}>({item.leads} leads)</Text>
-                    </Text>
-                </View>
-            </View>
-
-            <View style={styles.leadCardFooter}>
-                <View style={[
-                    styles.statusBadge,
-                    { backgroundColor: item.status === 'LIVE' ? '#ECFDF5' : '#FFF7ED' }
-                ]}>
-                    <View style={[
-                        styles.statusDot,
-                        { backgroundColor: item.status === 'LIVE' ? '#10B981' : '#F97316' }
-                    ]} />
-                    <Text style={[
-                        styles.statusText,
-                        { color: item.status === 'LIVE' ? '#059669' : '#D97706' }
-                    ]}>
-                        {item.status}
-                    </Text>
-                </View>
-            </View>
-        </View>
-    );
+    // Dynamic width for responsive table view on mobile vs tablet
+    const tableMinWidth = isTablet ? '100%' : 750;
 
     return (
         <SafeAreaView style={styles.container}>
-            <PageHeader
-                title="Lead Capture"
-                subtitle="Deploy high-conversion architectural funnels for every stage of the real estate lifecycle."
-                onBack={() => router.back()}
-
+            {/* Background Gradient */}
+            <LinearGradient
+                colors={isDark ? ['#1A242F', '#161F29', '#1A242F'] : ['#D8E9F6', '#F1F6FB', '#F5E6DB']}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
             />
 
-            <FlatList
-                data={captureHistory}
-                keyExtractor={(item) => item.id}
-                renderItem={renderItem}
-                ListHeaderComponent={
-                    <View style={styles.headerContent}>
-                        <View style={styles.metricsRow}>
-                            {METRICS.map(renderMetric)}
-                        </View>
-
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Active Lead Capture</Text>
-                            <Text style={styles.sectionSubtitle}>
-                                Real-time performance metrics for your distributed capture network.
-                            </Text>
-                        </View>
-                    </View>
-                }
-                contentContainerStyle={styles.listContainer}
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
-            />
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textPrimary} />
+                }
+            >
+                {/* Custom Responsive Header */}
+                <View style={[styles.headerContainer, isTablet ? styles.headerRow : styles.headerCol]}>
+                    <View style={styles.headerLeft}>
+                        <View style={styles.titleRow}>
+                            <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={12}>
+                                <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textPrimary} />
+                            </Pressable>
+                            <Text style={styles.headerTitle}>Lead Capture</Text>
+                        </View>
+                        <Text style={styles.headerSubtitle}>
+                            Deploy high-conversion funnels for every stage of the real estate lifecycle.
+                        </Text>
+                    </View>
+                    {isTablet && (
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.headerCreateBtn,
+                                pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }
+                            ]}
+                            onPress={() => setShowModal(true)}
+                        >
+                            <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+                            <Text style={styles.headerCreateBtnText}>Create New Lead Capture</Text>
+                        </Pressable>
+                    )}
+                </View>
 
-            <View style={styles.fabContainer}>
-                <Pressable
-                    style={({ pressed }) => [styles.fab, pressed && { transform: [{ scale: 0.96 }], opacity: 0.9 }]}
-                    onPress={() => setShowModal(true)}
-                >
-                    <MaterialCommunityIcons name="plus" size={24} color="#fff" />
-                    <Text style={styles.fabText}>Create New Lead Capture</Text>
-                </Pressable>
-            </View>
+                {/* Metrics Row */}
+                <View style={styles.metricsRow}>
+                    {METRICS.map((item, index) => (
+                        <View key={index} style={styles.metricCard}>
+                            <View style={styles.metricIconContainer}>
+                                <MaterialCommunityIcons name={item.icon} size={18} color={colors.textSecondary} />
+                            </View>
+                            <View style={styles.metricTextContainer}>
+                                <Text style={styles.metricLabel}>{item.label}</Text>
+                                <Text style={styles.metricValue}>{item.value}</Text>
+                            </View>
+                        </View>
+                    ))}
+                </View>
+
+                {/* Active Lead Capture Section Header */}
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Active Lead Capture</Text>
+                    <Text style={styles.sectionSubtitle}>
+                        Real-time performance metrics for your distributed capture network.
+                    </Text>
+                </View>
+
+                {/* Loading / Error States */}
+                {isLoading && !refreshing ? (
+                    <View style={styles.centerBox}>
+                        <ActivityIndicator size="large" color={colors.accent} />
+                        <Text style={styles.loadingText}>Loading captures...</Text>
+                    </View>
+                ) : error ? (
+                    <View style={styles.centerBox}>
+                        <MaterialCommunityIcons name="alert-circle-outline" size={40} color="#EF4444" />
+                        <Text style={styles.errorText}>{error}</Text>
+                        <Pressable style={styles.retryBtn} onPress={() => fetchLandingPages()}>
+                            <Text style={styles.retryBtnText}>Retry</Text>
+                        </Pressable>
+                    </View>
+                ) : (
+                    <>
+                        {isTablet ? (
+                            /* Table Container Card (Tablet/Desktop) */
+                            <View style={styles.tableCard}>
+                                <ScrollView horizontal={false} showsHorizontalScrollIndicator={false}>
+                                    <View style={[styles.tableInner, { minWidth: tableMinWidth }]}>
+                                        {/* Table Headers */}
+                                        <View style={styles.tableHeaderRow}>
+                                            <Text style={[styles.tableHeaderText, { flex: 3 }]}>PAGE IDENTITY</Text>
+                                            <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: 'center' }]}>TOTAL LEADS</Text>
+                                            <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: 'center' }]}>STATUS</Text>
+                                            <Text style={[styles.tableHeaderText, { flex: 2, textAlign: 'right' }]}>CONTROL</Text>
+                                        </View>
+
+                                        {/* Table Body Rows */}
+                                        {landingPages.length === 0 ? (
+                                            <View style={styles.emptyContainer}>
+                                                <MaterialCommunityIcons name="file-document-outline" size={36} color={colors.textSecondary} />
+                                                <Text style={styles.emptyText}>No active lead captures. Create one to get started.</Text>
+                                            </View>
+                                        ) : (
+                                            landingPages.map((item, index) => {
+                                                const pageLeads = getPageLeadsCount(item);
+                                                const categoryLabel = getCategoryLabel(item.category);
+                                                const statusLabel = getStatusLabel(item.status);
+                                                const previewUrl = `https://staging.zien.ai/l/${item.slug}`;
+
+                                                return (
+                                                    <View
+                                                        key={item.id}
+                                                        style={[
+                                                            styles.tableRow,
+                                                            index === landingPages.length - 1 && { borderBottomWidth: 0 }
+                                                        ]}
+                                                    >
+                                                        {/* Page Identity */}
+                                                        <View style={[styles.tableColIdentity, { flex: 3 }]}>
+                                                            <View style={styles.identityIconBox}>
+                                                                <MaterialCommunityIcons name="link-variant" size={16} color={colors.textSecondary} />
+                                                            </View>
+                                                            <View style={styles.identityTextContainer}>
+                                                                <Text style={styles.pageNameText} numberOfLines={1}>
+                                                                    {item.name || 'Untitled Landing Page'}
+                                                                </Text>
+                                                                <Text style={styles.pageCategoryText}>{categoryLabel}</Text>
+                                                            </View>
+                                                        </View>
+
+                                                        {/* Total Leads */}
+                                                        <View style={styles.tableColLeads}>
+                                                            <Text style={styles.totalLeadsText}>{pageLeads}</Text>
+                                                        </View>
+
+                                                        {/* Status Badge */}
+                                                        <View style={styles.tableColStatus}>
+                                                            <View style={[
+                                                                styles.statusBadge,
+                                                                { backgroundColor: item.status === 2 ? '#ECFDF5' : '#FFF7ED' }
+                                                            ]}>
+                                                                <View style={[
+                                                                    styles.statusDot,
+                                                                    { backgroundColor: item.status === 2 ? '#10B981' : '#F97316' }
+                                                                ]} />
+                                                                <Text style={[
+                                                                    styles.statusText,
+                                                                    { color: item.status === 2 ? '#059669' : '#D97706' }
+                                                                ]}>
+                                                                    {statusLabel}
+                                                                </Text>
+                                                            </View>
+                                                        </View>
+
+                                                        {/* Control Actions */}
+                                                        <View style={[styles.tableColControl, { flex: 2 }]}>
+                                                            <ExternalLink href={previewUrl}>
+                                                                <View style={styles.miniActionBtn}>
+                                                                    <MaterialCommunityIcons name="open-in-new" size={16} color={colors.textSecondary} />
+                                                                </View>
+                                                            </ExternalLink>
+                                                            <Pressable
+                                                                style={styles.miniActionBtn}
+                                                                onPress={() => fetchLeads(item)}
+                                                            >
+                                                                <MaterialCommunityIcons name="account-group-outline" size={16} color={colors.textSecondary} />
+                                                            </Pressable>
+                                                            <Pressable
+                                                                style={styles.miniActionBtn}
+                                                                onPress={() => setShowModal(true)}
+                                                            >
+                                                                <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textSecondary} />
+                                                            </Pressable>
+                                                            <Pressable
+                                                                style={[styles.miniActionBtn, styles.deleteBtn]}
+                                                                onPress={() => handleDelete(item.id, item.name || 'Untitled Landing Page')}
+                                                            >
+                                                                <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
+                                                            </Pressable>
+                                                        </View>
+                                                    </View>
+                                                );
+                                            })
+                                        )}
+                                    </View>
+                                </ScrollView>
+                            </View>
+                        ) : (
+                            /* Mobile Cards List (Mobile Phone UI) */
+                            <View style={styles.mobileCardsContainer}>
+                                {landingPages.length === 0 ? (
+                                    <View style={styles.emptyContainer}>
+                                        <MaterialCommunityIcons name="file-document-outline" size={48} color={colors.textSecondary} />
+                                        <Text style={styles.emptyText}>No active lead captures. Create one to get started.</Text>
+                                    </View>
+                                ) : (
+                                    landingPages.map((item) => {
+                                        const pageLeads = getPageLeadsCount(item);
+                                        const pageVisitors = getPageVisitorsCount(item);
+                                        const categoryLabel = getCategoryLabel(item.category);
+                                        const statusLabel = getStatusLabel(item.status);
+                                        const previewUrl = `https://staging.zien.ai/l/${item.slug}`;
+
+                                        return (
+                                            <View key={item.id} style={styles.mobileCard}>
+                                                {/* Header Details */}
+                                                <View style={styles.mobileCardHeader}>
+                                                    <View style={styles.mobileCardIconBox}>
+                                                        <MaterialCommunityIcons name="link-variant" size={18} color={colors.textSecondary} />
+                                                    </View>
+                                                    <View style={styles.mobileCardHeaderDetails}>
+                                                        <Text style={styles.mobileCardTitle} numberOfLines={1}>
+                                                            {item.name || 'Untitled Landing Page'}
+                                                        </Text>
+                                                        <Text style={styles.mobileCardCategory}>{categoryLabel}</Text>
+                                                    </View>
+                                                    <View style={[
+                                                        styles.statusBadge,
+                                                        { backgroundColor: item.status === 2 ? '#ECFDF5' : '#FFF7ED' }
+                                                    ]}>
+                                                        <View style={[
+                                                            styles.statusDot,
+                                                            { backgroundColor: item.status === 2 ? '#10B981' : '#F97316' }
+                                                        ]} />
+                                                        <Text style={[
+                                                            styles.statusText,
+                                                            { color: item.status === 2 ? '#059669' : '#D97706' }
+                                                        ]}>
+                                                            {statusLabel}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+
+                                                {/* Card Divider */}
+                                                <View style={styles.mobileCardDivider} />
+
+                                                {/* Statistics section inside card */}
+                                                <View style={styles.mobileCardStatsRow}>
+                                                    <View style={styles.mobileCardStatItem}>
+                                                        <MaterialCommunityIcons name="flash-outline" size={16} color={colors.textSecondary} />
+                                                        <Text style={styles.mobileCardStatLabel}>Leads:</Text>
+                                                        <Text style={styles.mobileCardStatValue}>{pageLeads}</Text>
+                                                    </View>
+                                                    <View style={styles.mobileCardStatItem}>
+                                                        <MaterialCommunityIcons name="account-group-outline" size={16} color={colors.textSecondary} />
+                                                        <Text style={styles.mobileCardStatLabel}>Visitors:</Text>
+                                                        <Text style={styles.mobileCardStatValue}>{pageVisitors}</Text>
+                                                    </View>
+                                                </View>
+
+                                                {/* Control Action Buttons */}
+                                                <View style={styles.mobileCardActionsRow}>
+                                                    <ExternalLink href={previewUrl} style={styles.mobileCardActionBtn}>
+                                                        <View style={styles.mobileCardActionBtnInner}>
+                                                            <MaterialCommunityIcons name="open-in-new" size={15} color={colors.textSecondary} />
+                                                            <Text style={styles.mobileCardActionBtnText}>View</Text>
+                                                        </View>
+                                                    </ExternalLink>
+                                                    <Pressable
+                                                        style={styles.mobileCardActionBtn}
+                                                        onPress={() => fetchLeads(item)}
+                                                    >
+                                                        <View style={styles.mobileCardActionBtnInner}>
+                                                            <MaterialCommunityIcons name="account-group-outline" size={15} color={colors.textSecondary} />
+                                                            <Text style={styles.mobileCardActionBtnText}>CRM</Text>
+                                                        </View>
+                                                    </Pressable>
+                                                    <Pressable
+                                                        style={styles.mobileCardActionBtn}
+                                                        onPress={() => setShowModal(true)}
+                                                    >
+                                                        <View style={styles.mobileCardActionBtnInner}>
+                                                            <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.textSecondary} />
+                                                            <Text style={styles.mobileCardActionBtnText}>Edit</Text>
+                                                        </View>
+                                                    </Pressable>
+                                                    <Pressable
+                                                        style={[styles.mobileCardActionBtn, styles.mobileCardDeleteBtn]}
+                                                        onPress={() => handleDelete(item.id, item.name || 'Untitled Landing Page')}
+                                                    >
+                                                        <View style={styles.mobileCardActionBtnInner}>
+                                                            <MaterialCommunityIcons name="trash-can-outline" size={15} color="#EF4444" />
+                                                            <Text style={[styles.mobileCardActionBtnText, { color: '#EF4444' }]}>Delete</Text>
+                                                        </View>
+                                                    </Pressable>
+                                                </View>
+                                            </View>
+                                        );
+                                    })
+                                )}
+                            </View>
+                        )}
+
+                    </>
+                )}
+            </ScrollView>
+
+            {/* Bottom Fixed Floating Create Button Bar (Only on Mobile) */}
+            {!isTablet && (
+                <View style={styles.bottomBarContainer}>
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.floatingCreateBtn,
+                            pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }
+                        ]}
+                        onPress={() => setShowModal(true)}
+                    >
+                        <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+                        <Text style={styles.floatingCreateBtnText}>Create New Lead Capture</Text>
+                    </Pressable>
+                </View>
+            )}
+
+            {/* Captured Leads Modal */}
+            <Modal
+                visible={selectedPageForLeads !== null}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setSelectedPageForLeads(null)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.leadsModalContent}>
+                        {/* Header */}
+                        <View style={styles.leadsModalHeader}>
+                            <View style={styles.leadsModalHeaderLeft}>
+                                <Text style={styles.leadsModalTitle}>Captured Leads</Text>
+                                <Text style={styles.leadsModalSubtitle} numberOfLines={1}>
+                                    Data stream from {selectedPageForLeads?.name || 'Untitled Landing Page'}
+                                </Text>
+                            </View>
+                            <Pressable 
+                                style={styles.leadsModalCloseBtn} 
+                                onPress={() => setSelectedPageForLeads(null)}
+                                hitSlop={8}
+                            >
+                                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+                            </Pressable>
+                        </View>
+
+                        {/* Body */}
+                        {isLeadsLoading ? (
+                            <View style={styles.leadsModalCenterBox}>
+                                <ActivityIndicator size="large" color={colors.accent || '#0a2341'} />
+                                <Text style={styles.leadsModalLoadingText}>Loading leads...</Text>
+                            </View>
+                        ) : leadsError ? (
+                            <View style={styles.leadsModalCenterBox}>
+                                <MaterialCommunityIcons name="alert-circle-outline" size={40} color="#EF4444" />
+                                <Text style={styles.leadsModalErrorText}>{leadsError}</Text>
+                                <Pressable 
+                                    style={styles.leadsModalRetryBtn} 
+                                    onPress={() => selectedPageForLeads && fetchLeads(selectedPageForLeads)}
+                                >
+                                    <Text style={styles.leadsModalRetryBtnText}>Retry</Text>
+                                </Pressable>
+                            </View>
+                        ) : leads.length === 0 ? (
+                            /* Empty State matches design mockup */
+                            <View style={styles.leadsModalCenterBox}>
+                                <View style={styles.leadsModalEmptyIconBox}>
+                                    <MaterialCommunityIcons name="account-group-outline" size={48} color="#CBD5E1" />
+                                </View>
+                                <Text style={styles.leadsModalEmptyTitle}>No leads captured yet.</Text>
+                                <Text style={styles.leadsModalEmptySubtitle}>
+                                    Once visitors fill out your form, they will appear here.
+                                </Text>
+                            </View>
+                        ) : (
+                            /* Leads List */
+                            <ScrollView 
+                                style={styles.leadsModalList}
+                                contentContainerStyle={styles.leadsModalListContent}
+                                showsVerticalScrollIndicator={true}
+                            >
+                                {leads.map((lead, idx) => {
+                                    // Parse lead data
+                                    const leadData = lead.data || {};
+                                    const leadName = lead.name || leadData.name || leadData.Name || 'Anonymous Visitor';
+                                    const leadEmail = lead.email || leadData.email || leadData.Email || '';
+                                    const leadPhone = lead.phone || leadData.phone || leadData.Phone || '';
+                                    
+                                    // Filter out already shown/internal keys from extra details
+                                    const skipKeys = ['name', 'Name', 'email', 'Email', 'phone', 'Phone'];
+                                    const extraDetails = Object.entries(leadData).filter(
+                                        ([k]) => !skipKeys.includes(k)
+                                    );
+
+                                    // Format Date
+                                    let leadDateStr = '';
+                                    try {
+                                        if (lead.created_at) {
+                                            const d = new Date(lead.created_at);
+                                            leadDateStr = d.toLocaleDateString(undefined, { 
+                                                month: 'short', 
+                                                day: 'numeric', 
+                                                year: 'numeric' 
+                                            }) + ' at ' + d.toLocaleTimeString(undefined, { 
+                                                hour: '2-digit', 
+                                                minute: '2-digit' 
+                                            });
+                                        }
+                                    } catch (_) {}
+
+                                    return (
+                                        <View key={lead.id || idx} style={styles.leadCard}>
+                                            <View style={styles.leadCardHeader}>
+                                                <View style={styles.leadAvatarBox}>
+                                                    <MaterialCommunityIcons name="account" size={18} color="#FFFFFF" />
+                                                </View>
+                                                <View style={styles.leadHeaderInfo}>
+                                                    <Text style={styles.leadCardName}>{leadName}</Text>
+                                                    {leadDateStr ? (
+                                                        <Text style={styles.leadCardDate}>{leadDateStr}</Text>
+                                                    ) : null}
+                                                </View>
+                                            </View>
+
+                                            {(leadEmail || leadPhone) && (
+                                                <View style={styles.leadContactBlock}>
+                                                    {leadEmail ? (
+                                                        <View style={styles.leadContactItem}>
+                                                            <MaterialCommunityIcons name="email-outline" size={14} color={colors.textSecondary} />
+                                                            <Text style={styles.leadContactText} numberOfLines={1}>{leadEmail}</Text>
+                                                        </View>
+                                                    ) : null}
+                                                    {leadPhone ? (
+                                                        <View style={styles.leadContactItem}>
+                                                            <MaterialCommunityIcons name="phone-outline" size={14} color={colors.textSecondary} />
+                                                            <Text style={styles.leadContactText} numberOfLines={1}>{leadPhone}</Text>
+                                                        </View>
+                                                    ) : null}
+                                                </View>
+                                            )}
+
+                                            {extraDetails.length > 0 && (
+                                                <View style={styles.leadExtraBlock}>
+                                                    {extraDetails.map(([key, val]) => (
+                                                        <View key={key} style={styles.leadExtraItem}>
+                                                            <Text style={styles.leadExtraLabel}>{key.toUpperCase()}:</Text>
+                                                            <Text style={styles.leadExtraValue}>{String(val)}</Text>
+                                                        </View>
+                                                    ))}
+                                                </View>
+                                            )}
+                                        </View>
+                                    );
+                                })}
+                            </ScrollView>
+                        )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Feature Limit Warning Modal */}
             <Modal
                 visible={showModal}
                 transparent
@@ -264,56 +724,97 @@ export default function LeadsCaptureScreen() {
     );
 }
 
-const getStyles = (colors: any) => StyleSheet.create({
+const getStyles = (colors: any, isDark: boolean, isTablet: boolean) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.backgroundGradient[0] || colors.cardBackground,
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingHorizontal: 20,
+        paddingTop: 15,
+        paddingBottom: isTablet ? 60 : 120,
+    },
+    headerContainer: {
+        gap: 12,
+        marginBottom: 24,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    headerCol: {
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+    },
+    headerLeft: {
+        flex: 1,
+        gap: 6,
+    },
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    backBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: colors.cardBackgroundSemi || 'rgba(255, 255, 255, 0.8)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+        shadowColor: '#000',
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
+    },
+    headerTitle: {
+        fontSize: 26,
+        fontWeight: '900',
+        color: colors.textPrimary,
+    },
+    headerSubtitle: {
+        fontSize: 13,
+        color: colors.textSecondary,
+        lineHeight: 18,
+        maxWidth: '90%',
     },
     headerCreateBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#0B2D3E',
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        gap: 4,
+        backgroundColor: '#0a2341', // Dark navy brand color
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        gap: 6,
+        shadowColor: '#0a2341',
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 4,
     },
     headerCreateBtnText: {
-        color: '#FFF',
+        color: '#FFFFFF',
         fontSize: 13,
         fontWeight: '700',
-    },
-    headerContent: {
-        paddingHorizontal: 18,
-        paddingTop: 10,
-    },
-    heroSection: {
-        marginBottom: 24,
-    },
-    heroTitle: {
-        fontSize: 28,
-        fontWeight: '900',
-        color: colors.textPrimary,
-        marginBottom: 8,
-    },
-    heroDesc: {
-        fontSize: 15,
-        color: colors.textSecondary,
-        lineHeight: 22,
-        maxWidth: '90%',
     },
     metricsRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 12,
-        marginBottom: 32,
+        marginBottom: 28,
     },
     metricCard: {
         flex: 1,
-        minWidth: '45%',
+        minWidth: 150,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.cardBackground,
+        backgroundColor: colors.cardBackgroundSemi || 'rgba(255, 255, 255, 0.9)',
         borderRadius: 16,
         padding: 16,
         gap: 12,
@@ -326,19 +827,22 @@ const getStyles = (colors: any) => StyleSheet.create({
         borderColor: colors.cardBorder,
     },
     metricIconContainer: {
-        width: 36,
-        height: 36,
+        width: 38,
+        height: 38,
         borderRadius: 10,
-        backgroundColor: colors.surfaceSoft,
+        backgroundColor: colors.surfaceSoft || '#F3F6FA',
         alignItems: 'center',
         justifyContent: 'center',
     },
+    metricTextContainer: {
+        flex: 1,
+    },
     metricLabel: {
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: '800',
         color: colors.textSecondary,
         letterSpacing: 0.5,
-        marginBottom: 2,
+        marginBottom: 3,
     },
     metricValue: {
         fontSize: 18,
@@ -358,162 +862,334 @@ const getStyles = (colors: any) => StyleSheet.create({
         fontSize: 13,
         color: colors.textSecondary,
     },
-    listContainer: {
-        paddingBottom: 100,
-    },
-    fabContainer: {
-        position: 'absolute',
-        bottom: 30,
-        left: 0,
-        right: 0,
+    centerBox: {
+        padding: 40,
         alignItems: 'center',
-        paddingHorizontal: 20,
-    },
-    fab: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#0a2341',
-        paddingHorizontal: 24,
-        paddingVertical: 14,
-        borderRadius: 30,
-        gap: 8,
-        shadowColor: '#0a2341',
-        shadowOpacity: 0.3,
-        shadowRadius: 15,
-        shadowOffset: { width: 0, height: 8 },
-        elevation: 10,
-    },
-    fabText: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: '800',
-        letterSpacing: -0.2,
-    },
-    leadCard: {
+        justifyContent: 'center',
         backgroundColor: colors.cardBackground,
         borderRadius: 20,
-        marginHorizontal: 18,
-        marginBottom: 16,
-        padding: 16,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+        gap: 12,
+    },
+    loadingText: {
+        fontSize: 14,
+        color: colors.textSecondary,
+    },
+    errorText: {
+        fontSize: 14,
+        color: '#EF4444',
+        textAlign: 'center',
+    },
+    retryBtn: {
+        backgroundColor: '#0a2341',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 10,
+    },
+    retryBtnText: {
+        color: '#FFFFFF',
+        fontWeight: '600',
+        fontSize: 13,
+    },
+    tableCard: {
+        backgroundColor: colors.cardBackground,
+        borderRadius: 20,
         borderWidth: 1,
         borderColor: colors.cardBorder,
         shadowColor: '#000',
         shadowOpacity: 0.03,
-        shadowRadius: 12,
+        shadowRadius: 15,
         shadowOffset: { width: 0, height: 6 },
         elevation: 3,
+        overflow: 'hidden',
     },
-    leadCardHeader: {
+    tableInner: {
+        padding: 16,
+    },
+    tableHeaderRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 14,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderColor: colors.divider || '#EEF2F7',
+        marginBottom: 8,
     },
-    leadIconBox: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 12,
-    },
-    leadTitleContent: {
-        flex: 1,
-    },
-    leadTitle: {
-        fontSize: 16,
+    tableHeaderText: {
+        fontSize: 10,
         fontWeight: '800',
-        color: colors.textPrimary,
-        marginBottom: 2,
+        color: colors.textMuted || '#8A98A8',
+        letterSpacing: 0.5,
     },
-    leadType: {
-        fontSize: 12,
-        color: colors.textSecondary,
-        fontWeight: '500',
-    },
-    actionRow: {
+    tableRow: {
         flexDirection: 'row',
-        gap: 6,
+        alignItems: 'center',
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderColor: colors.rowBorder || '#EEF2F7',
     },
-    miniActionBtn: {
-        width: 32,
-        height: 32,
-        borderRadius: 8,
-        backgroundColor: colors.surfaceSoft,
+    tableColIdentity: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    identityIconBox: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: colors.surfaceSoft || '#F3F6FA',
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
         borderColor: colors.cardBorder,
     },
-    deleteBtn: {
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        borderColor: 'rgba(239, 68, 68, 0.1)',
-    },
-    divider: {
-        height: 1,
-        backgroundColor: colors.cardBorder,
-        marginBottom: 14,
-    },
-    leadStatsRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 14,
-    },
-    leadStatItem: {
+    identityTextContainer: {
         flex: 1,
+        gap: 2,
     },
-    leadStatLabel: {
-        fontSize: 9,
-        fontWeight: '800',
-        color: colors.textSecondary,
-        letterSpacing: 0.5,
-        marginBottom: 6,
-    },
-    leadStatValue: {
+    pageNameText: {
         fontSize: 14,
-        fontWeight: '700',
+        fontWeight: '800',
         color: colors.textPrimary,
     },
-    leadsCount: {
+    pageCategoryText: {
         fontSize: 12,
         color: colors.textSecondary,
-        fontWeight: '400',
+        fontWeight: '500',
     },
-    row: {
-        flexDirection: 'row',
+    tableColLeads: {
+        flex: 1.2,
         alignItems: 'center',
-        gap: 6,
+        justifyContent: 'center',
     },
-    trendBadge: {
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 6,
+    totalLeadsText: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: colors.textPrimary,
     },
-    trendText: {
-        fontSize: 10,
-        fontWeight: '700',
-    },
-    leadCardFooter: {
-        flexDirection: 'row',
+    tableColStatus: {
+        flex: 1.2,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 8,
         paddingVertical: 4,
-        borderRadius: 8,
-        gap: 6,
+        borderRadius: 6,
+        gap: 4,
     },
     statusDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
     },
     statusText: {
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: '800',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        letterSpacing: 0.3,
+    },
+    tableColControl: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: 6,
+    },
+    miniActionBtn: {
+        width: 30,
+        height: 30,
+        borderRadius: 8,
+        backgroundColor: colors.surfaceSoft || '#F3F6FA',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+    },
+    deleteBtn: {
+        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+        borderColor: 'rgba(239, 68, 68, 0.15)',
+    },
+    emptyContainer: {
+        paddingVertical: 60,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+    },
+    emptyText: {
+        fontSize: 13,
+        color: colors.textSecondary,
+        textAlign: 'center',
+    },
+    leadsModalContent: {
+        backgroundColor: colors.cardBackground,
+        borderRadius: 24,
+        padding: 24,
+        width: '90%',
+        maxWidth: 480,
+        maxHeight: '80%',
+        shadowColor: '#000',
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 10,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+    },
+    leadsModalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    leadsModalHeaderLeft: {
+        flex: 1,
+        gap: 2,
+    },
+    leadsModalTitle: {
+        fontSize: 20,
+        fontWeight: '900',
+        color: colors.textPrimary,
+    },
+    leadsModalSubtitle: {
+        fontSize: 13,
+        color: colors.textSecondary,
+    },
+    leadsModalCloseBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: colors.surfaceSoft || '#F3F6FA',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+    },
+    leadsModalCenterBox: {
+        paddingVertical: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+    },
+    leadsModalLoadingText: {
+        fontSize: 14,
+        color: colors.textSecondary,
+    },
+    leadsModalErrorText: {
+        fontSize: 14,
+        color: '#EF4444',
+        textAlign: 'center',
+    },
+    leadsModalRetryBtn: {
+        backgroundColor: '#0a2341',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 10,
+        marginTop: 6,
+    },
+    leadsModalRetryBtnText: {
+        color: '#FFFFFF',
+        fontWeight: '600',
+        fontSize: 13,
+    },
+    leadsModalEmptyIconBox: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: colors.surfaceSoft || '#F3F6FA',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8,
+    },
+    leadsModalEmptyTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: colors.textPrimary,
+        textAlign: 'center',
+    },
+    leadsModalEmptySubtitle: {
+        fontSize: 13,
+        color: colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 18,
+        maxWidth: 260,
+    },
+    leadsModalList: {
+        flexGrow: 0,
+        marginTop: 4,
+    },
+    leadsModalListContent: {
+        gap: 12,
+        paddingBottom: 8,
+    },
+    leadCard: {
+        backgroundColor: colors.surfaceSoft || '#F3F6FA',
+        borderRadius: 16,
+        padding: 14,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+    },
+    leadCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    leadAvatarBox: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#0a2341',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    leadHeaderInfo: {
+        flex: 1,
+        gap: 1,
+    },
+    leadCardName: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: colors.textPrimary,
+    },
+    leadCardDate: {
+        fontSize: 11,
+        color: colors.textSecondary,
+    },
+    leadContactBlock: {
+        marginTop: 10,
+        gap: 6,
+    },
+    leadContactItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    leadContactText: {
+        fontSize: 13,
+        color: colors.textPrimary,
+    },
+    leadExtraBlock: {
+        marginTop: 10,
+        paddingTop: 8,
+        borderTopWidth: 1,
+        borderColor: colors.cardBorder,
+        gap: 4,
+    },
+    leadExtraItem: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 4,
+    },
+    leadExtraLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: colors.textSecondary,
+        width: 80,
+    },
+    leadExtraValue: {
+        flex: 1,
+        fontSize: 12,
+        color: colors.textPrimary,
     },
     modalOverlay: {
         flex: 1,
@@ -541,7 +1217,7 @@ const getStyles = (colors: any) => StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: colors.surfaceSoft,
+        backgroundColor: colors.surfaceSoft || '#F3F6FA',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 20,
@@ -572,5 +1248,137 @@ const getStyles = (colors: any) => StyleSheet.create({
         color: '#FFF',
         fontSize: 16,
         fontWeight: '700',
+    },
+    bottomBarContainer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: isDark ? 'rgba(22, 31, 41, 0.95)' : 'rgba(241, 246, 251, 0.95)',
+        paddingHorizontal: 20,
+        paddingTop: 12,
+        paddingBottom: 24,
+        borderTopWidth: 1,
+        borderColor: colors.cardBorder,
+    },
+    floatingCreateBtn: {
+        height: 54,
+        borderRadius: 27,
+        backgroundColor: '#0a2341',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        shadowColor: '#000',
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 5,
+    },
+    floatingCreateBtnText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '800',
+        letterSpacing: 0.3,
+    },
+    mobileCardsContainer: {
+        gap: 16,
+        marginBottom: 20,
+    },
+    mobileCard: {
+        backgroundColor: colors.cardBackground,
+        borderRadius: 20,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+        shadowColor: '#000',
+        shadowOpacity: 0.03,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 2,
+    },
+    mobileCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    mobileCardIconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        backgroundColor: colors.surfaceSoft || '#F3F6FA',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+    },
+    mobileCardHeaderDetails: {
+        flex: 1,
+        gap: 2,
+    },
+    mobileCardTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+        color: colors.textPrimary,
+    },
+    mobileCardCategory: {
+        fontSize: 12,
+        color: colors.textSecondary,
+        fontWeight: '500',
+    },
+    mobileCardDivider: {
+        height: 1,
+        backgroundColor: colors.divider || '#EEF2F7',
+        marginVertical: 14,
+    },
+    mobileCardStatsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 24,
+        paddingHorizontal: 4,
+    },
+    mobileCardStatItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    mobileCardStatLabel: {
+        fontSize: 13,
+        color: colors.textSecondary,
+        fontWeight: '500',
+    },
+    mobileCardStatValue: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: colors.textPrimary,
+    },
+    mobileCardActionsRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 16,
+    },
+    mobileCardActionBtn: {
+        flex: 1,
+        borderRadius: 10,
+        backgroundColor: colors.surfaceSoft || '#F3F6FA',
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+        overflow: 'hidden',
+    },
+    mobileCardActionBtnInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 10,
+        gap: 4,
+    },
+    mobileCardActionBtnText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.textSecondary,
+    },
+    mobileCardDeleteBtn: {
+        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+        borderColor: 'rgba(239, 68, 68, 0.15)',
     },
 });

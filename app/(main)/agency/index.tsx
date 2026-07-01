@@ -208,7 +208,7 @@ export default function AgencyDashboard() {
                 menuItems={AGENCY_MENU_ITEMS}
                 customLogo={<AgencyLogo />}
                 customBackground={AGENCY_BG}
-                customHeaderBackground="#FFFFFF"
+                customHeaderBackground={colors.cardBackground}
                 backToMainRoute="/(main)/dashboard"
                 isAgency={true}
             >
@@ -226,13 +226,13 @@ export default function AgencyDashboard() {
                 menuItems={AGENCY_MENU_ITEMS}
                 customLogo={<AgencyLogo />}
                 customBackground={AGENCY_BG}
-                customHeaderBackground="#FFFFFF"
+                customHeaderBackground={colors.cardBackground}
                 backToMainRoute="/(main)/dashboard"
                 isAgency={true}
             >
                 <View style={styles.errorContainer}>
-                    <View style={[styles.errorCard, { backgroundColor: colors.cardBackground }]}>
-                        <View style={styles.errorIconWrap}>
+                    <View style={[styles.errorCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+                        <View style={[styles.errorIconWrap, { backgroundColor: colors.surfaceSoft }]}>
                             <MaterialCommunityIcons name="cloud-off-outline" size={42} color={colors.accentTeal || '#0B2341'} />
                         </View>
                         <Text style={[styles.errorTitle, { color: colors.textPrimary }]}>Connection Error</Text>
@@ -269,7 +269,7 @@ export default function AgencyDashboard() {
             menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
-            customHeaderBackground="#FFFFFF"
+            customHeaderBackground={colors.cardBackground}
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >

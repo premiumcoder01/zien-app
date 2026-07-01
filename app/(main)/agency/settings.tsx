@@ -68,6 +68,7 @@ const InputField = ({
     const [showPwd, setShowPwd] = useState(false);
     const isSecure = secureTextEntry && !showPwd;
     const { colors } = useAppTheme();
+    const sf = getStyles(colors);
 
     return (
         <View style={sf.inputGroup}>
@@ -78,8 +79,8 @@ const InputField = ({
             <View style={[
                 multiline ? sf.textAreaWrap : sf.inputWrap,
                 {
-                    borderColor: !editable ? '#E9EEF4' : isFocused ? colors.accentTeal : '#CBD5E1',
-                    backgroundColor: !editable ? '#F1F5F9' : '#fff',
+                    borderColor: !editable ? colors.divider : isFocused ? colors.accentTeal : colors.cardBorder,
+                    backgroundColor: !editable ? colors.surfaceMuted : colors.inputBackground,
                 }
             ]}>
                 {icon && (
@@ -123,6 +124,7 @@ const InputField = ({
 // ─────────────────────────────────────────────
 const SaveButton = ({ label, onPress, loading, icon = 'content-save-outline' }: any) => {
     const { colors } = useAppTheme();
+    const sf = getStyles(colors);
     return (
         <TouchableOpacity style={sf.saveBtn} onPress={onPress} disabled={loading} activeOpacity={0.85}>
             <LinearGradient colors={colors.brandGradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={sf.saveBtnInner}>
@@ -144,6 +146,7 @@ const SaveButton = ({ label, onPress, loading, icon = 'content-save-outline' }: 
 // ─────────────────────────────────────────────
 const SectionHeader = ({ icon, title, subtitle, rightSlot }: any) => {
     const { colors } = useAppTheme();
+    const sf = getStyles(colors);
     return (
         <View style={sf.sectionHeader}>
             <View style={{ flex: 1 }}>
@@ -162,6 +165,8 @@ const SectionHeader = ({ icon, title, subtitle, rightSlot }: any) => {
 // MY PROFILE TAB
 // ─────────────────────────────────────────────
 const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
+    const { colors } = useAppTheme();
+    const sf = getStyles(colors);
     const [form, setForm] = useState({
         first_name: '',
         last_name: '',
@@ -334,7 +339,7 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
 
                         {/* Additional Information */}
                         <View style={sf.additionalHeader}>
-                            <MaterialCommunityIcons name="text-box-outline" size={18} color={DARK_NAVY} />
+                            <MaterialCommunityIcons name="text-box-outline" size={18} color={colors.accentTeal} />
                             <Text style={sf.additionalTitle}>Additional Information</Text>
                         </View>
 
@@ -421,6 +426,8 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
 // BRANDING TAB
 // ─────────────────────────────────────────────
 const BrandingTab = ({ branding, onSave, isSaving, accessToken }: any) => {
+    const { colors } = useAppTheme();
+    const sf = getStyles(colors);
     const [form, setForm] = useState({
         legal_name: '',
         website: '',
@@ -547,9 +554,9 @@ const BrandingTab = ({ branding, onSave, isSaving, accessToken }: any) => {
                                     onPress={() => setThemePickerOpen(true)}
                                     activeOpacity={0.8}
                                 />
-                                <View style={[sf.inputWrap, { flex: 1, borderColor: '#CBD5E1', backgroundColor: '#fff' }]}>
+                                <View style={[sf.inputWrap, { flex: 1, borderColor: colors.cardBorder, backgroundColor: colors.inputBackground }]}>
                                     <TextInput
-                                        style={[sf.textInput, { color: DARK_NAVY }]}
+                                        style={[sf.textInput, { color: colors.textPrimary }]}
                                         value={form.theme_color}
                                         onChangeText={(t) => setForm({ ...form, theme_color: t })}
                                         placeholder="#0B2341"
@@ -565,13 +572,13 @@ const BrandingTab = ({ branding, onSave, isSaving, accessToken }: any) => {
                             <Text style={sf.inputLabel}>Text Color</Text>
                             <View style={sf.colorRow}>
                                 <TouchableOpacity
-                                    style={[sf.colorSwatch, { backgroundColor: form.text_color, borderWidth: 1, borderColor: '#E2E8F0' }]}
+                                    style={[sf.colorSwatch, { backgroundColor: form.text_color, borderWidth: 1, borderColor: colors.cardBorder }]}
                                     onPress={() => setTextPickerOpen(true)}
                                     activeOpacity={0.8}
                                 />
-                                <View style={[sf.inputWrap, { flex: 1, borderColor: '#CBD5E1', backgroundColor: '#fff' }]}>
+                                <View style={[sf.inputWrap, { flex: 1, borderColor: colors.cardBorder, backgroundColor: colors.inputBackground }]}>
                                     <TextInput
-                                        style={[sf.textInput, { color: DARK_NAVY }]}
+                                        style={[sf.textInput, { color: colors.textPrimary }]}
                                         value={form.text_color}
                                         onChangeText={(t) => setForm({ ...form, text_color: t })}
                                         placeholder="#FFFFFF"
@@ -658,6 +665,8 @@ const SecurityTab = ({
     onSave: (data: any) => Promise<void>;
     isSaving: boolean;
 }) => {
+    const { colors } = useAppTheme();
+    const sf = getStyles(colors);
     const [form, setForm] = useState({ current: '', newPwd: '', confirm: '' });
 
     const handleUpdate = async () => {
@@ -691,7 +700,7 @@ const SecurityTab = ({
                 {/* Change Password header */}
                 <View style={sf.securityCardHeader}>
                     <View style={sf.secIconWrap}>
-                        <MaterialCommunityIcons name="shield-outline" size={20} color={DARK_NAVY} />
+                        <MaterialCommunityIcons name="shield-outline" size={20} color={colors.accentTeal} />
                     </View>
                     <View>
                         <Text style={sf.secTitle}>Change Password</Text>
@@ -740,7 +749,7 @@ const SecurityTab = ({
                     disabled={isSaving}
                     activeOpacity={0.85}
                 >
-                    <LinearGradient colors={[DARK_NAVY, '#132F58']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={sf.updatePwdInner}>
+                    <LinearGradient colors={colors.brandGradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={sf.updatePwdInner}>
                         {isSaving ? (
                             <ActivityIndicator color="#fff" size="small" style={{ width: 104, height: 18 }} />
                         ) : (
@@ -765,6 +774,7 @@ const NOTIF_ITEMS = [
 
 const NotificationsTab = ({ onSave, isSaving, initialPrefs }: { onSave: (prefs: any) => void; isSaving: boolean; initialPrefs?: any }) => {
     const { colors } = useAppTheme();
+    const sf = getStyles(colors);
     const [prefs, setPrefs] = useState<Record<string, boolean>>({
         team_email: false, team_push: false,
         lead_email: false, lead_push: false,
@@ -811,7 +821,7 @@ const NotificationsTab = ({ onSave, isSaving, initialPrefs }: { onSave: (prefs: 
                                     <Switch
                                         value={prefs[`${item.id}_email`]}
                                         onValueChange={() => toggle(`${item.id}_email`)}
-                                        trackColor={{ false: '#E2E8F0', true: colors.accentTeal }}
+                                        trackColor={{ false: colors.divider, true: colors.accentTeal }}
                                         thumbColor="#fff"
                                         style={{ transform: [{ scale: 0.82 }] }}
                                     />
@@ -821,7 +831,7 @@ const NotificationsTab = ({ onSave, isSaving, initialPrefs }: { onSave: (prefs: 
                                     <Switch
                                         value={prefs[`${item.id}_push`]}
                                         onValueChange={() => toggle(`${item.id}_push`)}
-                                        trackColor={{ false: '#E2E8F0', true: colors.accentTeal }}
+                                        trackColor={{ false: colors.divider, true: colors.accentTeal }}
                                         thumbColor="#fff"
                                         style={{ transform: [{ scale: 0.82 }] }}
                                     />
@@ -876,6 +886,8 @@ const NotificationsTab = ({ onSave, isSaving, initialPrefs }: { onSave: (prefs: 
 // TOAST
 // ─────────────────────────────────────────────
 const Toast = ({ message, type }: { message: string; type: 'success' | 'error' }) => {
+    const { colors } = useAppTheme();
+    const sf = getStyles(colors);
     const translateY = useRef(new Animated.Value(-100)).current;
 
     useEffect(() => {
@@ -906,6 +918,7 @@ const Toast = ({ message, type }: { message: string; type: 'success' | 'error' }
 export default function AgencySettings() {
     const { accessToken } = useAuth();
     const { colors } = useAppTheme();
+    const sf = getStyles(colors);
     const router = useRouter();
     const queryClient = useQueryClient();
     const insets = useSafeAreaInsets();
@@ -972,7 +985,7 @@ export default function AgencySettings() {
             menuItems={AGENCY_MENU_ITEMS}
             customLogo={<AgencyLogo />}
             customBackground={AGENCY_BG}
-            customHeaderBackground="#FFFFFF"
+            customHeaderBackground={colors.cardBackground}
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
@@ -1069,15 +1082,15 @@ export default function AgencySettings() {
 // ─────────────────────────────────────────────
 // Styles
 // ─────────────────────────────────────────────
-const sf = StyleSheet.create({
-    scroll: { flex: 1, backgroundColor: '#F8FAFC' },
+const getStyles = (colors: any) => StyleSheet.create({
+    scroll: { flex: 1, backgroundColor: colors.surfaceSoft },
     scrollContent: { paddingHorizontal: 16, paddingTop: 20 },
 
     // Page header
     pageHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
     pageHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    pageTitle: { fontSize: 20, fontWeight: '900', color: DARK_NAVY, letterSpacing: -0.3 },
-    pageSubtitle: { fontSize: 12, color: '#64748B', fontWeight: '500', marginTop: 1 },
+    pageTitle: { fontSize: 20, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.3 },
+    pageSubtitle: { fontSize: 12, color: colors.textSecondary, fontWeight: '500', marginTop: 1 },
 
     // Tab bar
     tabBar: { marginBottom: 20, marginHorizontal: -16 },
@@ -1085,12 +1098,12 @@ const sf = StyleSheet.create({
     tabItem: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
         paddingHorizontal: 14, paddingVertical: 9,
-        borderRadius: 10, backgroundColor: '#fff',
-        borderWidth: 1, borderColor: '#E2E8F0',
+        borderRadius: 10, backgroundColor: colors.cardBackground,
+        borderWidth: 1, borderColor: colors.cardBorder,
     },
-    tabItemActive: { backgroundColor: DARK_NAVY, borderColor: DARK_NAVY },
-    tabText: { fontSize: 12, fontWeight: '700', color: '#64748B' },
-    tabTextActive: { color: '#fff' },
+    tabItemActive: { backgroundColor: colors.accentTeal, borderColor: colors.accentTeal },
+    tabText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+    tabTextActive: { color: colors.gradientButtonText || '#fff' },
 
     // Content wrapper
     tabContentWrap: {},
@@ -1102,18 +1115,18 @@ const sf = StyleSheet.create({
         justifyContent: 'space-between', marginBottom: 4,
     },
     sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },
-    sectionTitle: { fontSize: 17, fontWeight: '900', color: DARK_NAVY },
-    sectionSubtitle: { fontSize: 12, color: '#64748B', fontWeight: '500' },
+    sectionTitle: { fontSize: 17, fontWeight: '900', color: colors.textPrimary },
+    sectionSubtitle: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
 
     // Card
     card: {
-        backgroundColor: '#fff',
+        backgroundColor: colors.cardBackground,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#E9EEF4',
+        borderColor: colors.cardBorder,
         padding: 18,
         ...Platform.select({
-            ios: { shadowColor: '#0B2341', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.05, shadowRadius: 10 },
+            ios: { shadowColor: colors.cardShadowColor || '#000000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.05, shadowRadius: 10 },
             android: { elevation: 2 },
         }),
     },
@@ -1125,38 +1138,38 @@ const sf = StyleSheet.create({
     avatarImg: { width: 90, height: 90, borderRadius: 24 },
     avatarPlaceholder: {
         width: 90, height: 90, borderRadius: 24,
-        backgroundColor: '#E8F0FF', alignItems: 'center', justifyContent: 'center',
-        borderWidth: 2, borderColor: '#CBD5E1',
+        backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center',
+        borderWidth: 2, borderColor: colors.cardBorder,
     },
-    avatarInitials: { fontSize: 28, fontWeight: '900', color: DARK_NAVY },
+    avatarInitials: { fontSize: 28, fontWeight: '900', color: colors.textPrimary },
     avatarCamBtn: {
         position: 'absolute', bottom: -4, right: -4,
         width: 30, height: 30, borderRadius: 15,
         backgroundColor: '#F97316', alignItems: 'center', justifyContent: 'center',
-        borderWidth: 2, borderColor: '#fff',
+        borderWidth: 2, borderColor: colors.cardBackground,
     },
-    avatarName: { fontSize: 16, fontWeight: '900', color: DARK_NAVY, marginBottom: 2 },
+    avatarName: { fontSize: 16, fontWeight: '900', color: colors.textPrimary, marginBottom: 2 },
     avatarEmail: { fontSize: 10, color: '#F97316', fontWeight: '700', letterSpacing: 0.3, marginBottom: 14 },
     quickStats: {
-        width: '100%', backgroundColor: '#F8FAFC',
+        width: '100%', backgroundColor: colors.surfaceSoft,
         borderRadius: 12, padding: 14, gap: 10,
-        borderWidth: 1, borderColor: '#E9EEF4',
+        borderWidth: 1, borderColor: colors.cardBorder,
     },
-    quickStatsLabel: { fontSize: 9, fontWeight: '900', color: '#94A3B8', letterSpacing: 1, marginBottom: 6 },
+    quickStatsLabel: { fontSize: 9, fontWeight: '900', color: colors.textMuted, letterSpacing: 1, marginBottom: 6 },
     statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    statKey: { fontSize: 12, color: '#64748B', fontWeight: '600' },
-    statVal: { fontSize: 12, fontWeight: '800', color: DARK_NAVY },
+    statKey: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
+    statVal: { fontSize: 12, fontWeight: '800', color: colors.textPrimary },
     activeBadge: { backgroundColor: '#D1FAE5', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
     activeBadgeText: { fontSize: 10, fontWeight: '800', color: '#065F46' },
     formCol: { gap: 14 },
     twoCol: { flexDirection: 'row', gap: 10 },
-    divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 4 },
+    divider: { height: 1, backgroundColor: colors.divider, marginVertical: 4 },
     additionalHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    additionalTitle: { fontSize: 15, fontWeight: '900', color: DARK_NAVY },
+    additionalTitle: { fontSize: 15, fontWeight: '900', color: colors.textPrimary },
 
     // Input
     inputGroup: { gap: 6 },
-    inputLabel: { fontSize: 12, fontWeight: '700', color: '#374151' },
+    inputLabel: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
     inputWrap: {
         height: 46, borderRadius: 10, borderWidth: 1.5,
         paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -1172,9 +1185,9 @@ const sf = StyleSheet.create({
 
     // Branding
     brandingRow: { gap: 18 },
-    logoCol: { alignItems: 'center', paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-    logoColLabel: { fontSize: 10, fontWeight: '900', color: '#94A3B8', letterSpacing: 1.2, marginBottom: 14 },
-    logoBox: { width: 140, height: 100, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 10, position: 'relative' },
+    logoCol: { alignItems: 'center', paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.divider },
+    logoColLabel: { fontSize: 10, fontWeight: '900', color: colors.textMuted, letterSpacing: 1.2, marginBottom: 14 },
+    logoBox: { width: 140, height: 100, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: colors.cardBorder, marginBottom: 10, position: 'relative' },
     logoImg: { width: '100%', height: '100%' },
     logoOverlay: {
         position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -1184,25 +1197,25 @@ const sf = StyleSheet.create({
     logoOverlayText: { color: '#fff', fontSize: 10, fontWeight: '700' },
     logoUploadBox: {
         width: 140, height: 100, borderRadius: 14, borderWidth: 2,
-        borderStyle: 'dashed', borderColor: '#CBD5E1',
+        borderStyle: 'dashed', borderColor: colors.cardBorder,
         alignItems: 'center', justifyContent: 'center', marginBottom: 10,
-        backgroundColor: '#F8FAFC', gap: 6,
+        backgroundColor: colors.surfaceSoft, gap: 6,
     },
-    logoUploadText: { fontSize: 10, fontWeight: '900', color: '#94A3B8' },
-    logoHint: { fontSize: 11, color: '#94A3B8', textAlign: 'center', lineHeight: 17 },
+    logoUploadText: { fontSize: 10, fontWeight: '900', color: colors.textMuted },
+    logoHint: { fontSize: 11, color: colors.textMuted, textAlign: 'center', lineHeight: 17 },
     brandingFieldsCol: { gap: 14 },
     colorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     colorSwatch: { width: 42, height: 42, borderRadius: 10 },
-    colorHint: { flex: 1, fontSize: 11, color: '#94A3B8', fontWeight: '500' },
+    colorHint: { flex: 1, fontSize: 11, color: colors.textMuted, fontWeight: '500' },
 
     // Security
     securityCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 },
     secIconWrap: {
         width: 40, height: 40, borderRadius: 10,
-        backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center',
     },
-    secTitle: { fontSize: 15, fontWeight: '900', color: DARK_NAVY },
-    secSubtitle: { fontSize: 12, color: '#64748B', fontWeight: '500', marginTop: 1 },
+    secTitle: { fontSize: 15, fontWeight: '900', color: colors.textPrimary },
+    secSubtitle: { fontSize: 12, color: colors.textSecondary, fontWeight: '500', marginTop: 1 },
 
     updatePwdBtn: { marginTop: 8, borderRadius: 10, overflow: 'hidden', alignSelf: 'flex-start' },
     updatePwdInner: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10 },
@@ -1210,12 +1223,12 @@ const sf = StyleSheet.create({
 
     // Notifications
     notifRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
-    notifTitle: { fontSize: 13, fontWeight: '800', color: DARK_NAVY, marginBottom: 3 },
-    notifDesc: { fontSize: 11, color: '#64748B', fontWeight: '500', lineHeight: 16 },
+    notifTitle: { fontSize: 13, fontWeight: '800', color: colors.textPrimary, marginBottom: 3 },
+    notifDesc: { fontSize: 11, color: colors.textSecondary, fontWeight: '500', lineHeight: 16 },
     notifToggles: { flexDirection: 'row', gap: 10 },
-    notifDivider: { height: 1, backgroundColor: '#F1F5F9' },
+    notifDivider: { height: 1, backgroundColor: colors.divider },
     toggleGroup: { alignItems: 'center', gap: 4 },
-    toggleLabel: { fontSize: 9, fontWeight: '900', color: '#94A3B8', letterSpacing: 0.8 },
+    toggleLabel: { fontSize: 9, fontWeight: '900', color: colors.textMuted, letterSpacing: 0.8 },
 
     // Save button
     saveBtn: { borderRadius: 10, overflow: 'hidden', alignSelf: 'flex-end' },
@@ -1244,32 +1257,32 @@ const sf = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     pickerSheet: {
-        backgroundColor: '#fff',
+        backgroundColor: colors.cardBackground,
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
         padding: 24,
         paddingBottom: 36,
         gap: 10,
     },
-    pickerTitle: { fontSize: 18, fontWeight: '900', color: DARK_NAVY, marginBottom: 2 },
-    pickerSub: { fontSize: 13, color: '#64748B', fontWeight: '500', marginBottom: 8 },
+    pickerTitle: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, marginBottom: 2 },
+    pickerSub: { fontSize: 13, color: colors.textSecondary, fontWeight: '500', marginBottom: 8 },
     pickerBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 14,
         paddingVertical: 14,
         paddingHorizontal: 16,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: colors.surfaceSoft,
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: '#E9EEF4',
+        borderColor: colors.cardBorder,
     },
     pickerBtnIcon: {
         width: 40, height: 40, borderRadius: 12,
-        backgroundColor: '#EEF2FF',
+        backgroundColor: colors.surfaceIcon,
         alignItems: 'center', justifyContent: 'center',
     },
-    pickerBtnText: { flex: 1, fontSize: 15, fontWeight: '700', color: DARK_NAVY },
+    pickerBtnText: { flex: 1, fontSize: 15, fontWeight: '700', color: colors.textPrimary },
     pickerCancelBtn: {
         marginTop: 4,
         backgroundColor: '#FEF2F2',
