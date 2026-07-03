@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MainHeader } from './MainHeader';
 import type { NavMenuItem } from './NavDrawer';
 import { NavDrawer } from './NavDrawer';
+import { StatusBar } from 'expo-status-bar';
 
 const DRAWER_WIDTH = 265;
 
@@ -42,7 +43,7 @@ export function DashboardLayout({
   isAgency = false,
 }: DashboardLayoutProps) {
   const { accessToken } = useAuth();
-  const { colors, setBranding } = useAppTheme();
+  const { colors, theme, setBranding } = useAppTheme();
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -154,6 +155,7 @@ export function DashboardLayout({
 
   return (
     <View style={styles.wrapper}>
+      <StatusBar key={theme} style={theme === 'dark' ? 'light' : 'dark'} />
       <LinearGradient
         colors={colors.backgroundGradient as any}
         start={{ x: 0.1, y: 0 }}

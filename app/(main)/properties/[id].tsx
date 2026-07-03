@@ -145,7 +145,6 @@ export default function PropertyDetailScreen() {
 
       if (res.success) {
         const d = res.data.data;
-        console.log(JSON.stringify(d), "propert data")
         const coords = d.Coordinates || [-95.399529, 29.74878];
         return {
           id: id,

@@ -70,7 +70,7 @@ function InnerLayout() {
         <Stack.Screen name="(main)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar key={theme} style={theme === 'dark' ? 'light' : 'dark'} />
       <NetworkStatusAlert />
     </ThemeProvider>
   );

@@ -7,11 +7,13 @@ import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -66,6 +68,26 @@ export default function SocialHubScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { accessToken } = useAuth();
+
+  const [menuVisible, setMenuVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(Dimensions.get('window').width)).current;
+
+  const openMenu = () => {
+    setMenuVisible(true);
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeMenu = () => {
+    Animated.timing(slideAnim, {
+      toValue: Dimensions.get('window').width,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => setMenuVisible(false));
+  };
 
   // Fetch social overview (live stats)
   const { data: overview, isLoading: overviewLoading } = useQuery({
@@ -169,6 +191,8 @@ export default function SocialHubScreen() {
           title="Social Media"
           subtitle="Automate your property promotion and engage with your audience."
           onBack={() => router.back()}
+          rightIcon="menu"
+          onRightPress={openMenu}
         />
 
         <ScrollView
@@ -373,34 +397,80 @@ export default function SocialHubScreen() {
             </View>
           )}
 
-          {/* Tools & Utilities Grid */}
-          <View style={styles.sectionHeaderPremium}>
-            <Text style={styles.sectionTitlePremium}>Social Hub</Text>
-          </View>
+          <View style={{ height: 16 }} />
 
-          <View style={styles.toolsGrid}>
-            {HUB_TOOLS.map((tool) => (
-              <Pressable
-                key={tool.id}
-                style={styles.toolCardPremium}
-                onPress={() => router.push(tool.route as any)}
-              >
-                <View style={styles.toolLeftContent}>
-                  <View style={styles.toolIconCircle}>
-                    <MaterialCommunityIcons name={tool.icon} size={20} color={colors.textPrimary} />
-                  </View>
-                  <Text style={styles.toolLabelPremium}>{tool.label}</Text>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-              </Pressable>
-            ))}
-          </View>
-
-          <View style={{ height: 100 }} />
+          <View style={{ height: 40 }} />
         </ScrollView>
       </LinearGradient>
 
+      {/* Sidebar Drawer Menu Modal */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closeMenu}
+      >
+        <View style={styles.drawerOverlay}>
+          <Pressable style={styles.drawerBackdrop} onPress={closeMenu} />
+          <Animated.View
+            style={[
+              styles.drawerContent,
+              {
+                transform: [{ translateX: slideAnim }],
+                paddingTop: insets.top + 16,
+                paddingBottom: insets.bottom + 16,
+              },
+            ]}
+          >
+            {/* Drawer Header */}
+            <View style={styles.drawerHeader}>
+              <Text style={styles.drawerTitle}>Social Hub Menu</Text>
+              <Pressable onPress={closeMenu} style={styles.drawerCloseBtn} hitSlop={12}>
+                <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+              </Pressable>
+            </View>
 
+            {/* Menu items */}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.drawerScrollContent}>
+              {HUB_TOOLS.map((tool) => (
+                <Pressable
+                  key={tool.id}
+                  style={({ pressed }) => [styles.drawerItem, pressed && styles.drawerItemPressed]}
+                  onPress={() => {
+                    closeMenu();
+                    router.push(tool.route as any);
+                  }}
+                >
+                  <View style={styles.drawerItemIconWrap}>
+                    <MaterialCommunityIcons
+                      name={tool.icon}
+                      size={14}
+                      color={colors.textPrimary}
+                    />
+                  </View>
+                  <Text style={styles.drawerItemLabel}>{tool.label}</Text>
+                  {(() => {
+                    const count = tool.id === 'Scheduler'
+                      ? (upcomingPosts?.length ?? overview?.scheduled_posts?.length ?? 0)
+                      : tool.id === 'Templates'
+                        ? (overview?.templates?.length ?? 0)
+                        : null;
+                    if (count !== null && count > 0) {
+                      return (
+                        <View style={styles.drawerItemBadge}>
+                          <Text style={styles.drawerItemBadgeText}>{count}</Text>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
+                  <MaterialCommunityIcons name="chevron-right" size={12} color={colors.textMuted || '#9CA3AF'} />
+                </Pressable>
+              ))}
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -480,5 +550,102 @@ function getStyles(colors: any, theme: string) {
     templateName: { fontSize: 14, fontWeight: '800', color: colors.textPrimary, marginBottom: 4 },
     templatePlatformRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     templatePlatformText: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+    drawerOverlay: {
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      backgroundColor: 'transparent',
+    },
+    drawerBackdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(13, 27, 42, 0.75)',
+    },
+    drawerContent: {
+      width: Dimensions.get('window').width * 0.52,
+      height: '100%',
+      backgroundColor: colors.cardBackground,
+      borderTopLeftRadius: 20,
+      borderBottomLeftRadius: 20,
+      borderLeftWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: -3, height: 0 },
+      shadowOpacity: 0.1,
+      shadowRadius: 10,
+      elevation: 10,
+    },
+    drawerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+      marginBottom: 10,
+    },
+    drawerTitle: {
+      fontSize: 13,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    drawerCloseBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    drawerScrollContent: {
+      paddingBottom: 24,
+      gap: 3,
+    },
+    drawerItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+      gap: 8,
+      borderRadius: 10,
+      marginBottom: 2,
+    },
+    drawerItemPressed: {
+      backgroundColor: colors.surfaceSoft,
+    },
+    drawerItemIconWrap: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    drawerItemLabel: {
+      flex: 1,
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    drawerItemBadge: {
+      backgroundColor: colors.surfaceSoft,
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 8,
+      minWidth: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 4,
+    },
+    drawerItemBadgeText: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: colors.textSecondary,
+    },
   });
 }

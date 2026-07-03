@@ -35,7 +35,7 @@ function BillingScreenHeaderComponent({ activeTab, onTabChange }: BillingScreenH
         <View style={styles.headerText}>
           <Text style={styles.title}>Billing & Usage</Text>
           <Text style={styles.subtitle}>
-            Manage your enterprise tier, financial history, and resource allocation.
+            Manage your current plan, add-ons, and view full payment history.
           </Text>
         </View>
       </View>
@@ -72,85 +72,85 @@ export const BillingScreenHeader = memo(BillingScreenHeaderComponent);
 
 function getStyles(colors: any, isDark: boolean) {
   return StyleSheet.create({
-  wrap: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-    gap: 16,
-    backgroundColor: 'transparent',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0B2D3E',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  headerText: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 4,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  tabsScroll: {
-    flexGrow: 0,
-  },
-  tabsContent: {
-    flexDirection: 'row',
-    backgroundColor: isDark ? 'rgba(16, 27, 40, 0.85)' : '#F1F5F9',
-    padding: 4,
-    borderRadius: 14,
-    gap: 4,
-  },
-  tabPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: 'transparent',
-  },
-  tabIcon: {
-    marginRight: 6,
-  },
-  tabText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '800',
-  },
-  tabPillActive: {
-    backgroundColor: colors.cardBackground,
-    shadowColor: '#0B2D3E',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  tabTextActive: {
-    color: colors.textPrimary,
-  },
-});
+    wrap: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 16,
+      gap: 16,
+      backgroundColor: 'transparent',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+    },
+    backButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: colors.cardBackground,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#0B2D3E',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 5,
+      elevation: 2,
+    },
+    headerText: {
+      flex: 1,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.5,
+    },
+    subtitle: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginTop: 4,
+      lineHeight: 18,
+      fontWeight: '600',
+    },
+    tabsScroll: {
+      flexGrow: 0,
+    },
+    tabsContent: {
+      flexDirection: 'row',
+      backgroundColor: isDark ? 'rgba(16, 27, 40, 0.85)' : '#F1F5F9',
+      padding: 4,
+      borderRadius: 14,
+      gap: 4,
+    },
+    tabPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 10,
+      backgroundColor: 'transparent',
+    },
+    tabIcon: {
+      marginRight: 6,
+    },
+    tabText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '800',
+    },
+    tabPillActive: {
+      backgroundColor: colors.cardBackground,
+      shadowColor: '#0B2D3E',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    tabTextActive: {
+      color: colors.textPrimary,
+    },
+  });
 }

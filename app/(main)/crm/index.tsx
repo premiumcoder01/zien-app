@@ -8,10 +8,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, useFocusEffect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   Modal,
   Pressable,
@@ -64,6 +65,25 @@ export default function CRMScreen() {
 
   const [overviewTab, setOverviewTab] = useState<(typeof OVERVIEW_TABS)[number]['id']>('overview');
   const [showActivityLog, setShowActivityLog] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(Dimensions.get('window').width)).current;
+
+  const openMenu = () => {
+    setMenuVisible(true);
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeMenu = () => {
+    Animated.timing(slideAnim, {
+      toValue: Dimensions.get('window').width,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => setMenuVisible(false));
+  };
 
   // TanStack Query
   const {
@@ -291,6 +311,8 @@ export default function CRMScreen() {
         title="CRM"
         subtitle="Intelligent database tracking leads from capture to close."
         onBack={() => router.back()}
+        rightIcon="menu"
+        onRightPress={openMenu}
       />
 
       <ScrollView
@@ -573,52 +595,7 @@ export default function CRMScreen() {
           </>
         )}
 
-        {/* CRM workspace — same in every tab */}
-        <Text style={styles.sectionTitle}>CRM workspace</Text>
-        <View style={styles.sectionsList}>
-          {CRM_SECTIONS.map((section) => (
-            <Pressable
-              key={section.id}
-              style={({ pressed }) => [styles.sectionRow, pressed && styles.sectionRowPressed]}
-              onPress={() => section.route && router.push(section.route)}
-              disabled={!section.route}>
-              <View style={[styles.sectionIconWrap, !section.route && styles.sectionIconWrapActive]}>
-                <MaterialCommunityIcons
-                  name={section.icon}
-                  size={22}
-                  color={!section.route ? '#FFFFFF' : colors.textPrimary}
-                />
-              </View>
-              <Text style={styles.sectionLabel}>{section.label}</Text>
-              {(() => {
-                const count = section.id === 'contacts'
-                  ? crmData?.stats?.totalContacts?.value
-                  : section.id === 'leads'
-                    ? crmData?.stats?.totalLeads?.value
-                    : section.id === 'follow-ups'
-                      ? crmData?.stats?.pendingFollowUps?.value
-                      : null;
-                if (count !== undefined && count !== null) {
-                  return (
-                    <View style={styles.sectionBadge}>
-                      <Text style={styles.sectionBadgeText}>{count}</Text>
-                    </View>
-                  );
-                }
-                return null;
-              })()}
-              {section.route ? (
-                <MaterialCommunityIcons name="chevron-right" size={20} color="#9CA3AF" />
-              ) : (
-                <View style={styles.currentBadge}>
-                  <Text style={styles.currentBadgeText}>Here</Text>
-                </View>
-              )}
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={{ height: 24 }} />
+        <View style={{ height: 16 }} />
       </ScrollView>
 
       {/* Continuous Activity Log Modal */}
@@ -700,6 +677,86 @@ export default function CRMScreen() {
               <Text style={styles.activityLogCloseButtonText}>Close</Text>
             </Pressable>
           </View>
+        </View>
+      </Modal>
+
+      {/* Sidebar Drawer Menu Modal */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closeMenu}
+      >
+        <View style={styles.drawerOverlay}>
+          <Pressable style={styles.drawerBackdrop} onPress={closeMenu} />
+          <Animated.View
+            style={[
+              styles.drawerContent,
+              {
+                transform: [{ translateX: slideAnim }],
+                paddingTop: insets.top + 16,
+                paddingBottom: insets.bottom + 16,
+              },
+            ]}
+          >
+            {/* Drawer Header */}
+            <View style={styles.drawerHeader}>
+              <Text style={styles.drawerTitle}>CRM Workspace</Text>
+              <Pressable onPress={closeMenu} style={styles.drawerCloseBtn} hitSlop={12}>
+                <MaterialCommunityIcons name="close" size={16} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            {/* Menu items */}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.drawerScrollContent}>
+              {CRM_SECTIONS.map((section) => (
+                <Pressable
+                  key={section.id}
+                  style={({ pressed }) => [styles.drawerItem, pressed && styles.drawerItemPressed]}
+                  onPress={() => {
+                    closeMenu();
+                    if (section.route) {
+                      router.push(section.route);
+                    }
+                  }}
+                  disabled={!section.route}
+                >
+                  <View style={[styles.drawerItemIconWrap, !section.route && styles.drawerItemIconWrapActive]}>
+                    <MaterialCommunityIcons
+                      name={section.icon}
+                      size={14}
+                      color={!section.route ? '#FFFFFF' : colors.textPrimary}
+                    />
+                  </View>
+                  <Text style={styles.drawerItemLabel}>{section.label}</Text>
+                  {(() => {
+                    const count = section.id === 'contacts'
+                      ? crmData?.stats?.totalContacts?.value
+                      : section.id === 'leads'
+                        ? crmData?.stats?.totalLeads?.value
+                        : section.id === 'follow-ups'
+                          ? crmData?.stats?.pendingFollowUps?.value
+                          : null;
+                    if (count !== undefined && count !== null) {
+                      return (
+                        <View style={styles.drawerItemBadge}>
+                          <Text style={styles.drawerItemBadgeText}>{count}</Text>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
+                  {section.route ? (
+                    <MaterialCommunityIcons name="chevron-right" size={12} color={colors.textMuted || '#9CA3AF'} />
+                  ) : (
+                    <View style={styles.drawerItemCurrentBadge}>
+                      <Text style={styles.drawerItemCurrentBadgeText}>Here</Text>
+                    </View>
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </Animated.View>
         </View>
       </Modal>
     </LinearGradient>
@@ -1398,6 +1455,117 @@ function getStyles(colors: any, theme: string) {
       color: colors.textSecondary,
       width: 40,
       textAlign: 'center',
+    },
+    drawerOverlay: {
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      backgroundColor: 'transparent',
+    },
+    drawerBackdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(13, 27, 42, 0.75)',
+    },
+    drawerContent: {
+      width: Dimensions.get('window').width * 0.52,
+      height: '100%',
+      backgroundColor: colors.cardBackground,
+      borderTopLeftRadius: 20,
+      borderBottomLeftRadius: 20,
+      borderLeftWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: -3, height: 0 },
+      shadowOpacity: 0.1,
+      shadowRadius: 10,
+      elevation: 10,
+    },
+    drawerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+      marginBottom: 10,
+    },
+    drawerTitle: {
+      fontSize: 13,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    drawerCloseBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    drawerScrollContent: {
+      paddingBottom: 24,
+      gap: 3,
+    },
+    drawerItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+      gap: 8,
+      borderRadius: 10,
+      marginBottom: 2,
+    },
+    drawerItemPressed: {
+      backgroundColor: colors.surfaceSoft,
+    },
+    drawerItemIconWrap: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    drawerItemIconWrapActive: {
+      backgroundColor: colors.accentTeal,
+    },
+    drawerItemLabel: {
+      flex: 1,
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    drawerItemCurrentBadge: {
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    drawerItemCurrentBadgeText: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: '#10B981',
+    },
+    drawerItemBadge: {
+      backgroundColor: colors.surfaceSoft,
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 8,
+      minWidth: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 4,
+    },
+    drawerItemBadgeText: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: colors.textSecondary,
     },
   });
 }

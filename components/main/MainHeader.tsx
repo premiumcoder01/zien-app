@@ -411,7 +411,7 @@ function MainHeaderComponent({
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.logoText}>Zein</Text>
+              <Text style={styles.logoText}>Zien</Text>
             </View>
           )}
         </View>
@@ -426,7 +426,7 @@ function MainHeaderComponent({
               onPress={() => setMenuOpen(true)}
             >
               <View style={styles.agencyAvatarSquare}>
-                <Text style={styles.agencyAvatarText}>AC</Text>
+                <Text style={styles.agencyAvatarText}>{userInitials}</Text>
               </View>
 
             </Pressable>

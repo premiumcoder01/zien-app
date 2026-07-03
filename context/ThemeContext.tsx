@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AppTheme, ThemeColors } from '@/constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -20,19 +21,38 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(systemScheme || 'light');
   const [branding, setBranding] = useState<{ theme_color: string | null; text_color: string | null } | null>(null);
 
-  // Let it initialize with system scheme, but manual toggle overrides it
+  // Load saved theme preference on mount
   useEffect(() => {
-    if (systemScheme) {
-      setThemeState(systemScheme);
-    }
+    const loadSavedTheme = async () => {
+      try {
+        const savedTheme = await AsyncStorage.getItem('app_theme');
+        if (savedTheme === 'light' || savedTheme === 'dark') {
+          setThemeState(savedTheme);
+        } else if (systemScheme) {
+          setThemeState(systemScheme);
+        }
+      } catch (e) {
+        console.warn('Failed to load theme preference:', e);
+      }
+    };
+    loadSavedTheme();
   }, [systemScheme]);
 
   const toggleTheme = () => {
-    setThemeState((prev) => (prev === 'light' ? 'dark' : 'light'));
+    setThemeState((prev) => {
+      const next = prev === 'light' ? 'dark' : 'light';
+      AsyncStorage.setItem('app_theme', next).catch((e) =>
+        console.warn('Failed to save theme preference:', e)
+      );
+      return next;
+    });
   };
 
   const setTheme = (mode: ThemeMode) => {
     setThemeState(mode);
+    AsyncStorage.setItem('app_theme', mode).catch((e) =>
+      console.warn('Failed to save theme preference:', e)
+    );
   };
 
   const baseColors = AppTheme[theme];

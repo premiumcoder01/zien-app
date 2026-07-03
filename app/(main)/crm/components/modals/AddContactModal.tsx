@@ -202,14 +202,19 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
           setLastName(initialData.lastName || '');
           setEmail(initialData.email || '');
 
-          // Correctly prefill the phone number by stripping the country prefix if it's there
-          const rawPhone = initialData.phone || '';
+          // Clean duplicate country code prefixes recursively
+          let rawPhone = initialData.phone || '';
           const callingCode = (initialData.countryCode || '').replace('+', '');
-          if (callingCode && rawPhone.startsWith(callingCode)) {
-            setPhone(rawPhone.slice(callingCode.length));
-          } else {
-            setPhone(rawPhone);
+          
+          while (true) {
+            rawPhone = rawPhone.trim().replace(/^\+/, '');
+            if (callingCode && rawPhone.startsWith(callingCode)) {
+              rawPhone = rawPhone.slice(callingCode.length);
+            } else {
+              break;
+            }
           }
+          setPhone(rawPhone);
 
           setGroup(initialData.group || '');
           setTag(initialData.tag || '');
@@ -270,7 +275,10 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
     }
 
     const callingCode = phoneInputRef.current?.getCallingCode() || '91';
-    const nationalNumber = phone.replace(/\D/g, '');
+    let nationalNumber = phone.replace(/\D/g, '');
+    if (callingCode && nationalNumber.startsWith(callingCode)) {
+      nationalNumber = nationalNumber.slice(callingCode.length);
+    }
     const fullNumber = callingCode + nationalNumber;
 
     onSave({

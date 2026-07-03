@@ -88,7 +88,19 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                     email: agent.user.email || '',
                     password: '', // Usually don't populate password on edit
                     confirm_password: '',
-                    phone: agent.user.phone || '',
+                    phone: (() => {
+                        let rawPhone = agent.user.phone || '';
+                        const callingCode = (agent.user.country_code || '+1').replace('+', '');
+                        while (true) {
+                            rawPhone = rawPhone.trim().replace(/^\+/, '');
+                            if (callingCode && rawPhone.startsWith(callingCode)) {
+                                rawPhone = rawPhone.slice(callingCode.length);
+                            } else {
+                                break;
+                            }
+                        }
+                        return rawPhone;
+                    })(),
                     country_code: agent.user.country_code || '+1',
                     license_number: agent.user.license_number || '',
                     address: agent.user.address || '',
@@ -147,7 +159,15 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
         }
 
         setErrors({});
-        onSave(form);
+        const callingCode = (form.country_code || '+1').replace('+', '');
+        let cleanedPhone = form.phone.replace(/\D/g, '');
+        if (callingCode && cleanedPhone.startsWith(callingCode)) {
+            cleanedPhone = cleanedPhone.slice(callingCode.length);
+        }
+        onSave({
+            ...form,
+            phone: cleanedPhone
+        });
     };
 
     return (

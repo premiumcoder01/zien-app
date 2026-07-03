@@ -190,13 +190,23 @@ export function DashboardSection({
 
       {/* Active Card */}
       <View style={styles.activeCardOuter}>
-        <Text style={styles.activeCardLabel}>Active Card</Text>
+        <View style={styles.activeCardHeaderRow}>
+          <Text style={styles.activeCardLabel}>Active Card</Text>
+          <Pressable
+            style={styles.headerCreateBtn}
+            onPress={() => openCreateModal('work')}
+            accessibilityRole="button"
+            accessibilityLabel="Create new profile">
+            <MaterialCommunityIcons name="plus" size={14} color={colors.textPrimary} />
+            <Text style={styles.headerCreateBtnText}>New Profile</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.activeProfileRow}>
           <View style={[styles.activeProfileIconWrap, { backgroundColor: activeCard.card_color || 'rgba(11, 160, 178, 0.12)' }]}>
             <MaterialCommunityIcons
               name={activeCard.profile_type === 'personal' ? 'account-outline' : 'briefcase-outline'}
-              size={28}
+              size={20}
               color="#FFFFFF"
             />
           </View>
@@ -207,30 +217,23 @@ export function DashboardSection({
         </View>
 
         {otherCards.length > 0 && (
-          <>
+          <View style={styles.switchRowContainer}>
             <Text style={styles.switchToLabel}>SWITCH TO</Text>
-            {otherCards.map((card) => (
-              <Pressable
-                key={card.id}
-                style={styles.switchToItem}
-                onPress={() => setActiveCardId(card.id)}
-                accessibilityRole="button"
-                accessibilityLabel={`Switch to ${card.profile_name}`}>
-                <View style={[styles.switchToBullet, { backgroundColor: card.card_color || colors.textPrimary }]} />
-                <Text style={styles.switchToItemText}>{card.profile_name}</Text>
-              </Pressable>
-            ))}
-          </>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.switchChipsScroll}>
+              {otherCards.map((card) => (
+                <Pressable
+                  key={card.id}
+                  style={[styles.switchChip, { borderColor: card.card_color || colors.cardBorder }]}
+                  onPress={() => setActiveCardId(card.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Switch to ${card.profile_name}`}>
+                  <View style={[styles.switchChipBullet, { backgroundColor: card.card_color || colors.textPrimary }]} />
+                  <Text style={styles.switchChipText}>{card.profile_name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
         )}
-
-        <Pressable
-          style={styles.createProfileBtn}
-          onPress={() => openCreateModal('work')}
-          accessibilityRole="button"
-          accessibilityLabel="Create new profile">
-          <MaterialCommunityIcons name="plus" size={20} color={colors.textPrimary} />
-          <Text style={styles.createProfileBtnText}>Create New Profile</Text>
-        </Pressable>
       </View>
 
       <CreateCardModal
@@ -255,15 +258,15 @@ export function DashboardSection({
           onPress={() => setIsFullPageModalVisible(true)}
           accessibilityRole="button"
           accessibilityLabel="Open digital card manager">
-          
+
           {/* Card Mockup Container */}
           <View style={[styles.mockupCard, { backgroundColor: activeCard.card_color || colors.accentTeal }]}>
             {/* Top Row: Symbol + Template Badge */}
             <View style={styles.mockupCardTop}>
-              <MaterialCommunityIcons 
-                name={activeCard.profile_type === 'personal' ? 'account-circle-outline' : 'briefcase-outline'} 
-                size={22} 
-                color="#FFFFFF" 
+              <MaterialCommunityIcons
+                name={activeCard.profile_type === 'personal' ? 'account-circle-outline' : 'briefcase-outline'}
+                size={18}
+                color="#FFFFFF"
               />
               <View style={styles.mockupTemplateBadge}>
                 <Text style={styles.mockupTemplateText}>
@@ -285,10 +288,10 @@ export function DashboardSection({
             {/* Bottom Row: Tap to Expand indicator */}
             <View style={styles.mockupCardBottom}>
               <Text style={styles.mockupTapIndicator}>Tap to view & manage</Text>
-              <MaterialCommunityIcons name="arrow-expand" size={18} color="#FFFFFF" />
+              <MaterialCommunityIcons name="arrow-expand" size={14} color="#FFFFFF" />
             </View>
           </View>
-          
+
           {/* Info Card underneath with lead counts and basic actions */}
           <View style={styles.widgetInfoCard}>
             <View style={styles.widgetInfoItem}>
@@ -535,95 +538,105 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 24,
   },
   activeCardOuter: {
-    marginBottom: 24,
+    marginVertical: 20,
     backgroundColor: colors.cardBackground,
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    padding: 24,
+    padding: 16,
     shadowColor: colors.cardShadowColor,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  activeCardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   activeCardLabel: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
     color: colors.textPrimary,
-    marginBottom: 14,
+  },
+  headerCreateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  headerCreateBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textPrimary,
   },
   activeProfileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 10,
   },
   activeProfileIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeProfileTextWrap: { flex: 1, minWidth: 0 },
   activeProfileTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '900',
     color: colors.textPrimary,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
   activeProfileSub: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: 1,
     opacity: 0.8,
   },
+  switchRowContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
+  },
   switchToLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
     color: colors.textSecondary,
-    letterSpacing: 0.6,
-    marginTop: 18,
-    marginBottom: 10,
+    letterSpacing: 0.5,
+    marginBottom: 8,
   },
-  switchToItem: {
+  switchChipsScroll: {
+    gap: 8,
+  },
+  switchChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 4,
-    minHeight: 48,
-  },
-  switchToBullet: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.textPrimary,
-  },
-  switchToItemText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    flex: 1,
-  },
-  createProfileBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    backgroundColor: 'transparent',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.textSecondary + '60',
-    marginTop: 12,
+    backgroundColor: colors.surfaceSoft,
   },
-  createProfileBtnText: {
-    fontSize: 15,
-    fontWeight: '900',
+  switchChipBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  switchChipText: {
+    fontSize: 12,
+    fontWeight: '700',
     color: colors.textPrimary,
   },
   mainSection: {},
@@ -1104,21 +1117,21 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: '#FFFFFF',
   },
   cardPreviewSectionWidget: {
-    marginBottom: 24,
-    borderRadius: 24,
+    marginBottom: 20,
+    borderRadius: 16,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     overflow: 'hidden',
     shadowColor: colors.cardShadowColor,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 2,
   },
   mockupCard: {
-    padding: 20,
-    height: 160,
+    padding: 14,
+    height: 120,
     justifyContent: 'space-between',
     position: 'relative',
     overflow: 'hidden',
@@ -1130,21 +1143,22 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   mockupTemplateBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   mockupTemplateText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   mockupCardMiddle: {
-    marginTop: 10,
+    marginTop: 6,
+    marginBottom: 6,
   },
   mockupCardName: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '900',
     color: '#FFFFFF',
     textShadowColor: 'rgba(0, 0, 0, 0.1)',
@@ -1152,10 +1166,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     textShadowRadius: 2,
   },
   mockupCardTitle: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.85)',
-    marginTop: 2,
+    marginTop: 1,
   },
   mockupCardBottom: {
     flexDirection: 'row',
@@ -1163,17 +1177,17 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.15)',
-    paddingTop: 10,
+    paddingTop: 8,
   },
   mockupTapIndicator: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: 'rgba(255, 255, 255, 0.9)',
   },
   widgetInfoCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
     backgroundColor: colors.cardBackground,
   },
   widgetInfoItem: {

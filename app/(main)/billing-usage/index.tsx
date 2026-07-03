@@ -72,6 +72,7 @@ export default function BillingUsageScreen() {
   const [selectedInvoice, setSelectedInvoice] = useState<SoloInvoice | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showCancelAddonModal, setShowCancelAddonModal] = useState<SoloAddon | null>(null);
+  const [showActivateAddonModal, setShowActivateAddonModal] = useState<SoloAddon | null>(null);
 
   // Fetch billing and invoice details
   const fetchBillingData = async (showPulse = false) => {
@@ -171,6 +172,33 @@ export default function BillingUsageScreen() {
     }
   };
 
+  const openActivateAddonModal = (addon: SoloAddon) => setShowActivateAddonModal(addon);
+  const closeActivateAddonModal = () => setShowActivateAddonModal(null);
+  const handleConfirmActivateAddon = async () => {
+    if (!showActivateAddonModal) return;
+    const addonId = showActivateAddonModal.id;
+    const name = showActivateAddonModal.name;
+    closeActivateAddonModal();
+
+    try {
+      setLoading(true);
+      const res = await toggleSoloAddon(accessToken, addonId, 'activate');
+      if (res.success) {
+        Alert.alert('Add-on Activated', `${name} has been added to your subscription.`);
+        await fetchBillingData();
+      } else {
+        const title = res.message || 'Failed to modify addon';
+        const description = res.error || 'Failed to activate the add-on.';
+        Alert.alert(title, description);
+      }
+    } catch (error) {
+      console.error('[BillingUsageScreen] Error activating addon:', error);
+      Alert.alert('Error', 'Unable to process activation at this time.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
 
   // ─────────────────────────────────────────────────────
@@ -206,31 +234,36 @@ export default function BillingUsageScreen() {
 
         {/* PRO AGENT Plan Card */}
         <View style={styles.premiumPlanCard}>
-          <View style={styles.planBadgeContainer}>
-            {subscription.cancel_at_period_end ? (
-              <View style={styles.pendingCancelPill}>
-                <Text style={styles.pendingCancelPillText}>Canceled (Pending)</Text>
-              </View>
-            ) : (
-              <View style={styles.activePillContainer}>
-                <View style={styles.pulseDot} />
-                <Text style={styles.activePillText}>{subscription.status_text.toUpperCase()} ACTIVE</Text>
-              </View>
-            )}
+          <View style={styles.planHeaderRow}>
             <View style={styles.tierIconContainer}>
               <MaterialCommunityIcons name="diamond-stone" size={24} color="#FFFFFF" />
             </View>
+            <View style={styles.planInfoMain}>
+              <View style={styles.planTitleRow}>
+                <Text style={styles.planTierTitle}>{plan.name}</Text>
+                {subscription.cancel_at_period_end ? (
+                  <View style={styles.pendingCancelPillInline}>
+                    <Text style={styles.pendingCancelPillTextInline}>Canceled</Text>
+                  </View>
+                ) : (subscription.status_text.toLowerCase() === 'trialing' || subscription.is_trial) ? (
+                  <View style={styles.trialPillContainerInline}>
+                    <Text style={styles.trialPillTextInline}>Trial Mode</Text>
+                  </View>
+                ) : (
+                  <View style={styles.activePillContainerInline}>
+                    <Text style={styles.activePillTextInline}>Active</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.planTierSubtitle}>
+                {subscription.cancel_at_period_end ? `Access ends on ${dateText}` : 'Your premium subscription plan'}
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.planInfoMain}>
-            <Text style={styles.planTierTitle}>{plan.name}</Text>
-            <Text style={styles.planTierSubtitle}>
-              {subscription.cancel_at_period_end ? `Access ends on ${dateText}` : 'Your premium subscription plan'}
-            </Text>
-            <View style={styles.planPriceRow}>
-              <Text style={styles.planPriceValue}>{formattedPrice}</Text>
-              <Text style={styles.planPricePeriod}>/ {price.billing_interval}</Text>
-            </View>
+          <View style={styles.planPriceRow}>
+            <Text style={styles.planPriceValue}>{formattedPrice}</Text>
+            <Text style={styles.planPricePeriod}>/ {price.billing_interval}</Text>
           </View>
 
           <View style={styles.planDivider} />
@@ -263,30 +296,22 @@ export default function BillingUsageScreen() {
           <View style={styles.planDivider} />
 
           <View style={styles.planRenewalContainer}>
+            <View style={styles.renewalAlertBox}>
+              <MaterialCommunityIcons name="calendar-month-outline" size={20} color={colors.textSecondary} />
+              <View>
+                <Text style={styles.renewalAlertTitle}>NEXT BILLING DEDUCTION</Text>
+                <Text style={styles.renewalAlertDate}>{dateText}</Text>
+              </View>
+            </View>
+
             {subscription.cancel_at_period_end ? (
-              <View style={styles.canceledRenewalRow}>
-                <View style={styles.renewalAlertBoxFlex}>
-                  <MaterialCommunityIcons name="calendar-month-outline" size={20} color={colors.textSecondary} />
-                  <View>
-                    <Text style={styles.renewalAlertTitle}>NEXT BILLING DEDUCTION</Text>
-                    <Text style={styles.renewalAlertDate}>{dateText}</Text>
-                  </View>
-                </View>
-                <Text style={styles.planCanceledText}>Plan Canceled</Text>
+              <View style={styles.planCanceledBadge}>
+                <Text style={styles.planCanceledBadgeText}>Plan Canceled</Text>
               </View>
             ) : (
-              <>
-                <View style={styles.renewalAlertBox}>
-                  <MaterialCommunityIcons name="calendar-month-outline" size={20} color={colors.textSecondary} />
-                  <View>
-                    <Text style={styles.renewalAlertTitle}>NEXT BILLING DEDUCTION</Text>
-                    <Text style={styles.renewalAlertDate}>{dateText}</Text>
-                  </View>
-                </View>
-                <Pressable style={styles.cancelRenewalButton} onPress={openCancelModal}>
-                  <Text style={styles.cancelRenewalButtonText}>Cancel Renewal</Text>
-                </Pressable>
-              </>
+              <Pressable style={styles.cancelRenewalButton} onPress={openCancelModal}>
+                <Text style={styles.cancelRenewalButtonText}>Cancel Renewal</Text>
+              </Pressable>
             )}
           </View>
         </View>
@@ -308,6 +333,8 @@ export default function BillingUsageScreen() {
               else if (addon.slug.includes('verification')) iconName = 'shield-check-outline';
               else if (addon.slug.includes('intelligence')) iconName = 'chart-timeline-variant-shimmer';
 
+              const isActive = addon.status === 'active';
+
               return (
                 <View key={addon.id} style={styles.addonCard}>
                   <View style={styles.addonCardLeft}>
@@ -317,21 +344,31 @@ export default function BillingUsageScreen() {
                     <View style={styles.addonDetails}>
                       <Text style={styles.addonName}>{addon.name}</Text>
                       <Text style={styles.addonDesc} numberOfLines={2}>{addon.description}</Text>
-                      <View style={styles.addonStatusBadge}>
-                        <Text style={styles.addonStatusText}>Active ({subscription.cancel_at_period_end ? 'Expires' : 'Renews'} {dateText})</Text>
-                      </View>
+                      {isActive && (
+                        <View style={styles.addonStatusBadge}>
+                          <Text style={styles.addonStatusText}>Active ({subscription.cancel_at_period_end ? 'Expires' : 'Renews'} {dateText})</Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                   <View style={styles.addonCardRight}>
                     <Text style={styles.addonPrice}>${addon.price}<Text style={styles.addonPriceUnit}>/mo</Text></Text>
-                    {subscription.cancel_at_period_end ? (
-                      <View style={styles.addonCanceledPill}>
-                        <Text style={styles.addonCanceledPillText}>Plan Canceled</Text>
-                      </View>
+                    {isActive ? (
+                      subscription.cancel_at_period_end ? (
+                        <View style={styles.addonCanceledPill}>
+                          <Text style={styles.addonCanceledPillText}>Plan Canceled</Text>
+                        </View>
+                      ) : (
+                        <Pressable style={styles.cancelAddonBtn} onPress={() => openCancelAddonModal(addon)}>
+                          <Text style={styles.cancelAddonBtnText}>Cancel Add-on</Text>
+                        </Pressable>
+                      )
                     ) : (
-                      <Pressable style={styles.cancelAddonBtn} onPress={() => openCancelAddonModal(addon)}>
-                        <Text style={styles.cancelAddonBtnText}>Cancel Add-on</Text>
-                      </Pressable>
+                      !subscription.cancel_at_period_end ? (
+                        <Pressable style={styles.activateAddonBtn} onPress={() => openActivateAddonModal(addon)}>
+                          <Text style={styles.activateAddonBtnText}>Activate Add-on</Text>
+                        </Pressable>
+                      ) : null
                     )}
                   </View>
                 </View>
@@ -600,7 +637,60 @@ export default function BillingUsageScreen() {
         </View>
       </Modal>
 
+      {/* Add-on Activate Confirmation Modal */}
+      <Modal visible={showActivateAddonModal !== null} transparent animationType="fade">
+        <View style={styles.cancelModalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeActivateAddonModal} />
+          <View style={styles.cancelModalCard}>
+            <View style={styles.cancelModalHeader}>
+              <Text style={styles.cancelModalTitle}>Confirm Activation</Text>
+              <Pressable onPress={closeActivateAddonModal} style={styles.cancelModalClose} hitSlop={12}>
+                <MaterialCommunityIcons name="close" size={18} color={colors.textPrimary} />
+              </Pressable>
+            </View>
 
+            <View style={styles.activationCard}>
+              <View style={styles.activationCardLeft}>
+                <Text style={styles.activationAddonName}>{showActivateAddonModal?.name}</Text>
+                <Text style={styles.activationAddonSub}>
+                  Charges applied to next invoice ({dateText})
+                </Text>
+              </View>
+              <Text style={styles.activationAddonPrice}>${showActivateAddonModal?.price}</Text>
+            </View>
+
+            <View style={styles.rulesCard}>
+              <Text style={styles.rulesCardTitle}>How this works:</Text>
+              <View style={styles.rulesBulletRow}>
+                <Text style={styles.rulesBulletDot}>•</Text>
+                <Text style={styles.rulesBulletText}>
+                  <Text style={{ fontWeight: '700', color: colors.textPrimary }}>No upfront charge today.</Text> The cost is automatically added to your next invoice.
+                </Text>
+              </View>
+              <View style={styles.rulesBulletRow}>
+                <Text style={styles.rulesBulletDot}>•</Text>
+                <Text style={styles.rulesBulletText}>
+                  Premium features are <Text style={{ fontWeight: '700', color: colors.textPrimary }}>unlocked instantly</Text> upon activation.
+                </Text>
+              </View>
+              <View style={styles.rulesBulletRow}>
+                <Text style={styles.rulesBulletDot}>•</Text>
+                <Text style={styles.rulesBulletText}>
+                  You can cancel at any time without affecting your base CRM plan.
+                </Text>
+              </View>
+            </View>
+
+            <Pressable style={styles.activationSubmitBtn} onPress={handleConfirmActivateAddon}>
+              <Text style={styles.activationSubmitBtnText}>Activate Add-on</Text>
+            </Pressable>
+
+            <Text style={styles.activationSubmitCaption}>
+              By activating, this add-on will be automatically included in your recurring Stripe subscription.
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -684,8 +774,58 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  planHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
   planInfoMain: {
-    marginBottom: 16,
+    flex: 1,
+  },
+  planTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  activePillContainerInline: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.15)',
+  },
+  activePillTextInline: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: isDark ? '#22C55E' : '#16A34A',
+  },
+  trialPillContainerInline: {
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE',
+  },
+  trialPillTextInline: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: isDark ? '#60A5FA' : '#1D4ED8',
+  },
+  pendingCancelPillInline: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  pendingCancelPillTextInline: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#EF4444',
   },
   planTierTitle: {
     fontSize: 24,
@@ -890,6 +1030,19 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#EF4444',
+  },
+  activateAddonBtn: {
+    backgroundColor: isDark ? '#00a7b5' : '#0B2D3E',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activateAddonBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
   // Payment ledger
@@ -1199,7 +1352,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.cardBackground,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1322,24 +1475,17 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: '#EF4444',
     letterSpacing: 0.5,
   },
-  canceledRenewalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#F8FAFC',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
+  planCanceledBadge: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#F1F5F9',
     borderColor: colors.cardBorder,
-  },
-  renewalAlertBoxFlex: {
-    flexDirection: 'row',
+    borderWidth: 1,
+    paddingVertical: 14,
+    borderRadius: 16,
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'center',
   },
-  planCanceledText: {
-    fontSize: 13,
+  planCanceledBadgeText: {
+    fontSize: 14,
     fontWeight: '800',
     color: colors.textSecondary,
   },
@@ -1355,6 +1501,57 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: colors.textSecondary,
+  },
+  activationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    marginBottom: 16,
+  },
+  activationCardLeft: {
+    flex: 1,
+    gap: 4,
+  },
+  activationAddonName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  activationAddonSub: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#22C55E',
+  },
+  activationAddonPrice: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: colors.textPrimary,
+  },
+  activationSubmitBtn: {
+    backgroundColor: isDark ? '#00a7b5' : '#0B2D3E',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  activationSubmitBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  activationSubmitCaption: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 16,
   },
 
 

@@ -460,7 +460,7 @@ export default function AiContentScreen() {
             </Pressable>
 
             {/* Strategic Content Engines Section */}
-            <Text style={styles.sectionTitle}>Strategic content engines</Text>
+            <Text style={styles.sectionTitle}>Strategic Content Engines</Text>
             <View style={styles.toolsGrid}>
               {contentTools.map((tool) => (
                 <Pressable
@@ -490,7 +490,7 @@ export default function AiContentScreen() {
             {/* Fixed Search Area */}
             <View style={styles.fixedSearchArea}>
               <View style={styles.libraryHeader}>
-                <Text style={styles.sectionTitle}>Content library</Text>
+                <Text style={styles.sectionTitle}>Content Library</Text>
               </View>
 
               <View style={styles.searchBar}>
