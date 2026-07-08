@@ -150,7 +150,7 @@ export default function PresentationBuilderScreen() {
                 if (Array.isArray(parsed) && parsed.length > 0) {
                     setSlides(parsed);
                     setHasGenerated(true);
-                    setActiveViewTab('preview'); // Instantly go to preview mode when editing
+                    setActiveViewTab('form'); // Default to Configure Post tab when editing
                 }
             } catch (e) {
                 console.error(e);

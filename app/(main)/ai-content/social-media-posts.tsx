@@ -210,7 +210,7 @@ export default function SocialPostLabScreen() {
                 ...prev,
                 [initialPlatform]: content,
             }));
-            setActiveViewTab('preview');
+            setActiveViewTab('form'); // Default to Configure Post tab when editing
         }
     }, [prefill, content, platform]);
 

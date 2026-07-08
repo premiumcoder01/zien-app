@@ -6,7 +6,7 @@ import { StyleSheet, Text, View } from 'react-native';
 type UpdateRowProps = {
   icon: string;
   title: string;
-  description: string;
+  description: any;
   time: string;
   accentColor?: string;
 };
@@ -15,6 +15,14 @@ function UpdateRowComponent({ icon, title, description, time, accentColor }: Upd
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
   const activeAccentColor = accentColor ?? colors.accentTeal;
+
+  const displayDescription = (() => {
+    if (!description) return '';
+    if (typeof description === 'object') {
+      return description.addon_name || description.name || JSON.stringify(description);
+    }
+    return String(description);
+  })();
 
   return (
     <View style={styles.row}>
@@ -32,7 +40,7 @@ function UpdateRowComponent({ icon, title, description, time, accentColor }: Upd
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.time}>{time}</Text>
         </View>
-        <Text style={styles.desc}>{description}</Text>
+        <Text style={styles.desc}>{displayDescription}</Text>
       </View>
     </View>
   );

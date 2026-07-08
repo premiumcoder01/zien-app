@@ -497,13 +497,30 @@ export function DashboardSection({
                       <View style={styles.leadActions}>
                         <Pressable
                           style={[styles.actionBtn, { backgroundColor: '#10B981' }]}
-                          onPress={() => Linking.openURL(`tel:${lead.phone}`)}>
+                          onPress={() => {
+                            const cleanedPhone = lead.phone ? lead.phone.replace(/[^+\d]/g, '') : '';
+                            if (cleanedPhone) {
+                              Linking.openURL(`tel:${cleanedPhone}`).catch(() => {
+                                Alert.alert('Error', 'Could not open the dialer. Please make sure phone calls are supported on your device.');
+                              });
+                            } else {
+                              Alert.alert('Error', 'No phone number available.');
+                            }
+                          }}>
                           <MaterialCommunityIcons name="phone" size={18} color="#FFFFFF" />
                           <Text style={styles.actionBtnText}>Call</Text>
                         </Pressable>
                         <Pressable
                           style={[styles.actionBtn, { backgroundColor: colors.accentTeal }]}
-                          onPress={() => Linking.openURL(`mailto:${lead.email}`)}>
+                          onPress={() => {
+                            if (lead.email) {
+                              Linking.openURL(`mailto:${lead.email}`).catch(() => {
+                                Alert.alert('Error', 'Could not open the mail client. Please check your email configuration.');
+                              });
+                            } else {
+                              Alert.alert('Error', 'No email address available.');
+                            }
+                          }}>
                           <MaterialCommunityIcons name="email" size={18} color="#FFFFFF" />
                           <Text style={styles.actionBtnText}>Email</Text>
                         </Pressable>

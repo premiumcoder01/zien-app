@@ -16,11 +16,55 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import PhoneInput from 'react-native-phone-number-input';
+import type { CountryCode } from 'react-native-country-picker-modal';
+
 import { ImagePickerModal } from '../_components/ImagePickerModal';
 import {
   ProfileCard,
   type ProfileCardData
 } from '../_components/ProfileCard';
+
+// ── Phone helpers ──────────────────────────────────────────────────────────
+const DIAL_TO_COUNTRY: [string, CountryCode][] = [
+  ['+971', 'AE'], ['+966', 'SA'], ['+880', 'BD'], ['+886', 'TW'],
+  ['+852', 'HK'], ['+960', 'MV'], ['+92', 'PK'], ['+91', 'IN'],
+  ['+90', 'TR'], ['+86', 'CN'], ['+84', 'VN'], ['+82', 'KR'],
+  ['+81', 'JP'], ['+66', 'TH'], ['+65', 'SG'], ['+64', 'NZ'],
+  ['+63', 'PH'], ['+62', 'ID'], ['+61', 'AU'], ['+60', 'MY'],
+  ['+55', 'BR'], ['+54', 'AR'], ['+52', 'MX'], ['+49', 'DE'],
+  ['+48', 'PL'], ['+47', 'NO'], ['+46', 'SE'], ['+45', 'DK'],
+  ['+44', 'GB'], ['+41', 'CH'], ['+40', 'RO'], ['+39', 'IT'],
+  ['+34', 'ES'], ['+33', 'FR'], ['+31', 'NL'], ['+27', 'ZA'],
+  ['+20', 'EG'], ['+7', 'RU'], ['+1', 'US'],
+];
+
+const dialCodeToCountry = (phone: string): CountryCode => {
+  const cleaned = phone.replace(/\s/g, '');
+  for (const [prefix, code] of DIAL_TO_COUNTRY) {
+    if (cleaned.startsWith(prefix)) return code;
+  }
+  return 'IN';
+};
+
+const extractLocalPhone = (phone: string): string => {
+  const cleaned = phone.replace(/\s/g, '');
+  for (const [prefix] of DIAL_TO_COUNTRY) {
+    if (cleaned.startsWith(prefix)) return cleaned.slice(prefix.length);
+  }
+  return cleaned.replace(/^\+\d{1,3}/, '');
+};
+
+const extractCallingCode = (phone: string): string => {
+  if (!phone) return '91';
+  const cleaned = phone.replace(/\s/g, '');
+  for (const [prefix] of DIAL_TO_COUNTRY) {
+    if (cleaned.startsWith(prefix)) return prefix.replace('+', '');
+  }
+  return '91';
+};
+
+
 
 type FormTab = 'personal' | 'branding' | 'contact' | 'additional';
 
@@ -61,11 +105,15 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState<DigitalCard>(activeCard);
+  const phoneInputRef = useRef<PhoneInput>(null);
   const [uploadingField, setUploadingField] = useState<'image' | 'logo' | null>(null);
   const [pickerState, setPickerState] = useState<{ isVisible: boolean; field: 'image' | 'logo' | null }>({ isVisible: false, field: null });
-  const [errors, setErrors] = useState<{ name?: string; title?: string; phone?: string; email?: string; website?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; title?: string; role?: string; phone?: string; email?: string; website?: string }>({});
   const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
   const [localLogoUri, setLocalLogoUri] = useState<string | null>(null);
+  const [phoneKey, setPhoneKey] = useState(activeCard.id); // force PhoneInput remount
+  const [callingCode, setCallingCode] = useState(extractCallingCode(activeCard.phone || ''));
+
 
   console.log(activeCard)
 
@@ -74,10 +122,14 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
 
   // Sync form when activeCard changes (e.g. from Dashboard)
   useEffect(() => {
-    setForm(activeCard);
+    setForm({ ...activeCard, phone: formatPhoneDisplay(activeCard.phone || '') });
+    setPhoneKey(activeCard.id); // remount PhoneInput with fresh defaults
+    setCallingCode(extractCallingCode(activeCard.phone || ''));
     setLocalPhotoUri(null);
     setLocalLogoUri(null);
   }, [activeCard]);
+
+
 
   // Handle save from header trigger
   useEffect(() => {
@@ -88,32 +140,65 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
   }, [saveTrigger]);
 
   const validateEmail = (v: string) => {
-    if (!v) return undefined;
+    if (!v || !v.trim()) return 'Email is required';
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? undefined : 'Enter a valid email address';
   };
 
   const validatePhone = (v: string) => {
-    if (!v) return undefined;
-    return /^[\d\s()\-+]{7,}$/.test(v) ? undefined : 'Enter a valid phone number';
+    if (!v || !v.trim()) return 'Phone number is required';
+    const cleaned = v.replace(/\s/g, '');
+    const local = extractLocalPhone(v);
+    if (!local || !local.trim()) return 'Phone number is required';
+    return /^[\d()\-+]{7,}$/.test(cleaned) ? undefined : 'Enter a valid phone number';
   };
 
   const validateWebsite = (v: string) => {
-    if (!v) return undefined;
+    if (!v || !v.trim()) return 'Website is required';
     return /^https?:\/\/.+/.test(v) ? undefined : 'Must start with http:// or https://';
   };
+
+  // Insert a space between country code and local number for readability
+  const formatPhoneDisplay = (phone: string): string => {
+    if (!phone) return phone;
+    const cleaned = phone.replace(/\s/g, '');
+    if (!cleaned.startsWith('+')) return phone;
+    // Check 3-digit country codes first (UAE, Saudi, Bangladesh, etc.)
+    const threedigit = ['+971', '+966', '+880', '+886', '+852', '+960', '+961', '+962', '+963', '+964', '+965', '+967', '+968', '+970', '+972', '+973', '+974', '+975', '+976', '+977', '+992', '+993', '+994', '+995', '+996', '+998'];
+    for (const code of threedigit) {
+      if (cleaned.startsWith(code)) {
+        const local = cleaned.slice(code.length);
+        return local.length > 0 ? `${code} ${local}` : cleaned;
+      }
+    }
+    // Try 2-digit country code (India +91, UK +44, etc.)
+    const twoCode = cleaned.slice(0, 3); // "+XX"
+    if (/^\+\d{2}$/.test(twoCode)) {
+      const local = cleaned.slice(3);
+      if (local.length >= 7) return `${twoCode} ${local}`;
+    }
+    // Try 1-digit country code (+1 USA, +7 Russia)
+    const oneCode = cleaned.slice(0, 2); // "+X"
+    if (/^\+[17]$/.test(oneCode)) {
+      const local = cleaned.slice(2);
+      if (local.length >= 7) return `${oneCode} ${local}`;
+    }
+    return phone;
+  };
+
 
   const handleSave = async () => {
     if (!accessToken) return;
 
     const nameErr = !form.name?.trim() ? 'This field is required.' : undefined;
     const titleErr = !form.title?.trim() ? 'This field is required.' : undefined;
+    const roleErr = (form.profile_type === 'work' && !form.role?.trim()) ? 'This field is required.' : undefined;
     const phoneErr = validatePhone(form.phone);
     const emailErr = validateEmail(form.email);
     const websiteErr = validateWebsite(form.website);
-    const newErrors = { name: nameErr, title: titleErr, phone: phoneErr, email: emailErr, website: websiteErr };
+    const newErrors = { name: nameErr, title: titleErr, role: roleErr, phone: phoneErr, email: emailErr, website: websiteErr };
     setErrors(newErrors);
     if (Object.values(newErrors).some(Boolean)) {
-      if (nameErr || titleErr) {
+      if (nameErr || titleErr || roleErr) {
         setActiveTab('personal');
       } else {
         setActiveTab('contact');
@@ -401,14 +486,18 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
               {form.profile_type === 'work' && (
                 <>
                   <View style={styles.field}>
-                    <Text style={styles.label}>Role / Designation</Text>
+                    <Text style={styles.label}>Role / Designation *</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, errors.role ? styles.inputError : null]}
                       value={form.role}
-                      onChangeText={(v) => setForm((p) => ({ ...p, role: v }))}
+                      onChangeText={(v) => {
+                        setForm((p) => ({ ...p, role: v }));
+                        if (errors.role) setErrors((e) => ({ ...e, role: undefined }));
+                      }}
                       placeholder="e.g. REALTOR"
                       placeholderTextColor="#9AA7B6"
                     />
+                    {errors.role ? <Text style={styles.errorText}>{errors.role}</Text> : null}
                   </View>
                   <View style={styles.field}>
                     <Text style={styles.label}>Company Name</Text>
@@ -511,25 +600,99 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
               <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>How can people reach you?</Text>
 
               <View style={styles.field}>
-                <Text style={styles.label}>Phone Number</Text>
-                <TextInput
-                  style={[styles.input, errors.phone ? styles.inputError : null]}
-                  value={form.phone}
-                  onChangeText={(v) => {
-                    setForm((p) => ({ ...p, phone: v }));
-                    if (errors.phone) setErrors((e) => ({ ...e, phone: validatePhone(v) }));
+                <Text style={styles.label}>Phone Number *</Text>
+                <PhoneInput
+                  key={phoneKey}
+                  ref={phoneInputRef}
+                  defaultValue={extractLocalPhone(activeCard.phone || '')}
+                  defaultCode={dialCodeToCountry(activeCard.phone || '')}
+                  layout="first"
+                  onChangeFormattedText={(text) => {
+                    setForm((p) => ({ ...p, phone: text }));
+                    if (errors.phone) setErrors((e) => ({ ...e, phone: validatePhone(text) }));
                   }}
-                  onBlur={() => setErrors((e) => ({ ...e, phone: validatePhone(form.phone) }))}
-                  placeholder="(000) 000-0000"
-                  keyboardType="phone-pad"
-                  maxLength={15}
-                  placeholderTextColor="#9AA7B6"
+                  onChangeCountry={(country) => {
+                    setCallingCode(country.callingCode[0] || '1');
+                  }}
+                  withDarkTheme={colors.cardBackground === '#000000'}
+                  withShadow={false}
+                  autoFocus={false}
+                  disableArrowIcon={true}
+                  containerStyle={[
+                    styles.phoneContainer,
+                    {
+                      borderColor: errors.phone ? '#DC2626' : colors.cardBorder,
+                      backgroundColor: errors.phone ? 'rgba(220, 38, 38, 0.04)' : colors.cardBackground,
+                    }
+                  ]}
+                  textContainerStyle={[
+                    styles.phoneTextContainer,
+                    {
+                      backgroundColor: errors.phone ? 'rgba(220, 38, 38, 0.04)' : 'transparent',
+                    }
+                  ]}
+                  textInputStyle={[styles.phoneTextInput, { color: colors.textPrimary }]}
+                  codeTextStyle={[styles.phoneCodeText, { color: colors.textPrimary }]}
+                  flagButtonStyle={[
+                    styles.phoneFlagButton,
+                    {
+                      borderRightColor: errors.phone ? '#DC2626' : colors.cardBorder,
+                      backgroundColor: errors.phone ? 'rgba(220, 38, 38, 0.04)' : 'transparent',
+                    }
+                  ]}
+                  placeholder="Phone Number"
+                  textInputProps={{
+                    onBlur: () => {
+                      setErrors((e) => ({ ...e, phone: validatePhone(form.phone) }));
+                    },
+                    placeholderTextColor: "#9AA7B6",
+                    keyboardType: 'phone-pad',
+                  }}
+                  countryPickerProps={{
+                    withFilter: true,
+                    withAlphaFilter: true,
+                    renderFlagButton: () => {
+                      return (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 1, justifyContent: 'center', width: '100%' }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }}>
+                            +{callingCode}
+                          </Text>
+                          <MaterialCommunityIcons name="chevron-down" size={12} color={colors.textSecondary} />
+                        </View>
+                      );
+                    },
+                    theme: {
+                      backgroundColor: colors.cardBackground,
+                      onBackgroundTextColor: colors.textPrimary,
+                      fontSize: 15,
+                      filterPlaceholderTextColor: colors.textSecondary + '80',
+                      activeOpacity: 0.7,
+                      itemHeight: 55,
+                      flagSize: 20,
+                    },
+                    modalProps: {
+                      statusBarTranslucent: true,
+                    },
+                    filterProps: {
+                      autoFocus: true,
+                      placeholder: 'Enter country name',
+                      placeholderTextColor: colors.textSecondary + '80',
+                      style: {
+                        flex: 1,
+                        height: 48,
+                        color: colors.textPrimary,
+                        fontSize: 15,
+                        textAlignVertical: 'center',
+                      }
+                    }
+                  }}
                 />
                 {errors.phone ? <Text style={styles.errorText}>{errors.phone}</Text> : null}
+
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.label}>Email Address</Text>
+                <Text style={styles.label}>Email Address *</Text>
                 <TextInput
                   style={[styles.input, errors.email ? styles.inputError : null]}
                   value={form.email}
@@ -547,7 +710,7 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.label}>Website</Text>
+                <Text style={styles.label}>Website *</Text>
                 <TextInput
                   style={[styles.input, errors.website ? styles.inputError : null]}
                   value={form.website}
@@ -928,7 +1091,6 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '900',
     color: colors.textSecondary,
     marginBottom: 8,
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   input: {
@@ -956,7 +1118,6 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     color: colors.textSecondary,
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   socialLabelRow: {
@@ -1148,4 +1309,37 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '800',
     color: colors.textPrimary,
   },
+  phoneContainer: {
+    width: '100%',
+    borderRadius: 14,
+    borderWidth: 1,
+    height: 54,
+  },
+  phoneTextContainer: {
+    backgroundColor: 'transparent',
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    borderRadius: 14,
+  },
+  phoneCodeText: {
+    display: 'none',
+    width: 0,
+    height: 0,
+    paddingHorizontal: 0,
+  },
+  phoneFlagButton: {
+    backgroundColor: 'transparent',
+    width: 65,
+    height: 54,
+    borderRightWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneTextInput: {
+    fontSize: 15,
+    height: 54,
+    fontWeight: '700',
+    paddingLeft: 4,
+  },
 });
+

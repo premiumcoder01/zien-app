@@ -584,7 +584,19 @@ export default function EditListingScreen() {
   });
 
   const { mutate: finalizeMutation, isPending: isFinalizing } = useMutation({
-    mutationFn: () => finalizeProperty({ id: id as string, address: formData.address, data: formData, userImages: userPhotos }, accessToken!),
+    mutationFn: () => {
+      const finalData = {
+        ...formData,
+        user_images: userPhotos,
+        Media: mlsPhotos.map(url => ({ MediaCategory: 'Photo', MediaURL: url }))
+      };
+      return finalizeProperty({
+        id: id as string,
+        address: formData.address,
+        data: finalData,
+        userImages: userPhotos
+      }, accessToken!);
+    },
     onSuccess: () => setActiveStep(4), // Success Step
     onError: (err: any) => alert(err.message || "Finalize Failed")
   });

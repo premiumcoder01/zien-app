@@ -1,8 +1,8 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
 import { deleteProperty, getProperties, PropertyStats, RawPropertyItem } from '@/services/propertyService';
-import { getOpenHouses, createOpenHouse } from '@/services/openHouseService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,12 +27,7 @@ const H_PADDING = 16;
 
 const PLACEHOLDER_HOUSE =
   'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800';
-const PLACEHOLDER_VILLA =
-  'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800';
-const PLACEHOLDER_CONDO =
-  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800';
-const PLACEHOLDER_APARTMENT =
-  'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800';
+
 
 type PropertyStatus = 'Ready' | 'REVIEW NEEDED' | 'DRAFT';
 
@@ -229,154 +224,174 @@ function PropertyRowCard({
   onEdit: (p: Property) => void;
   onDeletePress: (p: Property) => void;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, theme } = useAppTheme();
   const styles = getStyles(colors);
   const router = useRouter();
   const { accessToken } = useAuth();
 
   return (
     <View style={styles.propertyCard}>
-      {/* Row 1: Thumb + Address block + Status pill */}
-      <View style={styles.row1}>
+      {/* Top Image Container */}
+      <View style={styles.imageContainer}>
         <Image
           source={{ uri: property.image }}
-          style={styles.thumb}
+          style={styles.cardImage}
           contentFit="cover"
         />
-        <View style={styles.addressBlock}>
-          <Text style={styles.addressText} numberOfLines={1}>
-            {property.address}, {property.cityState}
+        
+        {/* Floating Header Badges */}
+        <View style={styles.floatingHeader}>
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeText}>{property.type}</Text>
+          </View>
+          <StatusPill status={property.status} />
+        </View>
+
+        {/* Floating Price overlay */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0, 0, 0, 0.75)']}
+          style={styles.imageOverlay}
+        >
+          <Text style={styles.overlayPrice}>{property.value}</Text>
+        </LinearGradient>
+      </View>
+
+      {/* Card Info Body */}
+      <View style={styles.cardBody}>
+        {/* Address and ID Row */}
+        <View style={styles.bodyHeader}>
+          <Text style={styles.cardAddress} numberOfLines={1}>
+            {property.address}
           </Text>
-          <Text style={styles.idText}>ID: {property.id}</Text>
+          {property.cityState ? (
+            <Text style={styles.cardCityState} numberOfLines={1}>
+              {property.cityState}
+            </Text>
+          ) : null}
+          
+          <View style={styles.idAndSyncRow}>
+            <Text style={styles.cardIdText}>ID: {property.id}</Text>
+            <View style={styles.bulletSeparator} />
+            <View style={styles.syncContainer}>
+              <MaterialCommunityIcons name="cloud-check" size={13} color={colors.accentTeal} />
+              <Text style={styles.cardSyncText}>{property.syncStatus}</Text>
+            </View>
+          </View>
         </View>
-        <StatusPill status={property.status} />
-      </View>
 
-      {/* Divider */}
-      <View style={styles.divider} />
+        {/* Divider */}
+        <View style={styles.cardDivider} />
 
-      {/* Row 2: Type · Valuation · Confidence */}
-      <View style={styles.row2}>
-        <View style={styles.metaCol}>
-          <Text style={styles.metaLabel}>LISTING TYPE</Text>
-          <Text style={styles.metaValue}>{property.type}</Text>
+        {/* Confidence Section */}
+        <View style={styles.middleInfoRow}>
+          <Text style={styles.confidenceLabel}>DATA CONFIDENCE</Text>
+          <View style={styles.confidenceValRow}>
+            <ConfidenceBar value={property.confidence} />
+          </View>
         </View>
-        <View style={[styles.metaCol, styles.metaColCenter]}>
-          <Text style={styles.metaLabel}>VALUATION</Text>
-          <Text style={styles.metaValueBold}>{property.value}</Text>
-        </View>
-        <View style={[styles.metaCol, { flex: 1.3 }]}>
-          <Text style={styles.metaLabel}>CONFIDENCE</Text>
-          <ConfidenceBar value={property.confidence} />
-        </View>
-      </View>
 
-      {/* Row 2.5: Sync Status */}
-      <View style={styles.syncRow}>
-        <View style={styles.syncBadge}>
-          <MaterialCommunityIcons name="cloud-check" size={11} color={colors.textSecondary} />
-          <Text style={styles.syncText}>{property.syncStatus}</Text>
-        </View>
-      </View>
+        {/* Divider */}
+        <View style={styles.cardDivider} />
 
-      {/* Row 3: Full-width Action Icons */}
-      <View style={styles.bottomActionBar}>
-        <Pressable
-          onPress={() => onManage(property)}
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
-          hitSlop={6}
-        >
-          <MaterialCommunityIcons name="eye-outline" size={20} color={colors.accentTeal} />
-        </Pressable>
-        <Pressable
-          onPress={() => onEdit(property)}
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
-          hitSlop={6}
-        >
-          <MaterialCommunityIcons name="square-edit-outline" size={20} color={colors.textPrimary} />
-        </Pressable>
-        <Pressable
-          onPress={async () => {
-            try {
-              const events = await getOpenHouses(accessToken || '');
-              const existingEvent = events.find(e => e.property_id === Number(property.id));
-              if (existingEvent) {
-                router.push(`/(main)/open-house/edit/${existingEvent.id}` as any);
-              } else {
-                const defaultDate = new Date();
-                defaultDate.setDate(defaultDate.getDate() + 7);
-                const dateStr = defaultDate.toISOString().split('T')[0];
-
-                const payload = {
-                  property_id: Number(property.id),
-                  date: dateStr,
-                  start_time: "10:00",
-                  end_time: "12:00",
-                  agent_details: {
-                    name: "sweta",
-                    brokerage: "zien",
-                    license: "23243654765",
-                    email: "sweta.isynbus@gmail.com",
-                    phone: "+91 93196-14264"
-                  },
-                  ai_description: "Breathtaking Luxury estate featuring rare architectural details, bespoke imported finishes, and a seamless connection to private, manicured grounds. This residence offers an unparalleled lifestyle for those who demand excellence in every square inch.",
-                  brand_color: "#0B2D3E",
-                  gallery_images: [],
-                  logo_text: "sweta",
-                  ai_tone: "Luxury",
-                  visitor_registration: true,
-                  send_report: true,
-                };
-
-                const res = await createOpenHouse(accessToken || '', payload);
-                const newEventId = res?.data?.id || res?.id;
-                if (newEventId) {
-                  router.push(`/(main)/open-house/edit/${newEventId}` as any);
+        {/* Actions Row */}
+        <View style={styles.actionsRow}>
+          <Pressable
+            onPress={() => onManage(property)}
+            style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.6 }]}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons name="eye-outline" size={18} color={colors.accentTeal} />
+          </Pressable>
+          <Pressable
+            onPress={() => onEdit(property)}
+            style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.6 }]}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.textPrimary} />
+          </Pressable>
+          <Pressable
+            onPress={async () => {
+              try {
+                const events = await getOpenHouses(accessToken || '');
+                const existingEvent = events.find(e => e.property_id === Number(property.id));
+                if (existingEvent) {
+                  router.push(`/(main)/open-house/edit/${existingEvent.id}` as any);
                 } else {
-                  Alert.alert('Error', 'Failed to create open house event.');
+                  const defaultDate = new Date();
+                  defaultDate.setDate(defaultDate.getDate() + 7);
+                  const dateStr = defaultDate.toISOString().split('T')[0];
+
+                  const payload = {
+                    property_id: Number(property.id),
+                    date: dateStr,
+                    start_time: "10:00",
+                    end_time: "12:00",
+                    agent_details: {
+                      name: "sweta",
+                      brokerage: "zien",
+                      license: "23243654765",
+                      email: "sweta.isynbus@gmail.com",
+                      phone: "+91 93196-14264"
+                    },
+                    ai_description: "Breathtaking Luxury estate featuring rare architectural details, bespoke imported finishes, and a seamless connection to private, manicured grounds. This residence offers an unparalleled lifestyle for those who demand excellence in every square inch.",
+                    brand_color: "#0B2D3E",
+                    gallery_images: [],
+                    logo_text: "sweta",
+                    ai_tone: "Luxury",
+                    visitor_registration: true,
+                    send_report: true,
+                  };
+
+                  const res = await createOpenHouse(accessToken || '', payload);
+                  const newEventId = res?.data?.id || res?.id;
+                  if (newEventId) {
+                    router.push(`/(main)/open-house/edit/${newEventId}` as any);
+                  } else {
+                    Alert.alert('Error', 'Failed to create open house event.');
+                  }
                 }
+              } catch (err) {
+                console.error(err);
+                Alert.alert('Error', 'An error occurred while routing to the open house page.');
               }
-            } catch (err) {
-              console.error(err);
-              Alert.alert('Error', 'An error occurred while routing to the open house page.');
-            }
-          }}
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
-          hitSlop={6}
-        >
-          <MaterialCommunityIcons name="calendar-blank-outline" size={20} color={colors.accentTeal} />
-        </Pressable>
-        <Pressable
-          onPress={() => {
-            const cleanAddress = [property.address, property.cityState].filter(Boolean).join(', ');
-            const fullAddress = cleanAddress.toLowerCase().includes('usa') ? cleanAddress : `${cleanAddress}, USA`;
-            router.push({
-              pathname: '/(main)/crm/campaigns',
-              params: {
-                openAiModal: 'true',
-                aiPrompt: `Write a persuasive email campaign promoting my new listing at ${fullAddress}. Include a strong call to action for the recipient to click the link to view the property photos and RSVP.`
-              }
-            });
-          }}
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
-          hitSlop={6}
-        >
-          <MaterialCommunityIcons name="bullhorn-outline" size={20} color={colors.textPrimary} />
-        </Pressable>
-        <Pressable
-          onPress={() => router.push('/(main)/social-hub/create-post')}
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
-          hitSlop={6}
-        >
-          <MaterialCommunityIcons name="share-variant-outline" size={20} color="#EA580C" />
-        </Pressable>
-        <Pressable
-          onPress={() => onDeletePress(property)}
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
-          hitSlop={6}
-        >
-          <MaterialCommunityIcons name="trash-can-outline" size={20} color="#EF4444" />
-        </Pressable>
+            }}
+            style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.6 }]}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons name="calendar-blank-outline" size={18} color={colors.accentTeal} />
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              const cleanAddress = [property.address, property.cityState].filter(Boolean).join(', ');
+              const fullAddress = cleanAddress.toLowerCase().includes('usa') ? cleanAddress : `${cleanAddress}, USA`;
+              router.push({
+                pathname: '/(main)/crm/campaigns',
+                params: {
+                  openAiModal: 'true',
+                  aiPrompt: `Write a persuasive email campaign promoting my new listing at ${fullAddress}. Include a strong call to action for the recipient to click the link to view the property photos and RSVP.`
+                }
+              });
+            }}
+            style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.6 }]}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons name="bullhorn-outline" size={18} color={colors.textPrimary} />
+          </Pressable>
+          <Pressable
+            onPress={() => router.push('/(main)/social-hub/create-post')}
+            style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.6 }]}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons name="share-variant-outline" size={18} color="#EA580C" />
+          </Pressable>
+          <Pressable
+            onPress={() => onDeletePress(property)}
+            style={({ pressed }) => [styles.deleteButton, pressed && { opacity: 0.6 }]}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={18} color="#EF4444" />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -423,6 +438,48 @@ export default function PropertyInventoryScreen() {
     }
   };
 
+  const extractFirstImage = (raw: RawPropertyItem): string => {
+    const d = raw.data || {};
+    
+    const getArray = (field: any): any[] => {
+      if (!field) return [];
+      if (Array.isArray(field)) return field;
+      if (typeof field === 'string') {
+        try {
+          const parsed = JSON.parse(field);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (_) {}
+      }
+      return [];
+    };
+
+    // 1. Try user_images
+    const userImages = getArray(d.user_images || d.userImages);
+    if (userImages.length > 0) {
+      const first = userImages[0];
+      const url = typeof first === 'string' ? first : (first.url || first.uri || first.MediaURL || first.MediaUrl);
+      if (url) return url;
+    }
+
+    // 2. Try images / Images
+    const images = getArray(d.images || d.Images || (raw as any).images || (raw as any).Images);
+    if (images.length > 0) {
+      const first = images[0];
+      const url = typeof first === 'string' ? first : (first.url || first.uri || first.MediaURL || first.MediaUrl || first.URL);
+      if (url) return url;
+    }
+
+    // 3. Try Media / media
+    const media = getArray(d.Media || d.media);
+    if (media.length > 0) {
+      const first = media[0];
+      const url = typeof first === 'string' ? first : (first.MediaURL || first.MediaUrl || first.url || first.URL || first.uri);
+      if (url) return url;
+    }
+
+    return PLACEHOLDER_HOUSE;
+  };
+
   const mapRawToProperty = (raw: RawPropertyItem): Property => {
     const d = raw.data;
     const price = d.ListPrice || 0;
@@ -440,7 +497,7 @@ export default function PropertyInventoryScreen() {
       status: 'Ready', // Default to Ready as per user request
       value: formattedPrice,
       confidence: 94,
-      image: (d.user_images && d.user_images.length > 0) ? d.user_images[0] : PLACEHOLDER_HOUSE,
+      image: extractFirstImage(raw),
       syncStatus: 'SYNCED',
     };
   };
@@ -762,47 +819,159 @@ function getStyles(colors: any) {
     // ── Property Card ──
     propertyCard: {
       backgroundColor: colors.cardBackground,
-      borderRadius: 16,
-      paddingHorizontal: 14,
-      paddingTop: 14,
-      paddingBottom: 10,
+      borderRadius: 20,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      elevation: 2,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+      elevation: 4,
+      overflow: 'hidden',
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
     },
-
-    // Row 1
-    row1: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    thumb: {
-      width: 52,
-      height: 52,
-      borderRadius: 10,
+    imageContainer: {
+      height: 170,
+      width: '100%',
+      position: 'relative',
       backgroundColor: colors.surfaceSoft,
     },
-    addressBlock: {
-      flex: 1,
+    cardImage: {
+      width: '100%',
+      height: '100%',
     },
-    addressText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: colors.textPrimary,
-      lineHeight: 18,
+    floatingHeader: {
+      position: 'absolute',
+      top: 12,
+      left: 12,
+      right: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      zIndex: 2,
     },
-    idText: {
+    typeBadge: {
+      backgroundColor: 'rgba(26, 36, 47, 0.75)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    typeBadgeText: {
+      color: '#FFFFFF',
       fontSize: 10,
-      color: colors.accentTeal,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+    imageOverlay: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 60,
+      justifyContent: 'flex-end',
+      paddingHorizontal: 16,
+      paddingBottom: 10,
+      zIndex: 1,
+    },
+    overlayPrice: {
+      color: '#FFFFFF',
+      fontSize: 20,
+      fontWeight: '900',
+      letterSpacing: -0.5,
+    },
+    cardBody: {
+      padding: 16,
+    },
+    bodyHeader: {
+      marginBottom: 8,
+    },
+    cardAddress: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    cardCityState: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '500',
+      marginBottom: 6,
+    },
+    idAndSyncRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 4,
+    },
+    cardIdText: {
+      fontSize: 11,
+      color: colors.textSecondary,
       fontWeight: '600',
-      marginTop: 2,
-      letterSpacing: 0.2,
+    },
+    bulletSeparator: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.inputPlaceholder,
+      marginHorizontal: 8,
+    },
+    syncContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    cardSyncText: {
+      fontSize: 11,
+      color: colors.accentTeal,
+      fontWeight: '700',
+      letterSpacing: 0.3,
+    },
+    cardDivider: {
+      height: 1,
+      backgroundColor: colors.cardBorder,
+      marginVertical: 12,
+    },
+    middleInfoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    confidenceLabel: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: colors.inputPlaceholder,
+      letterSpacing: 0.8,
+    },
+    confidenceValRow: {
+      width: 120,
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 4,
+    },
+    actionButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      backgroundColor: colors.inputBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    deleteButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.2)',
     },
 
-    // Status pill
     statusPill: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -822,49 +991,6 @@ function getStyles(colors: any) {
       letterSpacing: 0.5,
     },
 
-    // Divider
-    divider: {
-      height: 1,
-      backgroundColor: colors.surfaceSoft,
-      marginVertical: 12,
-    },
-
-    // Row 2
-    row2: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 6,
-      marginBottom: 12,
-    },
-    metaCol: {
-      flex: 1,
-    },
-    metaColCenter: {
-      borderLeftWidth: 1,
-      borderRightWidth: 1,
-      borderColor: colors.cardBorder,
-      paddingHorizontal: 8,
-    },
-    metaLabel: {
-      fontSize: 9,
-      fontWeight: '700',
-      color: colors.inputPlaceholder,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-      marginBottom: 4,
-    },
-    metaValue: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: colors.textPrimary,
-    },
-    metaValueBold: {
-      fontSize: 13,
-      fontWeight: '800',
-      color: colors.textPrimary,
-    },
-
-    // Confidence
     confidenceWrap: {
       gap: 4,
     },
@@ -881,39 +1007,6 @@ function getStyles(colors: any) {
     confidenceFill: {
       height: '100%',
       borderRadius: 3,
-    },
-
-    // Row 3 / Bottom Action Bar
-    syncRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 12,
-    },
-    syncBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-    },
-    syncText: {
-      fontSize: 10,
-      color: colors.inputPlaceholder,
-      fontWeight: '600',
-      letterSpacing: 0.5,
-    },
-    bottomActionBar: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    iconBtn: {
-      width: 34,
-      height: 34,
-      borderRadius: 10,
-      backgroundColor: colors.surfaceSoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
     },
 
     // ── Delete Modal ──

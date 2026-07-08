@@ -419,13 +419,20 @@ export default function BillingUsageScreen() {
                   <Text style={styles.invoiceAmountLabel}>TOTAL AMOUNT</Text>
                   <Text style={styles.invoiceAmountValue}>{invoice.amt}</Text>
                 </View>
-                <ExternalLink
-                  href={invoice.pdf}
-                  style={styles.invoiceDownloadBtn}
-                >
-                  <MaterialCommunityIcons name="download" size={16} color="#FFFFFF" />
-                  <Text style={styles.invoiceDownloadBtnText}>Receipt</Text>
-                </ExternalLink>
+                {invoice.pdf ? (
+                  <ExternalLink
+                    href={invoice.pdf}
+                    style={styles.invoiceDownloadBtn}
+                  >
+                    <MaterialCommunityIcons name="download" size={16} color="#FFFFFF" />
+                    <Text style={styles.invoiceDownloadBtnText}>Receipt</Text>
+                  </ExternalLink>
+                ) : (
+                  <View style={[styles.invoiceDownloadBtn, { backgroundColor: colors.border, opacity: 0.6 }]}>
+                    <MaterialCommunityIcons name="download-off" size={16} color={colors.textSecondary} />
+                    <Text style={[styles.invoiceDownloadBtnText, { color: colors.textSecondary }]}>Receipt</Text>
+                  </View>
+                )}
               </View>
             </Pressable>
           ))}

@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import PhoneInput from 'react-native-phone-number-input';
 
 interface CreateCardModalProps {
   isVisible: boolean;
@@ -35,6 +36,8 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
   const [companyName, setCompanyName] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [callingCode, setCallingCode] = useState('1');
+  const phoneInputRef = React.useRef<PhoneInput>(null);
 
   useEffect(() => {
     if (isVisible) {
@@ -45,19 +48,28 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
       setPhone('');
       setTitle('');
       setCompanyName('');
+      setCallingCode('1');
     }
   }, [isVisible, initialType]);
 
   const handleSubmit = async () => {
     if (!profileName.trim() || !fullName.trim() || !email.trim()) return;
     setIsSubmitting(true);
+
+    const callingCode = phoneInputRef.current?.getCallingCode() || '1';
+    let nationalNumber = phone.replace(/\D/g, '');
+    if (nationalNumber.startsWith('0')) {
+      nationalNumber = nationalNumber.slice(1);
+    }
+    const fullPhone = phone ? `+${callingCode}${nationalNumber}` : '';
+
     try {
       await onCreate({
         card_type: cardType,
         profile_name: profileName,
         name: fullName,
         email,
-        phone,
+        phone: fullPhone,
         title: cardType === 'work' ? title : '',
         company_name: cardType === 'work' ? companyName : '',
       });
@@ -110,7 +122,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
             >
               {/* Card Type Selector */}
               <View style={styles.section}>
-                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>CARD TYPE</Text>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Card Type</Text>
                 <View style={styles.typeRow}>
                   <TouchableOpacity
                     activeOpacity={0.7}
@@ -162,7 +174,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
               <View style={styles.row}>
                 <View style={styles.flex1}>
                   <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-                    PROFILE NAME <Text style={{ color: '#EF4444' }}>*</Text>
+                    Profile Name <Text style={{ color: '#EF4444' }}>*</Text>
                   </Text>
                   <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC', borderColor: colors.cardBorder }]}>
                     <TextInput
@@ -176,7 +188,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
                 </View>
                 <View style={styles.flex1}>
                   <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-                    FULL NAME <Text style={{ color: '#EF4444' }}>*</Text>
+                    Full Name <Text style={{ color: '#EF4444' }}>*</Text>
                   </Text>
                   <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC', borderColor: colors.cardBorder }]}>
                     <TextInput
@@ -194,7 +206,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
               <View style={styles.row}>
                 <View style={styles.flex1}>
                   <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-                    EMAIL ADDRESS <Text style={{ color: '#EF4444' }}>*</Text>
+                    Email Address <Text style={{ color: '#EF4444' }}>*</Text>
                   </Text>
                   <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC', borderColor: colors.cardBorder }]}>
                     <TextInput
@@ -210,20 +222,78 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
                 </View>
                 <View style={styles.flex1}>
                   <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-                    PHONE NUMBER
+                    Phone Number
                   </Text>
-                  <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC', borderColor: colors.cardBorder }]}>
-                    <TextInput
-                      style={[styles.input, { color: colors.textPrimary }]}
-                      placeholder="Phone Number"
-                      keyboardType="phone-pad"
-                      maxLength={15}
-
-                      placeholderTextColor={colors.textSecondary + '80'}
-                      value={phone}
-                      onChangeText={setPhone}
-                    />
-                  </View>
+                  <PhoneInput
+                    key={isVisible ? 'active' : 'inactive'}
+                    ref={phoneInputRef}
+                    defaultValue={phone}
+                    defaultCode="US"
+                    layout="first"
+                    onChangeText={setPhone}
+                    onChangeCountry={(country) => {
+                      setCallingCode(country.callingCode[0] || '1');
+                    }}
+                    withDarkTheme={isDark}
+                    withShadow={false}
+                    autoFocus={false}
+                    disableArrowIcon={true}
+                    containerStyle={[
+                      styles.phoneContainer,
+                      {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC',
+                        borderColor: colors.cardBorder,
+                      }
+                    ]}
+                    textContainerStyle={styles.phoneTextContainer}
+                    textInputStyle={[styles.phoneTextInput, { color: colors.textPrimary }]}
+                    codeTextStyle={[styles.phoneCodeText, { color: colors.textPrimary }]}
+                    flagButtonStyle={[styles.phoneFlagButton, { borderRightColor: colors.cardBorder }]}
+                    placeholder="Phone Number"
+                    textInputProps={{
+                      placeholderTextColor: colors.textSecondary + '80',
+                      maxLength: 15,
+                      keyboardType: 'phone-pad',
+                    }}
+                    countryPickerProps={{
+                      withFilter: true,
+                      withAlphaFilter: true,
+                      renderFlagButton: () => {
+                        return (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 1, justifyContent: 'center', width: '100%' }}>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }}>
+                              +{callingCode}
+                            </Text>
+                            <MaterialCommunityIcons name="chevron-down" size={12} color={colors.textSecondary} />
+                          </View>
+                        );
+                      },
+                      theme: {
+                        backgroundColor: colors.cardBackground,
+                        onBackgroundTextColor: colors.textPrimary,
+                        fontSize: 15,
+                        filterPlaceholderTextColor: colors.textSecondary + '80',
+                        activeOpacity: 0.7,
+                        itemHeight: 55,
+                        flagSize: 20,
+                      },
+                      modalProps: {
+                        statusBarTranslucent: true,
+                      },
+                      filterProps: {
+                        autoFocus: true,
+                        placeholder: 'Enter country name',
+                        placeholderTextColor: colors.textSecondary + '80',
+                        style: {
+                          flex: 1,
+                          height: 48,
+                          color: colors.textPrimary,
+                          fontSize: 15,
+                          textAlignVertical: 'center',
+                        }
+                      }
+                    }}
+                  />
                 </View>
               </View>
 
@@ -232,7 +302,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
                 <View style={styles.row}>
                   <View style={styles.flex1}>
                     <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-                      TITLE / POSITION
+                      Title / Position
                     </Text>
                     <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC', borderColor: colors.cardBorder }]}>
                       <TextInput
@@ -246,7 +316,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
                   </View>
                   <View style={styles.flex1}>
                     <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-                      COMPANY NAME
+                      Company Name
                     </Text>
                     <View style={[styles.inputContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F7F9FC', borderColor: colors.cardBorder }]}>
                       <TextInput
@@ -359,7 +429,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.5,
     marginBottom: 8,
-    textTransform: 'uppercase',
   },
   typeRow: {
     flexDirection: 'row',
@@ -404,5 +473,37 @@ const styles = StyleSheet.create({
   submitBtnText: {
     fontSize: 16,
     fontWeight: '900',
+  },
+  phoneContainer: {
+    width: '100%',
+    borderRadius: 14,
+    borderWidth: 1,
+    height: 54,
+  },
+  phoneTextContainer: {
+    backgroundColor: 'transparent',
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    borderRadius: 14,
+  },
+  phoneCodeText: {
+    display: 'none',
+    width: 0,
+    height: 0,
+    paddingHorizontal: 0,
+  },
+  phoneFlagButton: {
+    backgroundColor: 'transparent',
+    width: 55,
+    height: 54,
+    borderRightWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneTextInput: {
+    fontSize: 15,
+    height: 54,
+    fontWeight: '700',
+    paddingLeft: 4,
   },
 });

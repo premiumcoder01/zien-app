@@ -131,7 +131,7 @@ export default function EmailTemplatesScreen() {
             const subject = content.split('\n')[0].replace(/^Subject:\s*/i, '');
             const body = content.substring(content.indexOf('\n') + 1).trim();
             setOutputEmail({ subject, body });
-            setActiveViewTab('preview'); // Instantly navigate to preview when loaded
+            setActiveViewTab('form'); // Default to Configure Template tab when editing
         }
     }, [prefill, content]);
 

@@ -1,4 +1,5 @@
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -30,10 +31,10 @@ import PasswordInput from '@/components/ui/PasswordInput';
 
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { loginAgent, loginWithGoogle, loginWithMicrosoft } from '@/services/authService';
+import { loginAgent, loginWithApple, loginWithGoogle, loginWithMicrosoft } from '@/services/authService';
 
 export default function LoginScreen() {
-  const { colors } = useAppTheme();
+  const { theme, colors } = useAppTheme();
   const { login } = useAuth();
   const styles = getStyles(colors);
   const router = useRouter();
@@ -45,6 +46,8 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false);
+  const [isAppleAvailable, setIsAppleAvailable] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
 
   const redirectUri = AuthSession.makeRedirectUri({
     scheme: 'zien',
@@ -71,6 +74,15 @@ export default function LoginScreen() {
       iosClientId: '643931044813-tfbh0a8f1q69g0vthql6pl1r4vpf7l3u.apps.googleusercontent.com',
       offlineAccess: true,
     });
+    AppleAuthentication.isAvailableAsync()
+      .then((available) => {
+        console.log('[AppleAuth] isAvailableAsync resolved to:', available);
+        setIsAppleAvailable(available);
+      })
+      .catch((err) => {
+        console.error('[AppleAuth] isAvailableAsync error:', err);
+        setIsAppleAvailable(false);
+      });
   }, []);
 
   const processedMsCode = useRef<string | null>(null);
@@ -185,6 +197,52 @@ export default function LoginScreen() {
     }
   };
 
+  const handleAppleLogin = async () => {
+    setIsAppleLoading(true);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      const token = credential.identityToken;
+      if (!token) {
+        throw new Error('No identity token received from Apple.');
+      }
+
+      let fullName = null;
+      if (credential.fullName) {
+        const { givenName, familyName } = credential.fullName;
+        fullName = [givenName, familyName].filter(Boolean).join(' ').trim() || null;
+      }
+
+      const email = credential.email || null;
+
+      const backendResponse = await loginWithApple({
+        token,
+        email,
+        fullName,
+      });
+
+      await login(
+        backendResponse.access_token,
+        backendResponse.role,
+        backendResponse.complete_profile
+      );
+    } catch (error: any) {
+      if (error.code === 'ERR_CANCELED') {
+        console.log('User cancelled Apple Sign-in.');
+      } else {
+        console.error('Apple Sign-in Error:', error);
+        Alert.alert('Apple Sign-in Failed', error.message || 'Unknown error occurred.');
+      }
+    } finally {
+      setIsAppleLoading(false);
+    }
+  };
+
   const handleLogin = async () => {
     // Reset errors
     setEmailError('');
@@ -285,18 +343,36 @@ export default function LoginScreen() {
 
             <AuthDivider />
 
+            {isAppleAvailable && (
+              <View 
+                style={[
+                  styles.appleButtonContainer, 
+                  (isAppleLoading || isGoogleLoading || isMicrosoftLoading || isLoading) && { opacity: 0.65 }
+                ]}
+                pointerEvents={isAppleLoading || isGoogleLoading || isMicrosoftLoading || isLoading ? 'none' : 'auto'}
+              >
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={theme === 'dark' ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                  cornerRadius={colors.inputBorderRadius || 8}
+                  style={styles.appleButton}
+                  onPress={handleAppleLogin}
+                />
+              </View>
+            )}
+
             <View style={styles.socialRow}>
               <SocialButton
                 label="Google"
                 icon={require('@/assets/appImages/google.png')}
                 onPress={handleGoogleLogin}
-                disabled={isGoogleLoading || isLoading || isMicrosoftLoading}
+                disabled={isGoogleLoading || isLoading || isMicrosoftLoading || isAppleLoading}
               />
               <SocialButton
                 label="Microsoft"
                 icon={require('@/assets/appImages/microsoft.png')}
                 onPress={() => msPromptAsync()}
-                disabled={!msRequest || isMicrosoftLoading || isGoogleLoading || isLoading}
+                disabled={!msRequest || isMicrosoftLoading || isGoogleLoading || isLoading || isAppleLoading}
               />
             </View>
 
@@ -352,6 +428,14 @@ function getStyles(colors: any) {
     joinTeamButton: {
       flex: 0,
       minWidth: 100,
+    },
+    appleButtonContainer: {
+      width: '100%',
+      marginBottom: 10,
+    },
+    appleButton: {
+      width: '100%',
+      height: 44,
     },
     socialRow: {
       flexDirection: 'row',

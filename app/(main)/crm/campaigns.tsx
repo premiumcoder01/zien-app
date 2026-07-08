@@ -89,7 +89,7 @@ export default function CRMCampaignsScreen() {
   const [formTemplateId, setFormTemplateId] = useState<string | null>(null);
   const [sendingAccount, setSendingAccount] = useState('Select account');
   const [sendSchedule, setSendSchedule] = useState<'NOW' | 'SCHEDULE'>('NOW');
-  const [abTesting, setAbTesting] = useState(true);
+  const [abTesting, setAbTesting] = useState(false);
   const [versionA, setVersionA] = useState('');
   const [versionB, setVersionB] = useState('');
   const [scheduledDate, setScheduledDate] = useState(new Date());
@@ -908,74 +908,6 @@ Based on this, generate a JSON object with exactly the following fields:
                   </View>
                 )}
 
-                {/* A/B Subject Line Testing */}
-                <View style={styles.abContainer}>
-                  <View style={styles.abHeader}>
-                    <Text style={styles.abTitle}>A/B Subject Line Testing</Text>
-                    <Switch
-                      value={abTesting}
-                      onValueChange={setAbTesting}
-                      trackColor={{ false: '#E2E8F0', true: '#EA580C' }}
-                      thumbColor="#FFFFFF"
-                    />
-                  </View>
-                  {abTesting && (
-                    <View style={styles.abContent}>
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.abLabel}>VERSION A (50%)</Text>
-                        <TextInput
-                          style={[
-                            styles.abInput,
-                            formErrors.versionA && styles.inputError,
-                            isVersionAFocused && styles.formInputActive
-                          ]}
-                          onFocus={() => setVersionAFocused(true)}
-                          onBlur={() => setVersionAFocused(false)}
-                          value={versionA}
-                          onChangeText={(val) => {
-                            setVersionA(val);
-                            if (formErrors.versionA) {
-                              setFormErrors(prev => ({ ...prev, versionA: '' }));
-                            }
-                          }}
-                          placeholder="You won't believe this price drop..."
-                          placeholderTextColor="#94A3B8"
-                          multiline={false}
-                          numberOfLines={1}
-                        />
-                        {formErrors.versionA && (
-                          <Text style={styles.errorText}>{formErrors.versionA}</Text>
-                        )}
-                      </View>
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.abLabel}>VERSION B (50%)</Text>
-                        <TextInput
-                          style={[
-                            styles.abInput,
-                            formErrors.versionB && styles.inputError,
-                            isVersionBFocused && styles.formInputActive
-                          ]}
-                          onFocus={() => setVersionBFocused(true)}
-                          onBlur={() => setVersionBFocused(false)}
-                          value={versionB}
-                          onChangeText={(val) => {
-                            setVersionB(val);
-                            if (formErrors.versionB) {
-                              setFormErrors(prev => ({ ...prev, versionB: '' }));
-                            }
-                          }}
-                          placeholder="New Pricing: Malibu Villa is now $1.2M"
-                          placeholderTextColor="#94A3B8"
-                          multiline={false}
-                          numberOfLines={1}
-                        />
-                        {formErrors.versionB && (
-                          <Text style={styles.errorText}>{formErrors.versionB}</Text>
-                        )}
-                      </View>
-                    </View>
-                  )}
-                </View>
               </View>
 
               {/* Compliance & Delivery */}

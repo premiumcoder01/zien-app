@@ -1297,26 +1297,20 @@ export default function CreateListingScreen() {
     }
   });
 
-  const { mutate: uploadMutation, isPending: isUploading } = useMutation({
-    mutationFn: (uri: string) => uploadPropertyImage(uri, accessToken || ''),
-    onSuccess: (resData) => {
-      console.log("Upload Success:", resData);
-      if (resData.url) {
-        setUserPhotos(prev => [...prev, resData.url]);
-      }
-    },
-    onError: (error: any) => {
-      console.error("Upload error:", error);
-      alert(error.message || "Failed to upload image. Please try again.");
-    }
-  });
 
   const { mutate: finalizeMutation, isPending: isFinalizing } = useMutation({
-    mutationFn: () => finalizeProperty({
-      address: formData.address || input,
-      data: formData,
-      userImages: userPhotos,
-    }, accessToken || ''),
+    mutationFn: () => {
+      const finalData = {
+        ...formData,
+        user_images: userPhotos,
+        Media: mlsPhotos.map(url => ({ MediaCategory: 'Photo', MediaURL: url }))
+      };
+      return finalizeProperty({
+        address: formData.address || input,
+        data: finalData,
+        userImages: userPhotos,
+      }, accessToken || '');
+    },
     onSuccess: (resData) => {
       console.log("Finalize Success:", resData);
       setActiveStep(4);

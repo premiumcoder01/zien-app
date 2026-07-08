@@ -36,6 +36,8 @@ export interface RawPropertyItem {
   status: number;
   created_at: string;
   updated_at: string;
+  images?: any[];
+  Images?: any[];
 }
 
 /**

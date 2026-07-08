@@ -97,7 +97,7 @@ export default function PropertyDescriptionLabScreen() {
         if (content) {
             setOutput(content);
             setHasGenerated(true);
-            setActiveViewTab('preview'); // Instantly view preview when editing
+            setActiveViewTab('form'); // Default to Configure Post tab when editing
         }
     }, [prefill, content]);
 

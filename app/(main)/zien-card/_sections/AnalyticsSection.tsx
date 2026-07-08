@@ -1,7 +1,7 @@
 import { useAppTheme } from '@/context/ThemeContext';
 import { CardAnalytics, DigitalCard, getCardAnalytics } from '@/services/digitalCardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Pressable,
@@ -10,8 +10,9 @@ import {
     Text,
     View,
 } from 'react-native';
-import { BarGroup, CartesianChart, Line, Area } from 'victory-native';
+import { BarGroup, CartesianChart, Line, Area, useChartPressState } from 'victory-native';
 import { LinearGradient, vec } from '@shopify/react-native-skia';
+
 
 interface MonthlyPoints {
   views: { x: number; y: number; xValue: any; yValue: any }[];
@@ -38,7 +39,8 @@ const MonthlyPointsTracker = ({ points, onChange }: { points: any; onChange: (p:
 };
 
 interface DailyPoints {
-  count: { x: number; y: number; xValue: any; yValue: any }[];
+  views: { x: number; y: number; xValue: any; yValue: any }[];
+  leads: { x: number; y: number; xValue: any; yValue: any }[];
 }
 
 const DailyPointsTracker = ({ points, onChange }: { points: any; onChange: (p: DailyPoints) => void }) => {
@@ -47,7 +49,8 @@ const DailyPointsTracker = ({ points, onChange }: { points: any; onChange: (p: D
   React.useEffect(() => {
     if (!points) return;
     const currentStr = JSON.stringify({
-      count: (points.count || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue }))
+      views: (points.views || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue })),
+      leads: (points.leads || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue }))
     });
 
     if (currentStr !== lastPointsStr.current) {
@@ -76,6 +79,17 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
   const [monthlyChartPoints, setMonthlyChartPoints] = useState<MonthlyPoints | null>(null);
   const [dailyChartPoints, setDailyChartPoints] = useState<DailyPoints | null>(null);
 
+  // Press state for monthly chart tooltip (bar chart — victory-native handles it)
+  const { state: monthlyPressState, isActive: isMonthlyActive } = useChartPressState({
+    x: "",
+    y: { views: 0, leads: 0 }
+  });
+
+
+  const [activeMonthlyPoint, setActiveMonthlyPoint] = useState<{ x: string; views: number; leads: number } | null>(null);
+  const [activeDailyPoint, setActiveDailyPoint] = useState<{ x: string; views: number; leads: number } | null>(null);
+
+
   useEffect(() => {
     const fetchAnalytics = async () => {
       if (!accessToken || !activeCard.id) return;
@@ -99,12 +113,14 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
     const views = data.totals.find(t => t.event_type === 'view')?.count || 0;
     const saves = data.totals.find(t => t.event_type === 'save_contact')?.count || 0;
     const leads = data.totals.find(t => t.event_type === 'exchange_info')?.count || 0;
+    const clicks = data.totals.filter(t => t.event_type.toLowerCase().includes('click'))
+      .reduce((sum, t) => sum + Number(t.count || 0), 0);
 
     return [
       { key: 'views', label: 'Total Views', value: String(views), icon: 'eye-outline' as const, color: '#3B82F6' },
       { key: 'saves', label: 'Contact Saves', value: String(saves), icon: 'download-outline' as const, color: '#10B981' },
       { key: 'leads', label: 'Leads', value: String(leads), icon: 'comment-text-outline' as const, color: '#F59E0B' },
-      { key: 'clicks', label: 'Total Clicks', value: '0', icon: 'cursor-default-outline' as const, color: '#6366F1' },
+      { key: 'clicks', label: 'Total Clicks', value: String(clicks), icon: 'cursor-default-outline' as const, color: '#6366F1' },
     ];
   }, [data]);
 
@@ -141,7 +157,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
 
   const dailyChartData = useMemo(() => {
     const daysToShow = 14;
-    const result: { label: string; count: number }[] = [];
+    const result: { label: string; views: number; leads: number }[] = [];
     const now = new Date();
 
     for (let i = daysToShow - 1; i >= 0; i--) {
@@ -153,11 +169,46 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
         .filter(item => item.date === dateStr && item.event_type === 'view')
         .reduce((sum, item) => sum + Number(item.count), 0) || 0;
 
-      result.push({ label, count: viewsCount });
+      const leadsCount = data?.daily
+        .filter(item => item.date === dateStr && item.event_type === 'exchange_info')
+        .reduce((sum, item) => sum + Number(item.count), 0) || 0;
+
+      result.push({ label, views: viewsCount, leads: leadsCount });
     }
 
     return result;
   }, [data]);
+
+  // ── Pure-JS touch tooltip for daily chart (no Reanimated) ──
+  const [dailyChartWidth, setDailyChartWidth] = useState(0);
+  const dailyChartWidthRef = React.useRef(0);
+  const dailyChartDataRef = React.useRef(dailyChartData);
+  useEffect(() => { dailyChartDataRef.current = dailyChartData; }, [dailyChartData]);
+
+  const resolveDailyPoint = useCallback((locationX: number) => {
+    const w = dailyChartWidthRef.current;
+    if (w === 0) return;
+    const PADDING = 16;
+    const usableW = w - PADDING * 2;
+    const data = dailyChartDataRef.current;
+    const numPts = data.length;
+    if (numPts === 0) return;
+    const idx = Math.max(0, Math.min(numPts - 1,
+      Math.round(((locationX - PADDING) / usableW) * (numPts - 1))
+    ));
+    const pt = data[idx];
+    if (pt) setActiveDailyPoint({ x: pt.label, views: pt.views, leads: pt.leads });
+  }, []);
+
+  const dailyPanResponder = React.useMemo(() => ({
+    onStartShouldSetResponder: () => true,
+    onMoveShouldSetResponder: () => true,
+    onResponderGrant: (e: any) => resolveDailyPoint(e.nativeEvent.locationX),
+    onResponderMove: (e: any) => resolveDailyPoint(e.nativeEvent.locationX),
+    onResponderRelease: () => setActiveDailyPoint(null),
+    onResponderTerminate: () => setActiveDailyPoint(null),
+  }), [resolveDailyPoint]);
+
 
   if (loading) {
     return (
@@ -182,7 +233,14 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
       {/* Monthly Growth */}
       <View style={styles.chartCard}>
         <View style={styles.chartHeader}>
-          <Text style={styles.chartLabel}>Monthly Growth (Last 6 Months)</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.chartLabel}>Monthly Growth (Last 6 Months)</Text>
+            {activeMonthlyPoint && (
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary, marginTop: 4 }}>
+                {activeMonthlyPoint.x}: <Text style={{ color: '#3B82F6' }}>{activeMonthlyPoint.views} Views</Text> • <Text style={{ color: '#10B981' }}>{activeMonthlyPoint.leads} Leads</Text>
+              </Text>
+            )}
+          </View>
           <View style={styles.legendRow}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
@@ -201,6 +259,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
             xKey="label"
             yKeys={["views", "leads"]}
             domainPadding={{ left: 24, right: 24, top: 30, bottom: 20 }}
+            chartPressState={monthlyPressState}
           >
             {({ points, chartBounds }) => (
               <>
@@ -312,33 +371,108 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
 
       {/* Daily Activity */}
       <View style={styles.chartCard}>
-        <Text style={styles.chartLabel}>Daily Activity (Last 14 Days)</Text>
-        <View style={{ height: 180, width: '100%', position: 'relative', marginTop: 15 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.chartLabel}>Daily Activity (Last 14 Days)</Text>
+          <View style={styles.legendRow}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
+              <Text style={styles.legendText}>Views</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
+              <Text style={styles.legendText}>Leads</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Tooltip — only shown when user touches the graph */}
+        {activeDailyPoint ? <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            marginTop: 8,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(59,130,246,0.07)',
+            borderRadius: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 7,
+            borderWidth: 1,
+            borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(59,130,246,0.15)',
+          }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary }}>
+              {activeDailyPoint.x}
+            </Text>
+            <View style={{ flex: 1 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#3B82F6' }} />
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#3B82F6' }}>{activeDailyPoint.views}</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }}> Views</Text>
+            </View>
+            <Text style={{ color: colors.textSecondary, opacity: 0.4 }}> | </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' }} />
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#10B981' }}>{activeDailyPoint.leads}</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }}> Leads</Text>
+            </View>
+          </View> : null}
+
+        {/* Chart with PanResponder for touch detection */}
+        <View
+          style={{ height: 180, width: '100%', position: 'relative', marginTop: 12 }}
+          onLayout={(e) => {
+            const w = e.nativeEvent.layout.width;
+            setDailyChartWidth(w);
+            dailyChartWidthRef.current = w;
+          }}
+          {...dailyPanResponder}
+        >
           <CartesianChart
             data={dailyChartData}
             xKey="label"
-            yKeys={["count"]}
+            yKeys={["views", "leads"]}
             domainPadding={{ left: 16, right: 16, top: 20, bottom: 20 }}
           >
             {({ points, chartBounds }) => (
               <>
+                {/* Views Area */}
                 <Area
-                  points={points.count}
+                  points={points.views}
                   y0={chartBounds.bottom}
                   color="#3B82F6"
-                  opacity={0.1}
+                  opacity={0.05}
                   curveType="natural"
                 >
                   <LinearGradient
                     start={vec(0, 0)}
                     end={vec(0, 140)}
-                    colors={["rgba(59, 130, 246, 0.25)", "rgba(59, 130, 246, 0.0)"]}
+                    colors={["rgba(59, 130, 246, 0.15)", "rgba(59, 130, 246, 0.0)"]}
                   />
                 </Area>
+                {/* Views Line */}
                 <Line
-                  points={points.count}
+                  points={points.views}
                   color="#3B82F6"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
+                  curveType="natural"
+                />
+                {/* Leads Area */}
+                <Area
+                  points={points.leads}
+                  y0={chartBounds.bottom}
+                  color="#10B981"
+                  opacity={0.05}
+                  curveType="natural"
+                >
+                  <LinearGradient
+                    start={vec(0, 0)}
+                    end={vec(0, 140)}
+                    colors={["rgba(16, 185, 129, 0.15)", "rgba(16, 185, 129, 0.0)"]}
+                  />
+                </Area>
+                {/* Leads Line */}
+                <Line
+                  points={points.leads}
+                  color="#10B981"
+                  strokeWidth={2.5}
                   curveType="natural"
                 />
                 <DailyPointsTracker points={points} onChange={setDailyChartPoints} />
@@ -346,15 +480,26 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
             )}
           </CartesianChart>
 
-          {/* Daily Activity custom labels overlay */}
-          {dailyChartPoints && (
-            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-              {dailyChartPoints.count.map((point: any, idx: number) => {
-                const label = point.xValue;
-                // Render every 2nd label to avoid crowding, plus the last one
-                const showLabel = idx % 2 === 0 || idx === dailyChartData.length - 1;
-                if (!showLabel) return null;
+          {/* Dot indicator on touched data point */}
+          {activeDailyPoint && dailyChartPoints && Array.isArray(dailyChartPoints.views) && (() => {
+            const idx = dailyChartData.findIndex(d => d.label === activeDailyPoint.x);
+            const vPt = dailyChartPoints.views[idx];
+            const lPt = dailyChartPoints.leads[idx];
+            return (
+              <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+                {vPt && <View style={{ position: 'absolute', left: vPt.x - 5, top: vPt.y - 5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#3B82F6', borderWidth: 2, borderColor: '#fff' }} />}
+                {lPt && <View style={{ position: 'absolute', left: lPt.x - 5, top: lPt.y - 5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#10B981', borderWidth: 2, borderColor: '#fff' }} />}
+              </View>
+            );
+          })()}
 
+          {/* Date labels at bottom */}
+          {dailyChartPoints && Array.isArray(dailyChartPoints.views) && (
+            <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+              {dailyChartPoints.views.map((point: any, idx: number) => {
+                const label = point.xValue;
+                const showLabel = (dailyChartData.length - 1 - idx) % 2 === 0;
+                if (!showLabel) return null;
                 return (
                   <Text
                     key={`daily-lbl-${idx}`}
@@ -400,17 +545,6 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
             <Text style={styles.sumLabel}>VIEW</Text>
             <Text style={styles.sumValue}>{data?.totals.find(t => t.event_type === 'view')?.count || 0}</Text>
           </View>
-        </View>
-      </View>
-
-      {/* Insight Card */}
-      <View style={styles.insightCard}>
-        <View style={styles.insightContent}>
-          <Text style={styles.insightTitle}>Monthly Insight</Text>
-          <Text style={styles.insightSub}>Your conversion rate is growing month-over-month. Keep sharing your link to maintain momentum!</Text>
-          <Pressable style={styles.insightBtn}>
-            <Text style={styles.insightBtnText}>Full Report</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -544,26 +678,6 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   sumLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary },
   sumValue: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, marginTop: 4 },
-  insightCard: {
-    backgroundColor: colors.accentTeal,
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 20,
-  },
-  insightContent: { flex: 1 },
-  insightTitle: { fontSize: 18, fontWeight: '900', color: '#FFFFFF' },
-  insightSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 20, marginTop: 8 },
-  insightBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginTop: 16,
-  },
-  insightBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
   main: { flex: 1 },
   loadingText: { fontSize: 14, fontWeight: '600' }
 });
