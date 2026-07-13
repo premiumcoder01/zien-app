@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { generateAiText, saveAiContent, updateAiContent } from '@/services/aiContentService';
@@ -684,12 +685,16 @@ export default function SocialPostLabScreen() {
                     </Pressable>
                 </View>
 
-                <ScrollView
-                    style={styles.scroll}
-                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
+                <KeyboardAvoidingView
+                    behavior="padding"
+                    style={{ flex: 1 }}
                 >
+                    <ScrollView
+                        style={styles.scroll}
+                        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
                     {/* Platform Selector Tabs - Stays visible to swap active channels */}
                     <ScrollView
                         horizontal
@@ -915,7 +920,8 @@ export default function SocialPostLabScreen() {
                             )}
                         </View>
                     )}
-                </ScrollView>
+                    </ScrollView>
+                </KeyboardAvoidingView>
             </LinearGradient>
         </View>
     );

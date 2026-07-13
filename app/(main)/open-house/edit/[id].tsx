@@ -228,6 +228,7 @@ export default function OpenHouseEditScreen() {
   const [startTimeDate, setStartTimeDate] = useState(() => { const d = new Date(); d.setHours(13, 0, 0, 0); return d; });
   const [endTimeDate, setEndTimeDate] = useState(() => { const d = new Date(); d.setHours(16, 0, 0, 0); return d; });
   const [agentName, setAgentName] = useState('');
+  const [agencyName, setAgencyName] = useState('');
   const [brokerageName, setBrokerageName] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [agentPhone, setAgentPhone] = useState('');
@@ -337,6 +338,7 @@ export default function OpenHouseEditScreen() {
       } else {
         setLogoMode('text');
       }
+      setAgencyName(openHouseData.logo_text || '');
 
       if (openHouseData.brand_color) {
         const cleanedColor = openHouseData.brand_color.toUpperCase();
@@ -395,7 +397,7 @@ export default function OpenHouseEditScreen() {
         brand_color: brandColors[accentIndex],
         gallery_images: uploadedGalleryUrls,
         uploaded_logo: uploadedLogoUrl,
-        logo_text: logoMode === 'text' ? agentName : null,
+        logo_text: logoMode === 'text' ? agencyName : null,
         ai_tone: descStyle.charAt(0).toUpperCase() + descStyle.slice(1),
         visitor_registration: enableVisitorReg,
         send_report: sendReport,
@@ -528,6 +530,8 @@ export default function OpenHouseEditScreen() {
                   setLogoMode={setLogoMode}
                   agencyLogoUri={agencyLogoUri}
                   setAgencyLogoUri={setAgencyLogoUri}
+                  agencyName={agencyName}
+                  setAgencyName={setAgencyName}
                 />
               ) : (
                 <Step5SheetReady
@@ -859,6 +863,7 @@ function Step4Customization({
   accentIndex, setAccentIndex, brandColors, setBrandColors, description, setDescription, descStyle, setDescStyle,
   galleryImages, setGalleryImages, enableVisitorReg, setEnableVisitorReg,
   logoMode, setLogoMode, agencyLogoUri, setAgencyLogoUri,
+  agencyName, setAgencyName,
 }: {
   selectedPropertyId: string | null;
   properties: RawPropertyItem[];
@@ -874,6 +879,7 @@ function Step4Customization({
   enableVisitorReg: boolean; setEnableVisitorReg: (v: boolean) => void;
   logoMode: 'text' | 'image'; setLogoMode: (v: 'text' | 'image') => void;
   agencyLogoUri: string | null; setAgencyLogoUri: (v: string | null) => void;
+  agencyName: string; setAgencyName: (v: string) => void;
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
@@ -1009,7 +1015,14 @@ function Step4Customization({
 
               {logoMode === 'text' ? (
                 <View style={styles.inputWrap}>
-                  <TextInput style={styles.input} value={agentName} onChangeText={() => { }} placeholder="Agency Name" placeholderTextColor="#9CA3AF" editable={false} />
+                  <TextInput
+                    style={styles.input}
+                    value={agencyName}
+                    onChangeText={(val) => setAgencyName(val)}
+                    placeholder="Enter Agency Name"
+                    placeholderTextColor="#9CA3AF"
+                    editable={true}
+                  />
                 </View>
               ) : (
                 <View style={[styles.logoUploadContainer, { alignItems: 'center', gap: 12 }]}>
@@ -1122,7 +1135,7 @@ function Step4Customization({
                 {logoMode === 'image' && agencyLogoUri ? (
                   <Image source={{ uri: agencyLogoUri }} style={styles.phoneLogo} contentFit="contain" />
                 ) : (
-                  <Text style={styles.phoneBrand}>{agentName.toUpperCase()}</Text>
+                  <Text style={styles.phoneBrand}>{(agencyName || agentName || 'AGENCY').toUpperCase()}</Text>
                 )}
                 <Text style={[styles.phoneTag, { color: currentAccent }]}>EXCLUSIVE LISTING</Text>
               </View>

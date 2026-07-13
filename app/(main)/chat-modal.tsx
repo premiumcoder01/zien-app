@@ -7,6 +7,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
     ExpoSpeechRecognitionModule,
     useSpeechRecognitionEvent,
+    AVAudioSessionCategory,
+    AVAudioSessionCategoryOptions,
+    AVAudioSessionMode,
 } from 'expo-speech-recognition';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -114,6 +117,7 @@ export default function ChatModalScreen() {
     const router = useRouter();
 
     const [inputText, setInputText] = useState('');
+    const [speechLang, setSpeechLang] = useState<'en-US' | 'hi-IN'>('en-US');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
 
@@ -159,6 +163,10 @@ export default function ChatModalScreen() {
     const [isListening, setIsListening] = useState(false);
     const [isRecordingMode, setIsRecordingMode] = useState(false);
     const [voiceText, setVoiceText] = useState('');
+    const isRecordingRef = useRef(false);
+    useEffect(() => {
+        isRecordingRef.current = isRecordingMode;
+    }, [isRecordingMode]);
     const pulseAnim = useRef(new Animated.Value(1)).current;
 
     const flatListRef = useRef<FlatList>(null);
@@ -203,6 +211,12 @@ export default function ChatModalScreen() {
         // If the speech recognition session was aborted (which happens when abort() is called manually on send or cancel),
         // we do not show any error alert.
         if (event.error === 'aborted') {
+            if (isRecordingRef.current) {
+                Alert.alert(
+                    'Speech Recognition Interrupted',
+                    'The speech recognition session was aborted by the system. If you are running on an iOS Simulator, please note that Apple Siri dictation services are often unavailable or restricted. Please test on a physical iOS/Android device.'
+                );
+            }
             return;
         }
 
@@ -242,11 +256,19 @@ export default function ChatModalScreen() {
             return;
         }
         ExpoSpeechRecognitionModule.start({
-            lang: 'en-US',
+            lang: speechLang,
             interimResults: true,
             continuous: false,
+            iosCategory: {
+                category: AVAudioSessionCategory.playAndRecord,
+                mode: AVAudioSessionMode.default,
+                categoryOptions: [
+                    AVAudioSessionCategoryOptions.defaultToSpeaker,
+                    AVAudioSessionCategoryOptions.allowBluetooth,
+                ],
+            },
         });
-    }, []);
+    }, [speechLang]);
 
     const cancelVoice = useCallback(() => {
         ExpoSpeechRecognitionModule.abort();
@@ -293,7 +315,7 @@ export default function ChatModalScreen() {
             // Send message & get AI response
             const response = await sendMessageMutation.mutateAsync({
                 conversationId: convId,
-                content: text,
+                content: speechLang === 'hi-IN' ? `${text} (Please respond in Hindi)` : text,
             });
 
             const aiMsg: ChatMessage = {
@@ -315,7 +337,7 @@ export default function ChatModalScreen() {
             setMessages((prev) => [...prev, errMsg]);
             setIsAiTyping(false);
         }
-    }, [inputText, isAiTyping, activeConversationId, createConversationMutation, sendMessageMutation]);
+    }, [inputText, isAiTyping, activeConversationId, createConversationMutation, sendMessageMutation, speechLang]);
 
     const params = useLocalSearchParams<{ initialMessage?: string; startVoice?: string; conversationId?: string }>();
     const initialMessageProcessed = useRef(false);
@@ -437,6 +459,22 @@ export default function ChatModalScreen() {
                         </Pressable>
                     )}
                     <Pressable
+                        onPress={() => setSpeechLang((prev) => (prev === 'en-US' ? 'hi-IN' : 'en-US'))}
+                        style={({ pressed }) => [
+                            styles.langSelectorBtn,
+                            speechLang === 'hi-IN' && styles.langSelectorBtnActive,
+                            pressed && { opacity: 0.7 }
+                        ]}
+                        hitSlop={8}
+                    >
+                        <Text style={[
+                            styles.langSelectorText,
+                            speechLang === 'hi-IN' && styles.langSelectorTextActive,
+                        ]}>
+                            {speechLang === 'en-US' ? 'EN' : 'HI'}
+                        </Text>
+                    </Pressable>
+                    <Pressable
                         onPress={() => setShowHistoryModal(true)}
                         style={({ pressed }) => [styles.headerIconBtn, pressed && { opacity: 0.7 }]}
                         hitSlop={8}
@@ -531,7 +569,7 @@ export default function ChatModalScreen() {
                                     style={[styles.recordingTranscript, { color: voiceText ? colors.textPrimary : colors.textSecondary + '80' }]}
                                     numberOfLines={2}
                                 >
-                                    {voiceText || 'Start speaking...'}
+                                    {voiceText || (speechLang === 'hi-IN' ? 'Bolna shuru karein (Hindi)...' : 'Start speaking (English)...')}
                                 </Text>
                             </View>
 
@@ -556,7 +594,7 @@ export default function ChatModalScreen() {
                             inputFocused && styles.inputBarFocused,
                         ]}>
                             <TextInput
-                                placeholder={isAiTyping ? 'Zien is thinking…' : 'Ask Zien to find properties'}
+                                placeholder={isAiTyping ? 'Zien is thinking…' : speechLang === 'hi-IN' ? 'Ask Zien in Hindi...' : 'Ask Zien to find properties'}
                                 placeholderTextColor={colors.inputPlaceholder}
                                 style={styles.input}
                                 value={isAiTyping ? '' : inputText}
@@ -812,6 +850,34 @@ function getStyles(colors: any) {
             fontSize: 12,
             fontWeight: '700',
             color: colors.textSecondary,
+        },
+        langSelectorBtn: {
+            width: 38,
+            height: 34,
+            borderRadius: 11,
+            backgroundColor: colors.surfaceSoft || 'rgba(0,0,0,0.02)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            shadowColor: '#000',
+            shadowOpacity: 0.03,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 1,
+            marginRight: 6,
+        },
+        langSelectorBtnActive: {
+            backgroundColor: '#EFF6FF',
+            borderColor: '#BFDBFE',
+        },
+        langSelectorText: {
+            fontSize: 10,
+            fontWeight: '800',
+            color: colors.textSecondary || '#475569',
+        },
+        langSelectorTextActive: {
+            color: '#1D4ED8',
         },
         closeBtn: {
             width: 36,

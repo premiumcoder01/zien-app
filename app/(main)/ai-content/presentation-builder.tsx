@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { generateAiText, saveAiContent, updateAiContent } from '@/services/aiContentService';
@@ -483,13 +484,17 @@ export default function PresentationBuilderScreen() {
                     </Pressable>
                 </View>
 
-                <ScrollView
-                    ref={scrollRef}
-                    style={styles.scroll}
-                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
+                <KeyboardAvoidingView
+                    behavior="padding"
+                    style={{ flex: 1 }}
                 >
+                    <ScrollView
+                        ref={scrollRef}
+                        style={styles.scroll}
+                        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
                     {activeViewTab === 'form' ? (
                         <>
                             {/* Narrative Theme Tabs (Horizontal Cards matching Web layout) */}
@@ -705,7 +710,8 @@ export default function PresentationBuilderScreen() {
                             )}
                         </View>
                     )}
-                </ScrollView>
+                    </ScrollView>
+                </KeyboardAvoidingView>
             </LinearGradient>
         </View>
     );

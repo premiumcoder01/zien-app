@@ -1453,11 +1453,24 @@ export interface CRMCampaignROIStreamItem {
 export interface CRMCampaignROI {
     id: string;
     name: string;
+    target_segment: string;
     delivered: string;
     open_rate: string;
     click_rate: string;
     reply_rate: string;
     conversion_rate: string;
+    click_through_rate: string;
+    reply_velocity: string;
+    unsubscribe_rate: string;
+    delivery_success_rate: string;
+    audience_contacts_count: number;
+    audience_leads_count: number;
+    has_ab_test: boolean;
+    ai_insights: string;
+    attributed_revenue: number;
+    pipeline_value: number;
+    average_deal_value: number;
+    properties_influenced: any[];
     stream: CRMCampaignROIStreamItem[];
 }
 

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Zien",
     "slug": "Zien",
-    "version": "4.8",
+    "version": "4.9",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "zien",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.propfyi",
-      "buildNumber": "14",
+      "buildNumber": "15",
       "usesAppleSignIn": true,
       "infoPlist": {
         "UIFileSharingEnabled": true,

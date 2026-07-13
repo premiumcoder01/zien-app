@@ -113,13 +113,14 @@ export default function LeadsCaptureScreen() {
     };
 
     const getPageVisitorsCount = (page: any): number => {
+        if (typeof page.visitors_count === 'number') return page.visitors_count;
         if (typeof page.visitor_count === 'number') return page.visitor_count;
         if (typeof page.visitors === 'number') return page.visitors;
         if (Array.isArray(page.stats)) {
-            return page.stats.reduce((acc: number, s: any) => acc + (s.visitors || s.visitor_count || s.views || 0), 0);
+            return page.stats.reduce((acc: number, s: any) => acc + (s.visitors || s.visitors_count || s.visitor_count || s.views || 0), 0);
         }
         if (page.stats && typeof page.stats === 'object') {
-            return page.stats.visitors || page.stats.visitor_count || page.stats.views || 0;
+            return page.stats.visitors || page.stats.visitors_count || page.stats.visitor_count || page.stats.views || 0;
         }
         return 0;
     };
@@ -407,13 +408,7 @@ export default function LeadsCaptureScreen() {
                                                                 style={styles.miniActionBtn}
                                                                 onPress={() => fetchLeads(item)}
                                                             >
-                                                                <MaterialCommunityIcons name="account-group-outline" size={16} color={colors.textSecondary} />
-                                                            </Pressable>
-                                                            <Pressable
-                                                                style={styles.miniActionBtn}
-                                                                onPress={() => setShowModal(true)}
-                                                            >
-                                                                <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.textSecondary} />
+                                                                <MaterialCommunityIcons name="account-multiple-outline" size={16} color={colors.textSecondary} />
                                                             </Pressable>
                                                             <Pressable
                                                                 style={[styles.miniActionBtn, styles.deleteBtn]}
@@ -501,21 +496,11 @@ export default function LeadsCaptureScreen() {
                                                         </View>
                                                     </ExternalLink>
                                                     <Pressable
-                                                        style={styles.mobileCardActionBtn}
+                                                        style={[styles.mobileCardActionBtn, { flex: 0, width: 44 }]}
                                                         onPress={() => fetchLeads(item)}
                                                     >
-                                                        <View style={styles.mobileCardActionBtnInner}>
-                                                            <MaterialCommunityIcons name="account-group-outline" size={15} color={colors.textSecondary} />
-                                                            <Text style={styles.mobileCardActionBtnText}>CRM</Text>
-                                                        </View>
-                                                    </Pressable>
-                                                    <Pressable
-                                                        style={styles.mobileCardActionBtn}
-                                                        onPress={() => setShowModal(true)}
-                                                    >
-                                                        <View style={styles.mobileCardActionBtnInner}>
-                                                            <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.textSecondary} />
-                                                            <Text style={styles.mobileCardActionBtnText}>Edit</Text>
+                                                        <View style={[styles.mobileCardActionBtnInner, { paddingHorizontal: 0 }]}>
+                                                            <MaterialCommunityIcons name="account-multiple-outline" size={18} color={colors.textSecondary} />
                                                         </View>
                                                     </Pressable>
                                                     <Pressable
@@ -539,21 +524,7 @@ export default function LeadsCaptureScreen() {
                 )}
             </ScrollView>
 
-            {/* Bottom Fixed Floating Create Button Bar (Only on Mobile) */}
-            {!isTablet && (
-                <View style={styles.bottomBarContainer}>
-                    <Pressable
-                        style={({ pressed }) => [
-                            styles.floatingCreateBtn,
-                            pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }
-                        ]}
-                        onPress={() => setShowModal(true)}
-                    >
-                        <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
-                        <Text style={styles.floatingCreateBtnText}>Create New Lead Capture</Text>
-                    </Pressable>
-                </View>
-            )}
+
 
             {/* Captured Leads Modal */}
             <Modal
@@ -734,7 +705,7 @@ const getStyles = (colors: any, isDark: boolean, isTablet: boolean) => StyleShee
     scrollContent: {
         paddingHorizontal: 20,
         paddingTop: 15,
-        paddingBottom: isTablet ? 60 : 120,
+        paddingBottom: isTablet ? 60 : 30,
     },
     headerContainer: {
         gap: 12,
@@ -1371,6 +1342,7 @@ const getStyles = (colors: any, isDark: boolean, isTablet: boolean) => StyleShee
         justifyContent: 'center',
         paddingVertical: 10,
         gap: 4,
+        width: '100%',
     },
     mobileCardActionBtnText: {
         fontSize: 12,

@@ -121,10 +121,8 @@ export default function SocialHubScreen() {
     ? `${Math.round((publishedCount / totalPostsCount) * 100)}% of total`
     : '0% of total';
 
-  // Engagement rate: published posts / total posts (as a proxy since no likes/comments in API)
-  const engagementRate = totalPostsCount > 0
-    ? ((publishedCount / totalPostsCount) * 100).toFixed(1) + '%'
-    : '0.0%';
+  // Engagement rate: use the real engagement_rate from the overview API response
+  const engagementRate = (overview as any)?.engagement_rate ?? '0.0%';
 
   // Posts with media vs without (as engagement quality proxy)
   const withMediaCount = allPosts.filter(p => p.media && p.media.length > 0).length;
@@ -132,33 +130,21 @@ export default function SocialHubScreen() {
     ? `${Math.round((withMediaCount / totalPostsCount) * 100)}% with media`
     : '0% with media';
 
-  // Best platform from post_platforms
-  const platformCounts: Record<string, number> = {};
-  allPosts.forEach(post => {
-    post.post_platforms?.forEach((pp: any) => {
-      const name = pp.account?.platform || pp.platform || '';
-      if (name) platformCounts[name.toLowerCase()] = (platformCounts[name.toLowerCase()] || 0) + 1;
-    });
-  });
-  const totalPlatformPosts = Object.values(platformCounts).reduce((a, b) => a + b, 0);
-  const bestPlatformKey = Object.entries(platformCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-  const bestPlatformName = bestPlatformKey
-    ? bestPlatformKey.charAt(0).toUpperCase() + bestPlatformKey.slice(1)
-    : 'None';
-  const bestPlatformPct = bestPlatformKey && totalPlatformPosts > 0
-    ? `${Math.round((platformCounts[bestPlatformKey] / totalPlatformPosts) * 100)}% reach`
-    : '—';
-  const bestPlatformIcon: any = bestPlatformKey === 'instagram' ? 'instagram'
-    : bestPlatformKey === 'facebook' ? 'facebook'
-      : bestPlatformKey === 'linkedin' ? 'linkedin'
-        : bestPlatformKey === 'tiktok' ? 'music-note'
-          : 'trophy-outline';
+  const scheduledCount = overview?.scheduled_posts?.length ?? upcomingPosts?.length ?? 0;
+
+  const carouselPostsList = (overview?.scheduled_posts && overview.scheduled_posts.length > 0)
+    ? overview.scheduled_posts
+    : ((upcomingPosts && upcomingPosts.length > 0)
+        ? upcomingPosts
+        : (overview?.recent_published_posts || []));
+
+  const totalPosts = allPosts.length > 0 ? allPosts.length : ((overview?.published_posts_count ?? 0) + (overview?.scheduled_posts?.length ?? 0));
 
   const statCards = [
     {
       title: 'SCHEDULED POSTS',
-      value: overview ? String(overview.scheduled_posts?.length ?? 0) : '0',
-      meta: `${upcomingPosts?.length ?? 0} upcoming`,
+      value: String(scheduledCount),
+      meta: `${scheduledCount} upcoming`,
       icon: 'calendar-clock-outline' as const
     },
     {
@@ -174,10 +160,10 @@ export default function SocialHubScreen() {
       icon: 'heart-outline' as const
     },
     {
-      title: 'BEST PLATFORM',
-      value: bestPlatformName,
-      meta: bestPlatformPct,
-      icon: bestPlatformIcon
+      title: 'TOTAL POSTS',
+      value: String(totalPosts),
+      meta: 'Across all platforms',
+      icon: 'post-outline' as const
     },
   ];
 
@@ -206,8 +192,8 @@ export default function SocialHubScreen() {
 
           <View style={styles.statsGrid}>
             {statCards.map((card, i) => {
-              const isBestPlatform = card.title === 'BEST PLATFORM';
-              const metaColor = isBestPlatform
+              const isTotalPosts = card.title === 'TOTAL POSTS';
+              const metaColor = isTotalPosts
                 ? (colors.textMuted || '#8DA4B5')
                 : '#10B981';
 
@@ -255,16 +241,18 @@ export default function SocialHubScreen() {
             </Pressable>
           </View>
 
-          {postsLoading ? (
+          {postsLoading && !overview ? (
             <View style={styles.loaderBox}>
               <ActivityIndicator size="small" color={colors.accentTeal} />
             </View>
-          ) : upcomingPosts && upcomingPosts.length > 0 ? (
+          ) : carouselPostsList && carouselPostsList.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {upcomingPosts.map((post) => {
+              {carouselPostsList.map((post) => {
                 const imageUrl = post.media?.[0]?.media_url || PLACEHOLDER_POST_IMAGE;
                 const title = getPostTitle(post);
-                const when = post.scheduled_at ? formatScheduledDate(post.scheduled_at) : 'Draft';
+                const when = post.scheduled_at 
+                  ? formatScheduledDate(post.scheduled_at) 
+                  : (post.created_at ? formatScheduledDate(post.created_at) : 'Draft');
                 const platformName = post.post_platforms?.[0]?.platform || 'calendar-clock-outline';
 
                 return (

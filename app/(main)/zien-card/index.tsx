@@ -88,15 +88,21 @@ export default function ZienCardDashboardScreen() {
   };
 
   const onExportPress = () => {
-    if (leads.length === 0) {
+    const cardLeads = activeCard
+      ? leads.filter(lead => String(lead.digital_card_id) === String(activeCard.id))
+      : leads;
+
+    if (cardLeads.length === 0) {
       Alert.alert(
         "Export Leads",
-        "You do not have any leads to export yet!"
+        activeCard
+          ? `You do not have any leads to export for the "${activeCard.profile_name}" profile yet!`
+          : "You do not have any leads to export yet!"
       );
       return;
     }
 
-    exportLeadsToCSV(leads);
+    exportLeadsToCSV(cardLeads);
   };
 
   const headerRight = ((showGlobalSave || showExport) && cards.length > 0) ? (

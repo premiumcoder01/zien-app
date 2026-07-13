@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
+    Dimensions,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -17,6 +18,8 @@ import { LinearGradient, vec } from '@shopify/react-native-skia';
 interface MonthlyPoints {
   views: { x: number; y: number; xValue: any; yValue: any }[];
   leads: { x: number; y: number; xValue: any; yValue: any }[];
+  saves: { x: number; y: number; xValue: any; yValue: any }[];
+  clicks: { x: number; y: number; xValue: any; yValue: any }[];
 }
 
 const MonthlyPointsTracker = ({ points, onChange }: { points: any; onChange: (p: MonthlyPoints) => void }) => {
@@ -26,7 +29,9 @@ const MonthlyPointsTracker = ({ points, onChange }: { points: any; onChange: (p:
     if (!points) return;
     const currentStr = JSON.stringify({
       views: (points.views || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue })),
-      leads: (points.leads || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue }))
+      leads: (points.leads || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue })),
+      saves: (points.saves || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue })),
+      clicks: (points.clicks || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue }))
     });
 
     if (currentStr !== lastPointsStr.current) {
@@ -41,6 +46,8 @@ const MonthlyPointsTracker = ({ points, onChange }: { points: any; onChange: (p:
 interface DailyPoints {
   views: { x: number; y: number; xValue: any; yValue: any }[];
   leads: { x: number; y: number; xValue: any; yValue: any }[];
+  saves: { x: number; y: number; xValue: any; yValue: any }[];
+  clicks: { x: number; y: number; xValue: any; yValue: any }[];
 }
 
 const DailyPointsTracker = ({ points, onChange }: { points: any; onChange: (p: DailyPoints) => void }) => {
@@ -50,7 +57,9 @@ const DailyPointsTracker = ({ points, onChange }: { points: any; onChange: (p: D
     if (!points) return;
     const currentStr = JSON.stringify({
       views: (points.views || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue })),
-      leads: (points.leads || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue }))
+      leads: (points.leads || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue })),
+      saves: (points.saves || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue })),
+      clicks: (points.clicks || []).map((p: any) => ({ x: p?.x, y: p?.y, xValue: p?.xValue, yValue: p?.yValue }))
     });
 
     if (currentStr !== lastPointsStr.current) {
@@ -82,12 +91,32 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
   // Press state for monthly chart tooltip (bar chart — victory-native handles it)
   const { state: monthlyPressState, isActive: isMonthlyActive } = useChartPressState({
     x: "",
-    y: { views: 0, leads: 0 }
+    y: { views: 0, leads: 0, saves: 0, clicks: 0 }
   });
 
 
-  const [activeMonthlyPoint, setActiveMonthlyPoint] = useState<{ x: string; views: number; leads: number } | null>(null);
-  const [activeDailyPoint, setActiveDailyPoint] = useState<{ x: string; views: number; leads: number } | null>(null);
+  const [activeMonthlyPoint, setActiveMonthlyPoint] = useState<{ x: string; views: number; leads: number; saves: number; clicks: number } | null>(null);
+  const [activeDailyPoint, setActiveDailyPoint] = useState<{ x: string; views: number; leads: number; saves: number; clicks: number } | null>(null);
+
+  const activeX = monthlyPressState.x.value;
+  const activeViews = monthlyPressState.y.views.value.value;
+  const activeLeads = monthlyPressState.y.leads.value.value;
+  const activeSaves = monthlyPressState.y.saves.value.value;
+  const activeClicks = monthlyPressState.y.clicks.value.value;
+
+  useEffect(() => {
+    if (isMonthlyActive && activeX) {
+      setActiveMonthlyPoint({
+        x: String(activeX),
+        views: Number(activeViews || 0),
+        leads: Number(activeLeads || 0),
+        saves: Number(activeSaves || 0),
+        clicks: Number(activeClicks || 0)
+      });
+    } else {
+      setActiveMonthlyPoint(null);
+    }
+  }, [isMonthlyActive, activeX, activeViews, activeLeads, activeSaves, activeClicks]);
 
 
   useEffect(() => {
@@ -125,7 +154,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
   }, [data]);
 
   const monthlyChartData = useMemo(() => {
-    const months: { label: string; views: number; leads: number }[] = [];
+    const months: { label: string; views: number; leads: number; saves: number; clicks: number }[] = [];
     const now = new Date();
     
     for (let i = 5; i >= 0; i--) {
@@ -146,10 +175,26 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
         })
         .reduce((sum, item) => sum + Number(item.count), 0) || 0;
 
+      const savesCount = data?.monthly
+        .filter(m => {
+          const mDate = new Date(m.month);
+          return mDate.getFullYear() === d.getFullYear() && mDate.getMonth() === d.getMonth() && m.event_type === 'save_contact';
+        })
+        .reduce((sum, item) => sum + Number(item.count), 0) || 0;
+
+      const clicksCount = data?.monthly
+        .filter(m => {
+          const mDate = new Date(m.month);
+          return mDate.getFullYear() === d.getFullYear() && mDate.getMonth() === d.getMonth() && m.event_type.toLowerCase().includes('click');
+        })
+        .reduce((sum, item) => sum + Number(item.count), 0) || 0;
+
       months.push({
         label,
         views: viewsCount,
         leads: leadsCount,
+        saves: savesCount,
+        clicks: clicksCount,
       });
     }
     return months;
@@ -157,7 +202,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
 
   const dailyChartData = useMemo(() => {
     const daysToShow = 14;
-    const result: { label: string; views: number; leads: number }[] = [];
+    const result: { label: string; views: number; leads: number; saves: number; clicks: number }[] = [];
     const now = new Date();
 
     for (let i = daysToShow - 1; i >= 0; i--) {
@@ -173,7 +218,15 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
         .filter(item => item.date === dateStr && item.event_type === 'exchange_info')
         .reduce((sum, item) => sum + Number(item.count), 0) || 0;
 
-      result.push({ label, views: viewsCount, leads: leadsCount });
+      const savesCount = data?.daily
+        .filter(item => item.date === dateStr && item.event_type === 'save_contact')
+        .reduce((sum, item) => sum + Number(item.count), 0) || 0;
+
+      const clicksCount = data?.daily
+        .filter(item => item.date === dateStr && item.event_type.toLowerCase().includes('click'))
+        .reduce((sum, item) => sum + Number(item.count), 0) || 0;
+
+      result.push({ label, views: viewsCount, leads: leadsCount, saves: savesCount, clicks: clicksCount });
     }
 
     return result;
@@ -197,7 +250,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
       Math.round(((locationX - PADDING) / usableW) * (numPts - 1))
     ));
     const pt = data[idx];
-    if (pt) setActiveDailyPoint({ x: pt.label, views: pt.views, leads: pt.leads });
+    if (pt) setActiveDailyPoint({ x: pt.label, views: pt.views, leads: pt.leads, saves: pt.saves, clicks: pt.clicks });
   }, []);
 
   const dailyPanResponder = React.useMemo(() => ({
@@ -209,6 +262,23 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
     onResponderTerminate: () => setActiveDailyPoint(null),
   }), [resolveDailyPoint]);
 
+  const summaryItems = useMemo(() => {
+    if (!data?.totals) return [];
+    
+    const typeLabelMap: Record<string, string> = {
+      click_phone: 'CLICK PHONE',
+      click_social: 'CLICK SOCIAL',
+      exchange_info: 'EXCHANGE INFO',
+      save_contact: 'SAVE CONTACT',
+      view: 'VIEW'
+    };
+
+    return data.totals.map(item => ({
+      label: typeLabelMap[item.event_type] || item.event_type.replace('_', ' ').toUpperCase(),
+      value: String(item.count || 0),
+      key: item.event_type
+    }));
+  }, [data]);
 
   if (loading) {
     return (
@@ -236,12 +306,12 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
           <View style={{ flex: 1 }}>
             <Text style={styles.chartLabel}>Monthly Growth (Last 6 Months)</Text>
             {activeMonthlyPoint && (
-              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary, marginTop: 4 }}>
-                {activeMonthlyPoint.x}: <Text style={{ color: '#3B82F6' }}>{activeMonthlyPoint.views} Views</Text> • <Text style={{ color: '#10B981' }}>{activeMonthlyPoint.leads} Leads</Text>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textPrimary, marginTop: 4 }}>
+                {activeMonthlyPoint.x}: <Text style={{ color: '#3B82F6' }}>{activeMonthlyPoint.views} Views</Text> • <Text style={{ color: '#10B981' }}>{activeMonthlyPoint.leads} Leads</Text> • <Text style={{ color: '#F59E0B' }}>{activeMonthlyPoint.saves} Saves</Text> • <Text style={{ color: '#8B5CF6' }}>{activeMonthlyPoint.clicks} Clicks</Text>
               </Text>
             )}
           </View>
-          <View style={styles.legendRow}>
+          <View style={[styles.legendRow, { flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, maxWidth: '60%' }]}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
               <Text style={styles.legendText}>Views</Text>
@@ -250,6 +320,14 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
               <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
               <Text style={styles.legendText}>Leads</Text>
             </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
+              <Text style={styles.legendText}>Saves</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#8B5CF6' }]} />
+              <Text style={styles.legendText}>Clicks</Text>
+            </View>
           </View>
         </View>
 
@@ -257,7 +335,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
           <CartesianChart
             data={monthlyChartData}
             xKey="label"
-            yKeys={["views", "leads"]}
+            yKeys={["views", "leads", "saves", "clicks"]}
             domainPadding={{ left: 24, right: 24, top: 30, bottom: 20 }}
             chartPressState={monthlyPressState}
           >
@@ -277,6 +355,14 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
                     points={points.leads}
                     color="#10B981"
                   />
+                  <BarGroup.Bar
+                    points={points.saves}
+                    color="#F59E0B"
+                  />
+                  <BarGroup.Bar
+                    points={points.clicks}
+                    color="#8B5CF6"
+                  />
                 </BarGroup>
                 <MonthlyPointsTracker points={points} onChange={setMonthlyChartPoints} />
               </>
@@ -288,12 +374,16 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
             <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
               {monthlyChartPoints.views.map((point: any, idx: number) => {
                 const leadPoint = monthlyChartPoints.leads[idx];
+                const savePoint = monthlyChartPoints.saves?.[idx];
+                const clickPoint = monthlyChartPoints.clicks?.[idx];
+
                 const viewVal = monthlyChartData[idx]?.views || 0;
                 const leadVal = monthlyChartData[idx]?.leads || 0;
                 const label = point.xValue;
                 
-                // Calculate center of group for the month label
-                const groupX = leadPoint ? (point.x + leadPoint.x) / 2 : point.x;
+                const firstX = point.x;
+                const lastX = clickPoint?.x || savePoint?.x || leadPoint?.x || firstX;
+                const groupX = (firstX + lastX) / 2;
 
                 return (
                   <React.Fragment key={`monthly-group-${idx}`}>
@@ -373,7 +463,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
       <View style={styles.chartCard}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={styles.chartLabel}>Daily Activity (Last 14 Days)</Text>
-          <View style={styles.legendRow}>
+          <View style={[styles.legendRow, { flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, maxWidth: '60%' }]}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
               <Text style={styles.legendText}>Views</Text>
@@ -382,14 +472,23 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
               <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
               <Text style={styles.legendText}>Leads</Text>
             </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
+              <Text style={styles.legendText}>Saves</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#8B5CF6' }]} />
+              <Text style={styles.legendText}>Clicks</Text>
+            </View>
           </View>
         </View>
 
         {/* Tooltip — only shown when user touches the graph */}
         {activeDailyPoint ? <View style={{
             flexDirection: 'row',
+            flexWrap: 'wrap',
             alignItems: 'center',
-            gap: 10,
+            gap: 8,
             marginTop: 8,
             backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(59,130,246,0.07)',
             borderRadius: 10,
@@ -401,7 +500,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
             <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary }}>
               {activeDailyPoint.x}
             </Text>
-            <View style={{ flex: 1 }} />
+            <View style={{ flex: 1, minWidth: 10 }} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#3B82F6' }} />
               <Text style={{ fontSize: 13, fontWeight: '800', color: '#3B82F6' }}>{activeDailyPoint.views}</Text>
@@ -412,6 +511,18 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
               <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' }} />
               <Text style={{ fontSize: 13, fontWeight: '800', color: '#10B981' }}>{activeDailyPoint.leads}</Text>
               <Text style={{ fontSize: 11, color: colors.textSecondary }}> Leads</Text>
+            </View>
+            <Text style={{ color: colors.textSecondary, opacity: 0.4 }}> | </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#F59E0B' }} />
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#F59E0B' }}>{activeDailyPoint.saves}</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }}> Saves</Text>
+            </View>
+            <Text style={{ color: colors.textSecondary, opacity: 0.4 }}> | </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#8B5CF6' }} />
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#8B5CF6' }}>{activeDailyPoint.clicks}</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary }}> Clicks</Text>
             </View>
           </View> : null}
 
@@ -428,7 +539,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
           <CartesianChart
             data={dailyChartData}
             xKey="label"
-            yKeys={["views", "leads"]}
+            yKeys={["views", "leads", "saves", "clicks"]}
             domainPadding={{ left: 16, right: 16, top: 20, bottom: 20 }}
           >
             {({ points, chartBounds }) => (
@@ -454,6 +565,7 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
                   strokeWidth={2.5}
                   curveType="natural"
                 />
+                
                 {/* Leads Area */}
                 <Area
                   points={points.leads}
@@ -475,6 +587,51 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
                   strokeWidth={2.5}
                   curveType="natural"
                 />
+
+                {/* Saves Area */}
+                <Area
+                  points={points.saves}
+                  y0={chartBounds.bottom}
+                  color="#F59E0B"
+                  opacity={0.05}
+                  curveType="natural"
+                >
+                  <LinearGradient
+                    start={vec(0, 0)}
+                    end={vec(0, 140)}
+                    colors={["rgba(245, 158, 11, 0.15)", "rgba(245, 158, 11, 0.0)"]}
+                  />
+                </Area>
+                {/* Saves Line */}
+                <Line
+                  points={points.saves}
+                  color="#F59E0B"
+                  strokeWidth={2.5}
+                  curveType="natural"
+                />
+
+                {/* Clicks Area */}
+                <Area
+                  points={points.clicks}
+                  y0={chartBounds.bottom}
+                  color="#8B5CF6"
+                  opacity={0.05}
+                  curveType="natural"
+                >
+                  <LinearGradient
+                    start={vec(0, 0)}
+                    end={vec(0, 140)}
+                    colors={["rgba(139, 92, 246, 0.15)", "rgba(139, 92, 246, 0.0)"]}
+                  />
+                </Area>
+                {/* Clicks Line */}
+                <Line
+                  points={points.clicks}
+                  color="#8B5CF6"
+                  strokeWidth={2.5}
+                  curveType="natural"
+                />
+
                 <DailyPointsTracker points={points} onChange={setDailyChartPoints} />
               </>
             )}
@@ -485,10 +642,14 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
             const idx = dailyChartData.findIndex(d => d.label === activeDailyPoint.x);
             const vPt = dailyChartPoints.views[idx];
             const lPt = dailyChartPoints.leads[idx];
+            const sPt = dailyChartPoints.saves?.[idx];
+            const cPt = dailyChartPoints.clicks?.[idx];
             return (
               <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
                 {vPt && <View style={{ position: 'absolute', left: vPt.x - 5, top: vPt.y - 5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#3B82F6', borderWidth: 2, borderColor: '#fff' }} />}
                 {lPt && <View style={{ position: 'absolute', left: lPt.x - 5, top: lPt.y - 5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#10B981', borderWidth: 2, borderColor: '#fff' }} />}
+                {sPt && <View style={{ position: 'absolute', left: sPt.x - 5, top: sPt.y - 5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#F59E0B', borderWidth: 2, borderColor: '#fff' }} />}
+                {cPt && <View style={{ position: 'absolute', left: cPt.x - 5, top: cPt.y - 5, width: 11, height: 11, borderRadius: 6, backgroundColor: '#8B5CF6', borderWidth: 2, borderColor: '#fff' }} />}
               </View>
             );
           })()}
@@ -526,25 +687,13 @@ export function AnalyticsSection({ onSectionChange, activeCard, accessToken }: A
       {/* Events Summary */}
       <View style={styles.summaryCard}>
         <Text style={styles.summaryTitle}>Events Summary</Text>
-        
-        {/* Row 1: Exchange Info & Save Contact */}
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryItemHalf}>
-            <Text style={styles.sumLabel}>EXCHANGE INFO</Text>
-            <Text style={styles.sumValue}>{data?.totals.find(t => t.event_type === 'exchange_info')?.count || 0}</Text>
-          </View>
-          <View style={styles.summaryItemHalf}>
-            <Text style={styles.sumLabel}>SAVE CONTACT</Text>
-            <Text style={styles.sumValue}>{data?.totals.find(t => t.event_type === 'save_contact')?.count || 0}</Text>
-          </View>
-        </View>
-
-        {/* Row 2: View */}
-        <View style={[styles.summaryRow, { marginTop: 12 }]}>
-          <View style={styles.summaryItemFull}>
-            <Text style={styles.sumLabel}>VIEW</Text>
-            <Text style={styles.sumValue}>{data?.totals.find(t => t.event_type === 'view')?.count || 0}</Text>
-          </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          {summaryItems.map((item) => (
+            <View key={item.key} style={[styles.summaryItemHalf, { flex: 0, width: '48%' }]}>
+              <Text style={styles.sumLabel}>{item.label}</Text>
+              <Text style={styles.sumValue}>{item.value}</Text>
+            </View>
+          ))}
         </View>
       </View>
 

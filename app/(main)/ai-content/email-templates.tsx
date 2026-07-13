@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/ui/PageHeader';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { generateAiText, saveAiContent, updateAiContent } from '@/services/aiContentService';
@@ -375,12 +376,16 @@ export default function EmailTemplatesScreen() {
                     </Pressable>
                 </View>
 
-                <ScrollView
-                    style={styles.scroll}
-                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 200 }]}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
+                <KeyboardAvoidingView
+                    behavior="padding"
+                    style={{ flex: 1 }}
                 >
+                    <ScrollView
+                        style={styles.scroll}
+                        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 200 }]}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
                     {/* Email Campaign Type Tabs */}
                     <ScrollView
                         horizontal
@@ -606,7 +611,8 @@ export default function EmailTemplatesScreen() {
                             )}
                         </View>
                     )}
-                </ScrollView>
+                    </ScrollView>
+                </KeyboardAvoidingView>
             </LinearGradient>
         </View>
     );

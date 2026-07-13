@@ -253,6 +253,7 @@ export default function OpenHouseCreateScreen() {
   const [endTimeDate, setEndTimeDate] = useState<Date | null>(null);
 
   const [agentName, setAgentName] = useState('');
+  const [agencyName, setAgencyName] = useState('');
   const [brokerageName, setBrokerageName] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [agentPhone, setAgentPhone] = useState('');
@@ -388,7 +389,7 @@ export default function OpenHouseCreateScreen() {
         brand_color: brandColors[accentIndex],
         gallery_images: uploadedGalleryUrls,
         uploaded_logo: uploadedLogoUrl,
-        logo_text: logoMode === 'text' ? agentName : null,
+        logo_text: logoMode === 'text' ? agencyName : null,
         ai_tone: descStyle.charAt(0).toUpperCase() + descStyle.slice(1),
         visitor_registration: enableVisitorReg,
         send_report: sendReport,
@@ -519,6 +520,8 @@ export default function OpenHouseCreateScreen() {
                   setLogoMode={setLogoMode}
                   agencyLogoUri={agencyLogoUri}
                   setAgencyLogoUri={setAgencyLogoUri}
+                  agencyName={agencyName}
+                  setAgencyName={setAgencyName}
                 />
               ) : (
                 <Step5SheetReady
@@ -1132,6 +1135,8 @@ function Step4Customization({
   setLogoMode,
   agencyLogoUri,
   setAgencyLogoUri,
+  agencyName,
+  setAgencyName,
 }: {
   selectedPropertyId: string | null;
   properties: RawPropertyItem[];
@@ -1155,6 +1160,8 @@ function Step4Customization({
   setLogoMode: (v: 'text' | 'image') => void;
   agencyLogoUri: string | null;
   setAgencyLogoUri: (v: string | null) => void;
+  agencyName: string;
+  setAgencyName: (v: string) => void;
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
@@ -1365,11 +1372,11 @@ function Step4Customization({
                 <View style={styles.inputWrap}>
                   <TextInput
                     style={styles.input}
-                    value={agentName}
-                    onChangeText={() => { }} // Name is set in previous step
-                    placeholder="Agency Name"
+                    value={agencyName}
+                    onChangeText={(val) => setAgencyName(val)}
+                    placeholder="Enter Agency Name"
                     placeholderTextColor="#9CA3AF"
-                    editable={false}
+                    editable={true}
                   />
                 </View>
               ) : (
@@ -1491,7 +1498,7 @@ function Step4Customization({
                 {logoMode === 'image' && agencyLogoUri ? (
                   <Image source={{ uri: agencyLogoUri }} style={styles.phoneLogo} contentFit="contain" />
                 ) : (
-                  <Text style={styles.phoneBrand}>{agentName.toUpperCase()}</Text>
+                  <Text style={styles.phoneBrand}>{(agencyName || agentName || 'AGENCY').toUpperCase()}</Text>
                 )}
                 <Text style={[styles.phoneTag, { color: currentAccent }]}>EXCLUSIVE LISTING</Text>
               </View>

@@ -16,6 +16,10 @@ import {
 
 interface LeadEnquiriesSectionProps {
   onSectionChange?: (section: string) => void;
+  cards?: any[];
+  activeCardId?: string | null;
+  setActiveCardId?: (id: string | null) => void;
+  activeCard?: any;
 }
 
 function formatLeadDate(dateString: string): string {
@@ -27,19 +31,30 @@ function formatLeadDate(dateString: string): string {
   }
 }
 
-export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionProps) {
+export function LeadEnquiriesSection({
+  onSectionChange,
+  cards = [],
+  activeCardId,
+  setActiveCardId,
+  activeCard,
+}: LeadEnquiriesSectionProps) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
 
   const [search, setSearch] = useState('');
   const { data: leads = [], isLoading } = useLeadEnquiries();
 
-  const filteredLeads = leads.filter(lead =>
+  // Filter leads based on the active/selected digital card profile
+  const cardLeads = activeCard
+    ? leads.filter(lead => String(lead.digital_card_id) === String(activeCard.id))
+    : leads;
+
+  const filteredLeads = cardLeads.filter(lead =>
     (lead.name || '').toLowerCase().includes(search.toLowerCase()) ||
     (lead.email || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const thisMonthLeads = leads.filter(lead => {
+  const thisMonthLeads = cardLeads.filter(lead => {
     try {
       const date = new Date(lead.created_at);
       const now = new Date();
@@ -49,10 +64,10 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
     }
   }).length;
 
-  const responseRate = leads.length > 0 ? '100%' : '0%';
+  const responseRate = cardLeads.length > 0 ? '100%' : '0%';
 
   const statCardsData = [
-    { key: 'total', label: 'Total Leads', value: String(leads.length), icon: 'account-outline' as const, iconBg: '#E0F2FE' },
+    { key: 'total', label: 'Total Leads', value: String(cardLeads.length), icon: 'account-outline' as const, iconBg: '#E0F2FE' },
     { key: 'month', label: 'This Month', value: String(thisMonthLeads), icon: 'calendar-outline' as const, iconBg: '#DCFCE7' },
     { key: 'rate', label: 'Response Rate', value: responseRate, icon: 'email-open-outline' as const, iconBg: '#FFEDD5' },
   ];
@@ -71,6 +86,44 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
       style={styles.scroll}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}>
+
+      {/* Profile Selector */}
+      {cards && cards.length > 0 && (
+        <View style={styles.profileSelectorCard}>
+          <View style={styles.profileHeader}>
+            <View style={styles.activeProfileIndicator}>
+              <View style={[styles.avatarIndicator, { backgroundColor: activeCard?.card_color || colors.accentTeal }]}>
+                <MaterialCommunityIcons name="card-account-details-outline" size={18} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activeProfileLabel}>Viewing Leads For</Text>
+                <Text style={styles.activeProfileName} numberOfLines={1}>
+                  {activeCard?.profile_name || 'Active Profile'}
+                </Text>
+              </View>
+            </View>
+          </View>
+          
+          {cards.filter(c => c.id !== activeCard?.id).length > 0 && (
+            <View style={styles.switchRowContainer}>
+              <Text style={styles.switchToLabel}>SWITCH PROFILE</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.switchChipsScroll}>
+                {cards.filter(c => c.id !== activeCard?.id).map((card) => (
+                  <Pressable
+                    key={card.id}
+                    style={[styles.switchChip, { borderColor: card.card_color || colors.cardBorder }]}
+                    onPress={() => setActiveCardId && setActiveCardId(card.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Switch to ${card.profile_name}`}>
+                    <View style={[styles.switchChipBullet, { backgroundColor: card.card_color || colors.textPrimary }]} />
+                    <Text style={styles.switchChipText}>{card.profile_name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Summary cards */}
       <View style={styles.statsRow}>
@@ -199,6 +252,85 @@ export function LeadEnquiriesSection({ onSectionChange }: LeadEnquiriesSectionPr
 const getStyles = (colors: any) => StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 24 },
+  profileSelectorCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: 16,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: colors.cardShadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  activeProfileIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  avatarIndicator: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeProfileLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  activeProfileName: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    marginTop: 2,
+  },
+  switchRowContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
+  },
+  switchToLabel: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  switchChipsScroll: {
+    gap: 8,
+  },
+  switchChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: colors.surfaceSoft || 'rgba(0,0,0,0.02)',
+  },
+  switchChipBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  switchChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
   exportBtn: {
     flexDirection: 'row',
     alignItems: 'center',

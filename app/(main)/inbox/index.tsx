@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,10 +22,32 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { getSoloInboxEmails, SoloInboxEmail } from '@/services/inboxService';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
-// Module and Status dropdown choices
-const MODULE_OPTIONS = ['All', 'CRM', 'Campaign', 'Auth', 'Property'];
-const STATUS_OPTIONS = ['All', 'Sent', 'Delivered', 'Failed'];
+
+
+const getCommunicationChannel = (item: SoloInboxEmail) => {
+  if ((item as any).channel) {
+    return (item as any).channel.toLowerCase();
+  }
+  if ((item as any).type) {
+    return (item as any).type.toLowerCase();
+  }
+  const recipient = item.recipient_email || '';
+  if (recipient.includes('@')) {
+    return 'email';
+  }
+  const content = (item.content_preview || '').toLowerCase();
+  const subject = (item.subject || '').toLowerCase();
+  const source = (item.module_source || '').toLowerCase();
+  if (content.includes('whatsapp') || subject.includes('whatsapp') || source.includes('whatsapp')) {
+    return 'whatsapp';
+  }
+  if (/^\+?[0-9\s\-]+$/.test(recipient)) {
+    return 'sms';
+  }
+  return 'email';
+};
 
 // Date formatter helper (e.g. 26/06/2026 15:20)
 const formatDate = (isoString: string) => {
@@ -52,12 +75,9 @@ export default function InboxScreen() {
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
-  const [moduleFilter, setModuleFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
-
-  // Popover Visibility States
-  const [moduleMenuVisible, setModuleMenuVisible] = useState(false);
-  const [statusMenuVisible, setStatusMenuVisible] = useState(false);
+  const [dateFilter, setDateFilter] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [channelFilter, setChannelFilter] = useState<'all' | 'email' | 'sms' | 'whatsapp'>('all');
 
   // Email Preview Modal Detail State
   const [selectedEmail, setSelectedEmail] = useState<SoloInboxEmail | null>(null);
@@ -70,7 +90,51 @@ export default function InboxScreen() {
 
   const emails = responseData?.data || [];
 
-  // Filter logic based on search queries, module selections, and status filters
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setDateFilter(selectedDate);
+    }
+  };
+
+  // Counts of each channel
+  const channelCounts = useMemo(() => {
+    let all = 0;
+    let email = 0;
+    let sms = 0;
+    let whatsapp = 0;
+
+    emails.forEach(item => {
+      // Filter counts only by search query and date filter (excluding channel itself)
+      const matchesSearch =
+        searchQuery === '' ||
+        item.recipient_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.subject.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesDate = !dateFilter || (() => {
+        const itemDate = new Date(item.created_at);
+        return (
+          itemDate.getFullYear() === dateFilter.getFullYear() &&
+          itemDate.getMonth() === dateFilter.getMonth() &&
+          itemDate.getDate() === dateFilter.getDate()
+        );
+      })();
+
+      if (matchesSearch && matchesDate) {
+        all++;
+        const channel = getCommunicationChannel(item);
+        if (channel === 'email') email++;
+        else if (channel === 'sms') sms++;
+        else if (channel === 'whatsapp') whatsapp++;
+      }
+    });
+
+    return { all, email, sms, whatsapp };
+  }, [emails, searchQuery, dateFilter]);
+
+  // Filter logic based on search queries, channel filters, and date filters
   const filteredEmails = useMemo(() => {
     return emails.filter((item) => {
       // 1. Search Query Filter
@@ -79,65 +143,27 @@ export default function InboxScreen() {
         item.recipient_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.subject.toLowerCase().includes(searchQuery.toLowerCase());
 
-      // 2. Module Filter
-      const matchesModule =
-        moduleFilter === 'All' ||
-        item.module_source.toLowerCase().includes(moduleFilter.toLowerCase());
+      // 2. Channel Filter
+      const itemChannel = getCommunicationChannel(item);
+      const matchesChannel =
+        channelFilter === 'all' ||
+        itemChannel === channelFilter;
 
-      // 3. Status Filter
-      const matchesStatus =
-        statusFilter === 'All' ||
-        item.status.toLowerCase() === statusFilter.toLowerCase();
+      // 3. Date Filter
+      const matchesDate = !dateFilter || (() => {
+        const itemDate = new Date(item.created_at);
+        return (
+          itemDate.getFullYear() === dateFilter.getFullYear() &&
+          itemDate.getMonth() === dateFilter.getMonth() &&
+          itemDate.getDate() === dateFilter.getDate()
+        );
+      })();
 
-      return matchesSearch && matchesModule && matchesStatus;
+      return matchesSearch && matchesChannel && matchesDate;
     });
-  }, [emails, searchQuery, moduleFilter, statusFilter]);
+  }, [emails, searchQuery, channelFilter, dateFilter]);
 
-  // Dropdown option custom component
-  const renderDropdownModal = (
-    label: string,
-    value: string,
-    options: string[],
-    onSelect: (val: string) => void,
-    visible: boolean,
-    onClose: () => void
-  ) => {
-    return (
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        <Pressable style={styles.dropdownBackdrop} onPress={onClose}>
-          <View style={styles.dropdownPopover}>
-            <Text style={styles.dropdownTitle}>{label}</Text>
-            <View style={styles.dropdownDivider} />
-            {options.map((option) => {
-              const isSelected = option === value;
-              return (
-                <Pressable
-                  key={option}
-                  style={({ pressed }) => [
-                    styles.dropdownOption,
-                    pressed && styles.dropdownOptionPressed
-                  ]}
-                  onPress={() => {
-                    onSelect(option);
-                    onClose();
-                  }}
-                >
-                  <View style={styles.dropdownCheckContainer}>
-                    {isSelected && (
-                      <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
-                    )}
-                  </View>
-                  <Text style={[styles.dropdownOptionText, isSelected && styles.dropdownOptionTextActive]}>
-                    {option}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </Pressable>
-      </Modal>
-    );
-  };
+
 
   // Status Badge renderer helper
   const renderStatusBadge = (status: string) => {
@@ -305,42 +331,68 @@ export default function InboxScreen() {
       >
         {/* Filters Card */}
         <View style={styles.filterCard}>
-          <View style={styles.searchContainer}>
-            <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
-            <TextInput
-              placeholder="Search by email or subject..."
-              placeholderTextColor={colors.inputPlaceholder}
-              style={styles.searchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-
-          <View style={styles.dropdownsContainer}>
-            {/* Module Filter Trigger */}
-            <View style={styles.dropdownWrapper}>
-              <Text style={styles.dropdownLabel}>Module:</Text>
-              <Pressable
-                style={styles.dropdownTrigger}
-                onPress={() => setModuleMenuVisible(true)}
-              >
-                <Text style={styles.dropdownTriggerText}>{moduleFilter}</Text>
-                <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textSecondary} />
-              </Pressable>
+          <View style={styles.searchRow}>
+            <View style={styles.searchContainer}>
+              <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
+              <TextInput
+                placeholder="Search by email or subject..."
+                placeholderTextColor={colors.inputPlaceholder}
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
             </View>
 
-            {/* Status Filter Trigger */}
-            <View style={styles.dropdownWrapper}>
-              <Text style={styles.dropdownLabel}>Status:</Text>
+            <View style={styles.dateFilterContainer}>
               <Pressable
-                style={styles.dropdownTrigger}
-                onPress={() => setStatusMenuVisible(true)}
+                style={styles.dateInputPressable}
+                onPress={() => setShowDatePicker(true)}
               >
-                <Text style={styles.dropdownTriggerText}>{statusFilter}</Text>
-                <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textSecondary} />
+                <MaterialCommunityIcons name="calendar-blank-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                <Text style={[styles.dateInputText, !dateFilter && { color: colors.inputPlaceholder }]}>
+                  {dateFilter ? dateFilter.toLocaleDateString('en-GB') : 'dd/mm/yyyy'}
+                </Text>
               </Pressable>
+              {dateFilter && (
+                <Pressable
+                  style={styles.clearDateBtn}
+                  onPress={() => setDateFilter(null)}
+                  hitSlop={8}
+                >
+                  <MaterialCommunityIcons name="close-circle" size={18} color={colors.textSecondary} />
+                </Pressable>
+              )}
             </View>
           </View>
+
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.channelsPillsContainer} style={{ marginTop: 4 }}>
+            {[
+              { key: 'all', label: `All (${channelCounts.all})` },
+              { key: 'email', label: `Email (${channelCounts.email})` },
+              { key: 'sms', label: `SMS (${channelCounts.sms})` },
+              { key: 'whatsapp', label: `WhatsApp (${channelCounts.whatsapp})` }
+            ].map((pill) => {
+              const isActive = channelFilter === pill.key;
+              return (
+                <Pressable
+                  key={pill.key}
+                  style={[
+                    styles.pillButton,
+                    isActive && styles.pillButtonActive
+                  ]}
+                  onPress={() => setChannelFilter(pill.key as any)}
+                >
+                  <Text style={[
+                    styles.pillButtonText,
+                    isActive && styles.pillButtonTextActive
+                  ]}>
+                    {pill.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {/* Total Sent Stats Summary Info */}
@@ -379,24 +431,39 @@ export default function InboxScreen() {
         )}
       </ScrollView>
 
-      {/* Module Dropdown Popover */}
-      {renderDropdownModal(
-        'Filter by Module',
-        moduleFilter,
-        MODULE_OPTIONS,
-        setModuleFilter,
-        moduleMenuVisible,
-        () => setModuleMenuVisible(false)
+
+
+      {/* Date Picker Modal for iOS / Standard Trigger */}
+      {showDatePicker && Platform.OS === 'ios' && (
+        <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
+          <Pressable style={styles.pickerBackdrop} onPress={() => setShowDatePicker(false)}>
+            <View style={styles.pickerSheet}>
+              <View style={styles.pickerToolbar}>
+                <Text style={styles.pickerTitle}>Select Date</Text>
+                <Pressable onPress={() => setShowDatePicker(false)} style={styles.doneBtn}>
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={dateFilter || new Date()}
+                mode="date"
+                display="spinner"
+                onChange={onDateChange}
+                textColor={colors.textPrimary}
+                style={styles.pickerInternal}
+              />
+            </View>
+          </Pressable>
+        </Modal>
       )}
 
-      {/* Status Dropdown Popover */}
-      {renderDropdownModal(
-        'Filter by Status',
-        statusFilter,
-        STATUS_OPTIONS,
-        setStatusFilter,
-        statusMenuVisible,
-        () => setStatusMenuVisible(false)
+      {showDatePicker && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={dateFilter || new Date()}
+          mode="date"
+          display="default"
+          onChange={onDateChange}
+        />
       )}
 
       {/* Email Preview Modal Dialog */}
@@ -891,6 +958,106 @@ function getStyles(colors: any, width: number, theme: string) {
       color: colors.textPrimary,
       lineHeight: 20,
       fontWeight: '500',
+    },
+    searchRow: {
+      flexDirection: isWide ? 'row' : 'column',
+      alignItems: isWide ? 'center' : 'stretch',
+      gap: 12,
+      width: '100%',
+    },
+    dateFilterContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? colors.inputBackground : '#F8FAFC',
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      height: 42,
+      borderWidth: 1,
+      borderColor: isDark ? colors.cardBorder : '#E2E8F0',
+      flex: isWide ? 1 : undefined,
+      position: 'relative',
+    },
+    dateInputPressable: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      height: '100%',
+    },
+    dateInputText: {
+      fontSize: 14,
+      color: colors.textPrimary,
+      fontWeight: '500',
+    },
+    clearDateBtn: {
+      position: 'absolute',
+      right: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: '100%',
+    },
+    channelsPillsContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 4,
+    },
+    pillButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 100,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F9',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    pillButtonActive: {
+      backgroundColor: colors.accentTeal || '#0EA5E9',
+      borderColor: colors.accentTeal || '#0EA5E9',
+    },
+    pillButtonText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    pillButtonTextActive: {
+      color: '#FFFFFF',
+    },
+    pickerBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.4)',
+      justifyContent: 'flex-end',
+    },
+    pickerSheet: {
+      backgroundColor: colors.cardBackground,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingBottom: 40,
+    },
+    pickerToolbar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    pickerTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    },
+    doneBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    doneBtnText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.accentTeal || '#0EA5E9',
+    },
+    pickerInternal: {
+      width: '100%',
+      height: 200,
     },
   });
 }
