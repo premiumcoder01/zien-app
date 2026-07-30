@@ -553,3 +553,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export default LeadEnquiriesSection;

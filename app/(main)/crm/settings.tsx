@@ -19,10 +19,11 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const TABS = ['General', 'Email Delivery', 'Automation Rules'] as const;
+const TABS = ['General', 'Email Delivery', 'Automation Rules', 'Zien Extension'] as const;
 type Tab = (typeof TABS)[number];
 
 const LEAD_DISTRIBUTION_OPTIONS = [
@@ -784,6 +785,53 @@ export default function CRMSettingsScreen() {
           </View>
         )}
 
+        {activeTab === 'Zien Extension' && (
+          <View style={styles.tabPanel}>
+            <View style={styles.sectionCardPremium}>
+              <Text style={styles.premiumSectionTitle}>Zien Chrome Extension</Text>
+
+              <View style={styles.extensionHeroRow}>
+                <View style={styles.extensionIconSquare}>
+                  <MaterialCommunityIcons name="link-variant" size={34} color="#00B4D8" />
+                </View>
+                <View style={styles.extensionContentCol}>
+                  <Text style={styles.extensionTitleText}>The Extension (Phase 3 Completed)</Text>
+                  <Text style={styles.extensionDescriptionText}>
+                    Import listings from Zillow, Redfin, and Realtor directly into your CRM with one click.
+                  </Text>
+                  <Pressable
+                    style={styles.downloadExtensionBtn}
+                    onPress={() => {
+                      Linking.openURL('https://chrome.google.com/webstore').catch(() => {
+                        Alert.alert('Download Extension', 'Please visit the Chrome Web Store on your desktop browser to install the Zien Chrome Extension.');
+                      });
+                    }}>
+                    <Text style={styles.downloadExtensionBtnText}>Download Extension</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.howItWorksBox}>
+                <Text style={styles.howItWorksTitle}>HOW IT WORKS</Text>
+                <View style={styles.howItWorksList}>
+                  <View style={styles.howItWorksBulletRow}>
+                    <Text style={styles.bulletDot}>•</Text>
+                    <Text style={styles.howItWorksText}>Search any listing on Zillow or Redfin.</Text>
+                  </View>
+                  <View style={styles.howItWorksBulletRow}>
+                    <Text style={styles.bulletDot}>•</Text>
+                    <Text style={styles.howItWorksText}>Click "Add to Zien" in the Extension panel.</Text>
+                  </View>
+                  <View style={styles.howItWorksBulletRow}>
+                    <Text style={styles.bulletDot}>•</Text>
+                    <Text style={styles.howItWorksText}>Zien dynamically reads the browser tab for you for effortless, one-click integration.</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
 
       </ScrollView>
 
@@ -911,18 +959,20 @@ export default function CRMSettingsScreen() {
       )}
 
           {/* Save Changes — sticky at bottom on mobile */}
-          <View style={[styles.saveBar, { paddingBottom: 16 + insets.bottom }]}>
-            <Pressable
-              style={({ pressed }) => [styles.saveBtn, (pressed || saving) && { opacity: 0.92 }]}
-              onPress={handleSave}
-              disabled={saving}>
-              {saving ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.saveBtnText}>Save Changes</Text>
-              )}
-            </Pressable>
-          </View>
+          {activeTab !== 'Zien Extension' && (
+            <View style={[styles.saveBar, { paddingBottom: 16 + insets.bottom }]}>
+              <Pressable
+                style={({ pressed }) => [styles.saveBtn, (pressed || saving) && { opacity: 0.92 }]}
+                onPress={handleSave}
+                disabled={saving}>
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save Changes</Text>
+                )}
+              </Pressable>
+            </View>
+          )}
         </>
       )}
     </LinearGradient>
@@ -1773,6 +1823,82 @@ function getStyles(colors: any, theme: string) {
       fontSize: 13,
       fontWeight: '700',
       color: colors.textMuted,
+    },
+    extensionHeroRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 16,
+      marginTop: 16,
+      marginBottom: 12,
+    },
+    extensionIconSquare: {
+      width: 64,
+      height: 64,
+      borderRadius: 20,
+      backgroundColor: '#061325',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    extensionContentCol: {
+      flex: 1,
+      gap: 6,
+    },
+    extensionTitleText: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    extensionDescriptionText: {
+      fontSize: 13,
+      lineHeight: 18,
+      color: colors.textSecondary,
+    },
+    downloadExtensionBtn: {
+      alignSelf: 'flex-start',
+      backgroundColor: '#0F172A',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 10,
+      marginTop: 4,
+    },
+    downloadExtensionBtnText: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+      fontSize: 13,
+    },
+    howItWorksBox: {
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: 16,
+      padding: 16,
+      marginTop: 16,
+    },
+    howItWorksTitle: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.accentTeal,
+      letterSpacing: 0.8,
+      marginBottom: 10,
+    },
+    howItWorksList: {
+      gap: 8,
+    },
+    howItWorksBulletRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+    },
+    bulletDot: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '700',
+    },
+    howItWorksText: {
+      flex: 1,
+      fontSize: 13,
+      color: colors.textSecondary,
+      lineHeight: 18,
     },
   });
 }

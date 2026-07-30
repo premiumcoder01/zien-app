@@ -3,7 +3,7 @@ import { ExternalLink } from '@/components/external-link';
 import { Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getSoloInvoices, getSoloSubscription, toggleSoloAddon, cancelSoloSubscription, type SoloAddon, type SoloInvoice, type SoloSubscriptionResponse } from '@/services/billingService';
+import { getSoloInvoices, getSoloSubscription, cancelSoloSubscription, type SoloAddon, type SoloInvoice, type SoloSubscriptionResponse } from '@/services/billingService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Keyboard,
+  Linking,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -23,6 +23,7 @@ import {
   TextInput,
   View
 } from 'react-native';
+
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -72,7 +73,11 @@ export default function BillingUsageScreen() {
   const [selectedInvoice, setSelectedInvoice] = useState<SoloInvoice | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showCancelAddonModal, setShowCancelAddonModal] = useState<SoloAddon | null>(null);
-  const [showActivateAddonModal, setShowActivateAddonModal] = useState<SoloAddon | null>(null);
+
+  const MANAGE_BILLING_URL = 'https://zien.ai/dashboard/billing';
+  const openManageOnWebsite = () => {
+    Linking.openURL(MANAGE_BILLING_URL).catch(() => Linking.openURL('https://zien.ai'));
+  };
 
   // Fetch billing and invoice details
   const fetchBillingData = async (showPulse = false) => {
@@ -149,56 +154,18 @@ export default function BillingUsageScreen() {
   const closeCancelAddonModal = () => setShowCancelAddonModal(null);
   const handleConfirmCancelAddon = async () => {
     if (!showCancelAddonModal) return;
-    const addonId = showCancelAddonModal.id;
     const name = showCancelAddonModal.name;
     closeCancelAddonModal();
-
-    try {
-      setLoading(true);
-      const res = await toggleSoloAddon(accessToken, addonId, 'cancel');
-      if (res.success) {
-        Alert.alert('Add-on Canceled', `${name} will not renew in the next cycle.`);
-        await fetchBillingData();
-      } else {
-        const title = res.message || 'Failed to modify addon';
-        const description = res.error || 'Failed to cancel the add-on.';
-        Alert.alert(title, description);
-      }
-    } catch (error) {
-      console.error('[BillingUsageScreen] Error canceling addon:', error);
-      Alert.alert('Error', 'Unable to process cancellation at this time.');
-    } finally {
-      setLoading(false);
-    }
+    // Direct user to website to manage addon cancellation (Apple compliant)
+    Alert.alert(
+      'Manage Add-on',
+      `To cancel your ${name} add-on, please visit your account on the Zien website.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Go to Website', onPress: openManageOnWebsite }
+      ]
+    );
   };
-
-  const openActivateAddonModal = (addon: SoloAddon) => setShowActivateAddonModal(addon);
-  const closeActivateAddonModal = () => setShowActivateAddonModal(null);
-  const handleConfirmActivateAddon = async () => {
-    if (!showActivateAddonModal) return;
-    const addonId = showActivateAddonModal.id;
-    const name = showActivateAddonModal.name;
-    closeActivateAddonModal();
-
-    try {
-      setLoading(true);
-      const res = await toggleSoloAddon(accessToken, addonId, 'activate');
-      if (res.success) {
-        Alert.alert('Add-on Activated', `${name} has been added to your subscription.`);
-        await fetchBillingData();
-      } else {
-        const title = res.message || 'Failed to modify addon';
-        const description = res.error || 'Failed to activate the add-on.';
-        Alert.alert(title, description);
-      }
-    } catch (error) {
-      console.error('[BillingUsageScreen] Error activating addon:', error);
-      Alert.alert('Error', 'Unable to process activation at this time.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
 
 
   // ─────────────────────────────────────────────────────
@@ -365,8 +332,8 @@ export default function BillingUsageScreen() {
                       )
                     ) : (
                       !subscription.cancel_at_period_end ? (
-                        <Pressable style={styles.activateAddonBtn} onPress={() => openActivateAddonModal(addon)}>
-                          <Text style={styles.activateAddonBtnText}>Activate Add-on</Text>
+                        <Pressable style={styles.activateAddonBtn} onPress={openManageOnWebsite}>
+                          <Text style={styles.activateAddonBtnText}>Manage on Website</Text>
                         </Pressable>
                       ) : null
                     )}
@@ -644,63 +611,11 @@ export default function BillingUsageScreen() {
         </View>
       </Modal>
 
-      {/* Add-on Activate Confirmation Modal */}
-      <Modal visible={showActivateAddonModal !== null} transparent animationType="fade">
-        <View style={styles.cancelModalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeActivateAddonModal} />
-          <View style={styles.cancelModalCard}>
-            <View style={styles.cancelModalHeader}>
-              <Text style={styles.cancelModalTitle}>Confirm Activation</Text>
-              <Pressable onPress={closeActivateAddonModal} style={styles.cancelModalClose} hitSlop={12}>
-                <MaterialCommunityIcons name="close" size={18} color={colors.textPrimary} />
-              </Pressable>
-            </View>
-
-            <View style={styles.activationCard}>
-              <View style={styles.activationCardLeft}>
-                <Text style={styles.activationAddonName}>{showActivateAddonModal?.name}</Text>
-                <Text style={styles.activationAddonSub}>
-                  Charges applied to next invoice ({dateText})
-                </Text>
-              </View>
-              <Text style={styles.activationAddonPrice}>${showActivateAddonModal?.price}</Text>
-            </View>
-
-            <View style={styles.rulesCard}>
-              <Text style={styles.rulesCardTitle}>How this works:</Text>
-              <View style={styles.rulesBulletRow}>
-                <Text style={styles.rulesBulletDot}>•</Text>
-                <Text style={styles.rulesBulletText}>
-                  <Text style={{ fontWeight: '700', color: colors.textPrimary }}>No upfront charge today.</Text> The cost is automatically added to your next invoice.
-                </Text>
-              </View>
-              <View style={styles.rulesBulletRow}>
-                <Text style={styles.rulesBulletDot}>•</Text>
-                <Text style={styles.rulesBulletText}>
-                  Premium features are <Text style={{ fontWeight: '700', color: colors.textPrimary }}>unlocked instantly</Text> upon activation.
-                </Text>
-              </View>
-              <View style={styles.rulesBulletRow}>
-                <Text style={styles.rulesBulletDot}>•</Text>
-                <Text style={styles.rulesBulletText}>
-                  You can cancel at any time without affecting your base CRM plan.
-                </Text>
-              </View>
-            </View>
-
-            <Pressable style={styles.activationSubmitBtn} onPress={handleConfirmActivateAddon}>
-              <Text style={styles.activationSubmitBtnText}>Activate Add-on</Text>
-            </Pressable>
-
-            <Text style={styles.activationSubmitCaption}>
-              By activating, this add-on will be automatically included in your recurring Stripe subscription.
-            </Text>
-          </View>
-        </View>
-      </Modal>
+      {/* Add-on activation is handled on the website (Apple App Store compliant) */}
     </>
   );
 }
+
 
 const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   background: {

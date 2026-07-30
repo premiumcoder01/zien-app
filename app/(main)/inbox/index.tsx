@@ -461,7 +461,7 @@ export default function InboxScreen() {
         <DateTimePicker
           value={dateFilter || new Date()}
           mode="date"
-          display="default"
+          display="spinner"
           onChange={onDateChange}
         />
       )}

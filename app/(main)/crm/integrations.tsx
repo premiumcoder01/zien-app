@@ -13,8 +13,9 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { dismissBrowser, openBrowserAsync } from 'expo-web-browser';
+import { dismissBrowser, openAuthSessionAsync, openBrowserAsync } from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
+import { WebView } from 'react-native-webview';
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +29,8 @@ import {
   Text,
   TextInput,
   View,
+  Linking,
+  AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -66,6 +69,8 @@ export default function IntegrationsScreen() {
   const [hubspotLoading, setHubspotLoading] = useState(false);
   const [hubspotStatus, setHubspotStatus] = useState<HubSpotStatusResponse | null>(null);
   const [hubspotModalVisible, setHubspotModalVisible] = useState(false);
+  const [hubspotAuthUrl, setHubspotAuthUrl] = useState<string | null>(null);
+  const [showHubspotWebView, setShowHubspotWebView] = useState(false);
   const [syncPush, setSyncPush] = useState(false);
   const [syncPull, setSyncPull] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -140,68 +145,141 @@ export default function IntegrationsScreen() {
 
   // ── Handle incoming deep link redirect parameters ──
   useEffect(() => {
+    console.log('📥 [HubSpot DeepLink] Route Params Received:', JSON.stringify(params, null, 2));
     if (params.success === 'hubspot_connected') {
+      console.log('✅ [HubSpot DeepLink] Matched success param: hubspot_connected');
       fetchHubSpotStatus();
       // Clear route query parameters so the alert doesn't re-trigger on subsequent updates
       router.setParams({ success: undefined });
       Alert.alert('Integration Successful', 'Your HubSpot account has been successfully connected!');
     } else if (params.error === 'auth_failed') {
+      console.log('❌ [HubSpot DeepLink] Matched error param: auth_failed');
       router.setParams({ error: undefined });
       Alert.alert('Integration Failed', 'Failed to connect HubSpot. Please try again.');
     }
   }, [params.success, params.error, fetchHubSpotStatus, router]);
+
+  // ── Handle incoming deep link URLs directly via Linking listener ──
+  useEffect(() => {
+    const handleDeepLink = (event: { url: string }) => {
+      console.log('📥 [HubSpot DeepLink] Incoming Event URL:', event.url);
+      if (event.url.includes('hubspot_connected') || event.url.includes('success')) {
+        console.log('✅ [HubSpot DeepLink] Event URL matched success criteria');
+        fetchHubSpotStatus();
+        Alert.alert('Integration Successful', 'Your HubSpot account has been successfully connected!');
+      } else if (event.url.includes('auth_failed') || event.url.includes('error')) {
+        console.log('❌ [HubSpot DeepLink] Event URL matched error criteria');
+        Alert.alert('Integration Failed', 'Failed to connect HubSpot. Please try again.');
+      }
+    };
+
+    const linkSub = Linking.addEventListener('url', handleDeepLink);
+
+    Linking.getInitialURL().then((url) => {
+      console.log('📥 [HubSpot DeepLink] App Initial Launch URL:', url);
+      if (url && (url.includes('hubspot_connected') || url.includes('success'))) {
+        fetchHubSpotStatus();
+        Alert.alert('Integration Successful', 'Your HubSpot account has been successfully connected!');
+      }
+    });
+
+    return () => {
+      linkSub.remove();
+    };
+  }, [fetchHubSpotStatus]);
+
+  // ── Refresh status when app comes back to foreground (e.g. from Gmail / Chrome) ──
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      console.log('📱 [AppState] App state changed to:', nextAppState);
+      if (nextAppState === 'active') {
+        console.log('🔄 [AppState] App active -> refreshing HubSpot status...');
+        fetchHubSpotStatus();
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [fetchHubSpotStatus]);
+
+  // ── WebView navigation handler for HubSpot OAuth ──
+  const handleWebViewNavigationStateChange = useCallback((navState: any) => {
+    const url: string = navState.url || '';
+    console.log('🌐 [HubSpot WebView Nav]:', url);
+
+    const isHubspotAuthPage = url.includes('hubspot.com');
+    const isBackendCallback = url.includes('/hubspot/callback') || url.includes('staging-api.zien.ai');
+
+    // Only intercept and close AFTER the backend callback has executed and redirected to frontend/success/login
+    if (!isHubspotAuthPage && !isBackendCallback) {
+      if (
+        url.includes('success') ||
+        url.includes('hubspot_connected') ||
+        url.includes('staging.zien.ai') ||
+        url.includes('zien.ai')
+      ) {
+        setShowHubspotWebView(false);
+        setHubspotAuthUrl(null);
+        fetchHubSpotStatus();
+        if (url.includes('error=')) {
+          Alert.alert('Integration Failed', 'Failed to connect HubSpot. Please try again.');
+        } else {
+          Alert.alert('Integration Successful', 'Your HubSpot account has been successfully connected!');
+        }
+      }
+    }
+  }, [fetchHubSpotStatus]);
+
+  const handleShouldStartLoadWithRequest = useCallback((request: any) => {
+    const url: string = request.url || '';
+    console.log('🌐 [HubSpot WebView ShouldStart]:', url);
+
+    const isHubspotAuthPage = url.includes('hubspot.com');
+    const isBackendCallback = url.includes('/hubspot/callback') || url.includes('staging-api.zien.ai');
+
+    // Allow HubSpot Auth pages AND backend callback API request to load!
+    if (isHubspotAuthPage || isBackendCallback) {
+      return true;
+    }
+
+    // Intercept when backend finishes processing code and redirects to frontend domain
+    if (
+      url.includes('success') ||
+      url.includes('hubspot_connected') ||
+      url.includes('staging.zien.ai') ||
+      url.includes('zien.ai')
+    ) {
+      setShowHubspotWebView(false);
+      setHubspotAuthUrl(null);
+      fetchHubSpotStatus();
+      if (url.includes('error=')) {
+        Alert.alert('Integration Failed', 'Failed to connect HubSpot. Please try again.');
+      } else {
+        Alert.alert('Integration Successful', 'Your HubSpot account has been successfully connected!');
+      }
+      return false; // Prevent loading Zien web login page inside WebView
+    }
+    return true;
+  }, [fetchHubSpotStatus]);
 
   // ── HubSpot OAuth Connect ──
   const handleHubSpotConnect = async () => {
     if (!accessToken) return;
     setHubspotLoading(true);
 
-    let pollingInterval: any = null;
-    let browserClosed = false;
-
     try {
+      console.log('🚀 [HubSpot Connect] Initiating OAuth URL request...');
       const res = await getHubSpotAuthUrl(accessToken);
+      console.log('🚀 [HubSpot Connect] Received Auth URL:', res.url);
+
       if (res.url) {
-        // Start polling the HubSpot status in the background
-        pollingInterval = setInterval(async () => {
-          try {
-            const status = await getHubSpotStatus(accessToken);
-            if (status.connected && !browserClosed) {
-              // 1. Clear interval immediately to avoid duplicate triggers
-              if (pollingInterval) {
-                clearInterval(pollingInterval);
-                pollingInterval = null;
-              }
-              // 2. Programmatically close the in-app browser
-              await dismissBrowser();
-              // 3. Refresh connection status inside the app
-              await fetchHubSpotStatus();
-              Alert.alert('Integration Successful', 'Your HubSpot account has been successfully connected!');
-            }
-          } catch {
-            // Silently swallow polling fetch errors
-          }
-        }, 2000);
-
-        // Open standard in-app browser
-        await openBrowserAsync(res.url);
-        browserClosed = true;
-
-        // Clean up interval if browser is manually closed by the user
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-          pollingInterval = null;
-        }
-
-        // Instantly refresh the status as a fallback
-        await fetchHubSpotStatus();
+        setHubspotAuthUrl(res.url);
+        setShowHubspotWebView(true);
       }
     } catch (err: any) {
+      console.warn('⚠️ [HubSpot Connect] Error initiating OAuth:', err?.message);
       Alert.alert('Connection Error', err.message || 'Failed to initiate HubSpot OAuth.');
     } finally {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
       setHubspotLoading(false);
     }
   };
@@ -872,6 +950,37 @@ export default function IntegrationsScreen() {
             </Pressable>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* HubSpot OAuth WebView Modal */}
+      <Modal visible={showHubspotWebView} animationType="slide" transparent={false} onRequestClose={() => setShowHubspotWebView(false)}>
+        <View style={{ flex: 1, backgroundColor: colors.cardBackground, paddingTop: insets.top }}>
+          <View style={styles.webViewHeader}>
+            <Text style={styles.webViewTitle}>Connect HubSpot</Text>
+            <Pressable
+              onPress={() => {
+                setShowHubspotWebView(false);
+                setHubspotAuthUrl(null);
+                fetchHubSpotStatus();
+              }}
+              style={styles.closeWebViewButton}>
+              <MaterialCommunityIcons name="close" size={24} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+          {hubspotAuthUrl && (
+            <WebView
+              source={{ uri: hubspotAuthUrl }}
+              onNavigationStateChange={handleWebViewNavigationStateChange}
+              onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+              startInLoadingState
+              renderLoading={() => (
+                <View style={styles.webViewLoading}>
+                  <ActivityIndicator size="large" color={colors.accentTeal} />
+                </View>
+              )}
+            />
+          )}
+        </View>
       </Modal>
     </LinearGradient>
   );
@@ -1683,7 +1792,31 @@ function getStyles(colors: any) {
     csCloseBtnText: {
       fontSize: 15,
       fontWeight: '800',
-      color: '#FFFFFF',
+      color: '#0B2D3E',
+    },
+    webViewHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+      backgroundColor: colors.cardBackground,
+    },
+    webViewTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    closeWebViewButton: {
+      padding: 6,
+    },
+    webViewLoading: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.cardBackground,
     },
   });
 }

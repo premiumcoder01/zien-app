@@ -633,6 +633,11 @@ export default function DealsScreen() {
                           value={stagesPipelineSearch}
                           onChangeText={setStagesPipelineSearch}
                         />
+                        {stagesPipelineSearch.length > 0 && (
+                          <Pressable onPress={() => setStagesPipelineSearch('')}>
+                            <MaterialCommunityIcons name="close-circle" size={18} color={colors.textMuted} />
+                          </Pressable>
+                        )}
                       </View>
                       <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
                         {filteredStagesPipelines.map((opt) => (
@@ -863,6 +868,11 @@ export default function DealsScreen() {
                           value={contactSearch}
                           onChangeText={setContactSearch}
                         />
+                        {contactSearch.length > 0 && (
+                          <Pressable onPress={() => setContactSearch('')}>
+                            <MaterialCommunityIcons name="close-circle" size={18} color={colors.textMuted} />
+                          </Pressable>
+                        )}
                       </View>
 
                       <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
@@ -940,6 +950,11 @@ export default function DealsScreen() {
                           value={propertySearch}
                           onChangeText={setPropertySearch}
                         />
+                        {propertySearch.length > 0 && (
+                          <Pressable onPress={() => setPropertySearch('')}>
+                            <MaterialCommunityIcons name="close-circle" size={18} color={colors.textMuted} />
+                          </Pressable>
+                        )}
                       </View>
 
                       <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
@@ -1025,6 +1040,11 @@ export default function DealsScreen() {
                           value={pipelineSearch}
                           onChangeText={setPipelineSearch}
                         />
+                        {pipelineSearch.length > 0 && (
+                          <Pressable onPress={() => setPipelineSearch('')}>
+                            <MaterialCommunityIcons name="close-circle" size={18} color={colors.textMuted} />
+                          </Pressable>
+                        )}
                       </View>
 
                       <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
@@ -1096,6 +1116,11 @@ export default function DealsScreen() {
                           value={stageSearch}
                           onChangeText={setStageSearch}
                         />
+                        {stageSearch.length > 0 && (
+                          <Pressable onPress={() => setStageSearch('')}>
+                            <MaterialCommunityIcons name="close-circle" size={18} color={colors.textMuted} />
+                          </Pressable>
+                        )}
                       </View>
 
                       <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
@@ -1698,6 +1723,8 @@ function getStyles(colors: any, insets: any) {
       fontSize: 14,
       color: colors.textPrimary,
       fontWeight: '500',
+      paddingVertical: 0,
+      height: '100%',
     },
     errorBorder: {
       borderColor: colors.danger,

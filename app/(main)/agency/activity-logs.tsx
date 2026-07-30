@@ -177,24 +177,47 @@ export default function ActivityLogs() {
     // 2. Fetch Logs based on companyId
     const { data: logsData, isLoading: loadingLogs } = useQuery<TeamLogsResponse>({
         queryKey: ['teamLogs', companyId],
-        queryFn: () => getTeamLogs(accessToken!, companyId!),
-        enabled: !!accessToken && !!companyId,
+        queryFn: () => getTeamLogs(accessToken!, companyId),
+        enabled: !!accessToken,
     });
 
     const isPageLoading = loadingProfile || loadingLogs;
 
-    // Default Fallback values for Summary metrics
-    const summary = logsData?.summary || {
-        total_events: 0,
-        critical_events: 0,
-        warning_events: 0,
-        info_events: 0,
-        auth_events: 0,
-        affected_users: 0,
+    // Safely extract payload (support top-level or data wrapper)
+    const payload: any = (logsData as any)?.data && ((logsData as any).data.summary || (logsData as any).data.logs)
+        ? (logsData as any).data
+        : logsData;
+
+    const summaryData = payload?.summary || (logsData as any)?.summary;
+
+    const rawLogs: TeamLogEntry[] = Array.isArray(payload?.logs)
+        ? payload.logs
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(logsData?.logs)
+        ? logsData.logs
+        : Array.isArray(logsData?.data)
+        ? (logsData.data as any)
+        : Array.isArray(logsData)
+        ? (logsData as any)
+        : [];
+
+    // Parse summary values directly from API response with fallback
+    const summary = {
+        total_events: summaryData?.total_events !== undefined ? Number(summaryData.total_events) : rawLogs.length,
+        critical_events: summaryData?.critical_events !== undefined ? Number(summaryData.critical_events) : rawLogs.filter(l => (l.severity || '').toLowerCase() === 'critical').length,
+        warning_events: summaryData?.warning_events !== undefined ? Number(summaryData.warning_events) : rawLogs.filter(l => (l.severity || '').toLowerCase() === 'warning').length,
+        info_events: summaryData?.info_events !== undefined ? Number(summaryData.info_events) : rawLogs.filter(l => (l.severity || '').toLowerCase() === 'info').length,
+        auth_events: summaryData?.auth_events !== undefined ? Number(summaryData.auth_events) : rawLogs.filter(l =>
+            (l.action || '').toLowerCase().includes('auth') ||
+            (l.action || '').toLowerCase().includes('login') ||
+            (l.action || '').toLowerCase().includes('password')
+        ).length,
+        affected_users: summaryData?.affected_users !== undefined ? Number(summaryData.affected_users) : new Set(rawLogs.map(l => l.user_id).filter(Boolean)).size,
     };
 
     // Filter Logs locally on the client-side
-    const filteredLogs = (logsData?.logs || []).filter(log => {
+    const filteredLogs = rawLogs.filter(log => {
         const matchesSearch =
             (log.action || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (log.user_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -290,7 +313,18 @@ export default function ActivityLogs() {
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                         {/* --- STATS CARDS GRID ROW (Swipable ScrollView) --- */}
                         <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={styles.statsScroll} contentContainerStyle={{ gap: 12 }}>
-                            {/* Card 1: Critical Events */}
+                            {/* Card 1: Total Events */}
+                            <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
+                                <View style={[styles.statIconBox, { backgroundColor: '#F8FAFC' }]}>
+                                    <MaterialCommunityIcons name="format-list-bulleted" size={20} color="#0F172A" />
+                                </View>
+                                <View style={styles.statInfo}>
+                                    <Text style={styles.statValue}>{summary.total_events}</Text>
+                                    <Text style={styles.statLabel}>TOTAL EVENTS</Text>
+                                </View>
+                            </View>
+
+                            {/* Card 2: Critical Events */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
                                 <View style={[styles.statIconBox, { backgroundColor: '#FEF2F2' }]}>
                                     <MaterialCommunityIcons name="alert-circle" size={20} color="#EF4444" />
@@ -301,7 +335,7 @@ export default function ActivityLogs() {
                                 </View>
                             </View>
 
-                            {/* Card 2: Warnings */}
+                            {/* Card 3: Warnings */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
                                 <View style={[styles.statIconBox, { backgroundColor: '#FFF7ED' }]}>
                                     <MaterialCommunityIcons name="shield-alert" size={20} color="#F97316" />
@@ -312,7 +346,18 @@ export default function ActivityLogs() {
                                 </View>
                             </View>
 
-                            {/* Card 3: Secure Auth */}
+                            {/* Card 4: Info Events */}
+                            <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
+                                <View style={[styles.statIconBox, { backgroundColor: '#EFF6FF' }]}>
+                                    <MaterialCommunityIcons name="information-outline" size={20} color="#3B82F6" />
+                                </View>
+                                <View style={styles.statInfo}>
+                                    <Text style={styles.statValue}>{summary.info_events}</Text>
+                                    <Text style={styles.statLabel}>INFO EVENTS</Text>
+                                </View>
+                            </View>
+
+                            {/* Card 5: Secure Auth */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
                                 <View style={[styles.statIconBox, { backgroundColor: '#F0F9FF' }]}>
                                     <MaterialCommunityIcons name="fingerprint" size={20} color={colors.accentTeal} />
@@ -323,14 +368,14 @@ export default function ActivityLogs() {
                                 </View>
                             </View>
 
-                            {/* Card 4: Team Members */}
+                            {/* Card 6: Affected Users */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
                                 <View style={[styles.statIconBox, { backgroundColor: colors.surfaceSoft }]}>
-                                    <MaterialCommunityIcons name="database" size={20} color="#475569" />
+                                    <MaterialCommunityIcons name="account-group-outline" size={20} color="#475569" />
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.affected_users}</Text>
-                                    <Text style={styles.statLabel}>ACTIVE TEAM MEMBERS</Text>
+                                    <Text style={styles.statLabel}>AFFECTED USERS</Text>
                                 </View>
                             </View>
                         </ScrollView>

@@ -2957,6 +2957,8 @@ function getStyles(colors: any, theme?: string) {
       fontSize: 14,
       color: colors.textPrimary,
       fontWeight: '500',
+      paddingVertical: 0,
+      height: '100%',
     },
   });
 }

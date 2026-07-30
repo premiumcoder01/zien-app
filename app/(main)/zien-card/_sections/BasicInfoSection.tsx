@@ -673,6 +673,9 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
                     modalProps: {
                       statusBarTranslucent: true,
                     },
+                    closeButtonStyle: {
+                      marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
+                    },
                     filterProps: {
                       autoFocus: true,
                       placeholder: 'Enter country name',
@@ -683,6 +686,7 @@ export function BasicInfoSection({ onSectionChange, activeCard, refetch, saveTri
                         color: colors.textPrimary,
                         fontSize: 15,
                         textAlignVertical: 'center',
+                        marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
                       }
                     }
                   }}
@@ -1343,3 +1347,4 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
 });
 
+export default BasicInfoSection;

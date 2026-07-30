@@ -989,7 +989,7 @@ export default function CreatePostScreen() {
                     <DateTimePicker
                       value={scheduledDate}
                       mode="date"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      display="spinner"
                       onChange={onDateChange}
                     />
                   )}
@@ -997,7 +997,7 @@ export default function CreatePostScreen() {
                     <DateTimePicker
                       value={scheduledDate}
                       mode="time"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      display="spinner"
                       is24Hour={false}
                       onChange={onTimeChange}
                     />

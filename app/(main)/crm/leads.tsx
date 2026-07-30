@@ -2081,6 +2081,8 @@ function getStyles(colors: any, theme?: string) {
       fontSize: 15,
       color: colors.textPrimary,
       fontWeight: '600',
+      paddingVertical: 0,
+      height: '100%',
     },
     pickerList: {
       flex: 1,

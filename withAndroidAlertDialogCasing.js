@@ -10,6 +10,13 @@ module.exports = function withAndroidAlertDialogCasing(config) {
       value: '@style/AppCompatAlertDialogTheme',
     });
 
+    config.modResults = AndroidConfig.Styles.assignStylesValue(config.modResults, {
+      add: true,
+      parent: { name: 'AppTheme', parent: 'Theme.AppCompat.DayNight.NoActionBar' },
+      name: 'alertDialogTheme',
+      value: '@style/AppCompatAlertDialogTheme',
+    });
+
     // 2. Add positive, negative, and neutral button styles to AppCompatAlertDialogTheme
     config.modResults = AndroidConfig.Styles.assignStylesValue(config.modResults, {
       add: true,
@@ -32,6 +39,20 @@ module.exports = function withAndroidAlertDialogCasing(config) {
       value: '@style/AlertButtonStyle',
     });
 
+    config.modResults = AndroidConfig.Styles.assignStylesValue(config.modResults, {
+      add: true,
+      parent: { name: 'AppCompatAlertDialogTheme', parent: 'Theme.AppCompat.DayNight.Dialog.Alert' },
+      name: 'android:textAllCaps',
+      value: 'false',
+    });
+
+    config.modResults = AndroidConfig.Styles.assignStylesValue(config.modResults, {
+      add: true,
+      parent: { name: 'AppCompatAlertDialogTheme', parent: 'Theme.AppCompat.DayNight.Dialog.Alert' },
+      name: 'textAllCaps',
+      value: 'false',
+    });
+
     // 3. Add textAllCaps = false to AlertButtonStyle
     config.modResults = AndroidConfig.Styles.assignStylesValue(config.modResults, {
       add: true,
@@ -40,6 +61,14 @@ module.exports = function withAndroidAlertDialogCasing(config) {
       value: 'false',
     });
 
+    config.modResults = AndroidConfig.Styles.assignStylesValue(config.modResults, {
+      add: true,
+      parent: { name: 'AlertButtonStyle', parent: 'Widget.AppCompat.Button.ButtonBar.AlertDialog' },
+      name: 'textAllCaps',
+      value: 'false',
+    });
+
     return config;
   });
 };
+

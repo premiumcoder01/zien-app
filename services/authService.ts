@@ -4,6 +4,7 @@ const REQUEST_TIMEOUT_MS = 15000;
 export interface LoginRequest {
   email: string;
   password: string;
+  platform?: 'ios' | 'android';
 }
 
 export interface LoginResponse {
@@ -11,6 +12,9 @@ export interface LoginResponse {
   role: string;
   complete_profile: boolean;
   redirect_to: string;
+  message?: string;
+  activation_email_sent?: boolean;
+  is_subscription?: boolean;
 }
 
 export interface ForgotPasswordRequest {
@@ -73,6 +77,19 @@ export const loginAgent = async (payload: LoginRequest): Promise<LoginResponse> 
       throw new Error(errorMessage);
     }
 
+    if (data.activation_email_sent) {
+      console.log('[AuthService] Login response has activation_email_sent=true');
+      return {
+        access_token: data.access_token || '',
+        role: data.role || '',
+        complete_profile: data.complete_profile ?? false,
+        redirect_to: data.redirect_to || '',
+        activation_email_sent: true,
+        message: data.message || 'Subscription is not active. A fresh activation link has been sent to your email!',
+        is_subscription: data.is_subscription ?? false,
+      };
+    }
+
     // Staging API returns token in Set-Cookie header as 'website_access_token'
     // Extract it from the cookie if not present in response body
     let accessToken = data?.access_token || data?.data?.access_token;
@@ -96,6 +113,7 @@ export const loginAgent = async (payload: LoginRequest): Promise<LoginResponse> 
       role: data.role || '',
       complete_profile: data.complete_profile ?? false,
       redirect_to: data.redirect_to || '',
+      is_subscription: data.is_subscription ?? true,
     };
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
@@ -364,9 +382,12 @@ export const loginWithMicrosoft = async (payload: MicrosoftLoginRequest): Promis
 };
 
 export interface AppleLoginRequest {
-  token: string;
+  identity_token: string;
+  apple_id: string;
   email?: string | null;
-  fullName?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  platform: 'ios' | 'android';
 }
 
 export const loginWithApple = async (payload: AppleLoginRequest): Promise<LoginResponse> => {
@@ -536,6 +557,93 @@ export const verifyOtp = async (accessToken: string, payload: VerifyOtpRequest):
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Verify OTP request timed out. Please check your connection and try again.');
     }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+export interface RegisterMobileIosRequest {
+  flow: 'solo' | 'team';
+  first_name: string;
+  last_name: string;
+  email: string;
+  country_code: string;
+  phone: string;
+  password: string;
+  license_number?: string;
+  primary_market: string;
+  team_name?: string;
+  team_logo_url?: string;
+}
+
+export const registerMobileIos = async (payload: RegisterMobileIosRequest): Promise<LoginResponse> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  const url = `${API_BASE_URL}/website/register/mobile/ios`;
+  console.log('=== iOS REGISTER REQUEST ===');
+  console.log('URL:', url);
+  console.log('Payload:', JSON.stringify(payload, null, 2));
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    console.log('=== iOS REGISTER RESPONSE ===');
+    console.log('Status:', response.status, response.statusText);
+    console.log('Data:', JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      const errorMessage = data?.message || data?.error?.message || data?.data?.message || `Server error: ${response.status} ${response.statusText}`;
+      console.log('=== iOS REGISTER ERROR ===', errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    let accessToken = data?.access_token || data?.data?.access_token;
+
+    if (!accessToken) {
+      const setCookie = response.headers.get('set-cookie') || '';
+      const tokenMatch = setCookie.match(/website_access_token=([^;]+)/);
+      if (tokenMatch) {
+        accessToken = tokenMatch[1];
+        console.log('=== iOS REGISTER: Token found in Set-Cookie ===');
+      }
+    }
+
+    if (!accessToken) {
+      console.log('=== iOS REGISTER: No access_token — showing server message ===');
+      // Server returned 201 OK with a message (e.g., email verification needed)
+      return {
+        access_token: '',
+        role: data.role || '',
+        complete_profile: false,
+        redirect_to: '',
+        message: data.message || 'Registration successful. Please check your email.',
+      };
+    }
+
+    console.log('=== iOS REGISTER SUCCESS === role:', data.role);
+    return {
+      access_token: accessToken,
+      role: data.role || '',
+      complete_profile: data.complete_profile ?? false,
+      redirect_to: data.redirect_to || '',
+    };
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Registration request timed out. Please check your connection and try again.');
+    }
+    console.log('=== iOS REGISTER EXCEPTION ===', error);
     throw error;
   } finally {
     clearTimeout(timeoutId);

@@ -717,7 +717,7 @@ export default function CampaignsScreen() {
                         <DateTimePicker
                           value={formScheduledDate}
                           mode="date"
-                          display="default"
+                          display="spinner"
                           onChange={onDateTimeChange}
                         />
                       )}
@@ -725,7 +725,7 @@ export default function CampaignsScreen() {
                         <DateTimePicker
                           value={formScheduledDate}
                           mode="time"
-                          display="default"
+                          display="spinner"
                           onChange={onDateTimeChange}
                         />
                       )}

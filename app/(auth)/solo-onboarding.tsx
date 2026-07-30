@@ -5,7 +5,7 @@ import OutlineButton from '@/components/ui/OutlineButton';
 import PasswordInput from '@/components/ui/PasswordInput';
 import StepIndicator from '@/components/ui/StepIndicator';
 import { Addon, CheckoutPayload, completeCheckout, fetchSoloPlans, Plan, registerSoloCheckout } from '@/services/plans';
-import { checkUserExists } from '@/services/authService';
+import { checkUserExists, registerMobileIos, RegisterMobileIosRequest } from '@/services/authService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -67,6 +67,7 @@ export default function SoloOnboardingScreen() {
   const [duration, setDuration] = useState<'monthly' | 'annually'>('monthly');
   const [selectedAddons, setSelectedAddons] = useState<Record<string, boolean>>({});
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showActivationModal, setShowActivationModal] = useState(false);
 
   const [countryCode, setCountryCode] = useState('+1');
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
@@ -186,6 +187,24 @@ export default function SoloOnboardingScreen() {
       setIsCheckingExists(false);
     }
 
+    if (Platform.OS === 'ios' && currentStep === 2) {
+      const payload: RegisterMobileIosRequest = {
+        flow: 'solo',
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        country_code: countryCode,
+        phone: formData.phone,
+        password: formData.password,
+        license_number: formData.licenseNumber,
+        primary_market: formData.primaryMarket,
+      };
+
+      console.log('Sending iOS Registration Payload:', payload);
+      iosRegisterMutation.mutate(payload);
+      return;
+    }
+
     if (currentStep === 3) {
       const addon_ids = (activePlan?.addons || [])
         .filter(a => selectedAddons[a.slug])
@@ -209,7 +228,8 @@ export default function SoloOnboardingScreen() {
       registerMutation.mutate(payload);
       return;
     }
-    setCurrentStep((prev) => Math.min(prev + 1, 3));
+    const maxSteps = Platform.OS === 'ios' ? 2 : 3;
+    setCurrentStep((prev) => Math.min(prev + 1, maxSteps));
   };
   const goBack = () => {
     if (isCompletingMode) {
@@ -271,6 +291,39 @@ export default function SoloOnboardingScreen() {
       }
     },
   });
+
+  const iosRegisterMutation = useMutation({
+    mutationFn: (payload: RegisterMobileIosRequest) => registerMobileIos(payload),
+    onSuccess: (data) => {
+      if (!data.access_token && data.message) {
+        setShowActivationModal(true);
+        return;
+      }
+      if (data.access_token) {
+        login(data.access_token, data.role, data.complete_profile);
+        setSuccessData(data);
+        setShowSuccess(true);
+      } else {
+        setShowSuccess(true);
+      }
+    },
+    onError: (error: Error) => {
+      const msg = error.message.toLowerCase();
+      if (msg.includes('email')) {
+        setErrors(prev => ({ ...prev, email: error.message }));
+        setCurrentStep(1);
+      } else if (msg.includes('phone')) {
+        setErrors(prev => ({ ...prev, phone: error.message }));
+        setCurrentStep(1);
+      } else {
+        setErrors(prev => ({ ...prev, _form: error.message }));
+      }
+    },
+  });
+
+  const isAnyRegisterPending = registerMutation.isPending || iosRegisterMutation.isPending;
+  const isAnyRegisterError = registerMutation.isError || iosRegisterMutation.isError;
+  const anyRegisterErrorMessage = registerMutation.error?.message || iosRegisterMutation.error?.message;
 
   const completeCheckoutMutation = useMutation({
     mutationFn: (sId: string) => completeCheckout(sId),
@@ -788,18 +841,18 @@ export default function SoloOnboardingScreen() {
                 title="Back"
                 style={styles.secondaryButton}
                 onPress={goBack}
-                disabled={registerMutation.isPending || isCompletingMode}
+                disabled={isAnyRegisterPending || isCompletingMode}
               />
               <GradientButton
                 title="Continue"
                 style={styles.primaryButtonFlex}
                 onPress={goNext}
-                isLoading={registerMutation.isPending}
+                isLoading={isAnyRegisterPending}
               />
             </View>
-            {registerMutation.isError && (
+            {isAnyRegisterError && (
               <Text style={[styles.errorTextSmall, { textAlign: 'center', marginTop: 12 }]}>
-                {registerMutation.error.message}
+                {anyRegisterErrorMessage}
               </Text>
             )}
             <Text style={styles.supportText}>
@@ -909,7 +962,7 @@ export default function SoloOnboardingScreen() {
             {/* Added centered logo brand here as well to match design flow */}
             <AuthLogoBrand brandLabel="ZIEN" />
 
-            {!showSuccess && !isCompletingCheckout && <StepIndicator currentStep={currentStep} totalSteps={3} />}
+             {!showSuccess && !isCompletingCheckout && <StepIndicator currentStep={currentStep} totalSteps={Platform.OS === 'ios' ? 2 : 3} />}
 
             {isCompletingCheckout ? renderCompleting() : showSuccess ? renderSuccess() : renderStepContent()}
           </AuthCard>
@@ -936,6 +989,83 @@ export default function SoloOnboardingScreen() {
               )}
             />
           )}
+        </View>
+      </Modal>
+
+      <Modal visible={showActivationModal} animationType="fade" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.activationCard}>
+            <LinearGradient
+              colors={['#FFFFFF', '#F8FAFC']}
+              style={styles.activationGradient}
+            >
+              {/* Circular Mail Icon Header */}
+              <View style={styles.iconContainerOuter}>
+                <LinearGradient
+                  colors={['#00A7B5', '#0B2341']}
+                  style={styles.iconContainerInner}
+                >
+                  <MaterialCommunityIcons name="email-fast-outline" size={38} color="#FFFFFF" />
+                </LinearGradient>
+              </View>
+
+              {/* Title & Subtitle */}
+              <Text style={styles.activationTitle}>Verify Your Email</Text>
+              <Text style={styles.activationSubtitle}>We've sent an activation link to:</Text>
+              
+              {/* Highlighted Email Badge */}
+              <View style={styles.emailBadge}>
+                <Text style={styles.emailBadgeText}>{formData.email.toLowerCase()}</Text>
+              </View>
+
+              <Text style={styles.activationDescription}>
+                Please check your email and choose a plan to activate your subscription.
+              </Text>
+
+              {/* Steps Container */}
+              <View style={styles.stepsContainer}>
+                <View style={styles.stepRow}>
+                  <View style={styles.stepBadge}>
+                    <Text style={styles.stepBadgeText}>1</Text>
+                  </View>
+                  <View style={styles.stepTextContainer}>
+                    <Text style={styles.stepTitle}>Open Email Inbox</Text>
+                    <Text style={styles.stepDesc}>Find the activation email from Zien.</Text>
+                  </View>
+                </View>
+
+                <View style={styles.stepRow}>
+                  <View style={styles.stepBadge}>
+                    <Text style={styles.stepBadgeText}>2</Text>
+                  </View>
+                  <View style={styles.stepTextContainer}>
+                    <Text style={styles.stepTitle}>Activate Plan & Pay</Text>
+                    <Text style={styles.stepDesc}>Click the link, select a plan and subscribe.</Text>
+                  </View>
+                </View>
+
+                <View style={styles.stepRow}>
+                  <View style={styles.stepBadge}>
+                    <Text style={styles.stepBadgeText}>3</Text>
+                  </View>
+                  <View style={styles.stepTextContainer}>
+                    <Text style={styles.stepTitle}>Return and Log In</Text>
+                    <Text style={styles.stepDesc}>Open Zien again & sign in with your credentials.</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Primary Button */}
+              <GradientButton
+                title="Go to Login"
+                style={styles.activationBtn}
+                onPress={() => {
+                  setShowActivationModal(false);
+                  router.push('/(auth)/login');
+                }}
+              />
+            </LinearGradient>
+          </View>
         </View>
       </Modal>
     </AuthScreenBackground>
@@ -1603,5 +1733,130 @@ const getStyles = (colors: any, insets: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.cardBackground,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  activationCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  activationGradient: {
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  iconContainerOuter: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0, 229, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  iconContainerInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#00E5FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  activationTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.textPrimary || '#0F172A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  activationSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary || '#475569',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emailBadge: {
+    backgroundColor: 'rgba(0, 167, 181, 0.08)',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 167, 181, 0.2)',
+    marginBottom: 16,
+  },
+  emailBadgeText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.accent || '#00A7B5',
+  },
+  activationDescription: {
+    fontSize: 14,
+    color: colors.textSecondary || '#334155',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 10,
+  },
+  stepsContainer: {
+    width: '100%',
+    gap: 12,
+    marginBottom: 24,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.inputBackground || '#F8FAFC',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.borderLight || '#E2E8F0',
+  },
+  stepBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.accent || '#00A7B5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  stepBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  stepTextContainer: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary || '#0F172A',
+    marginBottom: 2,
+  },
+  stepDesc: {
+    fontSize: 12,
+    color: colors.textSecondary || '#64748B',
+  },
+  activationBtn: {
+    width: '100%',
+    height: 48,
+    borderRadius: 24,
   },
 });

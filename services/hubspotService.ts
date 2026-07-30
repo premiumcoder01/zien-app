@@ -79,7 +79,8 @@ function handleError(error: unknown): never {
 export const getHubSpotAuthUrl = async (accessToken: string): Promise<HubSpotAuthResponse> => {
     const { timeoutId, options } = createFetchOptions(accessToken);
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/hubspot/auth`, options);
+        const redirectUri = encodeURIComponent('zien://crm/integrations');
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/hubspot/auth?redirect_uri=${redirectUri}&platform=mobile`, options);
         return handleResponse<HubSpotAuthResponse>(response, timeoutId);
     } catch (error) {
         return handleError(error);

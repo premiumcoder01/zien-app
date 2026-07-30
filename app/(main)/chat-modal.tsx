@@ -496,7 +496,7 @@ export default function ChatModalScreen() {
             {/* ── Body ── */}
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : "padding"}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
             >
                 <View style={styles.body}>
@@ -640,7 +640,7 @@ export default function ChatModalScreen() {
             <Modal visible={showHistoryModal} transparent animationType="fade">
                 <KeyboardAvoidingView
                     style={{ flex: 1 }}
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 >
                     <View style={[styles.historyOverlay, { paddingTop: inset.top }]} >
                         <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowHistoryModal(false)} />

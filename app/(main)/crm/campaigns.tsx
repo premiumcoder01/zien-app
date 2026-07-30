@@ -911,7 +911,7 @@ Based on this, generate a JSON object with exactly the following fields:
                         <DateTimePicker
                           value={scheduledDate}
                           mode="date"
-                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                          display="spinner"
                           themeVariant={theme === 'dark' ? 'dark' : 'light'}
                           onChange={(event: any, date?: Date) => {
                             if (date) setScheduledDate(date);
@@ -927,7 +927,7 @@ Based on this, generate a JSON object with exactly the following fields:
                         <DateTimePicker
                           value={scheduledTime}
                           mode="time"
-                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                          display="spinner"
                           themeVariant={theme === 'dark' ? 'dark' : 'light'}
                           onChange={(event: any, date?: Date) => {
                             if (date) setScheduledTime(date);

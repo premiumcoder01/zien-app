@@ -1,7 +1,7 @@
 import { DashboardLayout } from '@/components/main';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getTeamSubscription, getWebsitePlans, SubscriptionDetail, WebsitePlan } from '@/services/dashboardService';
+import { getTeamSubscription, SubscriptionDetail } from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,9 +9,7 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import {
     ActivityIndicator,
-    Modal,
-    Platform,
-    SafeAreaView,
+    Linking,
     ScrollView,
     StyleSheet,
     Text,
@@ -19,6 +17,8 @@ import {
     View
 } from 'react-native';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
+
+const MANAGE_PLAN_URL = 'https://zien.ai/dashboard/billing';
 
 // Helper to determine currency symbol
 const getCurrencySymbol = (currency: string) => {
@@ -94,22 +94,18 @@ export default function BillingPlan() {
     const { accessToken } = useAuth();
     const router = useRouter();
 
-    // Modal view states
-    const [isUpgradeModalVisible, setIsUpgradeModalVisible] = React.useState(false);
-    const [isYearly, setIsYearly] = React.useState(false);
+    // Open manage plan in external browser (Apple compliant)
+    const handleManagePlan = () => {
+        Linking.openURL(MANAGE_PLAN_URL).catch(() => {
+            Linking.openURL('https://zien.ai');
+        });
+    };
 
     // 1. Fetch live subscription information
     const { data: billingData, isLoading } = useQuery<SubscriptionDetail>({
         queryKey: ['teamSubscription'],
         queryFn: () => getTeamSubscription(accessToken!),
         enabled: !!accessToken,
-    });
-
-    // 2. Fetch all available website plans when modal is opened
-    const { data: plansData, isLoading: isLoadingPlans } = useQuery({
-        queryKey: ['websitePlans'],
-        queryFn: () => getWebsitePlans(),
-        enabled: isUpgradeModalVisible,
     });
 
     if (isLoading) {
@@ -168,14 +164,6 @@ export default function BillingPlan() {
     // Calculate total features count dynamically
     const addonFeaturesCount = addons.reduce((sum, ad) => sum + (ad.metadata?.available_for_names?.length || 0), 0);
     const totalFeaturesActive = planFeatures.length + addonFeaturesCount;
-
-    // Helper to evaluate active status of a plan card in modal
-    const isPlanActive = (itemPlan: WebsitePlan) => {
-        const nameMatch = (itemPlan.name || '').toUpperCase() === (plan.name || '').toUpperCase();
-        const currentInterval = price ? price.billing_interval : 'monthly';
-        const toggleInterval = isYearly ? 'annually' : 'monthly';
-        return nameMatch && (currentInterval === toggleInterval);
-    };
 
     return (
         <DashboardLayout
@@ -286,14 +274,14 @@ export default function BillingPlan() {
                     <View style={styles.planActionsWrapper}>
                         <TouchableOpacity
                             activeOpacity={0.9}
-                            onPress={() => setIsUpgradeModalVisible(true)}
+                            onPress={handleManagePlan}
                         >
                             <LinearGradient
                                 colors={['#F97316', '#EA580C']}
                                 style={styles.upgradeGradientBtn}
                             >
-                                <MaterialCommunityIcons name="lightning-bolt" size={16} color="#FFFFFF" />
-                                <Text style={styles.upgradeGradientBtnText}>Upgrade Plan</Text>
+                                <MaterialCommunityIcons name="open-in-new" size={16} color="#FFFFFF" />
+                                <Text style={styles.upgradeGradientBtnText}>Manage Plan on Website</Text>
                             </LinearGradient>
                         </TouchableOpacity>
 
@@ -368,178 +356,12 @@ export default function BillingPlan() {
                 <View style={{ height: 100 }} />
             </ScrollView>
 
-            {/* --- UPGRADE PLAN DYNAMIC MODAL (Full-screen overlay matching user screenshots) --- */}
-            <Modal
-                visible={isUpgradeModalVisible}
-                animationType="slide"
-                transparent={false}
-                onRequestClose={() => setIsUpgradeModalVisible(false)}
-            >
-                <SafeAreaView style={{ flex: 1, backgroundColor: colors.cardBackground }}>
-                    {/* Modal Header */}
-                    <View style={styles.modalHeaderRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                            <View style={styles.orangeFlashBox}>
-                                <MaterialCommunityIcons name="flash" size={18} color="#F97316" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.modalTitle}>Choose Your Agency Scale</Text>
-                                <Text style={styles.modalSubtitle} numberOfLines={1}>
-                                    Select the plan that fits your growing professional team
-                                </Text>
-                            </View>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.modalCloseBtn}
-                            onPress={() => setIsUpgradeModalVisible(false)}
-                            activeOpacity={0.8}
-                        >
-                            <MaterialCommunityIcons name="close" size={18} color="#64748B" />
-                        </TouchableOpacity>
-                    </View>
-
-                    {isLoadingPlans ? (
-                        <View style={styles.modalLoadingWrapper}>
-                            <ActivityIndicator size="large" color={colors.accentTeal} />
-                            <Text style={styles.modalLoadingText}>Loading available agency plans...</Text>
-                        </View>
-                    ) : (
-                        <ScrollView
-                            style={{ flex: 1 }}
-                            contentContainerStyle={styles.modalScrollContent}
-                            showsVerticalScrollIndicator={false}
-                        >
-                            {/* Monthly / Yearly Toggle */}
-                            <View style={styles.toggleWrapper}>
-                                <View style={styles.toggleRowContainer}>
-                                    <Text style={[styles.toggleLabel, !isYearly && styles.toggleLabelActive]}>Monthly</Text>
-
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.toggleSwitchBg,
-                                            { backgroundColor: isYearly ? colors.accentTeal : '#CBD5E1' }
-                                        ]}
-                                        activeOpacity={0.9}
-                                        onPress={() => setIsYearly(!isYearly)}
-                                    >
-                                        <View style={[styles.toggleThumb, isYearly ? styles.toggleThumbRight : styles.toggleThumbLeft]} />
-                                    </TouchableOpacity>
-
-                                    <Text style={[styles.toggleLabel, isYearly && styles.toggleLabelActive]}>Yearly</Text>
-                                    <View style={styles.saveBadge}>
-                                        <Text style={styles.saveBadgeText}>SAVE 15%</Text>
-                                    </View>
-                                </View>
-                            </View>
-
-                            {/* Plans Container Stack */}
-                            <View style={styles.plansContainerStack}>
-                                {plansData?.plans.filter(p => (p.slug || '').toLowerCase() === 'team').map((itemPlan) => {
-                                    const active = isPlanActive(itemPlan);
-                                    const selectedPrice = itemPlan.prices.find(
-                                        p => p.billing_interval === (isYearly ? 'annually' : 'monthly')
-                                    );
-                                    const amountStr = selectedPrice ? selectedPrice.price : '0.00';
-                                    const intervalLabel = isYearly ? '/yr' : '/mo';
-
-                                    return (
-                                        <View
-                                            key={itemPlan.id}
-                                            style={[
-                                                styles.planOutlineCard,
-                                                active && styles.planOutlineCardActive
-                                            ]}
-                                        >
-                                            {/* Active Subscription Banner Overlay */}
-                                            {active && (
-                                                <View style={styles.activeSubscriptionOverlayBadge}>
-                                                    <Text style={styles.activeSubscriptionOverlayBadgeText}>ACTIVE SUBSCRIPTION</Text>
-                                                </View>
-                                            )}
-
-                                            {/* Plan Identity Block */}
-                                            <View style={styles.modalPlanIdentityHeader}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                    <MaterialCommunityIcons name="account-multiple-outline" size={16} color={colors.textPrimary} />
-                                                    <Text style={styles.modalPlanNameText}>{itemPlan.name}</Text>
-                                                    <MaterialCommunityIcons name="information-outline" size={12} color="#94A3B8" />
-                                                </View>
-                                                <Text style={styles.modalPlanPriceValue}>
-                                                    ${amountStr}
-                                                    <Text style={styles.modalPlanPricePeriod}>{intervalLabel}</Text>
-                                                </Text>
-                                            </View>
-
-                                            {/* Plan Features Bullet list */}
-                                            <View style={styles.modalFeaturesListWrap}>
-                                                {itemPlan.features.map((feature, fIdx) => (
-                                                    <View key={fIdx} style={styles.modalFeatureBulletRow}>
-                                                        <MaterialCommunityIcons name="check" size={14} color="#16A34A" style={{ marginTop: 1 }} />
-                                                        <Text style={styles.modalFeatureBulletText}>{feature}</Text>
-                                                    </View>
-                                                ))}
-                                            </View>
-
-                                            {/* Thin Clean Card Divider */}
-                                            <View style={styles.modalCardDivider} />
-
-                                            {/* Optional Enhancements */}
-                                            <View style={styles.modalEnhancementsSection}>
-                                                <Text style={styles.modalEnhancementsTitle}>OPTIONAL ENHANCEMENTS</Text>
-                                                <View style={styles.modalEnhancementsList}>
-                                                    {itemPlan.addons.map((addon) => {
-                                                        const activeAddon = addons.some(ad => ad.slug === addon.slug);
-                                                        const addonPriceObj = addon.prices.find(
-                                                            p => p.billing_interval === (isYearly ? 'annually' : 'monthly')
-                                                        );
-                                                        const addonPriceStr = addonPriceObj ? `$${addonPriceObj.price}` : '+$14.95';
-
-                                                        return (
-                                                            <View key={addon.id} style={styles.modalEnhancementItemRow}>
-                                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                                                                    <View style={[styles.addonCheckbox, activeAddon && [styles.addonCheckboxChecked, { backgroundColor: colors.accentTeal, borderColor: colors.accentTeal }]]}>
-                                                                        {activeAddon && (
-                                                                            <MaterialCommunityIcons name="check" size={8} color="#FFFFFF" />
-                                                                        )}
-                                                                    </View>
-                                                                    <Text style={styles.modalEnhancementName}>{addon.name}</Text>
-                                                                    {activeAddon && (
-                                                                        <View style={styles.addonActiveBadge}>
-                                                                            <Text style={styles.addonActiveBadgeText}>ACTIVE</Text>
-                                                                        </View>
-                                                                    )}
-                                                                </View>
-                                                                <Text style={[styles.modalEnhancementPrice, activeAddon && styles.modalEnhancementPriceActive]}>
-                                                                    {activeAddon ? 'Included' : addonPriceStr}
-                                                                </Text>
-                                                            </View>
-                                                        );
-                                                    })}
-                                                </View>
-                                            </View>
-
-                                            {/* Card Select Plan / Current Plan Button */}
-                                            {active ? (
-                                                <View style={styles.modalCurrentPlanBtn}>
-                                                    <Text style={styles.modalCurrentPlanBtnText}>Current Plan</Text>
-                                                </View>
-                                            ) : (
-                                                <TouchableOpacity style={[styles.modalSelectPlanBtn, { borderColor: colors.accentTeal }]} activeOpacity={0.8}>
-                                                    <Text style={[styles.modalSelectPlanBtnText, { color: colors.accentTeal }]}>Select Plan</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    );
-                                })}
-                            </View>
-                            <View style={{ height: 60 }} />
-                        </ScrollView>
-                    )}
-                </SafeAreaView>
-            </Modal>
+            {/* Plan management is done on the website (Apple App Store compliant) */}
+            {/* No in-app plan purchase modal */}
         </DashboardLayout>
     );
 }
+
 
 const getStyles = (colors: any) => StyleSheet.create({
     scrollContent: {

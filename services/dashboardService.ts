@@ -529,9 +529,13 @@ export interface TeamLogsResponse {
   logs: TeamLogEntry[];
 }
 
-export const getTeamLogs = async (accessToken: string, companyId: number): Promise<TeamLogsResponse> => {
-  const response = await fetch(`${API_BASE_URL}/teams/logs?company_id=${companyId}`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
+export const getTeamLogs = async (accessToken: string, companyId?: number): Promise<TeamLogsResponse> => {
+  const url = companyId ? `${API_BASE_URL}/teams/logs?company_id=${companyId}` : `${API_BASE_URL}/teams/logs`;
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/json',
+    },
   });
   if (!response.ok) throw new Error('Failed to fetch activity logs');
   return response.json();

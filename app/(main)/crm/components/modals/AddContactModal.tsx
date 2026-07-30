@@ -751,6 +751,8 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textPrimary,
     fontWeight: '600',
+    paddingVertical: 0,
+    height: '100%',
   },
   pickerList: {
     maxHeight: 360,

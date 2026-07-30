@@ -2,7 +2,7 @@
   "expo": {
     "name": "Zien",
     "slug": "Zien",
-    "version": "4.9",
+    "version": "5.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "zien",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.propfyi",
-      "buildNumber": "15",
+      "buildNumber": "20",
       "usesAppleSignIn": true,
       "infoPlist": {
         "UIFileSharingEnabled": true,
@@ -44,7 +44,7 @@
     },
     "android": {
       "package": "com.propfyi",
-      "versionCode": 60,
+      "versionCode": 61,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -67,6 +67,29 @@
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "resize",
       "usesCleartextTraffic": true,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "zien"
+            },
+            {
+              "scheme": "https",
+              "host": "zien.ai"
+            },
+            {
+              "scheme": "https",
+              "host": "staging.zien.ai"
+            }
+          ],
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ]
+        }
+      ],
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyAZM9Ef3yGGfgAX12z0Hv5CZkft2lRyFSQ"

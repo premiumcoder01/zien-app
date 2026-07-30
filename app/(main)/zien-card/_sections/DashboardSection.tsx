@@ -1331,3 +1331,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 40,
   },
 });
+
+export default DashboardSection;

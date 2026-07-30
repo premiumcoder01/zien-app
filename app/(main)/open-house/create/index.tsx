@@ -413,8 +413,8 @@ export default function OpenHouseCreateScreen() {
       style={[styles.background, { paddingTop: insets.top }]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <Modal transparent visible={isFinalizing} animationType="fade">
           <View style={styles.loaderOverlay}>
@@ -1070,7 +1070,7 @@ function Step2Details({
           <DateTimePicker
             value={tempValue}
             mode={isDatePicker ? 'date' : 'time'}
-            display="default"
+            display="spinner"
             onChange={onPickerChange}
             minimumDate={isDatePicker ? new Date() : undefined}
           />

@@ -54,8 +54,83 @@ const StatCard = ({ icon, value, label, color }: any) => {
     );
 };
 
+const COUNTRY_CODE_TO_ISO: Record<string, string> = {
+    '+1': 'US',
+    '+1-CA': 'CA',
+    '+7': 'RU',
+    '+20': 'EG',
+    '+27': 'ZA',
+    '+30': 'GR',
+    '+31': 'NL',
+    '+32': 'BE',
+    '+33': 'FR',
+    '+34': 'ES',
+    '+36': 'HU',
+    '+39': 'IT',
+    '+40': 'RO',
+    '+41': 'CH',
+    '+43': 'AT',
+    '+44': 'GB',
+    '+45': 'DK',
+    '+46': 'SE',
+    '+47': 'NO',
+    '+48': 'PL',
+    '+49': 'DE',
+    '+51': 'PE',
+    '+52': 'MX',
+    '+53': 'CU',
+    '+54': 'AR',
+    '+55': 'BR',
+    '+56': 'CL',
+    '+57': 'CO',
+    '+58': 'VE',
+    '+60': 'MY',
+    '+61': 'AU',
+    '+62': 'ID',
+    '+63': 'PH',
+    '+64': 'NZ',
+    '+65': 'SG',
+    '+66': 'TH',
+    '+81': 'JP',
+    '+82': 'KR',
+    '+84': 'VN',
+    '+86': 'CN',
+    '+90': 'TR',
+    '+91': 'IN',
+    '+92': 'PK',
+    '+93': 'AF',
+    '+94': 'LK',
+    '+95': 'MM',
+    '+98': 'IR',
+    '+212': 'MA',
+    '+213': 'DZ',
+    '+216': 'TN',
+    '+234': 'NG',
+    '+254': 'KE',
+    '+351': 'PT',
+    '+353': 'IE',
+    '+358': 'FI',
+    '+380': 'UA',
+    '+502': 'GT',
+    '+503': 'SV',
+    '+504': 'HN',
+    '+505': 'NI',
+    '+506': 'CR',
+    '+507': 'PA',
+    '+593': 'EC',
+    '+880': 'BD',
+    '+966': 'SA',
+    '+971': 'AE',
+};
+
+const getCountryISO = (countryCode?: string) => {
+    if (!countryCode) return 'US';
+    const code = countryCode.startsWith('+') ? countryCode : '+' + countryCode;
+    return (COUNTRY_CODE_TO_ISO[code] || 'US') as any;
+};
+
 const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) => {
-    const { colors } = useAppTheme();
+    const { theme, colors } = useAppTheme();
     const styles = getStyles(colors);
     const isEdit = !!agent;
     const [form, setForm] = useState<any>({
@@ -249,9 +324,10 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                             <View style={{ gap: 6 }}>
                                 <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>Phone Number</Text>
                                 <PhoneInput
+                                    key={`phone-${agent?.id || 'new'}-${visible}`}
                                     ref={phoneInputRef}
                                     defaultValue={form.phone}
-                                    defaultCode="US"
+                                    defaultCode={getCountryISO(form.country_code)}
                                     layout="first"
                                     onChangeText={(text) => {
                                         // Only allow digits
@@ -268,10 +344,33 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                                     codeTextStyle={{ fontSize: 14, color: colors.textPrimary, paddingHorizontal: 10, fontWeight: '600' }}
                                     flagButtonStyle={{ width: 60, height: 48, backgroundColor: 'transparent', borderRightWidth: 1, borderRightColor: colors.cardBorder, alignItems: 'center', justifyContent: 'center' }}
                                     placeholder="Phone number"
+                                    withDarkTheme={theme === 'dark'}
                                     textInputProps={{
                                         placeholderTextColor: '#94A3B8',
                                         keyboardType: 'phone-pad',
                                         maxLength: 15,
+                                    }}
+                                    countryPickerProps={{
+                                        withFilter: true,
+                                        withAlphaFilter: true,
+                                        renderFlagButton: (props: any) => {
+                                            const code = (props.countryCode || 'US').toUpperCase();
+                                            const emoji = code.replace(/./g, (c: string) =>
+                                                String.fromCodePoint(0x1F1A5 + c.charCodeAt(0))
+                                            );
+                                            return <Text style={{ fontSize: 20, lineHeight: 26 }}>{emoji}</Text>;
+                                        },
+                                        theme: theme === 'dark' ? {
+                                            backgroundColor: '#000000',
+                                            onBackgroundTextColor: '#FFFFFF',
+                                            fontSize: 15,
+                                            filterPlaceholderTextColor: '#94A3B8',
+                                        } : {
+                                            backgroundColor: '#FFFFFF',
+                                            onBackgroundTextColor: '#0F172A',
+                                            fontSize: 15,
+                                            filterPlaceholderTextColor: '#64748B',
+                                        },
                                     }}
                                 />
                                 {errors.phone && <Text style={{ fontSize: 11, color: '#EF4444' }}>{errors.phone}</Text>}

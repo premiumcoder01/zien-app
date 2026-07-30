@@ -427,8 +427,8 @@ export default function OpenHouseEditScreen() {
       style={[styles.background, { paddingTop: insets.top }]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
 
         <Modal transparent visible={isUpdating} animationType="fade">
@@ -836,7 +836,7 @@ function Step2Details({
       </ScrollView>
 
       {Platform.OS === 'android' && pickerOpen != null && (
-        <DateTimePicker value={tempValue} mode={isDatePicker ? 'date' : 'time'} display="default" onChange={onPickerChange} minimumDate={isDatePicker ? new Date() : undefined} />
+        <DateTimePicker value={tempValue} mode={isDatePicker ? 'date' : 'time'} display="spinner" onChange={onPickerChange} minimumDate={isDatePicker ? new Date() : undefined} />
       )}
       {Platform.OS === 'ios' && (
         <Modal visible={pickerOpen != null} transparent animationType="slide" onRequestClose={() => setPickerOpen(null)}>

@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import PhoneInput from 'react-native-phone-number-input';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CreateCardModalProps {
   isVisible: boolean;
@@ -26,6 +27,7 @@ interface CreateCardModalProps {
 
 export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'work' }: CreateCardModalProps) {
   const { colors, theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [cardType, setCardType] = useState<'work' | 'personal'>(initialType);
 
   const [profileName, setProfileName] = useState('');
@@ -280,6 +282,9 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
                       modalProps: {
                         statusBarTranslucent: true,
                       },
+                      closeButtonStyle: {
+                        marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
+                      },
                       filterProps: {
                         autoFocus: true,
                         placeholder: 'Enter country name',
@@ -290,6 +295,7 @@ export function CreateCardModal({ isVisible, onClose, onCreate, initialType = 'w
                           color: colors.textPrimary,
                           fontSize: 15,
                           textAlignVertical: 'center',
+                          marginTop: Platform.OS === 'android' ? insets.top + 10 : 0,
                         }
                       }
                     }}

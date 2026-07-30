@@ -1,10 +1,12 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useState, useRef } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text as RNText, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, Text as RNText, ScrollView, StyleSheet, View, Modal } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -44,6 +46,9 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showActivationModal, setShowActivationModal] = useState(false);
+  const [activationMessage, setActivationMessage] = useState('');
+  const [sentToEmail, setSentToEmail] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false);
   const [isAppleAvailable, setIsAppleAvailable] = useState(false);
@@ -207,24 +212,44 @@ export default function LoginScreen() {
         ],
       });
 
-      const token = credential.identityToken;
-      if (!token) {
+      console.log('[AppleAuth] credential received:', JSON.stringify({
+        user: credential.user,
+        email: credential.email,
+        hasFullName: !!credential.fullName,
+        hasIdentityToken: !!credential.identityToken,
+        hasAuthCode: !!credential.authorizationCode,
+      }));
+
+      const appleId = credential.user;
+      if (!appleId) {
+        throw new Error('No user identifier received from Apple.');
+      }
+
+      const identityToken = credential.identityToken;
+      if (!identityToken) {
         throw new Error('No identity token received from Apple.');
       }
 
-      let fullName = null;
-      if (credential.fullName) {
-        const { givenName, familyName } = credential.fullName;
-        fullName = [givenName, familyName].filter(Boolean).join(' ').trim() || null;
-      }
+      const firstName = credential.fullName?.givenName || null;
+      const lastName = credential.fullName?.familyName || null;
+      const appleEmail = credential.email || null;
 
-      const email = credential.email || null;
+      console.log('[AppleAuth] Sending to backend — apple_id:', appleId, '| email:', appleEmail, '| name:', firstName, lastName);
 
       const backendResponse = await loginWithApple({
-        token,
-        email,
-        fullName,
+        identity_token: identityToken,
+        apple_id: appleId,
+        email: appleEmail,
+        first_name: firstName,
+        last_name: lastName,
+        platform: 'ios',
       });
+
+      console.log('[AppleAuth] Backend response received:', JSON.stringify({
+        hasAccessToken: !!backendResponse.access_token,
+        role: backendResponse.role,
+        complete_profile: backendResponse.complete_profile,
+      }));
 
       await login(
         backendResponse.access_token,
@@ -232,11 +257,33 @@ export default function LoginScreen() {
         backendResponse.complete_profile
       );
     } catch (error: any) {
+      // Log full error details to console for debugging
+      console.error('[AppleAuth] Full error object:', JSON.stringify({
+        code: error.code,
+        message: error.message,
+        name: error.name,
+        domain: error.domain,
+        userInfo: error.userInfo,
+      }));
+
       if (error.code === 'ERR_CANCELED') {
-        console.log('User cancelled Apple Sign-in.');
+        // User cancelled — silent, do nothing
+        console.log('[AppleAuth] User cancelled Apple Sign-in.');
+      } else if (error.code === 'ERR_REQUEST_NOT_HANDLED') {
+        Alert.alert(
+          'Apple Sign-In Error',
+          `Sign In with Apple is not configured on this device.\n\nError: ${error.code}`
+        );
+      } else if (error.code === 'ERR_REQUEST_UNKNOWN') {
+        Alert.alert(
+          'Apple Sign-In Error',
+          `Unknown Apple Sign-In error.\n\nError: ${error.code}\n${error.message}`
+        );
       } else {
-        console.error('Apple Sign-in Error:', error);
-        Alert.alert('Apple Sign-in Failed', error.message || 'Unknown error occurred.');
+        Alert.alert(
+          'Apple Sign-in Failed',
+          `${error.message || 'Unknown error occurred.'}\n\nCode: ${error.code || 'N/A'}`
+        );
       }
     } finally {
       setIsAppleLoading(false);
@@ -263,8 +310,19 @@ export default function LoginScreen() {
     setIsLoading(true);
     try {
       console.log('Attempting login for:', email);
-      const response = await loginAgent({ email, password });
+      const response = await loginAgent({
+        email,
+        password,
+        platform: Platform.OS as 'ios' | 'android',
+      });
       console.log('Login Success:', response);
+
+      if (response.activation_email_sent) {
+        setActivationMessage(response.message || 'Subscription is not active. A fresh activation link has been sent to your email!');
+        setSentToEmail(email);
+        setShowActivationModal(true);
+        return;
+      }
 
       const { access_token, role, complete_profile } = response;
 
@@ -343,25 +401,27 @@ export default function LoginScreen() {
 
             <AuthDivider />
 
-            {isAppleAvailable && (
-              <View 
-                style={[
-                  styles.appleButtonContainer, 
-                  (isAppleLoading || isGoogleLoading || isMicrosoftLoading || isLoading) && { opacity: 0.65 }
-                ]}
-                pointerEvents={isAppleLoading || isGoogleLoading || isMicrosoftLoading || isLoading ? 'none' : 'auto'}
-              >
-                <AppleAuthentication.AppleAuthenticationButton
-                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                  buttonStyle={theme === 'dark' ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                  cornerRadius={colors.inputBorderRadius || 8}
-                  style={styles.appleButton}
-                  onPress={handleAppleLogin}
-                />
-              </View>
-            )}
-
             <View style={styles.socialRow}>
+              {Platform.OS === 'ios' && (
+                <Pressable
+                  style={[
+                    styles.appleSocialButton,
+                    (isAppleLoading || isGoogleLoading || isMicrosoftLoading || isLoading) && { opacity: 0.65 }
+                  ]}
+                  disabled={isAppleLoading || isGoogleLoading || isMicrosoftLoading || isLoading}
+                  onPress={handleAppleLogin}
+                >
+                  <MaterialCommunityIcons
+                    name="apple"
+                    size={18}
+                    color={colors.socialButtonText}
+                    style={styles.appleIcon}
+                  />
+                  <RNText style={styles.appleSocialText}>
+                    {isAppleLoading ? '...' : 'Apple'}
+                  </RNText>
+                </Pressable>
+              )}
               <SocialButton
                 label="Google"
                 icon={require('@/assets/appImages/google.png')}
@@ -389,6 +449,82 @@ export default function LoginScreen() {
           </AuthCard>
         </ScrollView>
       </KeyboardAvoidingView>
+      <Modal visible={showActivationModal} animationType="fade" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.activationCard}>
+            <LinearGradient
+              colors={['#FFFFFF', '#F8FAFC']}
+              style={styles.activationGradient}
+            >
+              {/* Circular Mail Icon Header */}
+              <View style={styles.iconContainerOuter}>
+                <LinearGradient
+                  colors={['#00A7B5', '#0B2341']}
+                  style={styles.iconContainerInner}
+                >
+                  <MaterialCommunityIcons name="email-fast-outline" size={38} color="#FFFFFF" />
+                </LinearGradient>
+              </View>
+
+              {/* Title & Subtitle */}
+              <RNText style={styles.activationTitle}>Verify Your Email</RNText>
+              <RNText style={styles.activationSubtitle}>We've sent an activation link to:</RNText>
+              
+              {/* Highlighted Email Badge */}
+              <View style={styles.emailBadge}>
+                <RNText style={styles.emailBadgeText}>{sentToEmail.toLowerCase()}</RNText>
+              </View>
+
+              <RNText style={styles.activationDescription}>
+                {activationMessage}
+              </RNText>
+
+              {/* Steps Container */}
+              <View style={styles.stepsContainer}>
+                <View style={styles.stepRow}>
+                  <View style={styles.stepBadge}>
+                    <RNText style={styles.stepBadgeText}>1</RNText>
+                  </View>
+                  <View style={styles.stepTextContainer}>
+                    <RNText style={styles.stepTitle}>Open Email Inbox</RNText>
+                    <RNText style={styles.stepDesc}>Find the activation email from Zien.</RNText>
+                  </View>
+                </View>
+
+                <View style={styles.stepRow}>
+                  <View style={styles.stepBadge}>
+                    <RNText style={styles.stepBadgeText}>2</RNText>
+                  </View>
+                  <View style={styles.stepTextContainer}>
+                    <RNText style={styles.stepTitle}>Activate Plan & Pay</RNText>
+                    <RNText style={styles.stepDesc}>Click the link, select a plan and subscribe.</RNText>
+                  </View>
+                </View>
+
+                <View style={styles.stepRow}>
+                  <View style={styles.stepBadge}>
+                    <RNText style={styles.stepBadgeText}>3</RNText>
+                  </View>
+                  <View style={styles.stepTextContainer}>
+                    <RNText style={styles.stepTitle}>Return and Log In</RNText>
+                    <RNText style={styles.stepDesc}>Sign in with your Zien credentials.</RNText>
+                  </View>
+                </View>
+              </View>
+
+              {/* Got It Button */}
+              <GradientButton
+                title="Got it!"
+                style={styles.activationBtn}
+                onPress={() => {
+                  setShowActivationModal(false);
+                }}
+              />
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
     </AuthScreenBackground>
   );
 }
@@ -429,18 +565,155 @@ function getStyles(colors: any) {
       flex: 0,
       minWidth: 100,
     },
-    appleButtonContainer: {
-      width: '100%',
-      marginBottom: 10,
+    appleSocialButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.socialButtonBackground,
+      borderWidth: 1,
+      borderColor: colors.socialButtonBorder,
+      paddingVertical: 10,
+      borderRadius: colors.inputBorderRadius || 8,
     },
-    appleButton: {
-      width: '100%',
-      height: 44,
+    appleIcon: {
+      marginRight: 2,
+    },
+    appleSocialText: {
+      fontSize: 13.5,
+      fontWeight: '600',
+      color: colors.socialButtonText,
     },
     socialRow: {
       flexDirection: 'row',
       gap: 12,
       marginTop: 14,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    activationCard: {
+      width: '100%',
+      maxWidth: 380,
+      borderRadius: 24,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.35,
+      shadowRadius: 15,
+      elevation: 10,
+    },
+    activationGradient: {
+      paddingVertical: 32,
+      paddingHorizontal: 24,
+      alignItems: 'center',
+    },
+    iconContainerOuter: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: 'rgba(0, 229, 255, 0.1)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    iconContainerInner: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: '#00E5FF',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 5,
+    },
+    activationTitle: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: colors.textPrimary || '#0F172A',
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    activationSubtitle: {
+      fontSize: 14,
+      color: colors.textSecondary || '#475569',
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    emailBadge: {
+      backgroundColor: 'rgba(0, 167, 181, 0.08)',
+      borderRadius: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderWidth: 1,
+      borderColor: 'rgba(0, 167, 181, 0.2)',
+      marginBottom: 16,
+    },
+    emailBadgeText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.accent || '#00A7B5',
+    },
+    activationDescription: {
+      fontSize: 14,
+      color: colors.textSecondary || '#334155',
+      textAlign: 'center',
+      lineHeight: 20,
+      marginBottom: 24,
+      paddingHorizontal: 10,
+    },
+    stepsContainer: {
+      width: '100%',
+      gap: 12,
+      marginBottom: 24,
+    },
+    stepRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.inputBackground || '#F8FAFC',
+      borderRadius: 16,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.borderLight || '#E2E8F0',
+    },
+    stepBadge: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: colors.accent || '#00A7B5',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    stepBadgeText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+    stepTextContainer: {
+      flex: 1,
+    },
+    stepTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary || '#0F172A',
+      marginBottom: 2,
+    },
+    stepDesc: {
+      fontSize: 12,
+      color: colors.textSecondary || '#64748B',
+    },
+    activationBtn: {
+      width: '100%',
+      height: 48,
+      borderRadius: 24,
     },
   });
 }

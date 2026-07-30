@@ -14,6 +14,7 @@ import {
 } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -967,28 +968,19 @@ export default function FollowUpsScreen() {
                 </Pressable>
               </Modal>
             ) : (
-              showDatePicker && (
-                <DateTimePicker
-                  value={modalDate || new Date()}
-                  mode={androidPickerMode}
-                  display="default"
-                  minimumDate={new Date()}
-                  onChange={(event, selectedDate) => {
-                    if (event.type === 'set') {
-                      const currentDate = selectedDate || modalDate || new Date();
-                      setModalDate(currentDate);
-                      if (androidPickerMode === 'date') {
-                        setAndroidPickerMode('time');
-                      } else {
-                        setShowDatePicker(false);
-                        if (errors.date) setErrors(prev => ({ ...prev, date: '' }));
-                      }
-                    } else {
-                      setShowDatePicker(false);
-                    }
-                  }}
-                />
-              )
+              <DateTimePickerModal
+                isVisible={showDatePicker}
+                mode="datetime"
+                date={modalDate || new Date()}
+                minimumDate={new Date()}
+                display="spinner"
+                onConfirm={(date) => {
+                  setModalDate(date);
+                  setShowDatePicker(false);
+                  if (errors.date) setErrors(prev => ({ ...prev, date: '' }));
+                }}
+                onCancel={() => setShowDatePicker(false)}
+              />
             )}
 
             <View style={[
@@ -1098,27 +1090,18 @@ export default function FollowUpsScreen() {
             </Pressable>
           </Modal>
         ) : (
-          showReschedulePicker && (
-            <DateTimePicker
-              value={rescheduleDate}
-              mode={androidPickerMode}
-              display="default"
-              minimumDate={new Date()}
-              onChange={(event, selectedDate) => {
-                if (event.type === 'set') {
-                  const currentDate = selectedDate || rescheduleDate;
-                  setRescheduleDate(currentDate);
-                  if (androidPickerMode === 'date') {
-                    setAndroidPickerMode('time');
-                  } else {
-                    setShowReschedulePicker(false);
-                  }
-                } else {
-                  setShowReschedulePicker(false);
-                }
-              }}
-            />
-          )
+          <DateTimePickerModal
+            isVisible={showReschedulePicker}
+            mode="datetime"
+            date={rescheduleDate}
+            minimumDate={new Date()}
+            display="spinner"
+            onConfirm={(date) => {
+              setRescheduleDate(date);
+              setShowReschedulePicker(false);
+            }}
+            onCancel={() => setShowReschedulePicker(false)}
+          />
         )}
       </Modal>
 
@@ -1899,6 +1882,8 @@ function getStyles(colors: any) {
       fontSize: 14,
       color: colors.textPrimary,
       fontWeight: '600',
+      paddingVertical: 0,
+      height: '100%',
     },
     selectionModalList: {
       flex: 1,

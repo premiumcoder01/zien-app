@@ -487,7 +487,7 @@ export default function EnterpriseContactScreen() {
         onConfirm={handleConfirmDate}
         onCancel={() => setDatePickerVisibility(false)}
         minimumDate={new Date()}
-        display={Platform.OS === 'android' ? 'calendar' : 'inline'}
+        display={Platform.OS === 'android' ? 'spinner' : 'inline'}
       />
 
       <DateTimePickerModal
@@ -495,7 +495,7 @@ export default function EnterpriseContactScreen() {
         mode="time"
         onConfirm={handleConfirmTime}
         onCancel={() => setTimePickerVisibility(false)}
-        display={Platform.OS === 'android' ? 'clock' : 'spinner'}
+        display={Platform.OS === 'android' ? 'spinner' : 'spinner'}
       />
 
       {/* Success Toast */}

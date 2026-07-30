@@ -33,6 +33,7 @@ import {
     View,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
@@ -1022,16 +1023,16 @@ export default function ProfileScreen() {
 
                                 {/* Android date picker */}
                                 {Platform.OS === 'android' && showEventDatePicker && (
-                                    <DateTimePicker
-                                        value={eventDate || new Date()}
+                                    <DateTimePickerModal
+                                        isVisible={showEventDatePicker}
                                         mode="date"
-                                        display="default"
-                                        onChange={(event, selectedDate) => {
+                                        date={eventDate || new Date()}
+                                        display="spinner"
+                                        onConfirm={(date) => {
+                                            setEventDate(date);
                                             setShowEventDatePicker(false);
-                                            if (event.type === 'set' && selectedDate) {
-                                                setEventDate(selectedDate);
-                                            }
                                         }}
+                                        onCancel={() => setShowEventDatePicker(false)}
                                     />
                                 )}
                             </ScrollView>
@@ -1137,23 +1138,16 @@ export default function ProfileScreen() {
 
                                 {/* Android datetime picker - two step (date then time) */}
                                 {Platform.OS === 'android' && showTaskDatePicker && (
-                                    <DateTimePicker
-                                        value={taskDueDate || new Date()}
-                                        mode={androidTaskPickerMode}
-                                        display="default"
-                                        onChange={(event, selectedDate) => {
-                                            if (event.type === 'set') {
-                                                const current = selectedDate || taskDueDate || new Date();
-                                                setTaskDueDate(current);
-                                                if (androidTaskPickerMode === 'date') {
-                                                    setAndroidTaskPickerMode('time');
-                                                } else {
-                                                    setShowTaskDatePicker(false);
-                                                }
-                                            } else {
-                                                setShowTaskDatePicker(false);
-                                            }
+                                    <DateTimePickerModal
+                                        isVisible={showTaskDatePicker}
+                                        mode="datetime"
+                                        date={taskDueDate || new Date()}
+                                        display="spinner"
+                                        onConfirm={(date) => {
+                                            setTaskDueDate(date);
+                                            setShowTaskDatePicker(false);
                                         }}
+                                        onCancel={() => setShowTaskDatePicker(false)}
                                     />
                                 )}
                             </ScrollView>
