@@ -545,7 +545,7 @@ export default function DashboardScreen() {
             Hi <Text style={styles.greetingName}>{firstName}</Text> 👋
           </Text>
           <Text style={styles.greetingSubtitle}>
-            Your pipeline is healthy. {crmCounts.new} new leads need follow-up today.
+            Here is your daily intelligence briefing.
           </Text>
         </LinearGradient>
 

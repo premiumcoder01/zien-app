@@ -566,3 +566,5 @@ function getStyles(colors: any) {
     },
   });
 }
+
+export { OverviewTab as default };

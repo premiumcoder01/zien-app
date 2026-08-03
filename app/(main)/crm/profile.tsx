@@ -5,6 +5,7 @@ import {
     appendCRMEvent,
     appendCRMNote,
     getCRMContactDetail,
+    getCRMMeta,
     updateCRMContact,
     getCRMFollowUps,
     createCRMFollowUp,
@@ -36,6 +37,13 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const getBadgeBgColor = (color: string) => {
+    if (color && color.startsWith('#') && color.length === 7) {
+        return `${color}18`;
+    }
+    return 'rgba(100, 116, 139, 0.1)';
+};
+
 export default function ProfileScreen() {
     const { colors, theme } = useAppTheme();
     const isDark = theme === 'dark';
@@ -52,6 +60,46 @@ export default function ProfileScreen() {
         queryFn: () => getCRMContactDetail(accessToken!, id!),
         enabled: !!accessToken && !!id,
     });
+
+    // Query CRM Metadata (for Group & Tag names fallback)
+    const { data: metaData } = useQuery({
+        queryKey: ['crm-meta'],
+        queryFn: () => getCRMMeta(accessToken!),
+        enabled: !!accessToken,
+    });
+
+    const groupName = useMemo(() => {
+        if (!contact) return '—';
+        if (contact.group?.name) return contact.group.name;
+        if ((contact as any).group_name) return (contact as any).group_name;
+        if (contact.group_id && metaData?.groups) {
+            const found = metaData.groups.find((g: any) => g.id === contact.group_id);
+            if (found?.name) return found.name;
+        }
+        return 'General';
+    }, [contact, metaData]);
+
+    const tagName = useMemo(() => {
+        if (!contact) return '—';
+        if (contact.tag?.name) return contact.tag.name;
+        if ((contact as any).tag_name) return (contact as any).tag_name;
+        if (contact.tag_id && metaData?.tags) {
+            const found = metaData.tags.find((t: any) => t.id === contact.tag_id);
+            if (found?.name) return found.name;
+        }
+        return 'Unassigned';
+    }, [contact, metaData]);
+
+    const tagColor = useMemo(() => {
+        if (!contact) return colors.accentTeal;
+        if (contact.tag?.tag_color) return contact.tag.tag_color;
+        if ((contact as any).tag_color) return (contact as any).tag_color;
+        if (contact.tag_id && metaData?.tags) {
+            const found = metaData.tags.find((t: any) => t.id === contact.tag_id);
+            if (found?.tag_color) return found.tag_color;
+        }
+        return colors.accentTeal;
+    }, [contact, metaData, colors.accentTeal]);
 
     // Query Tasks (Follow-ups)
     const { data: followUpsData, isLoading: isLoadingTasks } = useQuery({
@@ -214,9 +262,6 @@ export default function ProfileScreen() {
     }
 
     const fullName = `${contact.first_name} ${contact.last_name}`;
-    const groupName = contact.group?.name;
-    const tagName = contact.tag?.name;
-    const tagColor = contact.tag?.tag_color || colors.accentTeal;
     const isActive = contact.status === 1;
 
     // Actions
@@ -825,10 +870,6 @@ export default function ProfileScreen() {
                             </View>
                             <Text style={styles.cardTitle}>AI heat index</Text>
                         </View>
-                        <Pressable onPress={openEditHeat} style={styles.heatEditBtn}>
-                            <MaterialCommunityIcons name="pencil-outline" size={14} color={colors.accentTeal} />
-                            <Text style={styles.heatEditBtnText}>Edit</Text>
-                        </Pressable>
                     </View>
 
                     <View style={styles.heatRow}>
@@ -866,6 +907,20 @@ export default function ProfileScreen() {
                         </View>
                     </View>
                     <View style={styles.detailsList}>
+                        <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>Group Name</Text>
+                            <Text style={styles.detailValue}>{groupName}</Text>
+                        </View>
+                        <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>Tag Name</Text>
+                            {tagColor ? (
+                                <View style={[styles.statusChip, { backgroundColor: getBadgeBgColor(tagColor) }]}>
+                                    <Text style={[styles.statusChipText, { color: tagColor }]}>{tagName}</Text>
+                                </View>
+                            ) : (
+                                <Text style={styles.detailValue}>{tagName}</Text>
+                            )}
+                        </View>
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>Source</Text>
                             <Text style={styles.detailValue}>{contact.source || '—'}</Text>
@@ -1165,34 +1220,35 @@ export default function ProfileScreen() {
                                 </Pressable>
                             </View>
                         </KeyboardAvoidingView>
+
+                        {/* Priority Dropdown Overlay - placed inside Task Modal to avoid iOS nested Modal bugs */}
+                        {isPriorityDropdownVisible && (
+                            <Pressable style={styles.dropdownOverlay} onPress={() => setIsPriorityDropdownVisible(false)}>
+                                <View style={[styles.dropdownModalContent, { paddingBottom: Math.max(insets.bottom + 16, 32) }]}>
+                                    <Text style={styles.dropdownModalTitle}>Select Priority</Text>
+                                    {['High', 'Medium', 'Low'].map((p) => {
+                                        const isSelected = p === taskPriority;
+                                        return (
+                                            <Pressable
+                                                key={p}
+                                                onPress={() => { setTaskPriority(p); setIsPriorityDropdownVisible(false); }}
+                                                style={styles.dropdownOption}>
+                                                <Text style={[styles.dropdownOptionText, isSelected && styles.dropdownOptionTextActive]}>
+                                                    {p} Priority
+                                                </Text>
+                                                {isSelected && (
+                                                    <MaterialCommunityIcons name="check" size={20} color={colors.accentTeal} />
+                                                )}
+                                            </Pressable>
+                                        );
+                                    })}
+                                </View>
+                            </Pressable>
+                        )}
                     </View>
                 </View>
             </Modal>
 
-            {/* Priority Dropdown Modal - separate to avoid z-index issues inside modals */}
-            <Modal visible={isPriorityDropdownVisible} transparent animationType="fade" onRequestClose={() => setIsPriorityDropdownVisible(false)}>
-                <Pressable style={styles.dropdownOverlay} onPress={() => setIsPriorityDropdownVisible(false)}>
-                    <View style={[styles.dropdownModalContent, { paddingBottom: Math.max(insets.bottom + 16, 32) }]}>
-                        <Text style={styles.dropdownModalTitle}>Select Priority</Text>
-                        {['High', 'Medium', 'Low'].map((p) => {
-                            const isSelected = p === taskPriority;
-                            return (
-                                <Pressable
-                                    key={p}
-                                    onPress={() => { setTaskPriority(p); setIsPriorityDropdownVisible(false); }}
-                                    style={styles.dropdownOption}>
-                                    <Text style={[styles.dropdownOptionText, isSelected && styles.dropdownOptionTextActive]}>
-                                        {p} Priority
-                                    </Text>
-                                    {isSelected && (
-                                        <MaterialCommunityIcons name="check" size={20} color={colors.accentTeal} />
-                                    )}
-                                </Pressable>
-                            );
-                        })}
-                    </View>
-                </Pressable>
-            </Modal>
 
             {/* Heat Index Modal */}
             <Modal
@@ -2227,11 +2283,13 @@ function getStyles(colors: any, isDark: boolean) {
             shadowRadius: 12,
             elevation: 6,
         },
-        // Dropdown Stage modal
+        // Dropdown Stage modal / Priority modal
         dropdownOverlay: {
-            flex: 1,
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
             justifyContent: 'flex-end',
+            zIndex: 9999,
+            elevation: 10,
         },
         dropdownModalContent: {
             backgroundColor: colors.cardBackground,

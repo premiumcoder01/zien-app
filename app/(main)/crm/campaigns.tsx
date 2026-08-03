@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { addCRMTemplate, createCRMCampaign, CRMCampaign, deleteCRMCampaign, extractContactsWithAI, getCRMCampaigns, getCRMTemplates, patchCRMCampaignStatus, updateCRMCampaign, getCRMCampaignROI, getCRMOverview } from '@/services/crmService';
+import { addCRMTemplate, createCRMCampaign, CRMCampaign, deleteCRMCampaign, extractContactsWithAI, getCRMCampaignROI, getCRMCampaigns, getCRMOverview, getCRMTemplates, patchCRMCampaignStatus, updateCRMCampaign } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
@@ -17,7 +17,6 @@ import {
   Platform,
   Pressable, RefreshControl, ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View
@@ -480,8 +479,8 @@ Based on this, generate a JSON object with exactly the following fields:
             <Text style={styles.webRowCampaignName} numberOfLines={1}>{campaign.name}</Text>
           </View>
           <View style={styles.webRowActions}>
-            <Pressable 
-              style={styles.webRowActionBtn} 
+            <Pressable
+              style={styles.webRowActionBtn}
               onPress={() => {
                 setIntelCampaign(campaign);
                 setIntelVisible(true);
@@ -861,13 +860,13 @@ Based on this, generate a JSON object with exactly the following fields:
                       style={[styles.scheduleTab, sendSchedule === 'NOW' && styles.scheduleTabActive]}
                       onPress={() => setSendSchedule('NOW')}
                     >
-                      <Text style={[styles.scheduleTabText, sendSchedule === 'NOW' && styles.scheduleTextActive]}>SEND NOW</Text>
+                      <Text style={[styles.scheduleTabText, sendSchedule === 'NOW' && styles.scheduleTextActive]}>Send Now</Text>
                     </Pressable>
                     <Pressable
                       style={[styles.scheduleTab, sendSchedule === 'SCHEDULE' && styles.scheduleTabActive]}
                       onPress={() => setSendSchedule('SCHEDULE')}
                     >
-                      <Text style={[styles.scheduleTabText, sendSchedule === 'SCHEDULE' && styles.scheduleTextActive]}>SCHEDULE</Text>
+                      <Text style={[styles.scheduleTabText, sendSchedule === 'SCHEDULE' && styles.scheduleTextActive]}>Schedule</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -986,7 +985,7 @@ Based on this, generate a JSON object with exactly the following fields:
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.finalLaunchBtnText}>
-                  {editingCampaignId ? 'UPDATE & RESCHEDULE' : 'LAUNCH CAMPAIGN PIPELINE'}
+                  {editingCampaignId ? 'Update & Reschedule' : 'Launch Campaign Pipeline'}
                 </Text>
               )}
             </Pressable>
@@ -1697,7 +1696,7 @@ Based on this, generate a JSON object with exactly the following fields:
               {/* Reach & Engagement Diagnostics */}
               <View style={styles.intelSectionCard}>
                 <Text style={styles.intelSectionTitle}>Reach & Engagement Diagnostics</Text>
-                
+
                 <View style={styles.intelMetricItem}>
                   <View style={styles.intelMetricLabelRow}>
                     <Text style={styles.intelMetricLabel}>DELIVERY RATE</Text>
@@ -1730,7 +1729,7 @@ Based on this, generate a JSON object with exactly the following fields:
               {/* Pipeline & Revenue Impact */}
               <View style={styles.intelSectionCard}>
                 <Text style={styles.intelSectionTitle}>Pipeline & Revenue Impact</Text>
-                
+
                 <View style={styles.intelMetricItem}>
                   <View style={styles.intelMetricLabelRow}>
                     <Text style={styles.intelMetricLabel}>ATTRIBUTED CLOSED REVENUE</Text>
@@ -1762,7 +1761,7 @@ Based on this, generate a JSON object with exactly the following fields:
               {/* Pipeline Engagement */}
               <View style={styles.intelSectionCard}>
                 <Text style={styles.intelSectionTitle}>Pipeline Engagement</Text>
-                
+
                 <View style={styles.intelGridRow}>
                   <View style={styles.intelGridCol}>
                     <Text style={styles.intelGridLabel}>Click Through Rate</Text>
@@ -1773,7 +1772,7 @@ Based on this, generate a JSON object with exactly the following fields:
                     <Text style={styles.intelGridValue}>{campaignRoi?.reply_velocity || 'N/A'}</Text>
                   </View>
                 </View>
-                
+
                 <View style={[styles.intelGridRow, { marginTop: 12 }]}>
                   <View style={styles.intelGridCol}>
                     <Text style={styles.intelGridLabel}>Direct Conversion</Text>
@@ -1803,7 +1802,7 @@ Based on this, generate a JSON object with exactly the following fields:
                   <Text style={styles.intelNextWindowSubtext}>Based on past engagement patterns.</Text>
                 </View>
               </View>
-              
+
               <View style={{ height: 40 }} />
             </ScrollView>
           )}

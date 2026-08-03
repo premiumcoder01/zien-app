@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.propfyi",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "buildNumber": "20",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -34,6 +35,7 @@
         "NSRemindersUsageDescription": "This app needs access to reminders to help you manage follow-ups and tasks.",
         "NSMicrophoneUsageDescription": "This app needs access to your microphone to record property videos and use voice commands.",
         "NSSpeechRecognitionUsageDescription": "This app needs speech recognition to allow you to command Zien with your voice.",
+        "NSUserNotificationUsageDescription": "Zien sends you real-time alerts for new leads, property updates, and important CRM activity.",
         "LSApplicationQueriesSchemes": [
           "mailto"
         ]
@@ -44,6 +46,7 @@
     },
     "android": {
       "package": "com.propfyi",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 61,
       "permissions": [
         "CAMERA",
@@ -55,7 +58,8 @@
         "WRITE_CALENDAR",
         "RECORD_AUDIO",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -103,6 +107,13 @@
     "plugins": [
       "expo-router",
       "expo-apple-authentication",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#0a2341"
+        }
+      ],
       [
         "@react-native-google-signin/google-signin",
         {

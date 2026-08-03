@@ -1043,3 +1043,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     marginBottom: 10,
   },
 });
+
+export { ProfileCard as default };

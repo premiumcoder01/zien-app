@@ -41,11 +41,12 @@ type UserMenuSheetProps = {
   userInitials: string;
   userName: string;
   userEmail: string;
+  userAvatarUri?: string | null;
   actions: MenuAction[];
 };
 
 export default function UserMenuSheet({
-  visible, onClose, userInitials, userName, userEmail, actions,
+  visible, onClose, userInitials, userName, userEmail, userAvatarUri, actions,
 }: UserMenuSheetProps) {
   const { colors, theme } = useAppTheme();
   const styles = getStyles(colors);
@@ -99,14 +100,18 @@ export default function UserMenuSheet({
 
         {/* User info header */}
         <View style={sheetStyles.userRow}>
-          <LinearGradient
-            colors={['#0a2341', '#1B5E9A']}
-            style={sheetStyles.userAvatar}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Text style={sheetStyles.userAvatarText}>{userInitials}</Text>
-          </LinearGradient>
+          {userAvatarUri ? (
+            <Image source={{ uri: userAvatarUri }} style={sheetStyles.userAvatarImage} resizeMode="cover" />
+          ) : (
+            <LinearGradient
+              colors={['#0a2341', '#1B5E9A']}
+              style={sheetStyles.userAvatar}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={sheetStyles.userAvatarText}>{userInitials}</Text>
+            </LinearGradient>
+          )}
           <View style={sheetStyles.userInfo}>
             <Text style={[sheetStyles.userName, { color: colors.textPrimary }]}>{userName}</Text>
             <Text style={[sheetStyles.userEmail, { color: colors.textSecondary }]}>{userEmail}</Text>
@@ -237,6 +242,11 @@ function getSheetStyles(colors: any) {
       shadowOffset: { width: 0, height: 6 },
       elevation: 5,
     },
+    userAvatarImage: {
+      width: 50,
+      height: 50,
+      borderRadius: 16,
+    },
     userAvatarText: {
       color: '#fff',
       fontWeight: '800',
@@ -349,6 +359,7 @@ function MainHeaderComponent({
   const userInitials = propUserInitials || (profile ? ((profile.first_name?.[0] || '') + (profile.last_name?.[0] || '')).toUpperCase() : 'VP') || 'VP';
   const userName = propUserName || (profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'John Octane') || 'John Octane';
   const userEmail = propUserEmail || profile?.email || 'john@zien.ai';
+  const userAvatarUri = profile?.image || null;
 
   const handleSignOut = useCallback(() => {
     setMenuOpen(false);
@@ -425,9 +436,17 @@ function MainHeaderComponent({
               style={styles.agencyAvatarRow}
               onPress={() => setMenuOpen(true)}
             >
-              <View style={styles.agencyAvatarSquare}>
-                <Text style={styles.agencyAvatarText}>{userInitials}</Text>
-              </View>
+              {userAvatarUri ? (
+                <Image
+                  source={{ uri: userAvatarUri }}
+                  style={styles.agencyAvatarSquare}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.agencyAvatarSquare}>
+                  <Text style={styles.agencyAvatarText}>{userInitials}</Text>
+                </View>
+              )}
 
             </Pressable>
           </View>
@@ -437,14 +456,22 @@ function MainHeaderComponent({
             style={({ pressed }) => [styles.avatarWrap, pressed && { opacity: 0.8 }]}
             onPress={() => setMenuOpen(true)}
           >
-            <LinearGradient
-              colors={['#0a2341', '#1B5E9A']}
-              style={styles.avatar}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Text style={styles.avatarText}>{userInitials}</Text>
-            </LinearGradient>
+            {userAvatarUri ? (
+              <Image
+                source={{ uri: userAvatarUri }}
+                style={styles.avatarImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <LinearGradient
+                colors={['#0a2341', '#1B5E9A']}
+                style={styles.avatar}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Text style={styles.avatarText}>{userInitials}</Text>
+              </LinearGradient>
+            )}
           </Pressable>
         )}
       </View>
@@ -456,6 +483,7 @@ function MainHeaderComponent({
         userInitials={userInitials}
         userName={userName}
         userEmail={userEmail}
+        userAvatarUri={userAvatarUri}
         actions={MENU_ACTIONS}
       />
 
@@ -557,6 +585,13 @@ function getStyles(colors: any) {
       shadowRadius: 10,
       shadowOffset: { width: 0, height: 5 },
       elevation: 4,
+    },
+    avatarImage: {
+      width: 38,
+      height: 38,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
     },
     avatarText: {
       color: '#fff',

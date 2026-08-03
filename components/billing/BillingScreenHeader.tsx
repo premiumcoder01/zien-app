@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { memo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-export type BillingTabKey = 'overview' | 'history';
+export type BillingTabKey = 'overview' | 'history' | 'analytics';
 
 const TABS: Array<{
   key: BillingTabKey;
@@ -13,6 +13,7 @@ const TABS: Array<{
 }> = [
     { key: 'overview', label: 'Overview', icon: 'view-dashboard-outline' },
     { key: 'history', label: 'History', icon: 'history' },
+    { key: 'analytics', label: 'Analytics', icon: 'chart-bar' },
   ];
 
 type BillingScreenHeaderProps = {

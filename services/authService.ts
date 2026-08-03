@@ -649,3 +649,41 @@ export const registerMobileIos = async (payload: RegisterMobileIosRequest): Prom
     clearTimeout(timeoutId);
   }
 };
+
+export interface RegisterDeviceTokenRequest {
+  device_token: string;
+  platform?: 'ios' | 'android';
+}
+
+export const registerDeviceToken = async (
+  accessToken: string,
+  payload: RegisterDeviceTokenRequest
+): Promise<any> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/teams/settings/device-token`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      console.log('[AuthService] Register device token status:', response.status, data?.message);
+    }
+
+    return data;
+  } catch (error: unknown) {
+    console.log('[AuthService] Register device token catch error:', error);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};

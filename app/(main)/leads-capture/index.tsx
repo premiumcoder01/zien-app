@@ -234,9 +234,9 @@ export default function LeadsCaptureScreen() {
     const totalLeads = landingPages.reduce((acc, page) => acc + getPageLeadsCount(page), 0);
 
     const METRICS = [
-        { label: 'ACTIVE PAGES', value: activePagesCount.toString(), icon: 'star-four-points-outline' as const },
-        { label: 'TOTAL VISITORS', value: totalVisitors.toString(), icon: 'account-group-outline' as const },
-        { label: 'TOTAL LEADS CAPTURED', value: totalLeads.toString(), icon: 'flash-outline' as const },
+        { label: 'Active Pages', value: activePagesCount.toString(), icon: 'star-four-points-outline' as const },
+        { label: 'Total Visitors', value: totalVisitors.toString(), icon: 'account-group-outline' as const },
+        { label: 'Total Leads Captured', value: totalLeads.toString(), icon: 'flash-outline' as const },
     ];
 
     // Dynamic width for responsive table view on mobile vs tablet

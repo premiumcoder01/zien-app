@@ -1,0 +1,58 @@
+{
+  "project_info": {
+    "project_number": "643931044813",
+    "project_id": "propfyi",
+    "storage_bucket": "propfyi.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:643931044813:android:8b89ae460b735ed729a284",
+        "android_client_info": {
+          "package_name": "com.propfyi"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "643931044813-00aqqtoqcpqgn06c43vet55dp00sjbhp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.propfyi",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "643931044813-50ls2evf5ohp89f1gsuededq07rbnj1l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.propfyi",
+            "certificate_hash": "b196a9ceca4bedf93c6ecebdb8794f1a981987ca"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA61KIWcp6LBBDXrpkKJfs1dbnEmqX3wkE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "643931044813-408860flp5g2sottig98428m3mc1lakc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "643931044813-tfbh0a8f1q69g0vthql6pl1r4vpf7l3u.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.propfyi"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

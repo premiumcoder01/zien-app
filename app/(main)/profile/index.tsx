@@ -52,7 +52,7 @@ type BrandingUploadCardProps = {
   iconColor: string;
   iconBg: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   previewUri?: string | null;
   previewLabel?: string;
   onUpload: () => void;
@@ -83,7 +83,7 @@ function BrandingUploadCard({
       {/* Info */}
       <View style={bStyles.info}>
         <Text style={bStyles.cardTitle}>{title}</Text>
-        <Text style={bStyles.cardSub}>{subtitle}</Text>
+        {subtitle ? <Text style={bStyles.cardSub}>{subtitle}</Text> : null}
         <View style={bStyles.actions}>
           <Pressable
             style={({ pressed }) => [bStyles.uploadBtn, pressed && { opacity: 0.75 }]}
@@ -205,6 +205,7 @@ export default function ProfileScreen() {
   // OTP Verification Modal states
   const [otpModalVisible, setOtpModalVisible] = useState(false);
   const [otpType, setOtpType] = useState<'email' | 'phone'>('email');
+  const [otpPurpose, setOtpPurpose] = useState<'verify_email' | 'verify_phone' | 'change_password'>('verify_email');
   const [otpTarget, setOtpTarget] = useState('');
   const [otpCode, setOtpCode] = useState<string[]>(['', '', '', '']);
   const [otpError, setOtpError] = useState('');
@@ -239,6 +240,7 @@ export default function ProfileScreen() {
     try {
       await sendOtp(accessToken!, { type, target });
       setOtpType(type);
+      setOtpPurpose(type === 'email' ? 'verify_email' : 'verify_phone');
       setOtpTarget(target);
       setOtpCode(['', '', '', '']);
       setIsOtpSending(false);
@@ -270,7 +272,11 @@ export default function ProfileScreen() {
       setIsOtpVerifying(false);
       setOtpModalVisible(false);
 
-      if (otpType === 'email') {
+      if (otpPurpose === 'change_password') {
+        Alert.alert('Success', 'Password changed successfully!');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else if (otpType === 'email') {
         setIsEmailVerified(true);
         Alert.alert('Success', 'Email verified successfully!');
       } else {
@@ -343,7 +349,10 @@ export default function ProfileScreen() {
   const saveMutation = useMutation({
     mutationFn: (payload: Parameters<typeof updateProfile>[1]) =>
       updateProfile(accessToken!, payload),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData(['userProfile', accessToken], data);
+      }
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
       Alert.alert('Success', 'Profile updated successfully.');
     },
@@ -406,7 +415,7 @@ export default function ProfileScreen() {
     return '--';
   }, [firstName, lastName]);
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (!newPassword || !confirmPassword) {
       Alert.alert('Error', 'Please fill in both password fields.');
       return;
@@ -419,9 +428,30 @@ export default function ProfileScreen() {
       Alert.alert('Error', 'Password must be at least 8 characters long.');
       return;
     }
-    Alert.alert('Success', 'Password changed successfully.');
-    setNewPassword('');
-    setConfirmPassword('');
+
+    const emailTarget = professionalEmail || profile?.email || '';
+    if (!emailTarget) {
+      Alert.alert('Error', 'No email address found to send OTP.');
+      return;
+    }
+
+    setIsOtpSending(true);
+    setOtpError('');
+    try {
+      await sendOtp(accessToken!, { type: 'email', target: emailTarget });
+      setOtpType('email');
+      setOtpPurpose('change_password');
+      setOtpTarget(emailTarget);
+      setOtpCode(['', '', '', '']);
+      setIsOtpSending(false);
+      setOtpModalVisible(true);
+      setTimeout(() => {
+        otpRef0.current?.focus();
+      }, 250);
+    } catch (error: any) {
+      setIsOtpSending(false);
+      Alert.alert('Error', error.message || 'Failed to send OTP. Please try again.');
+    }
   };
 
   const tabContent = useMemo(() => {
@@ -450,7 +480,7 @@ export default function ProfileScreen() {
                 <View style={styles.avatarActions}>
                   <Pressable style={styles.avatarActionBtn} onPress={showAvatarOptions}>
                     <MaterialCommunityIcons name="upload-outline" size={14} color={colors.accentTeal} />
-                    <Text style={styles.avatarActionText}>Replace Avatar</Text>
+                    <Text style={styles.avatarActionText}>Upload</Text>
                   </Pressable>
                   <Pressable onPress={() => setAvatarUri(null)}>
                     <Text style={styles.removeText}>Remove</Text>
@@ -629,7 +659,6 @@ export default function ProfileScreen() {
               iconColor={colors.accentTeal}
               iconBg={`${colors.accentTeal}12`}
               title="Logo"
-              subtitle="SVG or PNG, max 2MB."
               previewUri={logoUri}
               onUpload={async () => { const uri = await pickImage(); if (uri) setLogoUri(uri); }}
               onRemove={() => setLogoUri(null)}
@@ -772,10 +801,16 @@ export default function ProfileScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>
-                {otpType === 'email' ? 'Verify Email' : 'Verify Phone'}
+                {otpPurpose === 'change_password'
+                  ? 'Verify Password Change'
+                  : otpType === 'email'
+                  ? 'Verify Email'
+                  : 'Verify Phone'}
               </Text>
               <Text style={styles.modalMessage}>
-                {otpType === 'email'
+                {otpPurpose === 'change_password'
+                  ? 'Enter the 4-digit code sent to your email address to confirm password change.'
+                  : otpType === 'email'
                   ? 'Enter the 4-digit code sent to your email address.'
                   : 'Enter the 4-digit code sent to your mobile phone.'}
               </Text>

@@ -830,3 +830,5 @@ const getStyles = (colors: any) => StyleSheet.create({
   main: { flex: 1 },
   loadingText: { fontSize: 14, fontWeight: '600' }
 });
+
+export { AnalyticsSection as default };

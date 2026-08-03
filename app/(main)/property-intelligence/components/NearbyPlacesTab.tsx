@@ -375,3 +375,5 @@ function getStyles(colors: any) {
     },
   });
 }
+
+export { NearbyPlacesTab as default };

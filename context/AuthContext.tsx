@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import {
+  setupNotificationListeners,
+  syncDeviceTokenWithBackend,
+} from '@/services/notificationService';
 
 type AuthContextType = {
   accessToken: string | null;
@@ -20,10 +24,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const segments = useSegments();
+  // Track tokens we've already synced to avoid duplicate requests
+  const syncedTokenRef = useRef<string | null>(null);
+
+  // Setup notification deep-link listeners once on mount
+  useEffect(() => {
+    const cleanup = setupNotificationListeners();
+    return cleanup;
+  }, []);
 
   useEffect(() => {
     loadStorageData();
   }, []);
+
+  // Whenever we get a valid accessToken (login or session restore),
+  // request notification permission and sync device token with backend.
+  useEffect(() => {
+    if (accessToken && accessToken !== syncedTokenRef.current) {
+      syncedTokenRef.current = accessToken;
+      syncDeviceTokenWithBackend(accessToken).catch(() => {});
+    }
+  }, [accessToken]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -90,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    syncedTokenRef.current = null;
     setAccessToken(null);
     setUserRole(null);
     setIsCompleteProfile(false);

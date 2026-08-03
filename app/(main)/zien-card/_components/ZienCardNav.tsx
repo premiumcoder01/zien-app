@@ -98,3 +98,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '800',
   },
 });
+
+export { ZienCardNav as default };

@@ -359,3 +359,5 @@ function getStyles(colors: any) {
     },
   });
 }
+
+export { PriceTrendTab as default };

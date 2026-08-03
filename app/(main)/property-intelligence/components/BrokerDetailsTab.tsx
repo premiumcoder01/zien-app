@@ -389,3 +389,5 @@ function getStyles(colors: any) {
     },
   });
 }
+
+export { BrokerDetailsTab as default };

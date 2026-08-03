@@ -297,3 +297,5 @@ function getStyles(colors: any) {
     },
   });
 }
+
+export { RiskEnvironmentTab as default };

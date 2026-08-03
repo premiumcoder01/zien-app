@@ -92,3 +92,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     opacity: 0.8,
   },
 });
+
+export { ZienCardScreenShell as default };

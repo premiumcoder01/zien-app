@@ -2,14 +2,13 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { getProperties } from '@/services/propertyService';
-import { getSocialPosts } from '@/services/socialService';
+import { getSocialPosts, type SocialPost } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { Bar, CartesianChart } from 'victory-native';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -24,6 +23,8 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+type TimeframeType = 'Today' | 'Month-Wise' | 'Year-Wise';
 
 const escapeCSVField = (val: string | number | boolean | null | undefined): string => {
   if (val === null || val === undefined) return '""';
@@ -45,42 +46,31 @@ const formatCSVDate = (dateString?: string): string => {
   }
 };
 
-const PointsTracker = ({ points, onChange }: { points: any; onChange: (p: any) => void }) => {
-  const lastPointsStr = React.useRef<string>("");
-
-  React.useEffect(() => {
-    if (!points) return;
-    const currentStr = JSON.stringify({
-      active: (points.activeCount || []).map((p: any) => ({ x: p?.x, y: p?.y })),
-      inactive: (points.inactiveCount || []).map((p: any) => ({ x: p?.x, y: p?.y }))
-    });
-
-    if (currentStr !== lastPointsStr.current) {
-      lastPointsStr.current = currentStr;
-      onChange(points);
-    }
-  }, [points, onChange]);
-
-  return null;
+const checkIsAutomated = (post: any): boolean => {
+  if (!post) return false;
+  return (
+    post.is_automated === true ||
+    post.is_automated === 1 ||
+    post.is_automated === '1' ||
+    post.is_automated === 'true'
+  );
 };
 
 export default function AnalyticsScreen() {
   const { colors, theme } = useAppTheme();
-  const styles = getStyles(colors, theme);
+  const isDark = theme === 'dark';
+  const styles = getStyles(colors, isDark);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { accessToken } = useAuth();
 
-  const [dateRange, setDateRange] = useState<'Last 30 Days' | 'Last 90 Days'>('Last 30 Days');
-  const [showRangeModal, setShowRangeModal] = useState(false);
+  const [timeframe, setTimeframe] = useState<TimeframeType>('Month-Wise');
+  const [selectedBarIdx, setSelectedBarIdx] = useState<number | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFilename, setExportFilename] = useState('');
   const [exportCacheUri, setExportCacheUri] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
-  const [chartPoints, setChartPoints] = useState<any>(null);
-
-
 
   // 1. Fetch posts from API
   const { data: posts = [], isLoading: isPostsLoading } = useQuery({
@@ -89,7 +79,7 @@ export default function AnalyticsScreen() {
     enabled: !!accessToken,
   });
 
-  // 2. Fetch properties to resolve property address
+  // 2. Fetch properties to resolve property address for CSV export
   const { data: properties = [], isLoading: isPropertiesLoading } = useQuery({
     queryKey: ['properties-all'],
     queryFn: async () => {
@@ -101,153 +91,252 @@ export default function AnalyticsScreen() {
 
   const isLoading = isPostsLoading || isPropertiesLoading;
 
-  // 3. Process all posts for activity logs
-  const publishedPosts = useMemo(() => {
-    return posts;
-  }, [posts]);
+  // 3. Filter posts based on selected Timeframe ('Today' | 'Month-Wise' | 'Year-Wise')
+  const filteredPosts = useMemo(() => {
+    if (!posts || !Array.isArray(posts)) return [];
+    const now = new Date();
 
-  // 4. Filter posts by selected date range
-  const filteredPostsByRange = useMemo(() => {
-    const rangeDays = dateRange === 'Last 30 Days' ? 30 : 90;
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - rangeDays);
-    return publishedPosts.filter(post => {
+    return posts.filter((post: SocialPost) => {
       const dateStr = post.published_at || post.scheduled_at || post.created_at;
-      return dateStr ? new Date(dateStr) >= cutoffDate : false;
+      if (!dateStr) return false;
+      const postDate = new Date(dateStr);
+      if (isNaN(postDate.getTime())) return false;
+
+      if (timeframe === 'Today') {
+        // Strict Today filter matching Web UI (same calendar day)
+        return (
+          postDate.getFullYear() === now.getFullYear() &&
+          postDate.getMonth() === now.getMonth() &&
+          postDate.getDate() === now.getDate()
+        );
+      } else if (timeframe === 'Month-Wise') {
+        // Last 12 months (365 days)
+        const diffDays = (now.getTime() - postDate.getTime()) / (1000 * 60 * 60 * 24);
+        return diffDays >= 0 && diffDays <= 365;
+      } else {
+        // Year-Wise: Last 5 Years
+        const diffDays = (now.getTime() - postDate.getTime()) / (1000 * 60 * 60 * 24);
+        return diffDays >= 0 && diffDays <= 1825;
+      }
     });
-  }, [publishedPosts, dateRange]);
+  }, [posts, timeframe]);
 
-  // 5. Total Published Posts
-  const totalPublished = filteredPostsByRange.length;
+  // Use filtered posts directly matching Web UI
+  const displayPosts = filteredPosts;
 
-  // 6. Total Platforms Synced (sum of successfully published platforms)
-  const totalPlatformsSynced = useMemo(() => {
-    return filteredPostsByRange.reduce((acc, post) => acc + (post.post_platforms?.length || 0), 0);
-  }, [filteredPostsByRange]);
+  // Reset selected bar when timeframe changes
+  const handleTimeframeChange = (tf: TimeframeType) => {
+    setTimeframe(tf);
+    setSelectedBarIdx(null);
+  };
 
-  // 7. Platform Distribution percentages
+  // 4. Platform Syndications Breakdown
   const platformStats = useMemo(() => {
-    const counts: Record<string, number> = {
-      facebook: 0,
-      instagram: 0,
-      linkedin: 0,
-      tiktok: 0,
-    };
+    const counts = { instagram: 0, facebook: 0, tiktok: 0, linkedin: 0 };
+    let totalSyndications = 0;
 
-    let totalPlatformsCount = 0;
-    filteredPostsByRange.forEach(post => {
-      post.post_platforms?.forEach(platObj => {
-        const platformName = platObj.account?.platform?.toLowerCase();
-        if (platformName && platformName in counts) {
-          counts[platformName]++;
-          totalPlatformsCount++;
+    displayPosts.forEach(post => {
+      post.post_platforms?.forEach((platObj: any) => {
+        const pName = platObj.account?.platform?.toLowerCase();
+        if (pName && pName in counts) {
+          counts[pName as keyof typeof counts]++;
+          totalSyndications++;
         }
       });
     });
 
     const percentages = {
-      facebook: totalPlatformsCount > 0 ? Math.round((counts.facebook / totalPlatformsCount) * 100) : 0,
-      instagram: totalPlatformsCount > 0 ? Math.round((counts.instagram / totalPlatformsCount) * 100) : 0,
-      linkedin: totalPlatformsCount > 0 ? Math.round((counts.linkedin / totalPlatformsCount) * 100) : 0,
-      tiktok: totalPlatformsCount > 0 ? Math.round((counts.tiktok / totalPlatformsCount) * 100) : 0,
+      instagram: totalSyndications > 0 ? Math.round((counts.instagram / totalSyndications) * 100) : 0,
+      facebook: totalSyndications > 0 ? Math.round((counts.facebook / totalSyndications) * 100) : 0,
+      tiktok: totalSyndications > 0 ? Math.round((counts.tiktok / totalSyndications) * 100) : 0,
+      linkedin: totalSyndications > 0 ? Math.round((counts.linkedin / totalSyndications) * 100) : 0,
     };
 
-    return { counts, percentages, total: totalPlatformsCount };
-  }, [filteredPostsByRange]);
+    return { counts, percentages, total: totalSyndications };
+  }, [displayPosts]);
 
-  // 8. Dominant Platform
-  const dominantPlatformInfo = useMemo(() => {
-    const keys = Object.keys(platformStats.percentages) as Array<keyof typeof platformStats.percentages>;
-    let maxPct = -1;
-    let dominantKey = 'None';
+  // 5. Automated vs Manual Publishing Breakdown
+  const automatedCount = useMemo(() => {
+    return displayPosts.filter(p => checkIsAutomated(p)).length;
+  }, [displayPosts]);
 
-    keys.forEach(key => {
-      const pct = platformStats.percentages[key];
-      if (pct > maxPct && pct > 0) {
-        maxPct = pct;
-        dominantKey = key.charAt(0).toUpperCase() + key.slice(1);
-      }
+  const manualCount = useMemo(() => {
+    return displayPosts.length - automatedCount;
+  }, [displayPosts, automatedCount]);
+
+  const platformAutoManual = useMemo(() => {
+    const data = {
+      instagram: { auto: 0, manual: 0 },
+      facebook: { auto: 0, manual: 0 },
+      linkedin: { auto: 0, manual: 0 },
+      tiktok: { auto: 0, manual: 0 },
+    };
+
+    displayPosts.forEach(post => {
+      const isAuto = checkIsAutomated(post);
+      post.post_platforms?.forEach((platObj: any) => {
+        const pName = platObj.account?.platform?.toLowerCase();
+        if (pName && pName in data) {
+          if (isAuto) data[pName as keyof typeof data].auto++;
+          else data[pName as keyof typeof data].manual++;
+        }
+      });
     });
 
-    if (dominantKey === 'None' && totalPublished > 0) {
-      dominantKey = 'Facebook';
-      maxPct = 100;
-    }
+    return data;
+  }, [displayPosts]);
+
+  const maxAutoManualVal = useMemo(() => {
+    const vals = Object.values(platformAutoManual).flatMap(d => [d.auto, d.manual]);
+    return Math.max(...vals, 8);
+  }, [platformAutoManual]);
+
+  // 6. Dominant Platform calculation
+  const dominantPlatformInfo = useMemo(() => {
+    const platforms = [
+      { name: 'Instagram', count: platformStats.counts.instagram, pct: platformStats.percentages.instagram },
+      { name: 'Facebook', count: platformStats.counts.facebook, pct: platformStats.percentages.facebook },
+      { name: 'TikTok', count: platformStats.counts.tiktok, pct: platformStats.percentages.tiktok },
+      { name: 'LinkedIn', count: platformStats.counts.linkedin, pct: platformStats.percentages.linkedin },
+    ];
+
+    let maxItem = platforms[0];
+    platforms.forEach(p => {
+      if (p.count > maxItem.count) maxItem = p;
+    });
 
     return {
-      name: dominantKey,
-      pct: maxPct > 0 ? `${maxPct}%` : '0%',
+      name: maxItem.count > 0 ? maxItem.name : 'Instagram',
+      pct: maxItem.count > 0 ? `${maxItem.pct}%` : '33%',
     };
-  }, [platformStats, totalPublished]);
+  }, [platformStats]);
 
-  // 9. Last 6 Months Activity Chart Data (based on all published posts for trend visualization)
-  const last6MonthsChartData = useMemo(() => {
-    const months: { label: string; year: number; monthIndex: number; count: number }[] = [];
+  // 7. Stacked Bar Chart Data for Platform Publishing Activity
+  const activityBuckets = useMemo(() => {
     const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        label: d.toLocaleDateString('en-US', { month: 'short' }),
-        year: d.getFullYear(),
-        monthIndex: d.getMonth(),
-        count: 0
+    let buckets: {
+      label: string;
+      fullLabel: string;
+      facebook: number;
+      instagram: number;
+      linkedin: number;
+      tiktok: number;
+      total: number;
+    }[] = [];
+
+    if (timeframe === 'Today') {
+      // 12 time slots: 1 AM, 3 AM, 5 AM, 7 AM, 9 AM, 11 AM, 1 PM, 3 PM, 5 PM, 7 PM, 9 PM, 11 PM
+      const hours = ['1 AM', '3 AM', '5 AM', '7 AM', '9 AM', '11 AM', '1 PM', '3 PM', '5 PM', '7 PM', '9 PM', '11 PM'];
+      buckets = hours.map(h => ({
+        label: h,
+        fullLabel: `${h} (Today)`,
+        facebook: 0,
+        instagram: 0,
+        linkedin: 0,
+        tiktok: 0,
+        total: 0,
+      }));
+
+      displayPosts.forEach(post => {
+        const dStr = post.published_at || post.scheduled_at || post.created_at;
+        if (!dStr) return;
+        const d = new Date(dStr);
+        const hour = d.getHours();
+        const bucketIdx = Math.min(11, Math.floor(hour / 2));
+
+        post.post_platforms?.forEach((platObj: any) => {
+          const pName = platObj.account?.platform?.toLowerCase();
+          if (pName && pName in buckets[bucketIdx]) {
+            (buckets[bucketIdx] as any)[pName]++;
+            buckets[bucketIdx].total++;
+          }
+        });
+      });
+    } else if (timeframe === 'Month-Wise') {
+      // 12 Months: Last 12 months ending with current month (matching Web UI screenshot 1)
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const mLabel = monthNames[d.getMonth()];
+        const year = d.getFullYear();
+        buckets.push({
+          label: mLabel,
+          fullLabel: `${mLabel} ${year}`,
+          facebook: 0,
+          instagram: 0,
+          linkedin: 0,
+          tiktok: 0,
+          total: 0,
+        });
+      }
+
+      displayPosts.forEach(post => {
+        const dStr = post.published_at || post.scheduled_at || post.created_at;
+        if (!dStr) return;
+        const d = new Date(dStr);
+        const postMonth = monthNames[d.getMonth()];
+        const postYear = d.getFullYear();
+
+        buckets.forEach(b => {
+          if (b.label === postMonth && b.fullLabel.includes(String(postYear))) {
+            post.post_platforms?.forEach((platObj: any) => {
+              const pName = platObj.account?.platform?.toLowerCase();
+              if (pName && pName in b) {
+                (b as any)[pName]++;
+                b.total++;
+              }
+            });
+          }
+        });
+      });
+    } else {
+      // 5 Years: Last 5 years (matching Web UI screenshot 2) e.g. 2022, 2023, 2024, 2025, 2026
+      const currentYear = now.getFullYear();
+      for (let i = 4; i >= 0; i--) {
+        const y = currentYear - i;
+        buckets.push({
+          label: String(y),
+          fullLabel: String(y),
+          facebook: 0,
+          instagram: 0,
+          linkedin: 0,
+          tiktok: 0,
+          total: 0,
+        });
+      }
+
+      displayPosts.forEach(post => {
+        const dStr = post.published_at || post.scheduled_at || post.created_at;
+        if (!dStr) return;
+        const d = new Date(dStr);
+        const postYear = String(d.getFullYear());
+
+        buckets.forEach(b => {
+          if (b.label === postYear) {
+            post.post_platforms?.forEach((platObj: any) => {
+              const pName = platObj.account?.platform?.toLowerCase();
+              if (pName && pName in b) {
+                (b as any)[pName]++;
+                b.total++;
+              }
+            });
+          }
+        });
       });
     }
 
-    publishedPosts.forEach(post => {
-      const dateStr = post.published_at || post.scheduled_at || post.created_at;
-      if (dateStr) {
-        const d = new Date(dateStr);
-        months.forEach(m => {
-          if (m.year === d.getFullYear() && m.monthIndex === d.getMonth()) {
-            m.count++;
-          }
-        });
-      }
-    });
+    return buckets;
+  }, [displayPosts, timeframe]);
 
-    return {
-      labels: months.map(m => m.label),
-      datasets: [{ data: months.map(m => m.count) }]
-    };
-  }, [publishedPosts]);
+  const maxActivityTotal = useMemo(() => {
+    return Math.max(...activityBuckets.map(b => b.total), 8);
+  }, [activityBuckets]);
 
-  const victoryChartData = useMemo(() => {
-    const maxVal = Math.max(...last6MonthsChartData.datasets[0].data, 1);
-    return last6MonthsChartData.labels.map((label, idx) => {
-      const realValue = last6MonthsChartData.datasets[0].data[idx] || 0;
-      return {
-        month: label,
-        activeCount: realValue > 0 ? realValue : 0,
-        inactiveCount: realValue === 0 ? maxVal * 0.04 : 0,
-        realCount: realValue,
-      };
-    });
-  }, [last6MonthsChartData]);
-
-  // Dynamic AI Insight based on dominant platform
-  const aiInsightMessage = useMemo(() => {
-    const p = dominantPlatformInfo.name.toLowerCase();
-    if (p === 'facebook') {
-      return 'Facebook syndicate reach increases by 35% when published on weekdays before 9 AM with property details.';
-    }
-    if (p === 'instagram') {
-      return 'Instagram video posts see 48% higher conversion. Adding high-contrast images increases reach by 22%.';
-    }
-    if (p === 'linkedin') {
-      return 'LinkedIn professional posts perform 42% better for video-tours between 6 PM and 8 PM.';
-    }
-    return 'Social media stories perform 42% better for video-tours when syndicated between 6 PM and 8 PM.';
-  }, [dominantPlatformInfo]);
-
-  const handleRangePress = () => {
-    setShowRangeModal(true);
-  };
-
+  // CSV Export Builder
   const buildCSV = () => {
     const propertyMap = new Map(properties.map((p: any) => [p.id, p.address]));
     const headers = 'Date,Type,Property Address,Platforms,Status,Caption\n';
-    const rows = posts.map(post => {
+    const rows = displayPosts.map(post => {
       const date = formatCSVDate(post.published_at || post.scheduled_at || post.created_at);
       const type = post.property_id ? 'Property' : 'General Content';
       const address = post.property_id ? (propertyMap.get(post.property_id) || 'General Content') : 'General Content';
@@ -262,15 +351,11 @@ export default function AnalyticsScreen() {
   };
 
   const handleExportReport = async () => {
-    if (posts.length === 0) {
-      setShowExportModal(true); // show modal even for empty state — handled inside
-      return;
-    }
     const now = new Date();
     const day = String(now.getDate()).padStart(2, '0');
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const year = now.getFullYear();
-    const filename = `Zien_Social_Report_${day}-${month}-${year}.csv`;
+    const filename = `Zien_Social_Analytics_${day}-${month}-${year}.csv`;
     const cacheUri = `${FileSystem.cacheDirectory}${filename}`;
 
     try {
@@ -304,7 +389,6 @@ export default function AnalyticsScreen() {
     setIsSaving(true);
     setShowExportModal(false);
 
-    // Wait for native modal dismissal animation to complete
     setTimeout(async () => {
       try {
         if (Platform.OS === 'android') {
@@ -324,16 +408,14 @@ export default function AnalyticsScreen() {
               `"${exportFilename}" has been saved to your selected folder.`
             );
           } else {
-            // User cancelled/denied SAF directory picker, fallback to share sheet
             await handleShareFileDirectly();
           }
         } else {
-          // iOS: Save directly to document directory (exposed in the Files app)
           const docUri = `${FileSystem.documentDirectory}${exportFilename}`;
           await FileSystem.copyAsync({ from: exportCacheUri, to: docUri });
           Alert.alert(
             "Download Complete",
-            `"${exportFilename}" has been saved directly to the 'Zien' folder in your Files app.`
+            `"${exportFilename}" has been saved directly to your Files app.`
           );
         }
       } catch (err) {
@@ -349,7 +431,6 @@ export default function AnalyticsScreen() {
     setIsSharing(true);
     setShowExportModal(false);
 
-    // Wait for native modal dismissal animation to complete
     setTimeout(async () => {
       try {
         await handleShareFileDirectly();
@@ -359,16 +440,17 @@ export default function AnalyticsScreen() {
     }, 450);
   };
 
-
-
   if (isLoading) {
     return (
       <LinearGradient colors={colors.backgroundGradient as any} style={[styles.background, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.accentTeal} />
+        <ActivityIndicator size="large" color="#00a7b5" />
         <Text style={[styles.loadingText, { color: colors.textMuted }]}>Analyzing syndication logs...</Text>
       </LinearGradient>
     );
   }
+
+  const timeframeSubtitle = timeframe === 'Today' ? '(Last 24 Hours)' : timeframe === 'Month-Wise' ? '(Last 12 Months)' : '(Last 5 Years)';
+  const activeTooltip = selectedBarIdx !== null ? activityBuckets[selectedBarIdx] : null;
 
   return (
     <LinearGradient
@@ -377,7 +459,7 @@ export default function AnalyticsScreen() {
 
       <PageHeader
         title="Analytics"
-        subtitle="Performance insights and engagement growth."
+        subtitle="Deep dive into your social publishing performance."
         onBack={() => router.back()}
       />
 
@@ -386,236 +468,263 @@ export default function AnalyticsScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}>
 
-        {/* Top Actions */}
-        <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.topActions}>
-          <Pressable style={styles.topActionBtn} onPress={handleRangePress}>
-            <Text style={styles.topActionText}>{dateRange}</Text>
-            <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textPrimary} />
-          </Pressable>
+        {/* Header Controls: Timeframe Pills & Export Report */}
+        <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.topControlsWrap}>
+          <View style={styles.timeframeSegmentRow}>
+            {(['Today', 'Month-Wise', 'Year-Wise'] as const).map((tf) => {
+              const isActive = timeframe === tf;
+              return (
+                <Pressable
+                  key={tf}
+                  style={[styles.timeframePill, isActive && styles.timeframePillActive]}
+                  onPress={() => handleTimeframeChange(tf)}
+                >
+                  <Text style={[styles.timeframeText, isActive && styles.timeframeTextActive]}>
+                    {tf}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
-          <Pressable style={[styles.topActionBtn, styles.exportBtn]} onPress={handleExportReport}>
-            <MaterialCommunityIcons name="download" size={16} color={colors.cardBackground} />
-            <Text style={[styles.topActionText, { color: colors.cardBackground }]}>Export Report</Text>
+          <Pressable style={styles.exportBtn} onPress={handleExportReport}>
+            <MaterialCommunityIcons name="download" size={15} color={colors.textPrimary} />
+            <Text style={styles.exportBtnText}>Export Report</Text>
           </Pressable>
         </Animated.View>
 
+        {/* Section 1: Platform Publishing Activity (Stacked Bar Chart with Interactive Click Tooltip) */}
+        <Animated.View entering={FadeInDown.delay(100).duration(400)}>
+          <View style={styles.cardContainer}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.cardTitle}>Platform Publishing Activity</Text>
+              <Text style={styles.cardSubtitleTag}>{timeframeSubtitle}</Text>
+            </View>
 
+            <View style={styles.stackedChartWrapper}>
+              {/* Interactive Tooltip Card Popover (Matching Web UI Screenshot 2) */}
+              {activeTooltip && (
+                <View style={styles.tooltipPopover}>
+                  <Text style={styles.tooltipTitle}>{activeTooltip.fullLabel}</Text>
+                  <Text style={[styles.tooltipText, { color: '#1877F2' }]}>
+                    Facebook : <Text style={styles.tooltipValue}>{activeTooltip.facebook}</Text>
+                  </Text>
+                  <Text style={[styles.tooltipText, { color: '#E1306C' }]}>
+                    Instagram : <Text style={styles.tooltipValue}>{activeTooltip.instagram}</Text>
+                  </Text>
+                  <Text style={[styles.tooltipText, { color: '#0A66C2' }]}>
+                    LinkedIn : <Text style={styles.tooltipValue}>{activeTooltip.linkedin}</Text>
+                  </Text>
+                  <Text style={[styles.tooltipText, { color: isDark ? '#E2E8F0' : '#000000' }]}>
+                    TikTok : <Text style={styles.tooltipValue}>{activeTooltip.tiktok}</Text>
+                  </Text>
+                </View>
+              )}
 
-        {/* Chart Section */}
-        <Animated.View entering={FadeInDown.delay(150).duration(400)}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Publishing Activity (Last 6 Months)</Text>
-          </View>
+              {/* Y-Axis Guidelines */}
+              <View style={styles.yAxisOverlay}>
+                {[maxActivityTotal, Math.round(maxActivityTotal * 0.75), Math.round(maxActivityTotal * 0.5), Math.round(maxActivityTotal * 0.25), 0].map((val, i) => (
+                  <View key={i} style={styles.yAxisLineRow}>
+                    <Text style={styles.yAxisText}>{val}</Text>
+                    <View style={styles.dashedLine} />
+                  </View>
+                ))}
+              </View>
 
-          <View style={styles.chartCard}>
-            <View style={{ height: 180, width: '100%', position: 'relative' }}>
-              <CartesianChart
-                data={victoryChartData}
-                xKey="month"
-                yKeys={["activeCount", "inactiveCount"]}
-                domainPadding={{ left: 24, right: 24, top: 30, bottom: 20 }}
-              >
-                {({ points, chartBounds }) => {
-                  return (
-                    <>
-                      <Bar
-                        chartBounds={chartBounds}
-                        points={points.activeCount}
-                        color={theme === 'dark' ? colors.accentTeal : '#0A2341'}
-                        roundedCorners={{ topLeft: 8, topRight: 8, bottomLeft: 8, bottomRight: 8 }}
-                        innerPadding={0.4}
-                      />
-                      <Bar
-                        chartBounds={chartBounds}
-                        points={points.inactiveCount}
-                        color={theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E2E8F0'}
-                        roundedCorners={{ topLeft: 8, topRight: 8, bottomLeft: 8, bottomRight: 8 }}
-                        innerPadding={0.4}
-                      />
-                      <PointsTracker points={points} onChange={setChartPoints} />
-                    </>
-                  );
-                }}
-              </CartesianChart>
-
-              {/* Custom labels overlay */}
-              {chartPoints && (
-                <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
-                  {chartPoints.activeCount.map((point: any, idx: number) => {
-                    const realValue = victoryChartData[idx]?.realCount || 0;
-                    const label = point.xValue;
-                    const isActive = realValue > 0;
-                    const activePoint = chartPoints.activeCount[idx];
-                    const inactivePoint = chartPoints.inactiveCount[idx];
-                    const x = activePoint?.x ?? 0;
-                    const y = (isActive ? activePoint?.y : inactivePoint?.y) ?? 0;
+              {/* Bars Row */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                <View style={styles.barsContainer}>
+                  {activityBuckets.map((bucket, idx) => {
+                    const barHeightPct = bucket.total > 0 ? Math.max(15, Math.min(100, (bucket.total / maxActivityTotal) * 100)) : 0;
+                    const fbPct = bucket.total > 0 ? (bucket.facebook / bucket.total) * 100 : 0;
+                    const igPct = bucket.total > 0 ? (bucket.instagram / bucket.total) * 100 : 0;
+                    const liPct = bucket.total > 0 ? (bucket.linkedin / bucket.total) * 100 : 0;
+                    const ttPct = bucket.total > 0 ? (bucket.tiktok / bucket.total) * 100 : 0;
+                    const isSelected = selectedBarIdx === idx;
 
                     return (
-                      <React.Fragment key={idx}>
-                        {/* Value label centered on top of bar */}
-                        <Text
-                          style={{
-                            position: 'absolute',
-                            left: x - 25,
-                            top: Math.max(y - 22, 5),
-                            width: 50,
-                            textAlign: 'center',
-                            fontSize: 14,
-                            fontWeight: '900',
-                            color: colors.textPrimary,
-                          }}
-                        >
-                          {realValue}
-                        </Text>
+                      <Pressable
+                        key={idx}
+                        style={[styles.barColumn, isSelected && styles.barColumnSelected]}
+                        onPress={() => setSelectedBarIdx(selectedBarIdx === idx ? null : idx)}
+                        hitSlop={4}
+                      >
+                        {/* Number label above bar */}
+                        <Text style={styles.barTopTotalText}>{bucket.total > 0 ? bucket.total : ''}</Text>
 
-                        {/* Month label centered at the bottom of the chart */}
-                        <Text
-                          style={{
-                            position: 'absolute',
-                            left: x - 25,
-                            bottom: 0,
-                            width: 50,
-                            textAlign: 'center',
-                            fontSize: 12,
-                            fontWeight: '700',
-                            color: colors.textSecondary,
-                          }}
-                        >
-                          {label}
-                        </Text>
-                      </React.Fragment>
+                        <View style={styles.barTrack}>
+                          {bucket.total > 0 ? (
+                            <View style={[styles.stackedBarPill, { height: `${barHeightPct}%` }, isSelected && styles.stackedBarPillSelected]}>
+                              {/* Stacked Segments */}
+                              {ttPct > 0 && <View style={{ height: `${ttPct}%`, backgroundColor: isDark ? '#F43F5E' : '#000000' }} />}
+                              {liPct > 0 && <View style={{ height: `${liPct}%`, backgroundColor: '#0A66C2' }} />}
+                              {fbPct > 0 && <View style={{ height: `${fbPct}%`, backgroundColor: '#1877F2' }} />}
+                              {igPct > 0 && <View style={{ height: `${igPct}%`, backgroundColor: '#E1306C' }} />}
+                            </View>
+                          ) : (
+                            <View style={styles.emptyBarBaseline} />
+                          )}
+                        </View>
+
+                        <Text style={[styles.barXLabel, isSelected && styles.barXLabelSelected]}>{bucket.label}</Text>
+                      </Pressable>
                     );
                   })}
                 </View>
-              )}
+              </ScrollView>
+
+              {/* Legend Row */}
+              <View style={styles.legendRowCenter}>
+                <View style={styles.legendDotItem}>
+                  <View style={[styles.legendSquareDot, { backgroundColor: '#1877F2' }]} />
+                  <Text style={styles.legendDotText}>Facebook</Text>
+                </View>
+                <View style={styles.legendDotItem}>
+                  <View style={[styles.legendSquareDot, { backgroundColor: '#E1306C' }]} />
+                  <Text style={styles.legendDotText}>Instagram</Text>
+                </View>
+                <View style={styles.legendDotItem}>
+                  <View style={[styles.legendSquareDot, { backgroundColor: '#0A66C2' }]} />
+                  <Text style={styles.legendDotText}>LinkedIn</Text>
+                </View>
+                <View style={styles.legendDotItem}>
+                  <View style={[styles.legendSquareDot, { backgroundColor: isDark ? '#F43F5E' : '#000000' }]} />
+                  <Text style={styles.legendDotText}>TikTok</Text>
+                </View>
+              </View>
             </View>
           </View>
         </Animated.View>
 
-        {/* Platform Breakdown */}
+        {/* Section 2: Platform Breakdown */}
+        <Animated.View entering={FadeInDown.delay(150).duration(400)}>
+          <View style={styles.cardContainer}>
+            <Text style={styles.cardTitle}>Platform Breakdown</Text>
+
+            <View style={styles.platformBreakdownList}>
+              {[
+                { name: 'Instagram', count: platformStats.counts.instagram, pct: platformStats.percentages.instagram, color: '#E1306C', icon: 'instagram' },
+                { name: 'Facebook', count: platformStats.counts.facebook, pct: platformStats.percentages.facebook, color: '#1877F2', icon: 'facebook' },
+                { name: 'TikTok', count: platformStats.counts.tiktok, pct: platformStats.percentages.tiktok, color: isDark ? '#E2E8F0' : '#000000', icon: 'music-note' },
+                { name: 'LinkedIn', count: platformStats.counts.linkedin, pct: platformStats.percentages.linkedin, color: '#0A66C2', icon: 'linkedin' },
+              ].map((p, idx) => (
+                <View key={idx} style={styles.breakdownItem}>
+                  <View style={styles.breakdownHeaderRow}>
+                    <Text style={styles.breakdownName}>{p.name}</Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.breakdownCountText}>{p.count} posts</Text>
+                      <Text style={styles.breakdownPctText}>{p.pct}% of total</Text>
+                    </View>
+                  </View>
+                  <View style={styles.breakdownTrack}>
+                    <View style={[styles.breakdownFill, { width: `${p.pct}%`, backgroundColor: p.color }]} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Section 3: Automated vs Manual Publishing (Side-by-side Dual Vertical Bars for Automated & Manual) */}
         <Animated.View entering={FadeInDown.delay(200).duration(400)}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Platform Distribution</Text>
-          </View>
+          <View style={styles.cardContainer}>
+            <View style={styles.cardHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <MaterialCommunityIcons name="star-four-points-outline" size={18} color="#00a7b5" />
+                <Text style={styles.cardTitle}>Automated vs Manual Publishing</Text>
+              </View>
+              <View style={styles.autoManualPill}>
+                <Text style={styles.autoManualPillText}>
+                  Automated: <Text style={{ fontWeight: '900' }}>{automatedCount}</Text> | Manual: <Text style={{ fontWeight: '900' }}>{manualCount}</Text>
+                </Text>
+              </View>
+            </View>
 
-          <View style={styles.platformCard}>
-            {[
-              { name: 'Instagram', pct: platformStats.percentages.instagram, color: '#E1306C', icon: 'instagram' },
-              { name: 'Facebook', pct: platformStats.percentages.facebook, color: '#1877F2', icon: 'facebook' },
-              { name: 'LinkedIn', pct: platformStats.percentages.linkedin, color: '#0A66C2', icon: 'linkedin' },
-              { name: 'TikTok', pct: platformStats.percentages.tiktok, color: '#FE2C55', icon: 'music-note' },
-            ].map((p, i) => (
-              <View key={i} style={[styles.platformRow, i === 3 && { marginBottom: 0 }]}>
-                <View style={[styles.platformIcon, { backgroundColor: `${p.color}10` }]}>
-                  <MaterialCommunityIcons name={p.icon as any} size={18} color={p.color} />
+            <View style={styles.autoManualChartWrap}>
+              {/* Y-Axis Guidelines */}
+              <View style={styles.yAxisOverlay}>
+                {[maxAutoManualVal, Math.round(maxAutoManualVal * 0.75), Math.round(maxAutoManualVal * 0.5), Math.round(maxAutoManualVal * 0.25), 0].map((val, i) => (
+                  <View key={i} style={styles.yAxisLineRow}>
+                    <Text style={styles.yAxisText}>{val}</Text>
+                    <View style={styles.dashedLine} />
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.autoManualBarsRow}>
+                {[
+                  { name: 'Instagram', data: platformAutoManual.instagram },
+                  { name: 'Facebook', data: platformAutoManual.facebook },
+                  { name: 'LinkedIn', data: platformAutoManual.linkedin },
+                  { name: 'TikTok', data: platformAutoManual.tiktok },
+                ].map((item, idx) => {
+                  const autoPct = item.data.auto > 0 ? Math.max(12, (item.data.auto / maxAutoManualVal) * 100) : 0;
+                  const manualPct = item.data.manual > 0 ? Math.max(12, (item.data.manual / maxAutoManualVal) * 100) : 0;
+
+                  return (
+                    <View key={idx} style={styles.autoManualGroupCol}>
+                      <View style={styles.dualBarsPairRow}>
+                        {/* Automated Bar (Teal) */}
+                        <View style={styles.singleBarTrack}>
+                          {item.data.auto > 0 ? (
+                            <View style={[styles.autoBarFill, { height: `${autoPct}%` }]} />
+                          ) : (
+                            <View style={styles.emptyBarBaseline} />
+                          )}
+                        </View>
+
+                        {/* Manual Bar (Navy) */}
+                        <View style={styles.singleBarTrack}>
+                          {item.data.manual > 0 ? (
+                            <View style={[styles.manualBarFill, { height: `${manualPct}%` }]} />
+                          ) : (
+                            <View style={styles.emptyBarBaseline} />
+                          )}
+                        </View>
+                      </View>
+
+                      <Text style={styles.autoManualXLabel}>{item.name}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              <View style={styles.legendRowCenter}>
+                <View style={styles.legendDotItem}>
+                  <View style={[styles.legendSquareDot, { backgroundColor: '#00a7b5' }]} />
+                  <Text style={styles.legendDotText}>Automated</Text>
                 </View>
-                <View style={styles.platformInfo}>
-                  <View style={styles.platformTagRow}>
-                    <Text style={styles.platformLabel}>{p.name}</Text>
-                    <Text style={styles.percentText}>{p.pct}%</Text>
-                  </View>
-                  <View style={styles.progressContainer}>
-                    <View style={[styles.progressFill, { width: `${p.pct}%`, backgroundColor: p.color }]} />
-                  </View>
+                <View style={styles.legendDotItem}>
+                  <View style={[styles.legendSquareDot, { backgroundColor: isDark ? '#38BDF8' : '#0B2D3E' }]} />
+                  <Text style={styles.legendDotText}>Manual</Text>
                 </View>
               </View>
-            ))}
+            </View>
           </View>
         </Animated.View>
 
-        {/* AI Insight Upgrade */}
-        <Animated.View entering={FadeInDown.delay(250).duration(400)}>
-          <LinearGradient
-            colors={theme === 'dark' ? ['#151D26', '#222F3D'] : ['#0b2341', '#1c3e66']}
-            style={styles.aiInsightBox}>
-            <View style={styles.aiHeader}>
-              <View style={styles.pulseContainer}>
-                <View style={styles.pulseInner} />
-              </View>
-              <Text style={styles.aiTitle}>AI INSIGHT ✨</Text>
-            </View>
-            <Text style={styles.aiMessage}>
-              "{aiInsightMessage}"
-            </Text>
-          </LinearGradient>
-        </Animated.View>
-
-        {/* KPI Metrics - Vertically Stacked under AI Insight */}
-        <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.metricsCard}>
-          <View style={styles.metricRow}>
-            <View style={[styles.metricIconBox, { backgroundColor: `${colors.accentTeal}15` }]}>
-              <MaterialCommunityIcons name="layers-outline" size={16} color={colors.accentTeal} />
-            </View>
-            <View style={styles.metricInfo}>
-              <Text style={styles.metricLabel}>TOTAL POSTS PUBLISHED</Text>
-              <Text style={styles.metricSubtext}>Lifetime count</Text>
-            </View>
-            <Text style={styles.metricVal}>{totalPublished}</Text>
+        {/* Section 4: KPI Summary Cards (3 Cards Row) */}
+        <Animated.View entering={FadeInDown.delay(250).duration(400)} style={styles.summaryGrid}>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryCardLabel}>Total Posts Published</Text>
+            <Text style={styles.summaryCardNumber}>{displayPosts.length}</Text>
+            <Text style={styles.summaryCardSubtext}>In selected timeframe</Text>
           </View>
 
-          <View style={styles.metricRow}>
-            <View style={[styles.metricIconBox, { backgroundColor: '#1B5E9A15' }]}>
-              <MaterialCommunityIcons name="sync" size={16} color="#1B5E9A" />
-            </View>
-            <View style={styles.metricInfo}>
-              <Text style={styles.metricLabel}>PLATFORMS SYNCED</Text>
-              <Text style={styles.metricSubtext}>Total successful syndications</Text>
-            </View>
-            <Text style={styles.metricVal}>{totalPlatformsSynced}</Text>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryCardLabel}>Platforms Synced</Text>
+            <Text style={styles.summaryCardNumber}>{platformStats.total}</Text>
+            <Text style={styles.summaryCardSubtext}>Total successful syndications</Text>
           </View>
 
-          <View style={[styles.metricRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
-            <View style={[styles.metricIconBox, { backgroundColor: '#16A34A15' }]}>
-              <MaterialCommunityIcons name="trophy-outline" size={16} color="#16A34A" />
-            </View>
-            <View style={styles.metricInfo}>
-              <Text style={styles.metricLabel}>DOMINANT PLATFORM</Text>
-              <Text style={styles.metricSubtext}>0 of posts</Text>
-            </View>
-            <Text style={styles.metricValText}>Instagram</Text>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryCardLabel}>Dominant Platform</Text>
+            <Text style={styles.summaryCardDominantTitle}>{dominantPlatformInfo.name}</Text>
+            <Text style={styles.summaryCardSubtext}>{dominantPlatformInfo.pct} of your posts</Text>
           </View>
         </Animated.View>
 
       </ScrollView>
-
-      {/* Date Range Modal */}
-      <Modal visible={showRangeModal} transparent animationType="fade" onRequestClose={() => setShowRangeModal(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowRangeModal(false)}>
-          <View style={styles.bottomSheet}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Select Date Range</Text>
-            <Text style={styles.sheetSubtitle}>Choose the time period for analytics.</Text>
-
-            <Pressable
-              style={[styles.sheetOption, dateRange === 'Last 30 Days' && styles.sheetOptionActive]}
-              onPress={() => { setDateRange('Last 30 Days'); setShowRangeModal(false); }}
-            >
-              <Text style={[styles.sheetOptionText, dateRange === 'Last 30 Days' && styles.sheetOptionTextActive]}>
-                Last 30 Days
-              </Text>
-              {dateRange === 'Last 30 Days' && (
-                <MaterialCommunityIcons name="check" size={18} color={colors.accentTeal} />
-              )}
-            </Pressable>
-
-            <Pressable
-              style={[styles.sheetOption, dateRange === 'Last 90 Days' && styles.sheetOptionActive]}
-              onPress={() => { setDateRange('Last 90 Days'); setShowRangeModal(false); }}
-            >
-              <Text style={[styles.sheetOptionText, dateRange === 'Last 90 Days' && styles.sheetOptionTextActive]}>
-                Last 90 Days
-              </Text>
-              {dateRange === 'Last 90 Days' && (
-                <MaterialCommunityIcons name="check" size={18} color={colors.accentTeal} />
-              )}
-            </Pressable>
-
-            <Pressable style={styles.sheetCancel} onPress={() => setShowRangeModal(false)}>
-              <Text style={styles.sheetCancelText}>Cancel</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
 
       {/* Export Report Modal */}
       <Modal visible={showExportModal} transparent animationType="fade" onRequestClose={() => setShowExportModal(false)}>
@@ -623,19 +732,18 @@ export default function AnalyticsScreen() {
           <View style={styles.bottomSheet}>
             <View style={styles.sheetHandle} />
 
-            {/* Icon */}
             <View style={styles.exportIconBox}>
-              <MaterialCommunityIcons name="file-download-outline" size={28} color={colors.accentTeal} />
+              <MaterialCommunityIcons name="file-download-outline" size={28} color="#00a7b5" />
             </View>
 
             <Text style={styles.sheetTitle}>Export Report</Text>
             <Text style={styles.sheetSubtitle}>
-              {posts.length === 0
-                ? 'No post data available to export yet.'
+              {displayPosts.length === 0
+                ? 'No post data available to export.'
                 : `Ready to export "${exportFilename}"`}
             </Text>
 
-            {posts.length > 0 && (
+            {displayPosts.length > 0 && (
               <>
                 <Pressable
                   style={[styles.sheetOption, isSaving && { opacity: 0.6 }]}
@@ -647,7 +755,7 @@ export default function AnalyticsScreen() {
                     <Text style={styles.sheetOptionText}>Save to Device</Text>
                   </View>
                   {isSaving
-                    ? <ActivityIndicator size="small" color={colors.accentTeal} />
+                    ? <ActivityIndicator size="small" color="#00a7b5" />
                     : <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
                   }
                 </Pressable>
@@ -662,7 +770,7 @@ export default function AnalyticsScreen() {
                     <Text style={styles.sheetOptionText}>Share File</Text>
                   </View>
                   {isSharing
-                    ? <ActivityIndicator size="small" color={colors.accentTeal} />
+                    ? <ActivityIndicator size="small" color="#00a7b5" />
                     : <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
                   }
                 </Pressable>
@@ -680,225 +788,400 @@ export default function AnalyticsScreen() {
   );
 }
 
-function getStyles(colors: any, theme: 'light' | 'dark') {
+function getStyles(colors: any, isDark: boolean) {
   return StyleSheet.create({
     background: { flex: 1 },
     scroll: { flex: 1 },
-    scrollContent: { paddingHorizontal: 20 },
+    scrollContent: { paddingHorizontal: 18, paddingTop: 10, gap: 16 },
     loadingText: {
-      marginTop: 15,
+      marginTop: 14,
       fontWeight: '700',
-      fontSize: 14,
+      fontSize: 13.5,
     },
 
-    sectionHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 12,
-    },
-    sectionTitle: {
-      fontSize: 15,
-      fontWeight: '900',
-      color: colors.textPrimary,
-    },
-    topActions: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+    // Header Controls
+    topControlsWrap: {
+      flexDirection: 'column',
       gap: 12,
-      marginBottom: 24,
+      marginBottom: 4,
     },
-    topActionBtn: {
-      flex: 1,
-      height: 48,
-      backgroundColor: colors.cardBackground,
+    timeframeSegmentRow: {
+      flexDirection: 'row',
+      backgroundColor: isDark ? 'rgba(16, 27, 40, 0.85)' : '#F1F5F9',
+      padding: 4,
       borderRadius: 14,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      ...Platform.select({
-        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8 },
-        android: { elevation: 1 },
-      }),
+      gap: 4,
     },
-    exportBtn: {
-      backgroundColor: colors.textPrimary,
-      borderColor: colors.textPrimary,
-    },
-    topActionText: {
-      fontSize: 13,
-      fontWeight: '800',
-      color: colors.textPrimary,
-    },
-    chartCard: {
-      backgroundColor: colors.cardBackground,
-      borderRadius: 24,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      marginBottom: 24,
-      ...Platform.select({
-        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
-        android: { elevation: 2 },
-      }),
-    },
-    platformCard: {
-      backgroundColor: colors.cardBackground,
-      borderRadius: 24,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
-      marginBottom: 24,
-      ...Platform.select({
-        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
-        android: { elevation: 2 },
-      }),
-    },
-    platformRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 16,
-      gap: 12,
-    },
-    platformIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 11,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    platformInfo: {
+    timeframePill: {
       flex: 1,
-    },
-    platformTagRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      paddingVertical: 10,
+      borderRadius: 10,
       alignItems: 'center',
-      marginBottom: 6,
+      justifyContent: 'center',
     },
-    platformLabel: {
+    timeframePillActive: {
+      backgroundColor: colors.cardBackground,
+      shadowColor: '#0B2D3E',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    timeframeText: {
       fontSize: 13,
       fontWeight: '800',
-      color: colors.textPrimary,
-    },
-    percentText: {
-      fontSize: 12,
-      fontWeight: '900',
       color: colors.textSecondary,
     },
-    progressContainer: {
-      height: 6,
-      backgroundColor: colors.surfaceSoft,
-      borderRadius: 3,
-      overflow: 'hidden',
+    timeframeTextActive: {
+      color: colors.textPrimary,
     },
-    progressFill: {
-      height: '100%',
-      borderRadius: 3,
-    },
-    aiInsightBox: {
-      borderRadius: 24,
-      padding: 24,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.1)',
-      ...Platform.select({
-        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.1, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
-        android: { elevation: 4 },
-      }),
-    },
-    aiHeader: {
+    exportBtn: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      marginBottom: 12,
-    },
-    pulseContainer: {
-      width: 12,
-      height: 12,
-      borderRadius: 6,
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      alignItems: 'center',
       justifyContent: 'center',
-    },
-    pulseInner: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
-      backgroundColor: '#FFF',
-    },
-    aiTitle: {
-      fontSize: 10,
-      fontWeight: '900',
-      color: '#FFF',
-      letterSpacing: 1.5,
-    },
-    aiMessage: {
-      fontSize: 14,
-      color: '#FFF',
-      fontWeight: '600',
-      lineHeight: 22,
-      fontStyle: 'italic',
-      opacity: 0.9,
-    },
-    metricsCard: {
-      backgroundColor: colors.cardBackground,
-      borderRadius: 24,
-      padding: 16,
+      paddingVertical: 11,
+      paddingHorizontal: 16,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.cardBorder,
-      marginTop: 20,
-      ...Platform.select({
-        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
-        android: { elevation: 2 },
-      }),
+      backgroundColor: colors.cardBackground,
+      gap: 6,
+      alignSelf: 'flex-end',
     },
-    metricRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.rowBorder || colors.cardBorder,
-    },
-    metricIconBox: {
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 12,
-    },
-    metricInfo: {
-      flex: 1,
-    },
-    metricLabel: {
-      fontSize: 10,
+    exportBtnText: {
+      fontSize: 13,
       fontWeight: '800',
       color: colors.textPrimary,
-      letterSpacing: 0.3,
-      marginBottom: 2,
     },
-    metricSubtext: {
-      fontSize: 9,
-      fontWeight: '600',
-      color: colors.textMuted,
+
+    // Main Cards
+    cardContainer: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 24,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#0B2D3E',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.04,
+      shadowRadius: 12,
+      elevation: 2,
     },
-    metricVal: {
-      fontSize: 18,
+    cardHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    cardTitle: {
+      fontSize: 17,
       fontWeight: '900',
       color: colors.textPrimary,
-      marginLeft: 12,
+      letterSpacing: -0.3,
     },
-    metricValText: {
+    cardSubtitleTag: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+
+    // Interactive Tooltip Popover
+    tooltipPopover: {
+      position: 'absolute',
+      top: 0,
+      right: 8,
+      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#E2E8F0',
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 6,
+      zIndex: 20,
+      minWidth: 135,
+    },
+    tooltipTitle: {
+      fontSize: 13,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    tooltipText: {
+      fontSize: 12,
+      fontWeight: '700',
+      lineHeight: 18,
+    },
+    tooltipValue: {
+      fontWeight: '900',
+    },
+
+    // Stacked Bar Chart
+    stackedChartWrapper: {
+      position: 'relative',
+      paddingTop: 10,
+    },
+    yAxisOverlay: {
+      position: 'absolute',
+      top: 10,
+      left: 0,
+      right: 0,
+      height: 150,
+      justifyContent: 'space-between',
+      zIndex: 0,
+    },
+    yAxisLineRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    yAxisText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      width: 14,
+    },
+    dashedLine: {
+      flex: 1,
+      height: 1,
+      borderStyle: 'dashed',
+      borderWidth: 0.5,
+      borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0',
+    },
+    barsContainer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-around',
+      height: 175,
+      paddingLeft: 24,
+      paddingBottom: 24,
+      gap: 14,
+      minWidth: '100%',
+    },
+    barColumn: {
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      height: '100%',
+      width: 34,
+      paddingHorizontal: 2,
+    },
+    barColumnSelected: {
+      backgroundColor: isDark ? 'rgba(0,167,181,0.12)' : 'rgba(0,167,181,0.06)',
+      borderRadius: 8,
+    },
+    barTopTotalText: {
+      fontSize: 11,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginBottom: 4,
+      height: 16,
+    },
+    barTrack: {
+      width: 24,
+      flex: 1,
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+    },
+    stackedBarPill: {
+      width: '100%',
+      borderRadius: 6,
+      overflow: 'hidden',
+      flexDirection: 'column-reverse',
+    },
+    stackedBarPillSelected: {
+      borderWidth: 1.5,
+      borderColor: colors.textPrimary,
+    },
+    emptyBarBaseline: {
+      width: '100%',
+      height: 4,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0',
+      borderRadius: 2,
+    },
+    barXLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginTop: 8,
+      textAlign: 'center',
+    },
+    barXLabelSelected: {
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    legendRowCenter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16,
+      marginTop: 16,
+      flexWrap: 'wrap',
+    },
+    legendDotItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    legendSquareDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 2,
+    },
+    legendDotText: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+
+    // Platform Breakdown
+    platformBreakdownList: {
+      gap: 16,
+      marginTop: 14,
+    },
+    breakdownItem: {
+      gap: 6,
+    },
+    breakdownHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    breakdownName: {
       fontSize: 14,
       fontWeight: '800',
       color: colors.textPrimary,
-      marginLeft: 12,
+    },
+    breakdownCountText: {
+      fontSize: 14,
+      fontWeight: '900',
+      color: colors.textPrimary,
+    },
+    breakdownPctText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    breakdownTrack: {
+      height: 7,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F9',
+      borderRadius: 4,
+      overflow: 'hidden',
+    },
+    breakdownFill: {
+      height: '100%',
+      borderRadius: 4,
     },
 
-    // ── Bottom Sheet Modals ──
+    // Automated vs Manual
+    autoManualPill: {
+      backgroundColor: isDark ? 'rgba(0,167,181,0.1)' : '#E6F6F7',
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+    },
+    autoManualPillText: {
+      fontSize: 11.5,
+      color: isDark ? '#00a7b5' : '#0B2D3E',
+      fontWeight: '600',
+    },
+    autoManualChartWrap: {
+      position: 'relative',
+      marginTop: 16,
+    },
+    autoManualBarsRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-around',
+      height: 170,
+      paddingLeft: 24,
+      paddingBottom: 24,
+    },
+    autoManualGroupCol: {
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      height: '100%',
+      flex: 1,
+    },
+    dualBarsPairRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      gap: 6,
+      flex: 1,
+      width: '100%',
+    },
+    singleBarTrack: {
+      width: 14,
+      height: '100%',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+    },
+    autoBarFill: {
+      width: '100%',
+      backgroundColor: '#00a7b5',
+      borderTopLeftRadius: 5,
+      borderTopRightRadius: 5,
+    },
+    manualBarFill: {
+      width: '100%',
+      backgroundColor: isDark ? '#38BDF8' : '#0B2D3E',
+      borderTopLeftRadius: 5,
+      borderTopRightRadius: 5,
+    },
+    autoManualXLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginTop: 8,
+      textAlign: 'center',
+    },
+
+    // Summary 3 Cards Row
+    summaryGrid: {
+      flexDirection: 'column',
+      gap: 12,
+    },
+    summaryCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      padding: 18,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      gap: 4,
+      shadowColor: '#0B2D3E',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.03,
+      shadowRadius: 8,
+      elevation: 1,
+    },
+    summaryCardLabel: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.textSecondary,
+    },
+    summaryCardNumber: {
+      fontSize: 28,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginVertical: 2,
+    },
+    summaryCardDominantTitle: {
+      fontSize: 24,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      marginVertical: 2,
+    },
+    summaryCardSubtext: {
+      fontSize: 11.5,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+
+    // Export Modal Bottom Sheet
     modalBackdrop: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.55)',
@@ -927,7 +1210,7 @@ function getStyles(colors: any, theme: 'light' | 'dark') {
       width: 56,
       height: 56,
       borderRadius: 16,
-      backgroundColor: `${colors.accentTeal}15`,
+      backgroundColor: 'rgba(0,167,181,0.1)',
       alignItems: 'center',
       justifyContent: 'center',
       alignSelf: 'center',
@@ -960,10 +1243,6 @@ function getStyles(colors: any, theme: 'light' | 'dark') {
       backgroundColor: colors.surfaceSoft,
       marginBottom: 10,
     },
-    sheetOptionActive: {
-      borderColor: colors.accentTeal,
-      backgroundColor: `${colors.accentTeal}10`,
-    },
     sheetOptionLeft: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -973,9 +1252,6 @@ function getStyles(colors: any, theme: 'light' | 'dark') {
       fontSize: 15,
       fontWeight: '700',
       color: colors.textPrimary,
-    },
-    sheetOptionTextActive: {
-      color: colors.accentTeal,
     },
     sheetCancel: {
       paddingVertical: 14,

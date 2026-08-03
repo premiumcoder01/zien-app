@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { CRMContact, CRMDeal, CRMPipeline, CRMStage, addCRMDeal, addCRMPipelineStage, deleteCRMPipelineStage, updateCRMPipelineStage, getCRMContacts, getCRMDeals, getCRMPipelines, updateCRMDealStage, deleteCRMDeal, getCRMAutomations, addCRMAutomation, deleteCRMAutomation, updateCRMAutomation } from '@/services/crmService';
+import { getProperties } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -106,6 +107,19 @@ export default function DealsScreen() {
   const [pipelineSearch, setPipelineSearch] = useState('');
   const [stageSearch, setStageSearch] = useState('');
 
+  const { data: propertiesData, isLoading: isLoadingProperties } = useQuery({
+    queryKey: ['userProperties', accessToken],
+    queryFn: () => getProperties(accessToken!),
+    enabled: !!accessToken,
+  });
+
+  const propertyAddresses = useMemo(() => {
+    if (!propertiesData?.properties) return [];
+    return propertiesData.properties
+      .map(p => p.address)
+      .filter((addr): addr is string => !!addr && addr.trim().length > 0);
+  }, [propertiesData]);
+
   const filteredContacts = useMemo(() => {
     return (contacts || []).filter(c =>
       `${c.first_name} ${c.last_name || ''}`.toLowerCase().includes(contactSearch.toLowerCase())
@@ -113,17 +127,19 @@ export default function DealsScreen() {
   }, [contacts, contactSearch]);
 
   const filteredProperties = useMemo(() => {
-    return (PROPERTIES || []).filter(p => p.toLowerCase().includes(propertySearch.toLowerCase()));
-  }, [propertySearch]);
+    const list = propertyAddresses.length > 0 ? propertyAddresses : (PROPERTIES || []);
+    return list.filter(p => p.toLowerCase().includes(propertySearch.toLowerCase()));
+  }, [propertyAddresses, propertySearch]);
 
   const filteredPipelines = useMemo(() => {
     return (pipelines || []).filter(p => p.name.toLowerCase().includes(pipelineSearch.toLowerCase()));
   }, [pipelines, pipelineSearch]);
 
   const filteredStages = useMemo(() => {
-    if (!targetPipeline) return [];
-    return targetPipeline.stages.filter((s: any) => s.name.toLowerCase().includes(stageSearch.toLowerCase()));
-  }, [targetPipeline, stageSearch]);
+    const currentPipe = targetPipeline || activePipeline || pipelines[0];
+    if (!currentPipe) return [];
+    return (currentPipe.stages || []).filter((s: any) => s.name.toLowerCase().includes(stageSearch.toLowerCase()));
+  }, [targetPipeline, activePipeline, pipelines, stageSearch]);
 
   const [customStageName, setCustomStageName] = useState('');
   const [isCreatingDeal, setIsCreatingDeal] = useState(false);
@@ -189,21 +205,23 @@ export default function DealsScreen() {
   const currentStages = activePipeline?.stages || [];
 
   const stagesModalCurrentStages = useMemo(() => {
-    if (!stagesModalPipeline) return [];
-    const fresh = pipelines.find(p => p.id === stagesModalPipeline.id);
-    return fresh?.stages || stagesModalPipeline.stages || [];
-  }, [stagesModalPipeline, pipelines]);
+    const currentPipe = stagesModalPipeline || activePipeline || pipelines[0];
+    if (!currentPipe) return [];
+    const fresh = pipelines.find(p => p.id === currentPipe.id);
+    return fresh?.stages || currentPipe.stages || [];
+  }, [stagesModalPipeline, activePipeline, pipelines]);
 
   const filteredStagesPipelines = useMemo(() => {
     return (pipelines || []).filter(p => p.name.toLowerCase().includes(stagesPipelineSearch.toLowerCase()));
   }, [pipelines, stagesPipelineSearch]);
 
   const handleAddStage = async () => {
-    if (!newStageInput.trim() || !stagesModalPipeline?.id || !accessToken) return;
+    const currentPipe = stagesModalPipeline || activePipeline || pipelines[0];
+    if (!newStageInput.trim() || !currentPipe?.id || !accessToken) return;
 
     try {
       setIsAddingStage(true);
-      await addCRMPipelineStage(accessToken, stagesModalPipeline.id, newStageInput.trim());
+      await addCRMPipelineStage(accessToken, currentPipe.id, newStageInput.trim());
       setNewStageInput('');
       await queryClient.invalidateQueries({ queryKey: ['crmPipelines'] });
     } catch (error: any) {
@@ -247,7 +265,7 @@ export default function DealsScreen() {
 
   const resetForm = () => {
     setCustomStageName('');
-    setTargetPipeline(null);
+    setTargetPipeline(activePipeline || pipelines[0] || null);
     setSelectedContact(null);
     setSelectedProperty(null);
     setDealValue('');
@@ -261,19 +279,20 @@ export default function DealsScreen() {
 
   const handleCreateDeal = async () => {
     setShowErrors(true);
-    if (!accessToken || !targetPipeline || !selectedContact || !selectedProperty || !dealValue || !selectedStage) {
+    const currentPipe = targetPipeline || activePipeline || pipelines[0];
+    if (!accessToken || !currentPipe || !selectedContact || !selectedProperty || !dealValue || !selectedStage) {
       return;
     }
 
     try {
       setIsCreatingDeal(true);
 
-      const stage = targetPipeline.stages.find((s: any) => s.name === selectedStage);
+      const stage = (currentPipe.stages || []).find((s: any) => s.name === selectedStage);
       let finalStageId = stage?.id;
 
       // Handle custom stage creation
       if (!finalStageId && customStageName.trim()) {
-        const newStage = await addCRMPipelineStage(accessToken, targetPipeline.id, customStageName.trim());
+        const newStage = await addCRMPipelineStage(accessToken, currentPipe.id, customStageName.trim());
         finalStageId = newStage.id;
         await queryClient.invalidateQueries({ queryKey: ['crmPipelines'] });
       }
@@ -288,7 +307,7 @@ export default function DealsScreen() {
 
       await addCRMDeal(accessToken, {
         contact_id: selectedContact.id,
-        pipeline_id: targetPipeline.id,
+        pipeline_id: currentPipe.id,
         stage_id: finalStageId,
         related_property: selectedProperty,
         deal_value: numericValue
@@ -591,75 +610,6 @@ export default function DealsScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {/* Pipeline Selector */}
-              <View style={styles.smSection}>
-                <View style={styles.smSectionHeader}>
-                  <MaterialCommunityIcons name="pipe" size={15} color={colors.accentTeal} />
-                  <Text style={styles.smSectionLabel}>Target Pipeline</Text>
-                </View>
-                <Pressable
-                  style={styles.smPipelineSelector}
-                  onPress={() => { setIsStagesPipelineDropdownOpen(true); setStagesPipelineSearch(''); }}
-                >
-                  <View style={styles.smPipelineIconWrap}>
-                    <MaterialCommunityIcons name="view-list-outline" size={18} color={colors.accentTeal} />
-                  </View>
-                  <Text style={[styles.smPipelineName, !stagesModalPipeline && { color: colors.textMuted }]}>
-                    {stagesModalPipeline?.name || 'Select a pipeline'}
-                  </Text>
-                  <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-                </Pressable>
-
-                <Modal
-                  visible={isStagesPipelineDropdownOpen}
-                  transparent
-                  animationType="fade"
-                  onRequestClose={() => setIsStagesPipelineDropdownOpen(false)}
-                >
-                  <Pressable style={styles.pickerOverlay} onPress={() => setIsStagesPipelineDropdownOpen(false)}>
-                    <View style={styles.selectionModalContainer}>
-                      <View style={styles.selectionModalHeader}>
-                        <Text style={styles.selectionModalTitle}>Select Pipeline</Text>
-                        <Pressable onPress={() => setIsStagesPipelineDropdownOpen(false)}>
-                          <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-                        </Pressable>
-                      </View>
-                      <View style={styles.pickerSearchBoxSmall}>
-                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                        <TextInput
-                          style={styles.pickerSearchInputSmall}
-                          placeholder="Search pipeline..."
-                          placeholderTextColor={colors.textMuted}
-                          value={stagesPipelineSearch}
-                          onChangeText={setStagesPipelineSearch}
-                        />
-                        {stagesPipelineSearch.length > 0 && (
-                          <Pressable onPress={() => setStagesPipelineSearch('')}>
-                            <MaterialCommunityIcons name="close-circle" size={18} color={colors.textMuted} />
-                          </Pressable>
-                        )}
-                      </View>
-                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                        {filteredStagesPipelines.map((opt) => (
-                          <Pressable
-                            key={opt.id}
-                            style={[styles.selectionModalItem, stagesModalPipeline?.id === opt.id && styles.selectionModalItemActive]}
-                            onPress={() => { setStagesModalPipeline(opt); setIsStagesPipelineDropdownOpen(false); }}
-                          >
-                            <Text style={[styles.selectionModalItemText, stagesModalPipeline?.id === opt.id && styles.selectionModalItemTextActive]}>
-                              {opt.name}
-                            </Text>
-                            {stagesModalPipeline?.id === opt.id && (
-                              <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />
-                            )}
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  </Pressable>
-                </Modal>
-              </View>
-
               {/* Add New Stage */}
               <View style={styles.smSection}>
                 <View style={styles.smSectionHeader}>
@@ -835,7 +785,11 @@ export default function DealsScreen() {
                     setContactSearch('');
                   }}
                 >
-                  <Text style={[styles.dropdownValue, !selectedContact && { color: colors.textSecondary }]}>
+                  <Text
+                    style={[styles.dropdownValue, !selectedContact && { color: colors.textSecondary }]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
                     {selectedContact ? `${selectedContact.first_name} ${selectedContact.last_name || ''}` : 'Select Primary Contact'}
                   </Text>
                   <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
@@ -917,7 +871,11 @@ export default function DealsScreen() {
                     setPropertySearch('');
                   }}
                 >
-                  <Text style={[styles.dropdownValue, !selectedProperty && { color: colors.textSecondary }]}>
+                  <Text
+                    style={[styles.dropdownValue, !selectedProperty && { color: colors.textSecondary }]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
                     {selectedProperty || 'Select Related Property'}
                   </Text>
                   <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
@@ -958,7 +916,11 @@ export default function DealsScreen() {
                       </View>
 
                       <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                        {filteredProperties.map((opt) => (
+                        {isLoadingProperties && filteredProperties.length === 0 ? (
+                          <View style={{ padding: 24, alignItems: 'center' }}>
+                            <ActivityIndicator size="small" color={colors.accentTeal} />
+                          </View>
+                        ) : filteredProperties.map((opt) => (
                           <Pressable
                             key={opt}
                             style={[styles.selectionModalItem, selectedProperty === opt && styles.selectionModalItemActive]}
@@ -973,6 +935,11 @@ export default function DealsScreen() {
                             )}
                           </Pressable>
                         ))}
+                        {!isLoadingProperties && filteredProperties.length === 0 && (
+                          <View style={{ padding: 24, alignItems: 'center' }}>
+                            <Text style={{ color: colors.textSecondary }}>No properties found</Text>
+                          </View>
+                        )}
                       </ScrollView>
                     </View>
                   </Pressable>
@@ -997,94 +964,26 @@ export default function DealsScreen() {
                 )}
               </View>
 
-              {/* Target Pipeline */}
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>Target Pipeline <Text style={styles.requiredStar}>*</Text></Text>
-                <Pressable
-                  style={[styles.dropdownTrigger, showErrors && !targetPipeline && styles.errorBorder]}
-                  onPress={() => {
-                    setPipelineDropdownOpen(true);
-                    setPipelineSearch('');
-                  }}
-                >
-                  <Text style={[styles.dropdownValue, !targetPipeline && { color: colors.textSecondary }]}>
-                    {targetPipeline?.name || 'Select Target Pipeline'}
-                  </Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                </Pressable>
-                {showErrors && !targetPipeline && (
-                  <Text style={styles.errorText}>Pipeline is required</Text>
-                )}
-
-                <Modal
-                  visible={isPipelineDropdownOpen}
-                  transparent
-                  animationType="fade"
-                  onRequestClose={() => setPipelineDropdownOpen(false)}
-                >
-                  <Pressable style={styles.pickerOverlay} onPress={() => setPipelineDropdownOpen(false)}>
-                    <View style={styles.selectionModalContainer}>
-                      <View style={styles.selectionModalHeader}>
-                        <Text style={styles.selectionModalTitle}>Select Pipeline</Text>
-                        <Pressable onPress={() => setPipelineDropdownOpen(false)}>
-                          <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-                        </Pressable>
-                      </View>
-
-                      <View style={styles.pickerSearchBoxSmall}>
-                        <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                        <TextInput
-                          style={styles.pickerSearchInputSmall}
-                          placeholder="Search pipeline..."
-                          placeholderTextColor={colors.textMuted}
-                          value={pipelineSearch}
-                          onChangeText={setPipelineSearch}
-                        />
-                        {pipelineSearch.length > 0 && (
-                          <Pressable onPress={() => setPipelineSearch('')}>
-                            <MaterialCommunityIcons name="close-circle" size={18} color={colors.textMuted} />
-                          </Pressable>
-                        )}
-                      </View>
-
-                      <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                        {filteredPipelines.map((opt) => (
-                          <Pressable
-                            key={opt.id}
-                            style={[styles.selectionModalItem, targetPipeline?.id === opt.id && styles.selectionModalItemActive]}
-                            onPress={() => {
-                              setTargetPipeline(opt);
-                              setSelectedStage(null);
-                              setPipelineDropdownOpen(false);
-                            }}
-                          >
-                            <Text style={[styles.selectionModalItemText, targetPipeline?.id === opt.id && styles.selectionModalItemTextActive]}>{opt.name}</Text>
-                            {targetPipeline?.id === opt.id && (
-                              <MaterialCommunityIcons name="check-circle" size={22} color={colors.accentTeal} />
-                            )}
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  </Pressable>
-                </Modal>
-              </View>
-
               {/* Stage */}
               <View style={[styles.inputGroup, { flex: 1 }]}>
                 <Text style={styles.inputLabel}>Stage <Text style={styles.requiredStar}>*</Text></Text>
                 <Pressable
                   style={[styles.dropdownTrigger, showErrors && !selectedStage && styles.errorBorder]}
                   onPress={() => {
-                    if (!targetPipeline) {
-                      Alert.alert('Selection Required', 'Please select a pipeline first.');
+                    const currentPipe = targetPipeline || activePipeline || pipelines[0];
+                    if (!currentPipe) {
+                      Alert.alert('Selection Required', 'No active pipeline found.');
                       return;
                     }
                     setStageDropdownOpen(true);
                     setStageSearch('');
                   }}
                 >
-                  <Text style={[styles.dropdownValue, !selectedStage && { color: colors.textSecondary }]}>
+                  <Text
+                    style={[styles.dropdownValue, !selectedStage && { color: colors.textSecondary }]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
                     {selectedStage || 'Select Stage'}
                   </Text>
                   <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
@@ -1645,9 +1544,11 @@ function getStyles(colors: any, insets: any) {
       height: 56,
     },
     dropdownValue: {
+      flex: 1,
       fontSize: 15,
       color: colors.textPrimary,
       fontWeight: '600',
+      paddingRight: 8,
     },
     pickerOverlay: {
       flex: 1,

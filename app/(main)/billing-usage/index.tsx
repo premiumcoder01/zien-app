@@ -26,6 +26,7 @@ import {
 
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, G } from 'react-native-svg';
 
 
 
@@ -395,7 +396,7 @@ export default function BillingUsageScreen() {
                     <Text style={styles.invoiceDownloadBtnText}>Receipt</Text>
                   </ExternalLink>
                 ) : (
-                  <View style={[styles.invoiceDownloadBtn, { backgroundColor: colors.border, opacity: 0.6 }]}>
+                  <View style={[styles.invoiceDownloadBtn, { backgroundColor: colors.cardBorder, opacity: 0.6 }]}>
                     <MaterialCommunityIcons name="download-off" size={16} color={colors.textSecondary} />
                     <Text style={[styles.invoiceDownloadBtnText, { color: colors.textSecondary }]}>Receipt</Text>
                   </View>
@@ -408,10 +409,216 @@ export default function BillingUsageScreen() {
     </View>
   );
 
+  // Analytics Tab (Plan Usage & Spend + Addon Engagement)
+  const renderAnalytics = () => {
+    // 1. Compute 6 months spend data strictly from invoicesData (History)
+    const monthlySpendData = (() => {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const result = [];
+
+      // Helper function to parse dates like "7/15/2026", "07/15/2026", "2026-07-15"
+      const parseDate = (dStr: string) => {
+        if (!dStr) return null;
+        const parts = dStr.trim().split('/');
+        if (parts.length === 3) {
+          const m = parseInt(parts[0], 10) - 1; // 0-indexed month
+          const y = parseInt(parts[2], 10);
+          if (!isNaN(m) && !isNaN(y)) return { month: m, year: y };
+        }
+        const dObj = new Date(dStr);
+        if (!isNaN(dObj.getTime())) {
+          return { month: dObj.getMonth(), year: dObj.getFullYear() };
+        }
+        return null;
+      };
+
+      // Determine starting reference month (either current date or newest invoice date)
+      let refDate = new Date();
+      if (invoicesData && invoicesData.length > 0) {
+        for (const inv of invoicesData) {
+          const parsed = parseDate(inv.date);
+          if (parsed && (parsed.year > refDate.getFullYear() || (parsed.year === refDate.getFullYear() && parsed.month > refDate.getMonth()))) {
+            refDate = new Date(parsed.year, parsed.month, 1);
+          }
+        }
+      }
+
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(refDate.getFullYear(), refDate.getMonth() - i, 1);
+        const monthLabel = months[d.getMonth()];
+        const targetMonth = d.getMonth();
+        const targetYear = d.getFullYear();
+
+        let monthTotal = 0;
+
+        invoicesData.forEach(inv => {
+          const parsed = parseDate(inv.date);
+          if (parsed && parsed.month === targetMonth && parsed.year === targetYear) {
+            const amtNum = parseFloat(inv.amt.replace(/[^0-9.]/g, '')) || 0;
+            monthTotal += amtNum;
+          }
+        });
+
+        result.push({
+          label: monthLabel,
+          spend: Math.round(monthTotal),
+          rawSpend: monthTotal,
+          monthIndex: targetMonth,
+          year: targetYear
+        });
+      }
+      return result;
+    })();
+
+    const maxSpend = Math.max(...monthlySpendData.map(m => m.spend), 100);
+
+    // 2. Addon Engagement metrics
+    const addonsList = subscriptionData?.addons || [];
+    const activeAddons = addonsList.filter(a => a.status === 'active').length;
+    const cancelingAddons = addonsList.filter(a => a.status === 'canceling').length;
+    const inactiveAddons = Math.max(0, 3 - activeAddons - cancelingAddons);
+    const totalAddons = Math.max(3, activeAddons + cancelingAddons + inactiveAddons);
+
+    // SVG donut dimensions
+    const donutRadius = 46;
+    const donutStroke = 16;
+    const donutCenter = 65;
+    const donutCircumference = 2 * Math.PI * donutRadius;
+
+    const activeStroke = (activeAddons / totalAddons) * donutCircumference;
+    const cancelingStroke = (cancelingAddons / totalAddons) * donutCircumference;
+
+    return (
+      <View style={styles.tabContainer}>
+        {/* Card 1: Plan Usage & Spend */}
+        <View style={styles.premiumPlanCard}>
+          <View style={styles.analyticsHeaderWrap}>
+            <Text style={styles.analyticsTitle}>Plan Usage & Spend</Text>
+            <Text style={styles.analyticsSubtitle}>Monthly expenditure over the last 6 months.</Text>
+          </View>
+
+          <View style={styles.dashedChartContainer}>
+            <View style={styles.barChartRow}>
+              {monthlySpendData.map((item, index) => {
+                const heightPercent = item.spend > 0 ? Math.max(25, Math.min(100, (item.spend / maxSpend) * 100)) : 6;
+                const isCurrentMonth = index === monthlySpendData.length - 1;
+
+                return (
+                  <View key={index} style={styles.barItemWrap}>
+                    <Text style={styles.barValueText}>
+                      {item.spend > 0 ? `$${item.spend}` : ''}
+                    </Text>
+                    <View style={styles.barTrack}>
+                      <View
+                        style={[
+                          styles.barFill,
+                          {
+                            height: `${heightPercent}%`,
+                            backgroundColor: isCurrentMonth
+                              ? '#00a7b5'
+                              : item.spend > 0
+                              ? isDark ? '#00a7b5' : '#0B1E2F'
+                              : isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+                          }
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.barMonthLabel}>{item.label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+
+        {/* Card 2: Addon Engagement */}
+        <View style={styles.premiumPlanCard}>
+          <View style={styles.analyticsHeaderWrap}>
+            <Text style={styles.analyticsTitle}>Addon Engagement</Text>
+            <Text style={styles.analyticsSubtitle}>Distribution of your active add-on investments.</Text>
+          </View>
+
+          <View style={styles.dashedChartContainer}>
+            <View style={styles.donutRow}>
+              {/* Left Donut Ring */}
+              <View style={styles.donutSvgWrap}>
+                <Svg width={130} height={130} viewBox="0 0 130 130">
+                  <G transform="rotate(-90 65 65)">
+                    {/* Base Circle (Inactive) */}
+                    <Circle
+                      cx={donutCenter}
+                      cy={donutCenter}
+                      r={donutRadius}
+                      stroke={isDark ? '#334155' : '#E2E8F0'}
+                      strokeWidth={donutStroke}
+                      fill="transparent"
+                    />
+
+                    {/* Canceling Arc */}
+                    {cancelingAddons > 0 && (
+                      <Circle
+                        cx={donutCenter}
+                        cy={donutCenter}
+                        r={donutRadius}
+                        stroke={isDark ? '#1E293B' : '#0B1E2F'}
+                        strokeWidth={donutStroke}
+                        strokeDasharray={`${cancelingStroke} ${donutCircumference}`}
+                        strokeDashoffset={-activeStroke}
+                        fill="transparent"
+                      />
+                    )}
+
+                    {/* Active Arc */}
+                    {activeAddons > 0 && (
+                      <Circle
+                        cx={donutCenter}
+                        cy={donutCenter}
+                        r={donutRadius}
+                        stroke="#00a7b5"
+                        strokeWidth={donutStroke}
+                        strokeDasharray={`${activeStroke} ${donutCircumference}`}
+                        strokeDashoffset={0}
+                        fill="transparent"
+                      />
+                    )}
+                  </G>
+                </Svg>
+
+                <View style={styles.donutCenterLabel}>
+                  <Text style={styles.donutCenterText}>{activeAddons} Active</Text>
+                </View>
+              </View>
+
+              {/* Right Legend */}
+              <View style={styles.donutLegendWrap}>
+                <View style={styles.legendRow}>
+                  <View style={[styles.legendBadgeSquare, { backgroundColor: '#00a7b5' }]} />
+                  <Text style={styles.legendLabelText}>Active ({activeAddons})</Text>
+                </View>
+
+                <View style={styles.legendRow}>
+                  <View style={[styles.legendBadgeSquare, { backgroundColor: isDark ? '#475569' : '#0B1E2F' }]} />
+                  <Text style={styles.legendLabelText}>Canceling ({cancelingAddons})</Text>
+                </View>
+
+                <View style={styles.legendRow}>
+                  <View style={[styles.legendBadgeSquare, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]} />
+                  <Text style={styles.legendLabelText}>Inactive ({inactiveAddons})</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   const tabContent = useMemo(() => {
     switch (activeTab) {
       case 'history':
         return renderHistory();
+      case 'analytics':
+        return renderAnalytics();
       default:
         return renderOverview();
     }
@@ -1476,5 +1683,117 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     lineHeight: 16,
   },
 
+  // Analytics tab styles
+  analyticsHeaderWrap: {
+    marginBottom: 4,
+  },
+  analyticsTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    letterSpacing: -0.3,
+  },
+  analyticsSubtitle: {
+    fontSize: 12.5,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  dashedChartContainer: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : '#CBD5E1',
+    borderRadius: 20,
+    padding: 16,
+    marginTop: 16,
+    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.3)' : 'rgba(248, 250, 252, 0.6)',
+  },
+  barChartRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-around',
+    height: 165,
+    paddingTop: 24,
+    paddingBottom: 4,
+  },
+  barItemWrap: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    height: '100%',
+    flex: 1,
+    maxWidth: 48,
+  },
+  barValueText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  barTrack: {
+    width: 26,
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  barFill: {
+    width: '100%',
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+  },
+  barMonthLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  donutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+    paddingVertical: 12,
+  },
+  donutSvgWrap: {
+    width: 130,
+    height: 130,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  donutCenterLabel: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  donutCenterText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  donutLegendWrap: {
+    gap: 12,
+    justifyContent: 'center',
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  legendBadgeSquare: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+  },
+  legendLabelText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
 
 });

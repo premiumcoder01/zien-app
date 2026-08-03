@@ -40,9 +40,11 @@ export default function RootLayout() {
   );
 }
 
+
 function InnerLayout() {
   const { theme } = useAppTheme();
   const { isLoading: isAuthLoading } = useAuth();
+
 
   useEffect(() => {
     if (!isAuthLoading) {

@@ -513,3 +513,5 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
 });
+
+export { CreateCardModal as default };
