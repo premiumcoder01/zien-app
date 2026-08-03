@@ -5,6 +5,7 @@ export interface LoginRequest {
   email: string;
   password: string;
   platform?: 'ios' | 'android';
+  device_token?: string;
 }
 
 export interface LoginResponse {
@@ -60,7 +61,11 @@ export const loginAgent = async (payload: LoginRequest): Promise<LoginResponse> 
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/website/auth/login`, {
+    const url = `${API_BASE_URL}/website/auth/login`;
+    console.log('[AuthService] Sending POST to:', url);
+    console.log('[AuthService] Request Body Payload:', JSON.stringify(payload, null, 2));
+
+    const response = await fetch(url, {
       method: 'POST',
       signal: controller.signal,
       headers: {

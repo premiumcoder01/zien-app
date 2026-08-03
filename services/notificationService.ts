@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import { registerDeviceToken } from './authService';
@@ -89,14 +90,13 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       } catch (_e) { /* ignore – will fallback to expo method below */ }
     }
 
-    // Check & request permission via expo-notifications
-    // Always call requestPermissionsAsync when not granted —
-    // on iOS this shows the system popup; on Android it double-confirms.
+    console.log('[NotificationService] registerForPushNotificationsAsync started on platform:', Platform.OS);
     const { status: existing } = await Notif.getPermissionsAsync();
+    console.log('[NotificationService] Existing permission status:', existing);
     let final = existing;
 
     if (existing !== 'granted') {
-      // iOS requires explicit provisionalStatus options
+      console.log('[NotificationService] Requesting notification permissions...');
       const { status } = await Notif.requestPermissionsAsync({
         ios: {
           allowAlert: true,
@@ -106,27 +106,66 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
         },
       });
       final = status;
+      console.log('[NotificationService] Permission request result:', final);
     }
 
     if (final !== 'granted') {
-      console.log('[NotificationService] Permission denied or not granted:', final);
-      return null;
+      console.log('[NotificationService] Permission denied or not granted. Final status:', final);
+      // Even if status is not granted on some Android versions, attempt token fetch as fallback
+      if (Platform.OS !== 'android') {
+        return null;
+      }
     }
 
     // Fetch native device push token (FCM on Android, APNs-backed on iOS)
     let token = '';
+
+    // Method 1: Try @react-native-firebase/messaging
     try {
+      console.log('[NotificationService] Attempting Method 1: @react-native-firebase/messaging');
+      const messaging = require('@react-native-firebase/messaging').default;
+      if (messaging && typeof messaging().getToken === 'function') {
+        token = await messaging().getToken();
+        if (token) {
+          console.log('[NotificationService] SUCCESS: FCM token obtained via @react-native-firebase/messaging:', token);
+          return token;
+        }
+      }
+    } catch (fcmErr: any) {
+      console.log('[NotificationService] Method 1 failed:', fcmErr?.message || fcmErr);
+    }
+
+    // Method 2: Try Notif.getDevicePushTokenAsync()
+    try {
+      console.log('[NotificationService] Attempting Method 2: Notif.getDevicePushTokenAsync()');
       const t = await Notif.getDevicePushTokenAsync();
+      console.log('[NotificationService] getDevicePushTokenAsync raw response:', JSON.stringify(t));
+      if (t?.data) {
+        token = typeof t.data === 'string' ? t.data : (t.data.token || JSON.stringify(t.data));
+        console.log('[NotificationService] SUCCESS: Device push token obtained via getDevicePushTokenAsync:', token);
+        return token;
+      }
+    } catch (e1: any) {
+      console.log('[NotificationService] Method 2 failed:', e1?.message || e1);
+    }
+
+    // Method 3: Fallback to Notif.getExpoPushTokenAsync({ projectId })
+    try {
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId || 'ed74813d-5b63-41ce-a0d7-d176593d86c1';
+      console.log('[NotificationService] Attempting Method 3: getExpoPushTokenAsync with projectId:', projectId);
+      const t = await Notif.getExpoPushTokenAsync({ projectId });
+      console.log('[NotificationService] getExpoPushTokenAsync raw response:', JSON.stringify(t));
       token = t?.data ?? '';
-    } catch (_e) {
-      try {
-        const t = await Notif.getExpoPushTokenAsync();
-        token = t?.data ?? '';
-      } catch (_e2) { /* ignore */ }
+      if (token) {
+        console.log('[NotificationService] SUCCESS: Expo push token obtained via getExpoPushTokenAsync:', token);
+        return token;
+      }
+    } catch (e2: any) {
+      console.log('[NotificationService] Method 3 failed:', e2?.message || e2);
     }
 
     if (token) {
-      console.log('[NotificationService] device_token obtained:', token);
+      console.log('[NotificationService] final device_token obtained:', token);
       return token;
     }
     return null;

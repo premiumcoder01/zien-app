@@ -34,6 +34,7 @@ import PasswordInput from '@/components/ui/PasswordInput';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { loginAgent, loginWithApple, loginWithGoogle, loginWithMicrosoft } from '@/services/authService';
+import { registerForPushNotificationsAsync } from '@/services/notificationService';
 
 export default function LoginScreen() {
   const { theme, colors } = useAppTheme();
@@ -309,12 +310,25 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      console.log('Attempting login for:', email);
-      const response = await loginAgent({
+      let deviceToken = '';
+      try {
+        const token = await registerForPushNotificationsAsync();
+        if (token) deviceToken = token;
+      } catch (_err) {
+        console.log('[Login] Push token error, skipping device_token');
+      }
+
+      const loginPayload = {
         email,
         password,
         platform: Platform.OS as 'ios' | 'android',
-      });
+        device_token: deviceToken || 'simulator_device_token',
+      };
+      console.log('=============== LOGIN PAYLOAD ===============');
+      console.log(JSON.stringify(loginPayload, null, 2));
+      console.log('============================================');
+
+      const response = await loginAgent(loginPayload);
       console.log('Login Success:', response);
 
       if (response.activation_email_sent) {

@@ -3,7 +3,7 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Href, useRouter } from 'expo-router';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
@@ -355,11 +355,17 @@ function MainHeaderComponent({
 
   const { logout } = useAuth();
   const { data: profile } = useProfile();
+  const [avatarError, setAvatarError] = useState(false);
 
-  const userInitials = propUserInitials || (profile ? ((profile.first_name?.[0] || '') + (profile.last_name?.[0] || '')).toUpperCase() : 'VP') || 'VP';
-  const userName = propUserName || (profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'John Octane') || 'John Octane';
-  const userEmail = propUserEmail || profile?.email || 'john@zien.ai';
-  const userAvatarUri = profile?.image || null;
+  const userInitials = propUserInitials || (profile ? ((profile.first_name?.[0] || '') + (profile.last_name?.[0] || '')).toUpperCase() : '') || 'P';
+  const userName = propUserName || (profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : '') || 'User';
+  const userEmail = propUserEmail || profile?.email || '';
+  const rawImage = profile?.image;
+  const userAvatarUri = (rawImage && typeof rawImage === 'string' && rawImage.trim().length > 0 && rawImage !== 'null' && rawImage !== 'undefined') ? rawImage.trim() : null;
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [userAvatarUri]);
 
   const handleSignOut = useCallback(() => {
     setMenuOpen(false);
@@ -436,11 +442,12 @@ function MainHeaderComponent({
               style={styles.agencyAvatarRow}
               onPress={() => setMenuOpen(true)}
             >
-              {userAvatarUri ? (
+              {userAvatarUri && !avatarError ? (
                 <Image
                   source={{ uri: userAvatarUri }}
                   style={styles.agencyAvatarSquare}
                   resizeMode="cover"
+                  onError={() => setAvatarError(true)}
                 />
               ) : (
                 <View style={styles.agencyAvatarSquare}>
@@ -456,11 +463,12 @@ function MainHeaderComponent({
             style={({ pressed }) => [styles.avatarWrap, pressed && { opacity: 0.8 }]}
             onPress={() => setMenuOpen(true)}
           >
-            {userAvatarUri ? (
+            {userAvatarUri && !avatarError ? (
               <Image
                 source={{ uri: userAvatarUri }}
                 style={styles.avatarImage}
                 resizeMode="cover"
+                onError={() => setAvatarError(true)}
               />
             ) : (
               <LinearGradient
@@ -483,7 +491,7 @@ function MainHeaderComponent({
         userInitials={userInitials}
         userName={userName}
         userEmail={userEmail}
-        userAvatarUri={userAvatarUri}
+        userAvatarUri={userAvatarUri && !avatarError ? userAvatarUri : undefined}
         actions={MENU_ACTIONS}
       />
 

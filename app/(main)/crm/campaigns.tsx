@@ -17,6 +17,7 @@ import {
   Platform,
   Pressable, RefreshControl, ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View
@@ -24,6 +25,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
+
+const SCHEDULE_OPTIONS = [
+  { id: 'IMMEDIATELY', name: 'Send Immediately', desc: 'Dispatch campaign pipeline right away without delay' },
+  { id: 'SPECIFIC_DATETIME', name: 'Specific Date & Time', desc: 'Pick exact date and time for execution' },
+  { id: 'AFTER_X_DAYS', name: 'After X Days', desc: 'Wait a specified number of days before sending' },
+  { id: 'EVERY_WEEK_DAY', name: 'Every Week on Day', desc: 'Repeat weekly on a specific day of the week' },
+  { id: 'LOOP_X_DAYS', name: 'Loop Every X Days', desc: 'Re-trigger campaign automatically every X days' },
+  { id: 'LOOP_X_HOURS', name: 'Loop Every X Hours', desc: 'Re-trigger campaign automatically every X hours' },
+];
 
 interface Campaign extends CRMCampaign { }
 
@@ -129,13 +139,79 @@ export default function CRMCampaignsScreen() {
     enabled: !!accessToken && !!intelCampaign?.id
   });
 
+  const [unsubscribeEnforcement, setUnsubscribeEnforcement] = useState(true);
+  const [bounceProtection, setBounceProtection] = useState(true);
+
+  type ScheduleOption = 'IMMEDIATELY' | 'SPECIFIC_DATETIME' | 'AFTER_X_DAYS' | 'EVERY_WEEK_DAY' | 'LOOP_X_DAYS' | 'LOOP_X_HOURS';
+
+  const [scheduleOption, setScheduleOption] = useState<ScheduleOption>('IMMEDIATELY');
+  const [scheduleOptionDropdown, setScheduleOptionDropdown] = useState(false);
+  const [loopDays, setLoopDays] = useState('1');
+  const [loopHours, setLoopHours] = useState('12');
+  const [weekDay, setWeekDay] = useState('Monday');
+  const [weekDayDropdown, setWeekDayDropdown] = useState(false);
+
+  interface SequenceStep {
+    id: string;
+    templateId: string | null;
+    scheduleOption: string;
+    scheduledDate: Date;
+    scheduledTime: Date;
+    waitDays: string;
+    selectedWeekDay: string;
+    loopDays: string;
+    loopHours: string;
+    showDatePicker?: boolean;
+    showTimePicker?: boolean;
+  }
+
+  const createDefaultStep = (id: string, option: string = 'IMMEDIATELY'): SequenceStep => ({
+    id,
+    templateId: null,
+    scheduleOption: option,
+    scheduledDate: new Date(),
+    scheduledTime: new Date(),
+    waitDays: '1',
+    selectedWeekDay: 'MONDAY',
+    loopDays: '7',
+    loopHours: '24',
+  });
+
+  const [sequenceSteps, setSequenceSteps] = useState<SequenceStep[]>([
+    createDefaultStep('step_1', 'IMMEDIATELY')
+  ]);
+  const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
+
+  const handleAddStep = () => {
+    setSequenceSteps(prev => [
+      ...prev,
+      createDefaultStep(`step_${Date.now()}`, 'AFTER_X_DAYS')
+    ]);
+  };
+
+  const handleRemoveStep = (index: number) => {
+    if (sequenceSteps.length <= 1) return;
+    setSequenceSteps(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateStepField = (index: number, field: keyof SequenceStep, value: any) => {
+    setSequenceSteps(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
   const resetForm = () => {
     setFormCampaignName('');
     setCommChannel('EMAIL');
     setTargetSegment('All Audience (Leads + Contacts)');
+    setSequenceSteps([createDefaultStep('step_1', 'IMMEDIATELY')]);
+    setActiveStepIndex(0);
     setFormTemplateId(null);
     setSendingAccount('Select account');
     setSendSchedule('NOW');
+    setScheduleOption('IMMEDIATELY');
     setAbTesting(true);
     setVersionA('');
     setVersionB('');
@@ -143,6 +219,8 @@ export default function CRMCampaignsScreen() {
     setScheduledTime(new Date());
     setEditingCampaignId(null);
     setAiGeneratedTemplate(null);
+    setUnsubscribeEnforcement(true);
+    setBounceProtection(true);
   };
 
   const handleEditCampaign = (campaign: Campaign) => {
@@ -151,8 +229,22 @@ export default function CRMCampaignsScreen() {
     setCommChannel(campaign.channel.toUpperCase() as any);
     setTargetSegment(campaign.target_segment);
     setFormTemplateId(campaign.template_id || null);
+    setSequenceSteps([
+      {
+        id: 'step_1',
+        templateId: campaign.template_id || null,
+        scheduleOption: campaign.schedule_type === 0 ? 'IMMEDIATELY' : 'SPECIFIC_DATETIME',
+        scheduledDate: campaign.scheduled_at ? new Date(campaign.scheduled_at) : new Date(),
+        scheduledTime: campaign.scheduled_at ? new Date(campaign.scheduled_at) : new Date(),
+        waitDays: '1',
+        selectedWeekDay: 'MONDAY',
+        loopDays: '7',
+        loopHours: '24',
+      }
+    ]);
     setSendingAccount(campaign.sending_account);
     setSendSchedule(campaign.schedule_type === 0 ? 'NOW' : 'SCHEDULE');
+    setScheduleOption(campaign.schedule_type === 0 ? 'IMMEDIATELY' : 'SPECIFIC_DATETIME');
     if (campaign.scheduled_at) {
       const date = new Date(campaign.scheduled_at);
       setScheduledDate(date);
@@ -172,12 +264,11 @@ export default function CRMCampaignsScreen() {
     if (!formCampaignName.trim()) {
       errors.campaignName = "Campaign name is required";
     }
-    if (!formTemplateId) {
-      errors.template = `${commChannel.toLowerCase().charAt(0).toUpperCase() + commChannel.toLowerCase().slice(1)} template is required`;
-    }
-    if (!sendingAccount || sendingAccount === 'Select account') {
-      errors.sendingAccount = "Sending account is required";
-    }
+    sequenceSteps.forEach((step, idx) => {
+      if (!step.templateId) {
+        errors[`step_${idx}_template`] = `Template is required for Step ${idx + 1}`;
+      }
+    });
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -188,20 +279,9 @@ export default function CRMCampaignsScreen() {
     if (validateForm()) {
       setIsLaunching(true);
       try {
-        const isNow = sendSchedule === 'NOW';
-        let scheduledAt: string | null = null;
-
-        if (!isNow) {
-          const combined = new Date(scheduledDate);
-          combined.setHours(scheduledTime.getHours());
-          combined.setMinutes(scheduledTime.getMinutes());
-          scheduledAt = combined.toISOString();
-        }
-
         let finalTemplateId = formTemplateId;
 
         // Only create a new template on the server if this is a temporary AI-generated template
-        // (i.e., user did NOT select an existing template from the Brand Template dropdown)
         if (
           formTemplateId &&
           formTemplateId.startsWith('ai-temp-') &&
@@ -218,15 +298,72 @@ export default function CRMCampaignsScreen() {
           finalTemplateId = createdTemplate.id;
         }
 
+        const firstStep = sequenceSteps[0];
+        const primaryTemplateId = firstStep?.templateId || finalTemplateId || (extendedTemplateList?.[0]?.id || null);
+        const isNow = firstStep?.scheduleOption === 'IMMEDIATELY';
+
+        // Format step objects matching the Web API payload format
+        const formattedSteps = sequenceSteps.map((step, idx) => {
+          let scheduleType = 'Immediate';
+          if (step.scheduleOption === 'SPECIFIC_DATETIME' || step.scheduleOption === 'AFTER_X_DAYS') {
+            scheduleType = 'Scheduled';
+          } else if (step.scheduleOption === 'EVERY_WEEK_DAY' || step.scheduleOption === 'LOOP_X_DAYS' || step.scheduleOption === 'LOOP_X_HOURS') {
+            scheduleType = 'Recurring';
+          }
+
+          return {
+            id: step.id && !step.id.startsWith('step_') ? step.id : (Date.now() + idx).toString(),
+            templateId: step.templateId || primaryTemplateId,
+            scheduleType: scheduleType,
+            scheduledDate: step.scheduledDate ? step.scheduledDate.toISOString() : new Date().toISOString(),
+            scheduledTime: step.scheduledTime ? step.scheduledTime.toISOString() : new Date().toISOString(),
+            waitDays: step.waitDays || '1',
+            selectedWeekDay: step.selectedWeekDay || 'MONDAY',
+            loopDays: step.loopDays || '7',
+            loopHours: step.loopHours || '24'
+          };
+        });
+
+        // Compute primary scheduled_at ISO string
+        let primaryScheduledAt: string = new Date().toISOString();
+        if (firstStep) {
+          if (firstStep.scheduleOption === 'SPECIFIC_DATETIME') {
+            const combined = new Date(firstStep.scheduledDate);
+            combined.setHours(firstStep.scheduledTime.getHours());
+            combined.setMinutes(firstStep.scheduledTime.getMinutes());
+            primaryScheduledAt = combined.toISOString();
+          } else if (firstStep.scheduleOption === 'AFTER_X_DAYS') {
+            const date = new Date();
+            date.setDate(date.getDate() + (parseInt(firstStep.waitDays, 10) || 1));
+            primaryScheduledAt = date.toISOString();
+          } else if (firstStep.scheduleOption === 'EVERY_WEEK_DAY') {
+            const daysOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+            const targetDayIndex = daysOfWeek.indexOf((firstStep.selectedWeekDay || 'MONDAY').toUpperCase());
+            const date = new Date();
+            if (targetDayIndex !== -1) {
+              const currentDayIndex = date.getDay();
+              let diff = targetDayIndex - currentDayIndex;
+              if (diff <= 0) diff += 7;
+              date.setDate(date.getDate() + diff);
+              date.setHours(firstStep.scheduledTime.getHours());
+              date.setMinutes(firstStep.scheduledTime.getMinutes());
+              primaryScheduledAt = date.toISOString();
+            }
+          }
+        }
+
         const payload = {
           name: formCampaignName,
           channel: commChannel.toLowerCase(),
-          target_segment: targetSegment,
-          template_id: finalTemplateId,
-          sending_account: sendingAccount,
+          target_segment: targetSegment.toLowerCase().includes('all') ? 'all audience' : targetSegment.toLowerCase(),
+          template_id: primaryTemplateId,
+          sending_account: null,
           schedule_type: isNow ? 0 : 1,
-          scheduled_at: scheduledAt,
+          scheduled_at: primaryScheduledAt,
           status: isNow ? 3 : 1,
+          unsubscribeEnforced: unsubscribeEnforcement,
+          bounceProtection: bounceProtection,
+          steps: formattedSteps,
           ab_testing: abTesting ? 1 : 0,
           version_a: abTesting ? versionA.trim() : null,
           version_b: abTesting ? versionB.trim() : null
@@ -703,9 +840,6 @@ Based on this, generate a JSON object with exactly the following fields:
               {/* Campaign Configuration */}
               <View style={styles.formCard}>
                 <View style={styles.sectionHeaderRow}>
-                  <View style={styles.sectionNumberBadge}>
-                    <Text style={styles.sectionNumberText}>1</Text>
-                  </View>
                   <Text style={styles.sectionTitle}>Campaign Configuration</Text>
                 </View>
 
@@ -740,7 +874,10 @@ Based on this, generate a JSON object with exactly the following fields:
                   <Text style={styles.inputLabel}>Communication Channel</Text>
                   <View style={styles.channelTabs}>
                     <Pressable
-                      style={[styles.channelTab, commChannel === 'EMAIL' && { backgroundColor: '#3B82F6', borderColor: '#3B82F6', shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 }]}
+                      style={[
+                        styles.channelTab,
+                        commChannel === 'EMAIL' && { backgroundColor: '#0B2D3E', borderColor: '#0B2D3E' }
+                      ]}
                       onPress={() => {
                         setCommChannel('EMAIL');
                         setFormTemplateId(null);
@@ -749,12 +886,19 @@ Based on this, generate a JSON object with exactly the following fields:
                         }
                       }}
                     >
-                      <View style={[styles.channelIconCircle, { backgroundColor: commChannel === 'EMAIL' ? 'rgba(255,255,255,0.25)' : 'rgba(59,130,246,0.12)' }]}>
-                        <MaterialCommunityIcons name="email-outline" size={18} color={commChannel === 'EMAIL' ? '#FFFFFF' : '#3B82F6'} />
-                      </View>
+                      <MaterialCommunityIcons
+                        name="email-outline"
+                        size={18}
+                        color={commChannel === 'EMAIL' ? '#FFFFFF' : '#475569'}
+                      />
+                      <Text style={[styles.channelTabText, commChannel === 'EMAIL' && { color: '#FFFFFF' }]}>EMAIL</Text>
                     </Pressable>
+
                     <Pressable
-                      style={[styles.channelTab, commChannel === 'SMS' && { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6', shadowColor: '#8B5CF6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 }]}
+                      style={[
+                        styles.channelTab,
+                        commChannel === 'SMS' && { backgroundColor: '#0B2D3E', borderColor: '#0B2D3E' }
+                      ]}
                       onPress={() => {
                         setCommChannel('SMS');
                         setFormTemplateId(null);
@@ -763,12 +907,19 @@ Based on this, generate a JSON object with exactly the following fields:
                         }
                       }}
                     >
-                      <View style={[styles.channelIconCircle, { backgroundColor: commChannel === 'SMS' ? 'rgba(255,255,255,0.25)' : 'rgba(139,92,246,0.12)' }]}>
-                        <MaterialCommunityIcons name="message-text-outline" size={18} color={commChannel === 'SMS' ? '#FFFFFF' : '#8B5CF6'} />
-                      </View>
+                      <MaterialCommunityIcons
+                        name="message-text-outline"
+                        size={18}
+                        color={commChannel === 'SMS' ? '#FFFFFF' : '#475569'}
+                      />
+                      <Text style={[styles.channelTabText, commChannel === 'SMS' && { color: '#FFFFFF' }]}>SMS</Text>
                     </Pressable>
+
                     <Pressable
-                      style={[styles.channelTab, commChannel === 'WHATSAPP' && { backgroundColor: '#22C55E', borderColor: '#22C55E', shadowColor: '#22C55E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 }]}
+                      style={[
+                        styles.channelTab,
+                        commChannel === 'WHATSAPP' && { backgroundColor: '#0B2D3E', borderColor: '#0B2D3E' }
+                      ]}
                       onPress={() => {
                         setCommChannel('WHATSAPP');
                         setFormTemplateId(null);
@@ -777,15 +928,18 @@ Based on this, generate a JSON object with exactly the following fields:
                         }
                       }}
                     >
-                      <View style={[styles.channelIconCircle, { backgroundColor: commChannel === 'WHATSAPP' ? 'rgba(255,255,255,0.25)' : 'rgba(34,197,94,0.12)' }]}>
-                        <MaterialCommunityIcons name="whatsapp" size={18} color={commChannel === 'WHATSAPP' ? '#FFFFFF' : '#22C55E'} />
-                      </View>
+                      <MaterialCommunityIcons
+                        name="whatsapp"
+                        size={18}
+                        color={commChannel === 'WHATSAPP' ? '#FFFFFF' : '#475569'}
+                      />
+                      <Text style={[styles.channelTabText, commChannel === 'WHATSAPP' && { color: '#FFFFFF' }]}>WHATSAPP</Text>
                     </Pressable>
                   </View>
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Target Segment</Text>
+                  <Text style={styles.inputLabel}>Target Segment <Text style={{ color: '#EF4444' }}>*</Text></Text>
                   <Pressable
                     style={styles.formSelector}
                     onPress={() => setSegmentDropdown(true)}
@@ -795,174 +949,349 @@ Based on this, generate a JSON object with exactly the following fields:
                   </Pressable>
                 </View>
 
-                <View style={styles.inputGroup}>
-                  <View style={styles.labelRow}>
-                    <Text style={styles.inputLabel}>{commChannel.charAt(0) + commChannel.slice(1).toLowerCase()} Template <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                    <Pressable onPress={() => { setNewCampaignVisible(false); router.push('/(main)/crm/templates'); }}>
-                      <Text style={styles.manageLink}>Manage Templates</Text>
-                    </Pressable>
+                </View>
+
+              {/* Campaign Sequence Card */}
+              <View style={styles.formCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.sectionTitle}>Campaign Sequence</Text>
+                    <MaterialCommunityIcons name="information-outline" size={16} color={colors.textSecondary} />
                   </View>
-                  {(extendedTemplateList || []).filter(t => t.template_type.toUpperCase() === commChannel).length === 0 ? (
-                    <View style={styles.noTemplateCard}>
-                      <View style={styles.noTemplateIconWrap}>
-                        <MaterialCommunityIcons
-                          name={commChannel === 'EMAIL' ? 'email-plus-outline' : commChannel === 'SMS' ? 'message-plus-outline' : 'whatsapp'}
-                          size={32}
-                          color={colors.accentTeal}
-                        />
+                </View>
+
+                {sequenceSteps.map((step, index) => {
+                  const channelLabel = commChannel === 'EMAIL' ? 'Email' : commChannel === 'SMS' ? 'SMS' : 'WhatsApp';
+                  const selectedTemplate = extendedTemplateList?.find(t => t.id === step.templateId);
+                  const hasTemplateError = !!formErrors[`step_${index}_template`];
+
+                  return (
+                    <View key={step.id} style={styles.stepCardContainer}>
+                      {/* Step Header */}
+                      <View style={styles.stepHeaderRow}>
+                        <Text style={styles.stepTitle}>Step {index + 1}</Text>
+                        {sequenceSteps.length > 1 && (
+                          <Pressable style={styles.removeStepBtn} onPress={() => handleRemoveStep(index)}>
+                            <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
+                            <Text style={styles.removeStepText}>Remove</Text>
+                          </Pressable>
+                        )}
                       </View>
-                      <Text style={styles.noTemplateTitle}>No {commChannel.charAt(0) + commChannel.slice(1).toLowerCase()} Templates Yet</Text>
-                      <Text style={styles.noTemplateDesc}>
-                        Create a {commChannel.toLowerCase()} template first to use in your campaign pipeline.
-                      </Text>
-                      <Pressable
-                        style={styles.noTemplateBtn}
-                        onPress={() => { setNewCampaignVisible(false); router.push('/(main)/crm/templates'); }}
-                      >
-                        <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
-                        <Text style={styles.noTemplateBtnText}>Create Template</Text>
-                      </Pressable>
-                    </View>
-                  ) : (
-                    <>
-                      <Pressable
-                        style={[styles.formSelector, formErrors.template && styles.inputError]}
-                        onPress={() => setTemplateDropdown(true)}
-                      >
-                        <Text style={styles.formSelectorText}>{formTemplateId ? (extendedTemplateList?.find(t => t.id === formTemplateId)?.name || 'Select a template') : 'Select a template'}</Text>
-                        <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                      </Pressable>
-                      {formErrors.template && (
-                        <Text style={styles.errorText}>{formErrors.template}</Text>
-                      )}
-                    </>
-                  )}
-                </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Sending Account <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                  <Pressable
-                    style={[styles.formSelector, formErrors.sendingAccount && styles.inputError]}
-                    onPress={() => setAccountDropdown(true)}
-                  >
-                    <Text style={styles.formSelectorText}>{sendingAccount}</Text>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
-                  </Pressable>
-                  {formErrors.sendingAccount && (
-                    <Text style={styles.errorText}>{formErrors.sendingAccount}</Text>
-                  )}
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Sending Schedule</Text>
-                  <View style={styles.scheduleTabs}>
-                    <Pressable
-                      style={[styles.scheduleTab, sendSchedule === 'NOW' && styles.scheduleTabActive]}
-                      onPress={() => setSendSchedule('NOW')}
-                    >
-                      <Text style={[styles.scheduleTabText, sendSchedule === 'NOW' && styles.scheduleTextActive]}>Send Now</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.scheduleTab, sendSchedule === 'SCHEDULE' && styles.scheduleTabActive]}
-                      onPress={() => setSendSchedule('SCHEDULE')}
-                    >
-                      <Text style={[styles.scheduleTabText, sendSchedule === 'SCHEDULE' && styles.scheduleTextActive]}>Schedule</Text>
-                    </Pressable>
-                  </View>
-                </View>
-
-                {sendSchedule === 'SCHEDULE' && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Execution Date & Time</Text>
-                    <View style={styles.dateTimeRow}>
-                      <Pressable
-                        style={[styles.dateTimeField, showDatePicker && styles.dateTimeFieldActive]}
-                        onPress={() => {
-                          setShowDatePicker(!showDatePicker);
-                          setShowTimePicker(false);
-                        }}
-                      >
-                        <MaterialCommunityIcons name="calendar-outline" size={18} color={showDatePicker ? colors.accentTeal : colors.textSecondary} />
-                        <Text style={[styles.formSelectorText, showDatePicker && { color: colors.accentTeal, fontWeight: '700' }]}>
-                          {scheduledDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
+                      {/* Template Selection */}
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>
+                          {channelLabel} Template <Text style={{ color: '#EF4444' }}>*</Text>
                         </Text>
-                        <MaterialCommunityIcons name="calendar-multiselect" size={18} color={showDatePicker ? colors.accentTeal : colors.textSecondary} />
-                      </Pressable>
+                        {(extendedTemplateList || []).filter(t => t.template_type.toUpperCase() === commChannel).length === 0 ? (
+                          <View style={styles.noTemplateCard}>
+                            <View style={styles.noTemplateIconWrap}>
+                              <MaterialCommunityIcons
+                                name={commChannel === 'EMAIL' ? 'email-plus-outline' : commChannel === 'SMS' ? 'message-plus-outline' : 'whatsapp'}
+                                size={32}
+                                color={colors.accentTeal}
+                              />
+                            </View>
+                            <Text style={styles.noTemplateTitle}>No {channelLabel} Templates Yet</Text>
+                            <Text style={styles.noTemplateDesc}>
+                              Create a {commChannel.toLowerCase()} template first to use in your campaign pipeline.
+                            </Text>
+                            <Pressable
+                              style={styles.noTemplateBtn}
+                              onPress={() => { setNewCampaignVisible(false); router.push('/(main)/crm/templates'); }}
+                            >
+                              <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+                              <Text style={styles.noTemplateBtnText}>Create Template</Text>
+                            </Pressable>
+                          </View>
+                        ) : (
+                          <>
+                            <Pressable
+                              style={[styles.formSelector, hasTemplateError && styles.inputError]}
+                              onPress={() => {
+                                setActiveStepIndex(index);
+                                setTemplateDropdown(true);
+                              }}
+                            >
+                              <Text style={styles.formSelectorText}>
+                                {selectedTemplate ? selectedTemplate.name : 'Select Template'}
+                              </Text>
+                              <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                            </Pressable>
+                            {hasTemplateError && (
+                              <Text style={styles.errorText}>{formErrors[`step_${index}_template`]}</Text>
+                            )}
+                          </>
+                        )}
+                      </View>
 
-                      <Pressable
-                        style={[styles.dateTimeField, showTimePicker && styles.dateTimeFieldActive]}
-                        onPress={() => {
-                          setShowTimePicker(!showTimePicker);
-                          setShowDatePicker(false);
-                        }}
-                      >
-                        <MaterialCommunityIcons name="clock-outline" size={18} color={showTimePicker ? colors.accentTeal : colors.textSecondary} />
-                        <Text style={[styles.formSelectorText, showTimePicker && { color: colors.accentTeal, fontWeight: '700' }]}>
-                          {scheduledTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                        </Text>
-                        <MaterialCommunityIcons name="clock-check-outline" size={18} color={showTimePicker ? colors.accentTeal : colors.textSecondary} />
-                      </Pressable>
+                      {/* Sending Schedule */}
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Sending Schedule</Text>
+                        <Pressable
+                          style={styles.formSelector}
+                          onPress={() => {
+                            setActiveStepIndex(index);
+                            setScheduleOptionDropdown(true);
+                          }}
+                        >
+                          <Text style={styles.formSelectorText}>
+                            {SCHEDULE_OPTIONS.find(o => o.id === step.scheduleOption)?.name || 'Send Immediately'}
+                          </Text>
+                          <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                        </Pressable>
+
+                        {/* Option 2: Specific Date & Time */}
+                        {step.scheduleOption === 'SPECIFIC_DATETIME' && (
+                          <View style={{ marginTop: 12 }}>
+                            <View style={styles.dateTimeRow}>
+                              <Pressable
+                                style={[styles.dateTimeField, step.showDatePicker && styles.dateTimeFieldActive]}
+                                onPress={() => {
+                                  updateStepField(index, 'showDatePicker', !step.showDatePicker);
+                                  updateStepField(index, 'showTimePicker', false);
+                                }}
+                              >
+                                <Text style={[styles.formSelectorText, step.showDatePicker && { color: colors.accentTeal, fontWeight: '700' }]}>
+                                  {step.scheduledDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
+                                </Text>
+                                <MaterialCommunityIcons name="calendar-outline" size={18} color={step.showDatePicker ? colors.accentTeal : colors.textSecondary} />
+                              </Pressable>
+
+                              <Pressable
+                                style={[styles.dateTimeField, step.showTimePicker && styles.dateTimeFieldActive]}
+                                onPress={() => {
+                                  updateStepField(index, 'showTimePicker', !step.showTimePicker);
+                                  updateStepField(index, 'showDatePicker', false);
+                                }}
+                              >
+                                <Text style={[styles.formSelectorText, step.showTimePicker && { color: colors.accentTeal, fontWeight: '700' }]}>
+                                  {step.scheduledTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                </Text>
+                                <MaterialCommunityIcons name="clock-outline" size={18} color={step.showTimePicker ? colors.accentTeal : colors.textSecondary} />
+                              </Pressable>
+                            </View>
+
+                            {step.showDatePicker && (
+                              <View style={styles.inlinePickerContainer}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingHorizontal: 8, paddingBottom: 4 }}>
+                                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }}>Select Date</Text>
+                                  <Pressable
+                                    onPress={() => updateStepField(index, 'showDatePicker', false)}
+                                    style={{ backgroundColor: colors.accentTeal || '#0D9488', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 8 }}
+                                  >
+                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Done</Text>
+                                  </Pressable>
+                                </View>
+                                <DateTimePicker
+                                  value={step.scheduledDate}
+                                  mode="date"
+                                  display="spinner"
+                                  themeVariant={theme === 'dark' ? 'dark' : 'light'}
+                                  onChange={(event: any, date?: Date) => {
+                                    if (date) updateStepField(index, 'scheduledDate', date);
+                                    if (Platform.OS === 'android') updateStepField(index, 'showDatePicker', false);
+                                  }}
+                                />
+                              </View>
+                            )}
+
+                            {step.showTimePicker && (
+                              <View style={styles.inlinePickerContainer}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingHorizontal: 8, paddingBottom: 4 }}>
+                                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }}>Select Time</Text>
+                                  <Pressable
+                                    onPress={() => updateStepField(index, 'showTimePicker', false)}
+                                    style={{ backgroundColor: colors.accentTeal || '#0D9488', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 8 }}
+                                  >
+                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Done</Text>
+                                  </Pressable>
+                                </View>
+                                <DateTimePicker
+                                  value={step.scheduledTime}
+                                  mode="time"
+                                  display="spinner"
+                                  themeVariant={theme === 'dark' ? 'dark' : 'light'}
+                                  onChange={(event: any, date?: Date) => {
+                                    if (date) updateStepField(index, 'scheduledTime', date);
+                                    if (Platform.OS === 'android') updateStepField(index, 'showTimePicker', false);
+                                  }}
+                                />
+                              </View>
+                            )}
+                          </View>
+                        )}
+
+                        {/* Option 3: After X Days */}
+                        {step.scheduleOption === 'AFTER_X_DAYS' && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 12 }}>
+                            <Text style={{ fontSize: 14, color: colors.textPrimary, fontWeight: '500' }}>Wait</Text>
+                            <TextInput
+                              style={{
+                                backgroundColor: colors.cardBackground,
+                                borderWidth: 1.5,
+                                borderColor: colors.cardBorder,
+                                borderRadius: 12,
+                                paddingHorizontal: 16,
+                                height: 46,
+                                minWidth: 75,
+                                textAlign: 'center',
+                                fontSize: 15,
+                                fontWeight: '700',
+                                color: colors.textPrimary,
+                              }}
+                              keyboardType="number-pad"
+                              value={step.waitDays}
+                              onChangeText={(val) => updateStepField(index, 'waitDays', val)}
+                            />
+                            <Text style={{ fontSize: 14, color: colors.textPrimary, fontWeight: '500' }}>days before sending.</Text>
+                          </View>
+                        )}
+
+                        {/* Option 4: Every Week on Day */}
+                        {step.scheduleOption === 'EVERY_WEEK_DAY' && (
+                          <View style={{ marginTop: 12 }}>
+                            <View style={styles.dateTimeRow}>
+                              <Pressable
+                                style={[styles.dateTimeField, { flex: 1 }]}
+                                onPress={() => setWeekDayDropdown(true)}
+                              >
+                                <Text style={styles.formSelectorText}>{step.selectedWeekDay || weekDay}</Text>
+                                <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
+                              </Pressable>
+
+                              <Pressable
+                                style={[styles.dateTimeField, { flex: 1 }, step.showTimePicker && styles.dateTimeFieldActive]}
+                                onPress={() => {
+                                  updateStepField(index, 'showTimePicker', !step.showTimePicker);
+                                  updateStepField(index, 'showDatePicker', false);
+                                }}
+                              >
+                                <Text style={[styles.formSelectorText, step.showTimePicker && { color: colors.accentTeal, fontWeight: '700' }]}>
+                                  {step.scheduledTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                </Text>
+                                <MaterialCommunityIcons name="clock-outline" size={18} color={step.showTimePicker ? colors.accentTeal : colors.textSecondary} />
+                              </Pressable>
+                            </View>
+
+                            {step.showTimePicker && (
+                              <View style={styles.inlinePickerContainer}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingHorizontal: 8, paddingBottom: 4 }}>
+                                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }}>Select Time</Text>
+                                  <Pressable
+                                    onPress={() => updateStepField(index, 'showTimePicker', false)}
+                                    style={{ backgroundColor: colors.accentTeal || '#0D9488', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 8 }}
+                                  >
+                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Done</Text>
+                                  </Pressable>
+                                </View>
+                                <DateTimePicker
+                                  value={step.scheduledTime}
+                                  mode="time"
+                                  display="spinner"
+                                  themeVariant={theme === 'dark' ? 'dark' : 'light'}
+                                  onChange={(event: any, date?: Date) => {
+                                    if (date) updateStepField(index, 'scheduledTime', date);
+                                    if (Platform.OS === 'android') updateStepField(index, 'showTimePicker', false);
+                                  }}
+                                />
+                              </View>
+                            )}
+                          </View>
+                        )}
+
+                        {/* Option 5: Loop Every X Days */}
+                        {step.scheduleOption === 'LOOP_X_DAYS' && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 12 }}>
+                            <Text style={{ fontSize: 14, color: colors.textPrimary, fontWeight: '500' }}>Loop every</Text>
+                            <TextInput
+                              style={{
+                                backgroundColor: colors.cardBackground,
+                                borderWidth: 1.5,
+                                borderColor: colors.cardBorder,
+                                borderRadius: 12,
+                                paddingHorizontal: 16,
+                                height: 46,
+                                minWidth: 75,
+                                textAlign: 'center',
+                                fontSize: 15,
+                                fontWeight: '700',
+                                color: colors.textPrimary,
+                              }}
+                              keyboardType="number-pad"
+                              value={step.loopDays}
+                              onChangeText={(val) => updateStepField(index, 'loopDays', val)}
+                            />
+                            <Text style={{ fontSize: 14, color: colors.textPrimary, fontWeight: '500' }}>days</Text>
+                          </View>
+                        )}
+
+                        {/* Option 6: Loop Every X Hours */}
+                        {step.scheduleOption === 'LOOP_X_HOURS' && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 12 }}>
+                            <Text style={{ fontSize: 14, color: colors.textPrimary, fontWeight: '500' }}>Loop every</Text>
+                            <TextInput
+                              style={{
+                                backgroundColor: colors.cardBackground,
+                                borderWidth: 1.5,
+                                borderColor: colors.cardBorder,
+                                borderRadius: 12,
+                                paddingHorizontal: 16,
+                                height: 46,
+                                minWidth: 75,
+                                textAlign: 'center',
+                                fontSize: 15,
+                                fontWeight: '700',
+                                color: colors.textPrimary,
+                              }}
+                              keyboardType="number-pad"
+                              value={step.loopHours}
+                              onChangeText={(val) => updateStepField(index, 'loopHours', val)}
+                            />
+                            <Text style={{ fontSize: 14, color: colors.textPrimary, fontWeight: '500' }}>hours</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
+                  );
+                })}
 
-                    {/* Inline Date Picker Panel */}
-                    {showDatePicker && (
-                      <View style={styles.inlinePickerContainer}>
-                        <DateTimePicker
-                          value={scheduledDate}
-                          mode="date"
-                          display="spinner"
-                          themeVariant={theme === 'dark' ? 'dark' : 'light'}
-                          onChange={(event: any, date?: Date) => {
-                            if (date) setScheduledDate(date);
-                            if (Platform.OS === 'android') setShowDatePicker(false);
-                          }}
-                        />
-                      </View>
-                    )}
-
-                    {/* Inline Time Picker Panel */}
-                    {showTimePicker && (
-                      <View style={styles.inlinePickerContainer}>
-                        <DateTimePicker
-                          value={scheduledTime}
-                          mode="time"
-                          display="spinner"
-                          themeVariant={theme === 'dark' ? 'dark' : 'light'}
-                          onChange={(event: any, date?: Date) => {
-                            if (date) setScheduledTime(date);
-                            if (Platform.OS === 'android') setShowTimePicker(false);
-                          }}
-                        />
-                      </View>
-                    )}
-                  </View>
-                )}
-
+                {/* + Add Another Step Button */}
+                <Pressable style={styles.addStepDashedBtn} onPress={handleAddStep}>
+                  <Text style={styles.addStepDashedText}>+ Add Another Step</Text>
+                </Pressable>
               </View>
 
               {/* Compliance & Delivery */}
               <View style={styles.formCard}>
                 <View style={styles.sectionHeaderRow}>
-                  <View style={styles.sectionNumberBadge}>
-                    <Text style={styles.sectionNumberText}>2</Text>
-                  </View>
                   <Text style={styles.sectionTitle}>Compliance & Delivery</Text>
                 </View>
 
                 <View style={styles.complianceItem}>
-                  <View>
+                  <View style={{ flex: 1, marginRight: 12 }}>
                     <Text style={styles.complianceTitle}>Unsubscribe Enforcement</Text>
                     <Text style={styles.complianceDesc}>Automatically exclude opted-out contacts.</Text>
                   </View>
-                  <Text style={styles.activePill}>ACTIVE</Text>
+                  <Switch
+                    value={unsubscribeEnforcement}
+                    onValueChange={setUnsubscribeEnforcement}
+                    trackColor={{ false: '#CBD5E1', true: colors.accentTeal || '#0D9488' }}
+                    thumbColor="#FFFFFF"
+                  />
                 </View>
 
                 <View style={styles.complianceItem}>
-                  <View>
+                  <View style={{ flex: 1, marginRight: 12 }}>
                     <Text style={styles.complianceTitle}>Bounce Protection</Text>
                     <Text style={styles.complianceDesc}>Remove invalid emails after first fail.</Text>
                   </View>
-                  <Text style={styles.activePill}>ACTIVE</Text>
+                  <Switch
+                    value={bounceProtection}
+                    onValueChange={setBounceProtection}
+                    trackColor={{ false: '#CBD5E1', true: colors.accentTeal || '#0D9488' }}
+                    thumbColor="#FFFFFF"
+                  />
                 </View>
 
                 <View style={styles.audienceBox}>
@@ -1061,7 +1390,7 @@ Based on this, generate a JSON object with exactly the following fields:
               <View style={styles.dragHandle} />
 
               <View style={styles.bottomSheetHeader}>
-                <Text style={styles.bottomSheetTitle}>Select {commChannel.charAt(0) + commChannel.slice(1).toLowerCase()} Template</Text>
+                <Text style={styles.bottomSheetTitle}>Select {(commChannel === 'EMAIL' ? 'Email' : commChannel === 'SMS' ? 'SMS' : 'WhatsApp')} Template</Text>
                 <Pressable style={styles.closeBtnSmall} onPress={() => setTemplateDropdown(false)}>
                   <MaterialCommunityIcons name="close" size={18} color={colors.textPrimary} />
                 </Pressable>
@@ -1071,16 +1400,17 @@ Based on this, generate a JSON object with exactly the following fields:
                 {(extendedTemplateList || [])
                   .filter(t => t.template_type.toUpperCase() === commChannel)
                   .map(opt => {
-                    const isSelected = formTemplateId === opt.id;
+                    const isSelected = sequenceSteps[activeStepIndex]?.templateId === opt.id;
                     return (
                       <Pressable
                         key={opt.id}
                         style={[styles.bottomSheetItem, isSelected && styles.bottomSheetItemActive]}
                         onPress={() => {
+                          updateStepField(activeStepIndex, 'templateId', opt.id);
                           setFormTemplateId(opt.id);
                           setTemplateDropdown(false);
-                          if (formErrors.template) {
-                            setFormErrors(prev => ({ ...prev, template: '' }));
+                          if (formErrors[`step_${activeStepIndex}_template`]) {
+                            setFormErrors(prev => ({ ...prev, [`step_${activeStepIndex}_template`]: '' }));
                           }
                         }}
                       >
@@ -1114,57 +1444,101 @@ Based on this, generate a JSON object with exactly the following fields:
           </Pressable>
         </Modal>
 
-        {/* Sending Account Selection Bottom Sheet Modal */}
+        {/* Schedule Option Selection Bottom Sheet Modal */}
         <Modal
-          visible={accountDropdown}
+          visible={scheduleOptionDropdown}
           transparent
           animationType="slide"
-          onRequestClose={() => setAccountDropdown(false)}
+          onRequestClose={() => setScheduleOptionDropdown(false)}
         >
-          <Pressable style={styles.bottomSheetBackdrop} onPress={() => setAccountDropdown(false)}>
+          <Pressable style={styles.bottomSheetBackdrop} onPress={() => setScheduleOptionDropdown(false)}>
             <View style={styles.bottomSheetContent}>
               <View style={styles.dragHandle} />
 
               <View style={styles.bottomSheetHeader}>
-                <Text style={styles.bottomSheetTitle}>Select Sending Account</Text>
-                <Pressable style={styles.closeBtnSmall} onPress={() => setAccountDropdown(false)}>
+                <Text style={styles.bottomSheetTitle}>Select Sending Schedule</Text>
+                <Pressable style={styles.closeBtnSmall} onPress={() => setScheduleOptionDropdown(false)}>
                   <MaterialCommunityIcons name="close" size={18} color={colors.textPrimary} />
                 </Pressable>
               </View>
 
               <ScrollView style={styles.bottomSheetScroll} showsVerticalScrollIndicator={false}>
-                {[
-                  { name: 'SendGrid (Connected)', provider: 'Email Delivery Agent', desc: 'Secure high-deliverability primary transactional route', icon: 'email-check-outline', status: 'ACTIVE' },
-                  { name: 'Default System Provider', provider: 'Fallback Relay Agent', desc: 'Shared fallback channel for basic communications', icon: 'server-network', status: 'DEFAULT' }
-                ].map(opt => {
-                  const isSelected = sendingAccount === opt.name;
+                {SCHEDULE_OPTIONS.map(opt => {
+                  const currentStepScheduleOption = sequenceSteps[activeStepIndex]?.scheduleOption || 'IMMEDIATELY';
+                  const isSelected = currentStepScheduleOption === opt.id;
                   return (
                     <Pressable
-                      key={opt.name}
+                      key={opt.id}
                       style={[styles.bottomSheetItem, isSelected && styles.bottomSheetItemActive]}
                       onPress={() => {
-                        setSendingAccount(opt.name);
-                        setAccountDropdown(false);
-                        if (opt.name !== 'Select account' && formErrors.sendingAccount) {
-                          setFormErrors(prev => ({ ...prev, sendingAccount: '' }));
-                        }
+                        updateStepField(activeStepIndex, 'scheduleOption', opt.id);
+                        setScheduleOption(opt.id as any);
+                        setScheduleOptionDropdown(false);
+                        setShowDatePicker(false);
+                        setShowTimePicker(false);
                       }}
                     >
                       <View style={styles.itemIconContainer}>
                         <MaterialCommunityIcons
-                          name={opt.icon as any}
+                          name={
+                            opt.id === 'IMMEDIATELY' ? 'flash-outline' :
+                            opt.id === 'SPECIFIC_DATETIME' ? 'calendar-clock-outline' :
+                            opt.id === 'AFTER_X_DAYS' ? 'clock-start' :
+                            opt.id === 'EVERY_WEEK_DAY' ? 'calendar-week-outline' :
+                            'sync'
+                          }
                           size={22}
                           color={isSelected ? '#FFFFFF' : colors.accentTeal}
                         />
                       </View>
                       <View style={styles.itemTextContainer}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={[styles.itemLabel, isSelected && styles.itemLabelActive]}>{opt.name}</Text>
-                          <View style={[styles.statusMiniBadge, isSelected ? { backgroundColor: 'rgba(255,255,255,0.2)' } : { backgroundColor: `${colors.accentTeal}15` }]}>
-                            <Text style={[styles.statusMiniBadgeText, isSelected ? { color: '#FFFFFF' } : { color: colors.accentTeal }]}>{opt.status}</Text>
-                          </View>
-                        </View>
+                        <Text style={[styles.itemLabel, isSelected && styles.itemLabelActive]}>{opt.name}</Text>
                         <Text style={[styles.itemDesc, isSelected && styles.itemDescActive]}>{opt.desc}</Text>
+                      </View>
+                      {isSelected && (
+                        <MaterialCommunityIcons name="check-circle" size={22} color="#FFFFFF" />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* Day of Week Selection Bottom Sheet Modal */}
+        <Modal
+          visible={weekDayDropdown}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setWeekDayDropdown(false)}
+        >
+          <Pressable style={styles.bottomSheetBackdrop} onPress={() => setWeekDayDropdown(false)}>
+            <View style={styles.bottomSheetContent}>
+              <View style={styles.dragHandle} />
+
+              <View style={styles.bottomSheetHeader}>
+                <Text style={styles.bottomSheetTitle}>Select Day of Week</Text>
+                <Pressable style={styles.closeBtnSmall} onPress={() => setWeekDayDropdown(false)}>
+                  <MaterialCommunityIcons name="close" size={18} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+
+              <ScrollView style={styles.bottomSheetScroll} showsVerticalScrollIndicator={false}>
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
+                  const isSelected = weekDay === day;
+                  return (
+                    <Pressable
+                      key={day}
+                      style={[styles.bottomSheetItem, isSelected && styles.bottomSheetItemActive]}
+                      onPress={() => {
+                        setWeekDay(day);
+                        updateStepField(activeStepIndex, 'selectedWeekDay', day.toUpperCase());
+                        setWeekDayDropdown(false);
+                      }}
+                    >
+                      <View style={styles.itemTextContainer}>
+                        <Text style={[styles.itemLabel, isSelected && styles.itemLabelActive]}>{day}</Text>
                       </View>
                       {isSelected && (
                         <MaterialCommunityIcons name="check-circle" size={22} color="#FFFFFF" />
@@ -2320,6 +2694,51 @@ function getStyles(colors: any, theme?: string) {
       shadowOpacity: 0.06,
       shadowRadius: 16,
       elevation: 4,
+    },
+    stepCardContainer: {
+      borderWidth: 1,
+      borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E2E8F0',
+      borderRadius: 16,
+      padding: 16,
+      backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : '#F8FAFC',
+      marginBottom: 16,
+    },
+    stepHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 14,
+    },
+    stepTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    removeStepBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    removeStepText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: '#EF4444',
+    },
+    addStepDashedBtn: {
+      height: 48,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderStyle: 'dashed',
+      borderColor: colors.cardBorder || '#CBD5E1',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+      marginTop: 4,
+    },
+    addStepDashedText: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.textPrimary,
     },
     sectionHeaderRow: {
       flexDirection: 'row',

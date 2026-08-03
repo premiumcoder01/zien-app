@@ -354,6 +354,7 @@ export default function ProfileScreen() {
         queryClient.setQueryData(['userProfile', accessToken], data);
       }
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      queryClient.refetchQueries({ queryKey: ['userProfile'] });
       Alert.alert('Success', 'Profile updated successfully.');
     },
     onError: (error: Error) => {
