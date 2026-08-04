@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import {
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -93,6 +94,9 @@ export default function CRMSettingsScreen() {
   // ── Transactional Email Providers State ──
   const [connectedProviders, setConnectedProviders] = useState<Record<string, { apiKey: string; domain?: string; senderEmail?: string }>>({});
   const [providerModalOpen, setProviderModalOpen] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showDomain, setShowDomain] = useState(false);
+  const [showSenderEmail, setShowSenderEmail] = useState(false);
   const [activeProvider, setActiveProvider] = useState<{ id: string; name: string } | null>(null);
   const [modalApiKey, setModalApiKey] = useState('');
   const [modalDomain, setModalDomain] = useState('');
@@ -193,6 +197,9 @@ export default function CRMSettingsScreen() {
     setModalApiKey(existing?.apiKey || '');
     setModalDomain(existing?.domain || '');
     setModalSenderEmail(existing?.senderEmail || '');
+    setShowApiKey(false);
+    setShowDomain(false);
+    setShowSenderEmail(false);
     setProviderModalOpen(true);
   };
 
@@ -837,73 +844,93 @@ export default function CRMSettingsScreen() {
       )}
 
       {/* Connect API Provider Modal */}
-      {providerModalOpen && activeProvider && (
+      <Modal
+        visible={providerModalOpen && !!activeProvider}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setProviderModalOpen(false)}
+      >
         <View style={styles.modalOverlay}>
           <Pressable style={styles.modalBackdrop} onPress={() => setProviderModalOpen(false)} />
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ width: '100%' }}
+            style={{ width: '100%', justifyContent: 'flex-end' }}
           >
-            <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+            <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom + 16, 28) }]}>
               <View style={styles.modalHeaderRow}>
-                <Text style={styles.modalTitleText}>Connect {activeProvider.name}</Text>
-                <Pressable onPress={() => setProviderModalOpen(false)}>
+                <Text style={styles.modalTitleText}>Connect {activeProvider?.name}</Text>
+                <Pressable onPress={() => setProviderModalOpen(false)} hitSlop={10}>
                   <MaterialCommunityIcons name="close" size={22} color={colors.textPrimary} />
                 </Pressable>
               </View>
 
-              <View style={styles.modalSectionCard}>
-                {/* API Key */}
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={styles.modalLabel}>API KEY / CREDENTIALS *</Text>
-                  <View style={styles.modalInputWrap}>
-                    <MaterialCommunityIcons name="key-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
-                    <TextInput
-                      style={styles.modalInputText}
-                      placeholder={activeProvider.id === 'mailgun' ? "Paste your Mailgun API key..." : "Paste your SendGrid API key..."}
-                      placeholderTextColor={colors.inputPlaceholder}
-                      value={modalApiKey}
-                      onChangeText={setModalApiKey}
-                      secureTextEntry
-                    />
-                  </View>
-                </View>
-
-                {/* Verified Domain (Mailgun only) */}
-                {activeProvider.id === 'mailgun' && (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+                style={{ maxHeight: 380 }}
+              >
+                <View style={styles.modalSectionCard}>
+                  {/* API Key */}
                   <View style={{ marginBottom: 16 }}>
-                    <Text style={styles.modalLabel}>VERIFIED DOMAIN (MAILGUN) *</Text>
+                    <Text style={styles.modalLabel}>API Key / Credentials *</Text>
                     <View style={styles.modalInputWrap}>
-                      <MaterialCommunityIcons name="earth" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                      <MaterialCommunityIcons name="key-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
                       <TextInput
                         style={styles.modalInputText}
-                        placeholder="e.g., mg.youragency.com"
+                        placeholder="••••••"
                         placeholderTextColor={colors.inputPlaceholder}
-                        value={modalDomain}
-                        onChangeText={setModalDomain}
+                        value={modalApiKey}
+                        onChangeText={setModalApiKey}
+                        secureTextEntry={!showApiKey}
                         autoCapitalize="none"
+                      />
+                      <Pressable onPress={() => setShowApiKey(!showApiKey)} hitSlop={10} style={{ padding: 4 }}>
+                        <MaterialCommunityIcons
+                          name={showApiKey ? "eye-off-outline" : "eye-outline"}
+                          size={18}
+                          color={colors.textSecondary}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* Verified Domain (Mailgun only) */}
+                  {activeProvider?.id === 'mailgun' && (
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={styles.modalLabel}>Verified Domain (Mailgun) *</Text>
+                      <View style={styles.modalInputWrap}>
+                        <MaterialCommunityIcons name="earth" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                        <TextInput
+                          style={styles.modalInputText}
+                          placeholder="e.g., mg.youragency.com"
+                          placeholderTextColor={colors.inputPlaceholder}
+                          value={modalDomain}
+                          onChangeText={setModalDomain}
+                          autoCapitalize="none"
+                        />
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Sender Email */}
+                  <View>
+                    <Text style={styles.modalLabel}>Sender Email *</Text>
+                    <View style={styles.modalInputWrap}>
+                      <MaterialCommunityIcons name="email-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                      <TextInput
+                        style={styles.modalInputText}
+                        placeholder="e.g., hello@yourdomain.com"
+                        placeholderTextColor={colors.inputPlaceholder}
+                        value={modalSenderEmail}
+                        onChangeText={setModalSenderEmail}
+                        autoCapitalize="none"
+                        keyboardType="email-address"
                       />
                     </View>
                   </View>
-                )}
-
-                {/* Sender Email */}
-                <View>
-                  <Text style={styles.modalLabel}>SENDER EMAIL *</Text>
-                  <View style={styles.modalInputWrap}>
-                    <MaterialCommunityIcons name="email-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
-                    <TextInput
-                      style={styles.modalInputText}
-                      placeholder="e.g., John Doe <hello@yourdomain.com>"
-                      placeholderTextColor={colors.inputPlaceholder}
-                      value={modalSenderEmail}
-                      onChangeText={setModalSenderEmail}
-                      autoCapitalize="none"
-                      keyboardType="email-address"
-                    />
-                  </View>
                 </View>
-              </View>
+              </ScrollView>
 
               <View style={styles.modalActions}>
                 <Pressable style={styles.modalCancelBtn} onPress={() => setProviderModalOpen(false)}>
@@ -916,7 +943,7 @@ export default function CRMSettingsScreen() {
             </View>
           </KeyboardAvoidingView>
         </View>
-      )}
+      </Modal>
 
           {/* Save Changes — sticky at bottom on mobile */}
           {activeTab !== 'Zien Extension' && (
@@ -1413,10 +1440,10 @@ function getStyles(colors: any, theme: string) {
       marginBottom: 32,
     },
     modalLabel: {
-      fontSize: 10,
-      fontWeight: '900',
+      fontSize: 12,
+      fontWeight: '700',
       color: colors.textPrimary,
-      letterSpacing: 0.8,
+      letterSpacing: 0.2,
       marginBottom: 10,
     },
     modalInput: {
