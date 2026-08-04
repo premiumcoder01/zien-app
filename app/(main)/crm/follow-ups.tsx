@@ -985,7 +985,7 @@ export default function FollowUpsScreen() {
 
             <View style={[
               styles.fixedBottomActions,
-              { paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 20) }
+              { paddingBottom: keyboardVisible ? 16 : Math.max(insets.bottom + 20, 36) }
             ]}>
               <Pressable style={styles.modalCancelBtn} onPress={() => setAddTaskModalVisible(false)}>
                 <Text style={styles.modalCancelBtnText}>Cancel</Text>

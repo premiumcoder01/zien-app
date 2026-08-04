@@ -339,7 +339,7 @@ export default function CRMSettingsScreen() {
       end={{ x: 0.9, y: 1 }}
       style={[styles.background, { paddingTop: insets.top }]}>
       <PageHeader
-        title="CRM & Marketing Settings"
+        title="Settings"
         subtitle="Configure attribution, automated follow-ups, and email providers."
         onBack={() => router.back()}
       />
@@ -380,47 +380,7 @@ export default function CRMSettingsScreen() {
             <Text style={styles.premiumCardTitle}>Lead Routing & Duplicate Detection</Text>
 
             <View style={styles.premiumCard}>
-              <View style={[styles.premiumField, { zIndex: 100 }]}>
-                <Text style={styles.premiumLabelText}>DEFAULT LEAD DISTRIBUTION</Text>
-                <Pressable
-                  style={styles.premiumTrigger}
-                  onPress={() => setLeadDistOpen(!leadDistOpen)}>
-                  <Text style={styles.premiumTriggerText}>{leadDistribution}</Text>
-                  <MaterialCommunityIcons
-                    name={leadDistOpen ? "chevron-up" : "chevron-down"}
-                    size={22}
-                    color={colors.textPrimary}
-                  />
-                </Pressable>
 
-                {leadDistOpen && (
-                  <View style={styles.premiumDropdownFloating}>
-                    <ScrollView bounces={false} style={{ maxHeight: 200 }}>
-                      {LEAD_DISTRIBUTION_OPTIONS.map((opt) => {
-                        const isSelected = leadDistribution === opt;
-                        return (
-                          <Pressable
-                            key={opt}
-                            style={styles.premiumDropdownOption}
-                            onPress={() => {
-                              setLeadDistribution(opt);
-                              setLeadDistOpen(false);
-                            }}>
-                            <View style={styles.optionInner}>
-                              {isSelected && (
-                                <MaterialCommunityIcons name="check" size={18} color={colors.accent} style={{ marginRight: 10 }} />
-                              )}
-                              <Text style={[styles.optionLabelText, isSelected && styles.optionLabelTextActive]}>
-                                {opt}
-                              </Text>
-                            </View>
-                          </Pressable>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
 
               <View style={styles.premiumToggleRow}>
                 <View style={{ flex: 1 }}>

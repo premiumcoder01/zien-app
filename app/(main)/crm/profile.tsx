@@ -990,7 +990,7 @@ export default function ProfileScreen() {
                             </ScrollView>
 
                             {/* Footer */}
-                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
                                 <Pressable onPress={() => setIsNoteModalVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
                                     <Text style={styles.cancelText}>Cancel</Text>
                                 </Pressable>
@@ -1093,7 +1093,7 @@ export default function ProfileScreen() {
                             </ScrollView>
 
                             {/* Footer */}
-                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
                                 <Pressable onPress={() => { setIsEventModalVisible(false); setShowEventDatePicker(false); }} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
                                     <Text style={styles.cancelText}>Cancel</Text>
                                 </Pressable>
@@ -1208,7 +1208,7 @@ export default function ProfileScreen() {
                             </ScrollView>
 
                             {/* Footer */}
-                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
                                 <Pressable onPress={() => { setIsTaskModalVisible(false); setShowTaskDatePicker(false); }} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
                                     <Text style={styles.cancelText}>Cancel</Text>
                                 </Pressable>
@@ -1334,7 +1334,7 @@ export default function ProfileScreen() {
                             </ScrollView>
 
                             {/* Footer */}
-                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
                                 <Pressable onPress={() => setIsHeatModalVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
                                     <Text style={styles.cancelText}>Cancel</Text>
                                 </Pressable>

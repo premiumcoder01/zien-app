@@ -135,6 +135,7 @@ interface AddContactModalProps {
   availableGroups: string[];
   availableTags: string[];
   loading?: boolean;
+  apiError?: string | null;
 }
 
 export const AddContactModal: React.FC<AddContactModalProps> = ({
@@ -146,6 +147,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   availableGroups,
   availableTags,
   loading = false,
+  apiError = null,
 }) => {
   const { colors, theme } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -180,6 +182,19 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
       hideSubscription.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (apiError) {
+      const msgLower = apiError.toLowerCase();
+      if (msgLower.includes('email')) {
+        setErrors(prev => ({ ...prev, email: apiError }));
+      } else if (msgLower.includes('phone')) {
+        setErrors(prev => ({ ...prev, phone: apiError }));
+      } else {
+        setErrors(prev => ({ ...prev, general: apiError }));
+      }
+    }
+  }, [apiError]);
 
 
   useEffect(() => {
@@ -338,6 +353,12 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               contentInsetAdjustmentBehavior='automatic'
               contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 80 }}
             >
+              {apiError && (
+                <View style={styles.apiErrorBanner}>
+                  <MaterialCommunityIcons name="alert-circle-outline" size={18} color="#EF4444" style={{ marginRight: 8 }} />
+                  <Text style={styles.apiErrorText}>{apiError}</Text>
+                </View>
+              )}
 
               <View style={styles.formCol}>
                 <Text style={styles.label}>First Name <Text style={styles.required}>*</Text></Text>
@@ -581,6 +602,23 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 20,
     paddingBottom: 20,
+  },
+  apiErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  apiErrorText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#EF4444',
+    flex: 1,
   },
   headerTitle: {
     fontSize: 22,

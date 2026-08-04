@@ -239,12 +239,25 @@ export default function CRM_TemplatesScreen() {
     const statusMutation = useMutation({
         mutationFn: ({ id, status }: { id: string; status: number }) =>
             patchCRMTemplateStatus(accessToken || '', id, status),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['crmTemplates'] });
+        onMutate: async ({ id, status }) => {
+            await queryClient.cancelQueries({ queryKey: ['crmTemplates'] });
+            const previousTemplates = queryClient.getQueryData<CRMTemplate[]>(['crmTemplates']);
+            queryClient.setQueryData<CRMTemplate[]>(['crmTemplates'], (old) => {
+                if (!old) return [];
+                return old.map((t) => (t.id === id ? { ...t, status } : t));
+            });
+            return { previousTemplates };
         },
-        onError: (error) => {
-            Alert.alert('Error', 'Failed to update status. Please try again.');
-            console.error(error);
+        onError: (error: any, variables, context) => {
+            if (context?.previousTemplates) {
+                queryClient.setQueryData(['crmTemplates'], context.previousTemplates);
+            }
+            const errorMsg = error?.message || 'Failed to update status. Please try again.';
+            Alert.alert('Cannot Modify Status', errorMsg);
+            console.error('[patchCRMTemplateStatus error]', error);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['crmTemplates'] });
         }
     });
 
@@ -278,10 +291,20 @@ export default function CRM_TemplatesScreen() {
     };
 
     const duplicateMutation = useMutation({
-        mutationFn: (id: string) => duplicateCRMTemplate(accessToken || '', id),
+        mutationFn: async (id: string) => {
+            const duplicated = await duplicateCRMTemplate(accessToken || '', id);
+            if (duplicated && duplicated.id) {
+                try {
+                    await patchCRMTemplateStatus(accessToken || '', duplicated.id, 0);
+                } catch (e) {
+                    await patchCRMTemplateStatus(accessToken || '', duplicated.id, 2).catch(() => {});
+                }
+            }
+            return duplicated;
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['crmTemplates'] });
-            Alert.alert('Success', 'Template duplicated successfully.');
+            Alert.alert('Success', 'Template duplicated as Draft.');
         },
         onError: (error) => {
             Alert.alert('Error', 'Failed to duplicate template. Please try again.');
@@ -646,12 +669,15 @@ export default function CRM_TemplatesScreen() {
                     </Pressable>
 
                     {/* Status Pill */}
-                    <View style={[
-                        styles.inlineStatusPill,
-                        { borderColor: isActive ? '#34D39950' : 'rgba(148,163,184,0.3)' }
-                    ]}>
+                    <Pressable
+                        style={[
+                            styles.inlineStatusPill,
+                            { borderColor: isActive ? '#34D39950' : 'rgba(148,163,184,0.3)' }
+                        ]}
+                        onPress={() => toggleTemplateStatus(template.id, isActive ? 2 : 1)}
+                    >
                         <Text style={styles.statusLabelMini}>STATUS</Text>
-                        <View style={styles.statusSwitchRow}>
+                        <View style={styles.statusSwitchRow} pointerEvents="none">
                             <Switch
                                 value={isActive}
                                 onValueChange={(val) => toggleTemplateStatus(template.id, val ? 1 : 2)}
@@ -664,10 +690,10 @@ export default function CRM_TemplatesScreen() {
                                 styles.inlineStatusText,
                                 { color: isActive ? '#10B981' : '#64748B' }
                             ]}>
-                                {isActive ? 'LIVE' : 'PAUSED'}
+                                {isActive ? 'Active' : 'Draft'}
                             </Text>
                         </View>
-                    </View>
+                    </Pressable>
                 </View>
             </View>
         );

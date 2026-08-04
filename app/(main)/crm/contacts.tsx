@@ -95,11 +95,12 @@ export default function ContactsScreen() {
   });
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
   const [selectedContact, setSelectedContact] = useState<CRMContact | null>(null);
-  const [manageMetaVisible, setManageMetaVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [deleteContactId, setDeleteContactId] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [contactApiError, setContactApiError] = useState<string | null>(null);
+  const [manageMetaVisible, setManageMetaVisible] = useState(false);
   const [aiImportVisible, setAiImportVisible] = useState(false);
 
   // Select All to Delete states
@@ -156,15 +157,20 @@ export default function ContactsScreen() {
     setModalVisible(true);
   };
 
+  const closeModal = () => {
+    setModalVisible(false);
+    setSelectedContact(null);
+    setIsEditing(false);
+    setContactApiError(null);
+  };
+
   const openEditModal = (contact: CRMContact) => {
     setIsEditing(true);
     setSelectedContact(contact);
     setModalVisible(true);
   };
 
-  const closeModal = () => {
-    setModalVisible(false);
-  };
+
 
   const handleToggleStatus = async (contactId: string, currentStatus: number) => {
     const newStatus = currentStatus === 1 ? 0 : 1;
@@ -202,6 +208,7 @@ export default function ContactsScreen() {
 
     try {
       setIsUpdating(true);
+      setContactApiError(null);
       if (isEditing && selectedContact) {
         await updateCRMContact(accessToken!, selectedContact.id, payload);
       } else {
@@ -211,7 +218,16 @@ export default function ContactsScreen() {
       queryClient.invalidateQueries({ queryKey: ['crm-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['crm-overview'] });
     } catch (error: any) {
-      Alert.alert('API Error', error.message || `Something went wrong while ${isEditing ? 'updating' : 'adding'} contact`);
+      const msg = error?.message || `Something went wrong while ${isEditing ? 'updating' : 'adding'} contact`;
+      setContactApiError(msg);
+      const isValidation = msg.toLowerCase().includes('already exists') ||
+                           msg.toLowerCase().includes('email') ||
+                           msg.toLowerCase().includes('phone') ||
+                           msg.toLowerCase().includes('required') ||
+                           msg.toLowerCase().includes('invalid');
+      if (!isValidation) {
+        Alert.alert(msg);
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -718,6 +734,7 @@ export default function ContactsScreen() {
         availableTags={availableTags}
         isEditing={isEditing}
         loading={isUpdating}
+        apiError={contactApiError}
         initialData={selectedContact ? {
           firstName: selectedContact.first_name,
           lastName: selectedContact.last_name,

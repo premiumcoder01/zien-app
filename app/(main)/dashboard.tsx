@@ -24,6 +24,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,

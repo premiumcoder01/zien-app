@@ -19,6 +19,7 @@ import { WebView } from 'react-native-webview';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -62,6 +63,9 @@ export default function IntegrationsScreen() {
   // ── Integrations list state ──
   const [integrations, setIntegrations] = useState<Integration[]>(INITIAL_INTEGRATIONS);
   const [requestModalVisible, setRequestModalVisible] = useState(false);
+  const [reqName, setReqName] = useState('');
+  const [reqEmail, setReqEmail] = useState('');
+  const [reqMessage, setReqMessage] = useState('');
   const [comingSoonModalVisible, setComingSoonModalVisible] = useState(false);
   const [comingSoonIntegration, setComingSoonIntegration] = useState<Integration | null>(null);
 
@@ -466,26 +470,7 @@ export default function IntegrationsScreen() {
           />
         }>
 
-        {/* Stats Banner */}
-        <View style={styles.statsBanner}>
-          <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: colors.accent }]} />
-            <Text style={styles.statValue}>{connectedCount}</Text>
-            <Text style={styles.statLabel}>Connected</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: colors.accentBlue }]} />
-            <Text style={styles.statValue}>{availableCount}</Text>
-            <Text style={styles.statLabel}>Available</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <View style={[styles.statDot, { backgroundColor: colors.textSecondary }]} />
-            <Text style={styles.statValue}>{integrations.length}</Text>
-            <Text style={styles.statLabel}>Total</Text>
-          </View>
-        </View>
+
 
         {/* Integration Cards */}
         <View style={styles.cardsGrid}>
@@ -825,78 +810,114 @@ export default function IntegrationsScreen() {
           end={{ x: 0.9, y: 1 }}
           style={[styles.background, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
         >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>Request Integration</Text>
-                <Text style={styles.modalSubtitle}>
-                  Don't see the integration you need? Let us know and we'll prioritize it for development.
-                </Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalTitle}>Request Integration</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Don't see the integration you need? Let us know and we'll prioritize it for development.
+                  </Text>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [styles.closeBtnSmall, pressed && { opacity: 0.7 }]}
+                  onPress={() => setRequestModalVisible(false)}
+                >
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+                </Pressable>
               </View>
-              <Pressable
-                style={({ pressed }) => [styles.closeBtnSmall, pressed && { opacity: 0.7 }]}
-                onPress={() => setRequestModalVisible(false)}
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets={true}
+                contentContainerStyle={{ paddingBottom: 24 }}
               >
-                <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-              </Pressable>
+                <View style={styles.fieldItem}>
+                  <Text style={styles.fieldLabel}>Integration Name *</Text>
+                  <View style={styles.inputWrap}>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="e.g., Asana, Trello, Monday.com"
+                      placeholderTextColor="#94A3B8"
+                      value={reqName}
+                      onChangeText={setReqName}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.fieldItem}>
+                  <Text style={styles.fieldLabel}>Your Email *</Text>
+                  <View style={styles.inputWrap}>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="your@email.com"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      value={reqEmail}
+                      onChangeText={setReqEmail}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.fieldItem}>
+                  <Text style={styles.fieldLabel}>Full Message *</Text>
+                  <View style={[styles.inputWrap, styles.textAreaWrap]}>
+                    <TextInput
+                      style={[styles.textInput, styles.textArea]}
+                      placeholder="Tell us how this integration would help your workflow..."
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                      value={reqMessage}
+                      onChangeText={setReqMessage}
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.modalFooterActions}>
+                <Pressable
+                  style={({ pressed }) => [styles.cancelActionBtn, pressed && { opacity: 0.7 }]}
+                  onPress={() => {
+                    setRequestModalVisible(false);
+                    setReqName('');
+                    setReqEmail('');
+                    setReqMessage('');
+                  }}
+                >
+                  <Text style={styles.cancelActionBtnText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.submitActionBtn,
+                    (!reqName.trim() || !reqEmail.trim() || !reqMessage.trim()) && { opacity: 0.5 },
+                    pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
+                  ]}
+                  disabled={!reqName.trim() || !reqEmail.trim() || !reqMessage.trim()}
+                  onPress={() => {
+                    if (!reqName.trim() || !reqEmail.trim() || !reqMessage.trim()) {
+                      Alert.alert('Required Fields', 'Please fill in all required fields marked with *.');
+                      return;
+                    }
+                    Alert.alert('Success', 'Your integration request has been submitted successfully.');
+                    setReqName('');
+                    setReqEmail('');
+                    setReqMessage('');
+                    setRequestModalVisible(false);
+                  }}
+                >
+                  <MaterialCommunityIcons name="send" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.submitActionBtnText}>Submit Request</Text>
+                </Pressable>
+              </View>
             </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-              <View style={styles.fieldItem}>
-                <Text style={styles.fieldLabel}>INTEGRATION NAME *</Text>
-                <View style={styles.inputWrap}>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="e.g., Asana, Trello, Monday.com"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.fieldItem}>
-                <Text style={styles.fieldLabel}>YOUR EMAIL *</Text>
-                <View style={styles.inputWrap}>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="your@email.com"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.fieldItem}>
-                <Text style={styles.fieldLabel}>WHY DO YOU NEED THIS? (Optional)</Text>
-                <View style={[styles.inputWrap, styles.textAreaWrap]}>
-                  <TextInput
-                    style={[styles.textInput, styles.textArea]}
-                    placeholder="Tell us how this integration would help your workflow..."
-                    placeholderTextColor="#94A3B8"
-                    multiline
-                    numberOfLines={4}
-                    textAlignVertical="top"
-                  />
-                </View>
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalFooterActions}>
-              <Pressable
-                style={({ pressed }) => [styles.cancelActionBtn, pressed && { opacity: 0.7 }]}
-                onPress={() => setRequestModalVisible(false)}
-              >
-                <Text style={styles.cancelActionBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.submitActionBtn, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-                onPress={() => setRequestModalVisible(false)}
-              >
-                <MaterialCommunityIcons name="send" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.submitActionBtnText}>Submit Request</Text>
-              </Pressable>
-            </View>
-          </View>
+          </KeyboardAvoidingView>
         </LinearGradient>
       </Modal>
 
@@ -1239,12 +1260,11 @@ function getStyles(colors: any) {
       marginBottom: 24,
     },
     fieldLabel: {
-      fontSize: 11,
-      fontWeight: '900',
+      fontSize: 12,
+      fontWeight: '700',
       color: colors.textPrimary,
-      letterSpacing: 0.8,
+      letterSpacing: 0.2,
       marginBottom: 10,
-      textTransform: 'uppercase',
     },
     inputWrap: {
       backgroundColor: colors.cardBackground,

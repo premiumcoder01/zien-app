@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { getMyMenus } from '@/services/dashboardService';
 import type { NavMenuItem } from '@/components/main/NavDrawer';
 import type { Href } from 'expo-router';
+import { Platform } from 'react-native';
 
 // Static client menu items fallback
 const STATIC_MENU_ITEMS: NavMenuItem[] = [
@@ -112,11 +113,13 @@ export function useMyMenus() {
         .filter((item) => item.status === 1)
         .sort((a, b) => a.sort_order - b.sort_order);
 
-      return activeSorted.map((item) => ({
+      const mapped: NavMenuItem[] = activeSorted.map((item) => ({
         label: item.name,
         icon: mapApiIconToMci(item.icon, item.name),
         route: mapApiRouteToAppRoute(item.path) as Href,
       }));
+
+      return mapped;
     },
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -132,3 +135,4 @@ export function useMyMenus() {
     data,
   };
 }
+

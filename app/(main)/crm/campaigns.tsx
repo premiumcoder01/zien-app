@@ -891,7 +891,7 @@ Based on this, generate a JSON object with exactly the following fields:
                         size={18}
                         color={commChannel === 'EMAIL' ? '#FFFFFF' : '#475569'}
                       />
-                      <Text style={[styles.channelTabText, commChannel === 'EMAIL' && { color: '#FFFFFF' }]}>EMAIL</Text>
+                      <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.channelTabText, commChannel === 'EMAIL' && { color: '#FFFFFF' }]}>EMAIL</Text>
                     </Pressable>
 
                     <Pressable
@@ -909,10 +909,10 @@ Based on this, generate a JSON object with exactly the following fields:
                     >
                       <MaterialCommunityIcons
                         name="message-text-outline"
-                        size={18}
+                        size={17}
                         color={commChannel === 'SMS' ? '#FFFFFF' : '#475569'}
                       />
-                      <Text style={[styles.channelTabText, commChannel === 'SMS' && { color: '#FFFFFF' }]}>SMS</Text>
+                      <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.channelTabText, commChannel === 'SMS' && { color: '#FFFFFF' }]}>SMS</Text>
                     </Pressable>
 
                     <Pressable
@@ -930,10 +930,10 @@ Based on this, generate a JSON object with exactly the following fields:
                     >
                       <MaterialCommunityIcons
                         name="whatsapp"
-                        size={18}
+                        size={17}
                         color={commChannel === 'WHATSAPP' ? '#FFFFFF' : '#475569'}
                       />
-                      <Text style={[styles.channelTabText, commChannel === 'WHATSAPP' && { color: '#FFFFFF' }]}>WHATSAPP</Text>
+                      <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.channelTabText, commChannel === 'WHATSAPP' && { color: '#FFFFFF' }]}>WHATSAPP</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -953,11 +953,14 @@ Based on this, generate a JSON object with exactly the following fields:
 
               {/* Campaign Sequence Card */}
               <View style={styles.formCard}>
-                <View style={styles.sectionHeaderRow}>
+                <View style={[styles.sectionHeaderRow, { justifyContent: 'space-between', marginBottom: 16 }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={styles.sectionTitle}>Campaign Sequence</Text>
                     <MaterialCommunityIcons name="information-outline" size={16} color={colors.textSecondary} />
                   </View>
+                  <Pressable onPress={() => { setNewCampaignVisible(false); router.push('/(main)/crm/templates'); }}>
+                    <Text style={styles.manageLink}>Manage Templates</Text>
+                  </Pressable>
                 </View>
 
                 {sequenceSteps.map((step, index) => {
@@ -2864,23 +2867,24 @@ function getStyles(colors: any, theme?: string) {
     },
     channelTabs: {
       flexDirection: 'row',
-      gap: 8,
+      gap: 6,
     },
     channelTab: {
       flex: 1,
-      height: 52,
-      borderRadius: 16,
+      height: 48,
+      borderRadius: 14,
       backgroundColor: theme === 'dark' ? colors.surfaceMuted : colors.surfaceIcon,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
-      gap: 8,
+      gap: 4,
+      paddingHorizontal: 4,
       borderWidth: 1.5,
       borderColor: colors.cardBorder,
     },
     channelIconCircle: {
-      width: 32,
-      height: 32,
+      width: 30,
+      height: 30,
       borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
@@ -2892,10 +2896,10 @@ function getStyles(colors: any, theme?: string) {
       elevation: 4,
     },
     channelTabText: {
-      fontSize: 12,
+      fontSize: 11,
       fontWeight: '800',
       color: colors.textSecondary,
-      letterSpacing: 0.5,
+      letterSpacing: 0.2,
     },
     channelTextActive: {
       color: '#FFFFFF',
