@@ -45,11 +45,13 @@ function StepAddress({
   input,
   setInput,
   analyzing,
+  searchError,
   onNext
 }: {
   input: string,
   setInput: (v: string) => void,
   analyzing: boolean,
+  searchError?: string | null,
   onNext: () => void
 }) {
   const { colors } = useAppTheme();
@@ -141,6 +143,15 @@ function StepAddress({
             {loading && <ActivityIndicator size="small" color={colors.accentTeal} style={{ marginRight: 10 }} />}
           </View>
         </View>
+
+        {!!searchError && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, marginBottom: 8, paddingHorizontal: 12, gap: 6 }}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#EF4444" />
+            <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+              {searchError}
+            </Text>
+          </View>
+        )}
 
         {errorMsg && (
           <View style={styles.errorBox}>
@@ -244,13 +255,16 @@ function PropertyDetailItem({ icon, label, value, isPill }: { icon: string, labe
         <View style={styles.detailIconBox}>
           <MaterialCommunityIcons name={icon as any} size={15} color={colors.accentTeal} />
         </View>
-        <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' }}>{label}</Text>
+        <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5 }}>{label}</Text>
       </View>
       {renderValue()}
     </View>
   );
 }
 
+
+const DETAIL_TABS = ['Structural', 'Exterior', 'Interior', 'Utilities', 'Legal', 'Remarks'] as const;
+type DetailTab = (typeof DETAIL_TABS)[number];
 
 function StepDetails({
   formData,
@@ -265,6 +279,7 @@ function StepDetails({
 }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  const [activeTab, setActiveTab] = useState<DetailTab>('Structural');
 
   // Formatting baths for display
   const totalBaths = parseFloat(formData.bathsFull || '0') + (parseFloat(formData.bathsHalf || '0') * 0.5);
@@ -292,13 +307,13 @@ function StepDetails({
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <PropertyStatCard
             icon="bed-outline"
-            label="BEDROOMS"
+            label="Bedrooms"
             value={formData.beds}
             accent="#0D9488"
           />
           <PropertyStatCard
             icon="shower"
-            label="BATHROOMS"
+            label="Bathrooms"
             value={totalBaths > 0 ? totalBaths.toString() : ''}
             accent="#0891B2"
           />
@@ -307,152 +322,229 @@ function StepDetails({
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <PropertyStatCard
             icon="ruler-square"
-            label="LIVING AREA"
+            label="Living Area"
             value={formData.sqft ? `${formData.sqft} Sq Ft` : ''}
             accent="#7C3AED"
           />
           <PropertyStatCard
             icon="currency-usd"
-            label="LIST PRICE"
+            label="List Price"
             value={formData.price}
             accent="#059669"
           />
         </View>
       </View>
 
-      {/* Structural Section - Matching Screenshot */}
-      <View style={{ paddingHorizontal: 0, marginTop: 24 }}>
-        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>STRUCTURAL</Text>
-        <View style={{ gap: 10 }}>
-          <PropertyDetailItem icon="office-building-outline" label="Property Type" value={formData.type} />
-          <PropertyDetailItem icon="map-marker-outline" label="Address" value={formData.address} />
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="calendar-blank-outline" label="Year Built" value={formData.year} /></View>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="layers-outline" label="Stories" value={formData.stories} /></View>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="home-roof" label="Roof" value={formData.roof} isPill /></View>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="shape-outline" label="Foundation" value={formData.foundation} isPill /></View>
-          </View>
-          <PropertyDetailItem icon="wind-power-outline" label="Structure Type" value={formData.structureType} />
-          <PropertyDetailItem icon="palette-outline" label="Architectural Style" value={formData.architecturalStyle} isPill />
-          <PropertyDetailItem icon="wall" label="Construction" value={formData.construction} isPill />
-        </View>
+      {/* Detail Tabs Bar - Matching Web Design */}
+      <View style={styles.detailTabBarContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.detailTabBarContent}
+        >
+          {DETAIL_TABS.map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.detailTabItem, isActive && styles.detailTabItemActive]}
+                onPress={() => setActiveTab(tab)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.detailTabText, isActive && styles.detailTabTextActive]}>
+                  {tab}
+                </Text>
+                {isActive && <View style={styles.detailTabIndicator} />}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
-      {/* Exterior */}
-      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
-        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>EXTERIOR</Text>
-        <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="arrow-expand-all" label="Lot Size" value={formData.lotSize} /></View>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="earth" label="Lot Sq Ft" value={formData.lotSqFt} /></View>
-          </View>
-          <PropertyDetailItem icon="tag-multiple-outline" label="Lot Features" value={formData.lotFeatures} isPill />
-          <PropertyDetailItem icon="shield-outline" label="Fencing" value={formData.fencing} isPill />
-          <PropertyDetailItem icon="car-outline" label="Parking" value={formData.parkingFeatures} isPill />
-          <PropertyDetailItem icon="home-outline" label="Exterior Features" value={formData.exteriorFeatures} isPill />
-          <PropertyDetailItem icon="table-furniture" label="Patio Features" value={formData.patioFeatures} isPill />
-          <PropertyDetailItem icon="water-pump" label="Sewer" value={formData.sewer} isPill />
-          <PropertyDetailItem icon="water-outline" label="Water Source" value={formData.waterSource} isPill />
-        </View>
-      </View>
-
-      {/* Interior */}
-      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
-        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>INTERIOR</Text>
-        <View style={{ gap: 10 }}>
-          <PropertyDetailItem icon="view-grid-outline" label="Flooring" value={formData.flooring} isPill />
-          <PropertyDetailItem icon="lightning-bolt-outline" label="Appliances" value={formData.appliances} isPill />
-          <PropertyDetailItem icon="silverware-variant" label="Kitchen Features" value={formData.kitchenFeatures} isPill />
-          <PropertyDetailItem icon="bathtub-outline" label="Bath Features" value={formData.bathFeatures} isPill />
-          <PropertyDetailItem icon="washing-machine" label="Laundry" value={formData.laundryFeatures} isPill />
-          <PropertyDetailItem icon="creation" label="Interior Features" value={formData.interiorFeatures} isPill />
-          <PropertyDetailItem icon="floor-plan" label="Room Description" value={formData.roomDescription} isPill />
-        </View>
-      </View>
-
-      {/* Utilities */}
-      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
-        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>UTILITIES</Text>
-        <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="thermometer" label="Heating" value={Array.isArray(formData.heating) ? formData.heating.join(', ') : formData.heating} /></View>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="snowflake" label="Cooling" value={Array.isArray(formData.cooling) ? formData.cooling.join(', ') : formData.cooling} /></View>
-          </View>
-        </View>
-      </View>
-
-      {/* Financial */}
-      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
-        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>FINANCIAL</Text>
-        <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="currency-usd" label="Annual Tax" value={formData.taxAnnualAmount} /></View>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="percent" label="Tax Rate" value={formData.taxRate} /></View>
-          </View>
-          <PropertyDetailItem icon="file-document-outline" label="Legal Description" value={formData.taxLegalDescription} />
-          <PropertyDetailItem icon="tag-outline" label="Listing Terms" value={formData.listingTerms} isPill />
-          <PropertyDetailItem icon="currency-usd" label="Tax Exemptions" value={formData.taxExemptions} isPill />
-          <PropertyDetailItem icon="lock-outline" label="Restrictions" value={formData.restrictions} isPill />
-        </View>
-      </View>
-
-      {/* Schools */}
-      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
-        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>SCHOOLS</Text>
-        <View style={{ gap: 10 }}>
-          <PropertyDetailItem icon="school-outline" label="District" value={formData.highSchoolDistrict} />
-          <PropertyDetailItem icon="school" label="Elementary" value={formData.elemSchool} />
-          <PropertyDetailItem icon="school" label="Middle School" value={formData.midSchool} />
-          <PropertyDetailItem icon="school" label="High School" value={formData.highSchool} />
-        </View>
-      </View>
-
-      {/* MLS & Legal */}
-      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
-        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>MLS & LEGAL</Text>
-        <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="pound" label="Listing ID" value={formData.listingId} /></View>
-            <View style={{ flex: 1 }}><PropertyDetailItem icon="pulse" label="Status" value={formData.standardStatus} /></View>
-          </View>
-          <PropertyDetailItem icon="calendar-check" label="Listed On" value={formData.listingContractDate} />
-          <PropertyDetailItem icon="calendar-clock" label="Days on Market" value={formData.daysOnMarket} />
-          <PropertyDetailItem icon="account-group-outline" label="Community Features" value={formData.communityFeatures} isPill />
-          <PropertyDetailItem icon="alert-circle-outline" label="Disclosures" value={formData.disclosures} isPill />
-          <PropertyDetailItem icon="map-marker-path" label="Subdivision" value={formData.subdivision} />
-          <PropertyDetailItem icon="map" label="Geo Market Area" value={formData.geoMarketArea} />
-        </View>
-      </View>
-
-      {/* Directions */}
-      {!!formData.directions && (
-        <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
-          <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 16 }]}>DIRECTIONS</Text>
-          <View style={styles.directionsCard}>
-            <MaterialCommunityIcons name="directions" size={20} color={colors.accentTeal} style={{ marginBottom: 10 }} />
-            <Text style={styles.directionsText}>{formData.directions}</Text>
+      {/* Structural Tab */}
+      {activeTab === 'Structural' && (
+        <View style={{ paddingHorizontal: 0, marginTop: 16 }}>
+          <View style={{ gap: 10 }}>
+            <PropertyDetailItem icon="office-building-outline" label="Property Type" value={formData.type} />
+            <PropertyDetailItem icon="map-marker-outline" label="Address" value={formData.address} />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}><PropertyDetailItem icon="calendar-blank-outline" label="Year Built" value={formData.year} /></View>
+              <View style={{ flex: 1 }}><PropertyDetailItem icon="layers-outline" label="Stories" value={formData.stories} /></View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}><PropertyDetailItem icon="home-roof" label="Roof" value={formData.roof} isPill /></View>
+              <View style={{ flex: 1 }}><PropertyDetailItem icon="shape-outline" label="Foundation" value={formData.foundation} isPill /></View>
+            </View>
+            <PropertyDetailItem icon="wind-power-outline" label="Structure Type" value={formData.structureType} />
+            <PropertyDetailItem icon="palette-outline" label="Architectural Style" value={formData.architecturalStyle} isPill />
+            <PropertyDetailItem icon="wall" label="Construction" value={formData.construction} isPill />
           </View>
         </View>
       )}
 
-      {/* Remarks */}
-      <View style={{ paddingHorizontal: 0, marginTop: 28 }}>
-        <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 12 }]}>REMARKS</Text>
-        {!!formData.publicRemarks && (
-          <View style={[styles.remarkCard, { marginBottom: 12 }]}>
-            <Text style={styles.remarkLabel}>PUBLIC</Text>
-            <Text style={styles.remarkText}>{formData.publicRemarks}</Text>
+      {/* Exterior Tab */}
+      {activeTab === 'Exterior' && (
+        <View style={{ paddingHorizontal: 0, marginTop: 16 }}>
+          <View style={{ gap: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}><PropertyDetailItem icon="arrow-expand-all" label="Lot Size" value={formData.lotSize} /></View>
+              <View style={{ flex: 1 }}><PropertyDetailItem icon="earth" label="Lot Sq Ft" value={formData.lotSqFt} /></View>
+            </View>
+            <PropertyDetailItem icon="tag-multiple-outline" label="Lot Features" value={formData.lotFeatures} isPill />
+            <PropertyDetailItem icon="shield-outline" label="Fencing" value={formData.fencing} isPill />
+            <PropertyDetailItem icon="car-outline" label="Parking" value={formData.parkingFeatures} isPill />
+            <PropertyDetailItem icon="home-outline" label="Exterior Features" value={formData.exteriorFeatures} isPill />
+            <PropertyDetailItem icon="table-furniture" label="Patio Features" value={formData.patioFeatures} isPill />
+            <PropertyDetailItem icon="water-pump" label="Sewer" value={formData.sewer} isPill />
+            <PropertyDetailItem icon="water-outline" label="Water Source" value={formData.waterSource} isPill />
           </View>
-        )}
-        {!!formData.privateRemarks && (
-          <View style={[styles.remarkCard, { borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }]}>
-            <Text style={[styles.remarkLabel, { color: '#D97706' }]}>AGENT ONLY</Text>
-            <Text style={[styles.remarkText, { fontStyle: 'italic', color: '#92400E' }]}>{formData.privateRemarks}</Text>
+        </View>
+      )}
+
+      {/* Interior Tab */}
+      {activeTab === 'Interior' && (
+        <View style={{ paddingHorizontal: 0, marginTop: 16 }}>
+          <View style={{ gap: 10 }}>
+            <PropertyDetailItem icon="view-grid-outline" label="Flooring" value={formData.flooring} isPill />
+            <PropertyDetailItem icon="lightning-bolt-outline" label="Appliances" value={formData.appliances} isPill />
+            <PropertyDetailItem icon="silverware-variant" label="Kitchen Features" value={formData.kitchenFeatures} isPill />
+            <PropertyDetailItem icon="bathtub-outline" label="Bath Features" value={formData.bathFeatures} isPill />
+            <PropertyDetailItem icon="washing-machine" label="Laundry" value={formData.laundryFeatures} isPill />
+            <PropertyDetailItem icon="creation" label="Interior Features" value={formData.interiorFeatures} isPill />
+            <PropertyDetailItem icon="floor-plan" label="Room Description" value={formData.roomDescription} isPill />
           </View>
-        )}
-      </View>
+        </View>
+      )}
+
+      {/* Utilities Tab */}
+      {activeTab === 'Utilities' && (
+        <View style={{ paddingHorizontal: 0, marginTop: 16 }}>
+          <View style={{ gap: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <PropertyDetailItem
+                  icon="thermometer"
+                  label="Heating"
+                  value={Array.isArray(formData.heating) ? formData.heating.join(', ') : formData.heating}
+                  isPill
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <PropertyDetailItem
+                  icon="snowflake"
+                  label="Cooling"
+                  value={Array.isArray(formData.cooling) ? formData.cooling.join(', ') : formData.cooling}
+                  isPill
+                />
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <PropertyDetailItem
+                  icon="water-outline"
+                  label="Water Source"
+                  value={formData.waterSource || '—'}
+                  isPill
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <PropertyDetailItem
+                  icon="city-variant-outline"
+                  label="City"
+                  value={formData.city || (formData.address ? (formData.address.split(',')[1]?.trim() || formData.address.split(',')[0]?.trim()) : '—')}
+                />
+              </View>
+            </View>
+            {!!formData.sewer && (
+              <PropertyDetailItem icon="water-pump" label="Sewer" value={formData.sewer} isPill />
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* Legal Tab */}
+      {activeTab === 'Legal' && (
+        <View style={{ paddingHorizontal: 0, marginTop: 16, gap: 20 }}>
+          {/* Financial */}
+          <View>
+            <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 12 }]}>Financial</Text>
+            <View style={{ gap: 10 }}>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}><PropertyDetailItem icon="currency-usd" label="Annual Tax" value={formData.taxAnnualAmount} /></View>
+                <View style={{ flex: 1 }}><PropertyDetailItem icon="percent" label="Tax Rate" value={formData.taxRate} /></View>
+              </View>
+              <PropertyDetailItem icon="file-document-outline" label="Legal Description" value={formData.taxLegalDescription} />
+              <PropertyDetailItem icon="tag-outline" label="Listing Terms" value={formData.listingTerms} isPill />
+              <PropertyDetailItem icon="currency-usd" label="Tax Exemptions" value={formData.taxExemptions} isPill />
+              <PropertyDetailItem icon="lock-outline" label="Restrictions" value={formData.restrictions} isPill />
+            </View>
+          </View>
+
+          {/* Schools */}
+          <View>
+            <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 12 }]}>Schools</Text>
+            <View style={{ gap: 10 }}>
+              <PropertyDetailItem icon="school-outline" label="District" value={formData.highSchoolDistrict} />
+              <PropertyDetailItem icon="school" label="Elementary" value={formData.elemSchool} />
+              <PropertyDetailItem icon="school" label="Middle School" value={formData.midSchool} />
+              <PropertyDetailItem icon="school" label="High School" value={formData.highSchool} />
+            </View>
+          </View>
+
+          {/* MLS & Legal */}
+          <View>
+            <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 12 }]}>MLS & Legal</Text>
+            <View style={{ gap: 10 }}>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}><PropertyDetailItem icon="pound" label="Listing ID" value={formData.listingId} /></View>
+                <View style={{ flex: 1 }}><PropertyDetailItem icon="pulse" label="Status" value={formData.standardStatus} /></View>
+              </View>
+              <PropertyDetailItem icon="calendar-check" label="Listed On" value={formData.listingContractDate} />
+              <PropertyDetailItem icon="calendar-clock" label="Days on Market" value={formData.daysOnMarket} />
+              <PropertyDetailItem icon="account-group-outline" label="Community Features" value={formData.communityFeatures} isPill />
+              <PropertyDetailItem icon="alert-circle-outline" label="Disclosures" value={formData.disclosures} isPill />
+              <PropertyDetailItem icon="map-marker-path" label="Subdivision" value={formData.subdivision} />
+              <PropertyDetailItem icon="map" label="Geo Market Area" value={formData.geoMarketArea} />
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Remarks Tab */}
+      {activeTab === 'Remarks' && (
+        <View style={{ paddingHorizontal: 0, marginTop: 16, gap: 16 }}>
+          {!!formData.directions && (
+            <View>
+              <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 12 }]}>Directions</Text>
+              <View style={styles.directionsCard}>
+                <MaterialCommunityIcons name="directions" size={20} color={colors.accentTeal} style={{ marginBottom: 10 }} />
+                <Text style={styles.directionsText}>{formData.directions}</Text>
+              </View>
+            </View>
+          )}
+
+          <View>
+            <Text style={[styles.premiumGroupLabel, { marginTop: 0, marginBottom: 12 }]}>Remarks</Text>
+            {!!formData.publicRemarks && (
+              <View style={[styles.remarkCard, { marginBottom: 12 }]}>
+                <Text style={styles.remarkLabel}>Public</Text>
+                <Text style={styles.remarkText}>{formData.publicRemarks}</Text>
+              </View>
+            )}
+            {!!formData.privateRemarks && (
+              <View style={[styles.remarkCard, { borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }]}>
+                <Text style={[styles.remarkLabel, { color: '#D97706' }]}>Agent Only</Text>
+                <Text style={[styles.remarkText, { fontStyle: 'italic', color: '#92400E' }]}>{formData.privateRemarks}</Text>
+              </View>
+            )}
+            {!formData.publicRemarks && !formData.privateRemarks && (
+              <View style={styles.remarkCard}>
+                <Text style={styles.remarkText}>No remarks available.</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
 
       <View style={{ height: 160 }} />
     </View>
@@ -607,9 +699,6 @@ function StepMedia({
             <View style={{ flex: 1 }}>
               <Text style={styles.aiStudioCardTitle}>AI Studio Generator</Text>
               <Text style={styles.aiStudioCardSub}>Describe the architectural scene to synthesize.</Text>
-            </View>
-            <View style={styles.aiStudioComingSoon}>
-              <Text style={styles.aiStudioComingSoonText}>SOON</Text>
             </View>
           </View>
           <Text style={styles.aiStudioPromptLabel}>GENERATION PROMPT</Text>
@@ -806,7 +895,18 @@ function StepReview({ onNext, onBack, mlsPhotos, userPhotos, formData }: {
 
   return (
     <View style={styles.stepContainer}>
-      <Section title="STRUCTURAL SPECS">
+      {/* Final Review Header */}
+      <View style={[styles.intelHeaderBox, { paddingHorizontal: 0, marginBottom: 20 }]}>
+        <View style={styles.intelIconOuter}>
+          <MaterialCommunityIcons name="file-document-outline" size={24} color={colors.textPrimary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.intelTitle}>Final Review</Text>
+          <Text style={styles.intelSubtitle}>Snapshot of your optimized property listing.</Text>
+        </View>
+      </View>
+
+      <Section title="Structural Specs">
         <ReviewItem icon="tag-outline" label="Price" value={formData.price} />
         <ReviewItem icon="home-outline" label="Property Type" value={formData.type} />
         <ReviewItem icon="bed-outline" label="Bedrooms" value={formData.beds} />
@@ -815,27 +915,27 @@ function StepReview({ onNext, onBack, mlsPhotos, userPhotos, formData }: {
         <ReviewItem icon="calendar-outline" label="Year Built" value={formData.year} />
       </Section>
 
-      <Section title="INTERIOR & ENERGY">
+      <Section title="Interior & Energy">
         <ReviewItem icon="thermometer" label="Heating / Cooling" value={`${formData.heating} / ${formData.cooling}`} />
         <ReviewItem icon="fire" label="Fireplace" value={formData.fireplace ? 'Yes' : 'No'} />
         <ReviewItem icon="fridge-outline" label="Appliances" value={formData.appliances?.join(', ')} />
         <ReviewItem icon="format-paint" label="Flooring" value={formData.flooring?.join(', ')} />
       </Section>
 
-      <Section title="EXTERIOR & STRUCTURE">
+      <Section title="Exterior & Structure">
         <ReviewItem icon="wall" label="Construction" value={formData.construction?.join(', ')} />
         <ReviewItem icon="home-roof" label="Roof" value={formData.roof} />
         <ReviewItem icon="fence" label="Fencing" value={formData.fencing} />
         <ReviewItem icon="nature" label="Exterior Features" value={formData.exteriorFeatures?.join(', ')} />
       </Section>
 
-      <Section title="LOCATION & SCHOOLS">
+      <Section title="Location & Schools">
         <ReviewItem icon="city" label="City" value={formData.city} />
         <ReviewItem icon="map-outline" label="County / Subdivision" value={`${formData.county} / ${formData.subdivision}`} />
         <ReviewItem icon="school-outline" label="Elem/Mid/High Schools" value={`${formData.elemSchool}, ${formData.midSchool}, ${formData.highSchool}`} />
       </Section>
 
-      <Section title="REMARKS">
+      <Section title="Remarks">
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>Public Remarks</Text>
           <Text style={[styles.reviewValue, { lineHeight: 20 }]}>{formData.publicRemarks || 'No remarks provided'}</Text>
@@ -1094,6 +1194,7 @@ export default function CreateListingScreen() {
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -1286,14 +1387,23 @@ export default function CreateListingScreen() {
           }
         }
 
+        setSearchError(null);
         setActiveStep(1);
       } else {
-        alert(resData.message || "Request failed");
+        const msg = resData?.message;
+        const formatted = (msg && !msg.includes('500') && !msg.toLowerCase().includes('server error'))
+          ? msg
+          : "No property found with the provided address.";
+        setSearchError(formatted);
       }
     },
     onError: (error: any) => {
       console.log("Enrichment API Error:", error);
-      alert(error.message || "Enrichment request failed. Please check connection.");
+      const msg = error?.message;
+      const formatted = (msg && !msg.includes('500') && !msg.toLowerCase().includes('server error'))
+        ? msg
+        : "No property found with the provided address.";
+      setSearchError(formatted);
     }
   });
 
@@ -1323,6 +1433,7 @@ export default function CreateListingScreen() {
 
   const handleAnalyze = () => {
     if (!input) return;
+    setSearchError(null);
     analyzeProperty(input);
   };
 
@@ -1340,6 +1451,7 @@ export default function CreateListingScreen() {
           input={input}
           setInput={setInput}
           analyzing={analyzing}
+          searchError={searchError}
           onNext={() => setActiveStep(1)}
         />
       );
@@ -3175,6 +3287,44 @@ function getStyles(colors: any) {
       color: '#FFFFFF',
       fontSize: 14,
       fontWeight: '700',
+    },
+    detailTabBarContainer: {
+      marginTop: 24,
+      marginBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder || 'rgba(0,0,0,0.08)',
+    },
+    detailTabBarContent: {
+      gap: 20,
+      paddingHorizontal: 4,
+      paddingBottom: 2,
+    },
+    detailTabItem: {
+      paddingVertical: 10,
+      paddingHorizontal: 4,
+      alignItems: 'center',
+      position: 'relative',
+    },
+    detailTabItemActive: {},
+    detailTabText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    detailTabTextActive: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    detailTabIndicator: {
+      position: 'absolute',
+      bottom: -1,
+      left: 0,
+      right: 0,
+      height: 3,
+      backgroundColor: '#0B2D3E',
+      borderTopLeftRadius: 2,
+      borderTopRightRadius: 2,
     },
   });
 }

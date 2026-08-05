@@ -198,21 +198,36 @@ export default function CRMSettingsScreen() {
     setModalDomain(existing?.domain || '');
     setModalSenderEmail(existing?.senderEmail || '');
     setShowApiKey(false);
-    setShowDomain(false);
-    setShowSenderEmail(false);
+    setShowDomain(true);
+    setShowSenderEmail(true);
     setProviderModalOpen(true);
   };
 
   const handleSaveConnection = () => {
     if (!activeProvider) return;
+    const EMAIL_REGEX = /^(?:[^<]+<[^\s@]+@[^\s@]+\.[^\s@]+>|[^\s@]+@[^\s@]+\.[^\s@]+)$/;
+    const DOMAIN_REGEX = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+
     if (activeProvider.id === 'mailgun') {
       if (!modalApiKey.trim() || !modalDomain.trim() || !modalSenderEmail.trim()) {
         Alert.alert('Required Fields', 'Please fill in the API Key, Verified Domain, and Sender Email.');
         return;
       }
+      if (!DOMAIN_REGEX.test(modalDomain.trim())) {
+        Alert.alert('Invalid Verified Domain', 'Please enter a valid domain (e.g., mg.youragency.com).');
+        return;
+      }
+      if (!EMAIL_REGEX.test(modalSenderEmail.trim())) {
+        Alert.alert('Invalid Sender Email', 'Please enter a valid email address (e.g., hello@yourdomain.com).');
+        return;
+      }
     } else if (activeProvider.id === 'sendgrid') {
       if (!modalApiKey.trim() || !modalSenderEmail.trim()) {
         Alert.alert('Required Fields', 'Please fill in the API Key and Sender Email.');
+        return;
+      }
+      if (!EMAIL_REGEX.test(modalSenderEmail.trim())) {
+        Alert.alert('Invalid Sender Email', 'Please enter a valid email address (e.g., hello@yourdomain.com).');
         return;
       }
     }
@@ -740,13 +755,6 @@ export default function CRMSettingsScreen() {
                     </View>
                   ))}
                 </View>
-
-                <Pressable
-                  style={styles.addCustomBtn}
-                  onPress={() => setIsMilestoneModalOpen(true)}>
-                  <MaterialCommunityIcons name="plus" size={18} color="#64748B" />
-                  <Text style={styles.addCustomBtnText}>ADD CUSTOM MILESTONE</Text>
-                </Pressable>
               </View>
             </View>
           </View>
@@ -878,7 +886,7 @@ export default function CRMSettingsScreen() {
                       <MaterialCommunityIcons name="key-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
                       <TextInput
                         style={styles.modalInputText}
-                        placeholder="••••••"
+                        placeholder={activeProvider?.id === 'mailgun' ? 'Paste your Mailgun API key...' : 'Paste your SendGrid API key...'}
                         placeholderTextColor={colors.inputPlaceholder}
                         value={modalApiKey}
                         onChangeText={setModalApiKey}
@@ -908,7 +916,15 @@ export default function CRMSettingsScreen() {
                           value={modalDomain}
                           onChangeText={setModalDomain}
                           autoCapitalize="none"
+                          secureTextEntry={!showDomain}
                         />
+                        <Pressable onPress={() => setShowDomain(!showDomain)} hitSlop={10} style={{ padding: 4 }}>
+                          <MaterialCommunityIcons
+                            name={showDomain ? "eye-off-outline" : "eye-outline"}
+                            size={18}
+                            color={colors.textSecondary}
+                          />
+                        </Pressable>
                       </View>
                     </View>
                   )}
@@ -920,13 +936,21 @@ export default function CRMSettingsScreen() {
                       <MaterialCommunityIcons name="email-outline" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
                       <TextInput
                         style={styles.modalInputText}
-                        placeholder="e.g., hello@yourdomain.com"
+                        placeholder="e.g., John Doe <hello@yourdomain.com>"
                         placeholderTextColor={colors.inputPlaceholder}
                         value={modalSenderEmail}
                         onChangeText={setModalSenderEmail}
                         autoCapitalize="none"
                         keyboardType="email-address"
+                        secureTextEntry={!showSenderEmail}
                       />
+                      <Pressable onPress={() => setShowSenderEmail(!showSenderEmail)} hitSlop={10} style={{ padding: 4 }}>
+                        <MaterialCommunityIcons
+                          name={showSenderEmail ? "eye-off-outline" : "eye-outline"}
+                          size={18}
+                          color={colors.textSecondary}
+                        />
+                      </Pressable>
                     </View>
                   </View>
                 </View>
@@ -1687,7 +1711,8 @@ function getStyles(colors: any, theme: string) {
       fontSize: 14,
       color: colors.textPrimary,
       fontWeight: '500',
-      padding: 0,
+      paddingVertical: 0,
+      height: '100%',
     },
     providerRowConnected: {
       flexDirection: 'column',
@@ -1860,13 +1885,6 @@ function getStyles(colors: any, theme: string) {
       borderRadius: 16,
       padding: 16,
       marginTop: 16,
-    },
-    howItWorksTitle: {
-      fontSize: 11,
-      fontWeight: '800',
-      color: colors.accentTeal,
-      letterSpacing: 0.8,
-      marginBottom: 10,
     },
     howItWorksList: {
       gap: 8,

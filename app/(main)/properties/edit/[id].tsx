@@ -120,9 +120,13 @@ function PropertyDetailItem({ icon, label, value, isPill }: { icon: string, labe
 
 // --- Steps (Copied and adapted from Create) ---
 
+const DETAIL_TABS = ['Structural', 'Exterior', 'Interior', 'Utilities', 'Legal', 'Remarks'] as const;
+type DetailTab = (typeof DETAIL_TABS)[number];
+
 function StepDetails({ formData }: { formData: any }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  const [activeTab, setActiveTab] = useState<DetailTab>('Structural');
   const totalBaths = parseFloat(formData.bathsFull || '0') + (parseFloat(formData.bathsHalf || '0') * 0.5);
 
   return (
@@ -142,69 +146,110 @@ function StepDetails({ formData }: { formData: any }) {
 
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <PropertyStatCard icon="bed-outline" label="BEDROOMS" value={formData.beds} />
-          <PropertyStatCard icon="shower" label="BATHROOMS" value={totalBaths > 0 ? totalBaths.toString() : ''} />
+          <PropertyStatCard icon="bed-outline" label="Bedrooms" value={formData.beds} />
+          <PropertyStatCard icon="shower" label="Bathrooms" value={totalBaths > 0 ? totalBaths.toString() : ''} />
         </View>
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <PropertyStatCard icon="ruler-square" label="LIVING AREA" value={formData.sqft ? `${formData.sqft} Sq Ft` : ''} />
-          <PropertyStatCard icon="currency-usd" label="LIST PRICE" value={formData.price} />
+          <PropertyStatCard icon="ruler-square" label="Living Area" value={formData.sqft ? `${formData.sqft} Sq Ft` : ''} />
+          <PropertyStatCard icon="currency-usd" label="List Price" value={formData.price} />
         </View>
       </View>
 
-      <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
-        <Text style={styles.premiumGroupLabel}>STRUCTURAL</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          <PropertyDetailItem icon="office-building-outline" label="Property Type" value={formData.type} />
-          <PropertyDetailItem icon="map-marker-outline" label="Address" value={formData.address} />
-          <PropertyDetailItem icon="calendar-blank-outline" label="Year Built" value={formData.year} />
-          <PropertyDetailItem icon="layers-outline" label="Stories" value={formData.stories} />
-          <PropertyDetailItem icon="home-roof" label="Roof Material" value={formData.roof} isPill />
-        </View>
+      {/* Detail Tabs Bar - Matching Web Design */}
+      <View style={styles.detailTabBarContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.detailTabBarContent}
+        >
+          {DETAIL_TABS.map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.detailTabItem, isActive && styles.detailTabItemActive]}
+                onPress={() => setActiveTab(tab)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.detailTabText, isActive && styles.detailTabTextActive]}>
+                  {tab}
+                </Text>
+                {isActive && <View style={styles.detailTabIndicator} />}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
-      <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
-        <Text style={styles.premiumGroupLabel}>EXTERIOR</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          <PropertyDetailItem icon="arrow-expand-all" label="Lot Size" value={formData.lotSize} />
-          <PropertyDetailItem icon="earth" label="Lot Features" value={formData.lotFeatures} />
-          <PropertyDetailItem icon="shield-outline" label="Fencing" value={formData.fencing} isPill />
-          <PropertyDetailItem icon="car-outline" label="Parking" value={formData.parkingFeatures} />
+      {/* Structural Tab */}
+      {activeTab === 'Structural' && (
+        <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            <PropertyDetailItem icon="office-building-outline" label="Property Type" value={formData.type} />
+            <PropertyDetailItem icon="map-marker-outline" label="Address" value={formData.address} />
+            <PropertyDetailItem icon="calendar-blank-outline" label="Year Built" value={formData.year} />
+            <PropertyDetailItem icon="layers-outline" label="Stories" value={formData.stories} />
+            <PropertyDetailItem icon="home-roof" label="Roof Material" value={formData.roof} isPill />
+          </View>
         </View>
-      </View>
+      )}
 
-      <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
-        <Text style={styles.premiumGroupLabel}>INTERIOR</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          <PropertyDetailItem icon="view-grid-outline" label="Flooring" value={formData.flooring} />
-          <PropertyDetailItem icon="lightning-bolt-outline" label="Appliances" value={formData.appliances} />
+      {/* Exterior Tab */}
+      {activeTab === 'Exterior' && (
+        <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            <PropertyDetailItem icon="arrow-expand-all" label="Lot Size" value={formData.lotSize} />
+            <PropertyDetailItem icon="earth" label="Lot Features" value={formData.lotFeatures} />
+            <PropertyDetailItem icon="shield-outline" label="Fencing" value={formData.fencing} isPill />
+            <PropertyDetailItem icon="car-outline" label="Parking" value={formData.parkingFeatures} />
+          </View>
         </View>
-      </View>
+      )}
 
-      <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
-        <Text style={styles.premiumGroupLabel}>UTILITIES & LOCATION</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          <PropertyDetailItem icon="thermometer" label="Heating" value={formData.heating} />
-          <PropertyDetailItem icon="snowflake" label="Cooling" value={formData.cooling} />
-          <PropertyDetailItem icon="water-outline" label="Sewer" value={formData.sewer} isPill />
+      {/* Interior Tab */}
+      {activeTab === 'Interior' && (
+        <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            <PropertyDetailItem icon="view-grid-outline" label="Flooring" value={formData.flooring} />
+            <PropertyDetailItem icon="lightning-bolt-outline" label="Appliances" value={formData.appliances} />
+          </View>
         </View>
-      </View>
+      )}
 
-      <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
-        <Text style={styles.premiumGroupLabel}>LEGAL & COMMUNITY</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          <PropertyDetailItem icon="pound" label="ListingId" value={formData.listingId} />
-          <PropertyDetailItem icon="pulse" label="Status" value={formData.standardStatus} />
-          <PropertyDetailItem icon="file-document-outline" label="Listing Terms" value={formData.listingTerms} />
+      {/* Utilities Tab */}
+      {activeTab === 'Utilities' && (
+        <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            <PropertyDetailItem icon="thermometer" label="Heating" value={Array.isArray(formData.heating) ? formData.heating.join(', ') : formData.heating} isPill />
+            <PropertyDetailItem icon="snowflake" label="Cooling" value={Array.isArray(formData.cooling) ? formData.cooling.join(', ') : formData.cooling} isPill />
+            <PropertyDetailItem icon="water-outline" label="Water Source" value={formData.waterSource || '—'} isPill />
+            <PropertyDetailItem icon="city-variant-outline" label="City" value={formData.city || (formData.address ? (formData.address.split(',')[1]?.trim() || formData.address.split(',')[0]?.trim()) : '—')} />
+            {!!formData.sewer && <PropertyDetailItem icon="water-pump" label="Sewer" value={formData.sewer} isPill />}
+          </View>
         </View>
-      </View>
+      )}
 
-      <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
-        <Text style={styles.premiumGroupLabel}>REMARKS</Text>
-        <View style={styles.inputGroup}>
-          <Text style={[styles.inputLabel, { marginBottom: 12 }]}>Public Remarks</Text>
-          <View style={styles.remarkCard}><Text style={styles.remarkText}>{formData.publicRemarks || 'No public remarks.'}</Text></View>
+      {/* Legal Tab */}
+      {activeTab === 'Legal' && (
+        <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            <PropertyDetailItem icon="pound" label="ListingId" value={formData.listingId} />
+            <PropertyDetailItem icon="pulse" label="Status" value={formData.standardStatus} />
+            <PropertyDetailItem icon="file-document-outline" label="Listing Terms" value={formData.listingTerms} />
+          </View>
         </View>
-      </View>
+      )}
+
+      {/* Remarks Tab */}
+      {activeTab === 'Remarks' && (
+        <View style={{ paddingHorizontal: 20, marginTop: 16 }}>
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { marginBottom: 12 }]}>Public Remarks</Text>
+            <View style={styles.remarkCard}><Text style={styles.remarkText}>{formData.publicRemarks || 'No public remarks.'}</Text></View>
+          </View>
+        </View>
+      )}
+
       <View style={{ height: 160 }} />
     </View>
   );
@@ -766,5 +811,44 @@ function getStyles(colors: any) {
     sheetTitle: { fontSize: 18, fontWeight: '900', color: colors.textPrimary },
     sheetActionItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
     sheetActionText: { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
+    detailTabBarContainer: {
+      marginTop: 24,
+      marginBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder || 'rgba(0,0,0,0.08)',
+      paddingHorizontal: 20,
+    },
+    detailTabBarContent: {
+      gap: 20,
+      paddingHorizontal: 4,
+      paddingBottom: 2,
+    },
+    detailTabItem: {
+      paddingVertical: 10,
+      paddingHorizontal: 4,
+      alignItems: 'center',
+      position: 'relative',
+    },
+    detailTabItemActive: {},
+    detailTabText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    detailTabTextActive: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    detailTabIndicator: {
+      position: 'absolute',
+      bottom: -1,
+      left: 0,
+      right: 0,
+      height: 3,
+      backgroundColor: '#0B2D3E',
+      borderTopLeftRadius: 2,
+      borderTopRightRadius: 2,
+    },
   });
 }

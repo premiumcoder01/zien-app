@@ -50,18 +50,20 @@ function StatCard({
   value,
   label,
   accentColor,
+  fullWidth,
 }: {
   icon: string;
   value: string;
   label: string;
   accentColor: string;
+  fullWidth?: boolean;
 }) {
   const { colors, theme } = useAppTheme();
   const styles = getStyles(colors);
   const isDark = theme === 'dark';
 
   return (
-    <View style={styles.statCardContainer}>
+    <View style={[styles.statCardContainer, fullWidth && { width: '100%' }]}>
       <LinearGradient
         colors={isDark
           ? [accentColor + '15', accentColor + '05']
@@ -584,7 +586,7 @@ export default function PropertyInventoryScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* ── 4 STAT CARDS (2×2 grid) ── */}
+        {/* ── 3 STAT CARDS ── */}
         <View style={styles.statsGrid}>
           <StatCard
             icon="currency-usd"
@@ -603,12 +605,7 @@ export default function PropertyInventoryScreen() {
             value={`${Math.round(avgConfidence)}% Avg.`}
             label="Data Confidence"
             accentColor={colors.accentGreen}
-          />
-          <StatCard
-            icon="file-document-edit-outline"
-            value={`${draftCount} Drafts`}
-            label="Need Review"
-            accentColor="#EA580C"
+            fullWidth
           />
         </View>
 
