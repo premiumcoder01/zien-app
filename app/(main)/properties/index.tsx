@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
-import { deleteProperty, getProperties, PropertyStats, RawPropertyItem } from '@/services/propertyService';
+import { deleteProperty, extractPriceNumber, formatPropertyPrice, getProperties, PropertyStats, RawPropertyItem, updatePropertyStatus } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,10 +13,12 @@ import {
   Alert,
   Dimensions,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -85,7 +87,7 @@ function StatCard({
         <View style={styles.statContent}>
           <Text style={styles.statValue}>{value}</Text>
           <View style={styles.statLabelRow}>
-            <Text style={styles.statLabel}>{label.toUpperCase()}</Text>
+            <Text style={styles.statLabel}>{label}</Text>
             {label === 'Data Confidence' && (
               <View style={styles.tinyDotWrap}>
                 <View style={[styles.tinyDot, { backgroundColor: accentColor }]} />
@@ -123,27 +125,94 @@ function ConfidenceBar({ value }: { value: number }) {
   );
 }
 
-// ── Status Pill ───────────────────────────────────────────────────────────────
-function StatusPill({ status }: { status: PropertyStatus }) {
+// ── Status Helpers & Pill ───────────────────────────────────────────────────
+function getStatusStyle(status: string) {
+  const s = (status || '').toLowerCase();
+  if (s.includes('ready') || s.includes('active')) {
+    return { bg: 'rgba(13,148,136,0.12)', color: '#0D9488', dot: '#0D9488', label: 'READY' };
+  }
+  if (s.includes('pending')) {
+    return { bg: 'rgba(234,88,12,0.12)', color: '#EA580C', dot: '#EA580C', label: 'PENDING' };
+  }
+  if (s.includes('sold')) {
+    return { bg: 'rgba(59,130,246,0.12)', color: '#2563EB', dot: '#2563EB', label: 'SOLD' };
+  }
+  if (s.includes('off') || s.includes('cancel')) {
+    return { bg: 'rgba(239,68,68,0.12)', color: '#EF4444', dot: '#EF4444', label: s.includes('off') ? 'OFF MARKET' : 'CANCELED' };
+  }
+  if (s.includes('review')) {
+    return { bg: 'rgba(234,88,12,0.12)', color: '#C2410C', dot: '#C2410C', label: 'NEED REVIEW' };
+  }
+  return { bg: 'rgba(100,116,139,0.10)', color: '#64748B', dot: '#94A3B8', label: 'DRAFT' };
+}
+
+function StatusPill({ status, onPress }: { status: string; onPress?: () => void }) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
-
-  const isReady = status === 'Ready';
-  const isReview = status === 'REVIEW NEEDED';
-  const bg = isReady
-    ? 'rgba(13,148,136,0.12)'
-    : isReview
-      ? 'rgba(234,88,12,0.12)'
-      : 'rgba(100,116,139,0.10)';
-  const color = isReady ? '#0D9488' : isReview ? '#C2410C' : '#64748B';
-  const dot = isReady ? '#0D9488' : isReview ? '#C2410C' : '#94A3B8';
-  const label = isReady ? 'READY' : isReview ? 'REVIEW' : 'DRAFT';
+  const { bg, color, dot, label } = getStatusStyle(status);
 
   return (
-    <View style={[styles.statusPill, { backgroundColor: bg }]}>
+    <TouchableOpacity
+      style={[styles.statusPill, { backgroundColor: bg }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={[styles.statusDot, { backgroundColor: dot }]} />
       <Text style={[styles.statusText, { color }]}>{label}</Text>
-    </View>
+      <MaterialCommunityIcons name="chevron-down" size={14} color={color} style={{ marginLeft: 2 }} />
+    </TouchableOpacity>
+  );
+}
+
+// ── Status Picker Modal ────────────────────────────────────────────────────────
+function StatusPickerModal({
+  visible,
+  currentStatus,
+  onClose,
+  onSelectStatus,
+}: {
+  visible: boolean;
+  currentStatus: string;
+  onClose: () => void;
+  onSelectStatus: (status: string) => void;
+}) {
+  const { colors } = useAppTheme();
+  const styles = getStyles(colors);
+  const statusOptions = ['Ready', 'Active', 'Pending', 'Sold', 'Off Market', 'Canceled'];
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <View style={styles.statusDropdownCard}>
+          <Text style={styles.statusDropdownTitle}>Select Property Status</Text>
+          <View style={styles.statusDivider} />
+          {statusOptions.map((option) => {
+            const isSelected = currentStatus.toLowerCase() === option.toLowerCase();
+            const { color } = getStatusStyle(option);
+            return (
+              <TouchableOpacity
+                key={option}
+                style={[styles.statusOptionRow, isSelected && styles.statusOptionSelected]}
+                onPress={() => {
+                  onSelectStatus(option);
+                  onClose();
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={[styles.statusDot, { backgroundColor: color }]} />
+                  <Text style={[styles.statusOptionText, isSelected && { fontWeight: '900', color: colors.accentTeal }]}>
+                    {option}
+                  </Text>
+                </View>
+                {isSelected && (
+                  <MaterialCommunityIcons name="check" size={18} color={colors.accentTeal} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -214,54 +283,37 @@ function DeleteConfirmModal({
   );
 }
 
-// ── Property Row Card ─────────────────────────────────────────────────────────
+// ── Property Row Card (Image 2 Design) ─────────────────────────────────────────
 function PropertyRowCard({
   property,
   onManage,
   onEdit,
   onDeletePress,
+  onStatusChange,
 }: {
   property: Property;
   onManage: (p: Property) => void;
   onEdit: (p: Property) => void;
   onDeletePress: (p: Property) => void;
+  onStatusChange: (p: Property, newStatus: string) => void;
 }) {
-  const { colors, theme } = useAppTheme();
+  const { colors } = useAppTheme();
   const styles = getStyles(colors);
   const router = useRouter();
   const { accessToken } = useAuth();
+  const [showStatusModal, setShowStatusModal] = useState(false);
 
   return (
     <View style={styles.propertyCard}>
-      {/* Top Image Container */}
-      <View style={styles.imageContainer}>
+      {/* Top Header Row with Square Thumbnail, Address, ID, and Status Dropdown */}
+      <View style={styles.cardHeaderRow}>
         <Image
           source={{ uri: property.image }}
-          style={styles.cardImage}
+          style={styles.cardThumbImage}
           contentFit="cover"
         />
-        
-        {/* Floating Header Badges */}
-        <View style={styles.floatingHeader}>
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeBadgeText}>{property.type}</Text>
-          </View>
-          <StatusPill status={property.status} />
-        </View>
 
-        {/* Floating Price overlay */}
-        <LinearGradient
-          colors={['transparent', 'rgba(0, 0, 0, 0.75)']}
-          style={styles.imageOverlay}
-        >
-          <Text style={styles.overlayPrice}>{property.value}</Text>
-        </LinearGradient>
-      </View>
-
-      {/* Card Info Body */}
-      <View style={styles.cardBody}>
-        {/* Address and ID Row */}
-        <View style={styles.bodyHeader}>
+        <View style={styles.headerInfoCol}>
           <Text style={styles.cardAddress} numberOfLines={1}>
             {property.address}
           </Text>
@@ -270,32 +322,36 @@ function PropertyRowCard({
               {property.cityState}
             </Text>
           ) : null}
-          
-          <View style={styles.idAndSyncRow}>
-            <Text style={styles.cardIdText}>ID: {property.id}</Text>
-            <View style={styles.bulletSeparator} />
-            <View style={styles.syncContainer}>
-              <MaterialCommunityIcons name="cloud-check" size={13} color={colors.accentTeal} />
-              <Text style={styles.cardSyncText}>{property.syncStatus}</Text>
-            </View>
-          </View>
         </View>
 
-        {/* Divider */}
-        <View style={styles.cardDivider} />
+        <StatusPill status={property.status} onPress={() => setShowStatusModal(true)} />
+      </View>
 
-        {/* Confidence Section */}
-        <View style={styles.middleInfoRow}>
-          <Text style={styles.confidenceLabel}>DATA CONFIDENCE</Text>
-          <View style={styles.confidenceValRow}>
-            <ConfidenceBar value={property.confidence} />
-          </View>
+      {/* 3-Column Metadata Row: Listing Type | Valuation | Confidence */}
+      <View style={styles.metaThreeColGrid}>
+        <View style={styles.metaColItem}>
+          <Text style={styles.metaColLabel}>LISTING TYPE</Text>
+          <Text style={styles.metaColValue} numberOfLines={1}>{property.type}</Text>
         </View>
 
-        {/* Divider */}
-        <View style={styles.cardDivider} />
+        <View style={styles.metaColItem}>
+          <Text style={styles.metaColLabel}>VALUATION</Text>
+          <Text style={styles.metaColValue} numberOfLines={1}>{property.value}</Text>
+        </View>
 
-        {/* Actions Row */}
+        <View style={styles.metaColItem}>
+          <Text style={styles.metaColLabel}>CONFIDENCE</Text>
+          <ConfidenceBar value={property.confidence} />
+        </View>
+      </View>
+
+      {/* Bottom Sync & Action Buttons Row */}
+      <View style={styles.bottomBarRow}>
+        <View style={styles.syncContainer}>
+          <MaterialCommunityIcons name="cloud-check" size={14} color={colors.accentTeal} />
+          <Text style={styles.cardSyncText}>{property.syncStatus}</Text>
+        </View>
+
         <View style={styles.actionsRow}>
           <Pressable
             onPress={() => onManage(property)}
@@ -312,81 +368,6 @@ function PropertyRowCard({
             <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.textPrimary} />
           </Pressable>
           <Pressable
-            onPress={async () => {
-              try {
-                const events = await getOpenHouses(accessToken || '');
-                const existingEvent = events.find(e => e.property_id === Number(property.id));
-                if (existingEvent) {
-                  router.push(`/(main)/open-house/edit/${existingEvent.id}` as any);
-                } else {
-                  const defaultDate = new Date();
-                  defaultDate.setDate(defaultDate.getDate() + 7);
-                  const dateStr = defaultDate.toISOString().split('T')[0];
-
-                  const payload = {
-                    property_id: Number(property.id),
-                    date: dateStr,
-                    start_time: "10:00",
-                    end_time: "12:00",
-                    agent_details: {
-                      name: "sweta",
-                      brokerage: "zien",
-                      license: "23243654765",
-                      email: "sweta.isynbus@gmail.com",
-                      phone: "+91 93196-14264"
-                    },
-                    ai_description: "Breathtaking Luxury estate featuring rare architectural details, bespoke imported finishes, and a seamless connection to private, manicured grounds. This residence offers an unparalleled lifestyle for those who demand excellence in every square inch.",
-                    brand_color: "#0B2D3E",
-                    gallery_images: [],
-                    logo_text: "sweta",
-                    ai_tone: "Luxury",
-                    visitor_registration: true,
-                    send_report: true,
-                  };
-
-                  const res = await createOpenHouse(accessToken || '', payload);
-                  const newEventId = res?.data?.id || res?.id;
-                  if (newEventId) {
-                    router.push(`/(main)/open-house/edit/${newEventId}` as any);
-                  } else {
-                    Alert.alert('Error', 'Failed to create open house event.');
-                  }
-                }
-              } catch (err) {
-                console.error(err);
-                Alert.alert('Error', 'An error occurred while routing to the open house page.');
-              }
-            }}
-            style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.6 }]}
-            hitSlop={6}
-          >
-            <MaterialCommunityIcons name="calendar-blank-outline" size={18} color={colors.accentTeal} />
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              const cleanAddress = [property.address, property.cityState].filter(Boolean).join(', ');
-              const fullAddress = cleanAddress.toLowerCase().includes('usa') ? cleanAddress : `${cleanAddress}, USA`;
-              router.push({
-                pathname: '/(main)/crm/campaigns',
-                params: {
-                  openAiModal: 'true',
-                  aiPrompt: `Write a persuasive email campaign promoting my new listing at ${fullAddress}. Include a strong call to action for the recipient to click the link to view the property photos and RSVP.`
-                }
-              });
-            }}
-            style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.6 }]}
-            hitSlop={6}
-          >
-            <MaterialCommunityIcons name="bullhorn-outline" size={18} color={colors.textPrimary} />
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/(main)/social-hub/create-post')}
-            style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.6 }]}
-            hitSlop={6}
-          >
-            <MaterialCommunityIcons name="share-variant-outline" size={18} color="#EA580C" />
-          </Pressable>
-          <Pressable
             onPress={() => onDeletePress(property)}
             style={({ pressed }) => [styles.deleteButton, pressed && { opacity: 0.6 }]}
             hitSlop={6}
@@ -395,6 +376,13 @@ function PropertyRowCard({
           </Pressable>
         </View>
       </View>
+
+      <StatusPickerModal
+        visible={showStatusModal}
+        currentStatus={property.status}
+        onClose={() => setShowStatusModal(false)}
+        onSelectStatus={(newStatus) => onStatusChange(property, newStatus)}
+      />
     </View>
   );
 }
@@ -408,10 +396,24 @@ export default function PropertyInventoryScreen() {
   const { accessToken } = useAuth();
 
   const [properties, setProperties] = useState<Property[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState<PropertyStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
+
+  const filteredProperties = properties.filter((p) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      p.address.toLowerCase().includes(q) ||
+      p.cityState.toLowerCase().includes(q) ||
+      p.type.toLowerCase().includes(q) ||
+      p.id.toLowerCase().includes(q) ||
+      p.status.toLowerCase().includes(q) ||
+      p.value.toLowerCase().includes(q)
+    );
+  });
 
   useEffect(() => {
     if (accessToken) {
@@ -484,23 +486,26 @@ export default function PropertyInventoryScreen() {
 
   const mapRawToProperty = (raw: RawPropertyItem): Property => {
     const d = raw.data;
-    const price = d.ListPrice || 0;
-    const formattedPrice = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(price);
+    const formattedPrice = formatPropertyPrice(d);
+
+    const propConfidence = typeof d.confidence === 'number' && d.confidence > 0
+      ? d.confidence
+      : (typeof d.data_confidence === 'number' && d.data_confidence > 0
+        ? d.data_confidence
+        : (typeof (raw as any).confidence === 'number' && (raw as any).confidence > 0
+          ? (raw as any).confidence
+          : (stats?.avgConfidence ? Math.round(stats.avgConfidence) : 94)));
 
     return {
       id: raw.id.toString(),
       address: d.StreetNumber ? `${d.StreetNumber} ${d.StreetName} ${d.StreetSuffix || ''}`.trim() : raw.address,
       cityState: d.City ? `${d.City}, ${d.StateOrProvince || ''}` : '',
-      type: d.PropertyType || 'Residential',
-      status: 'Ready', // Default to Ready as per user request
+      type: d.PropertySubType || d.PropertyType || 'Residential',
+      status: (d.StandardStatus || d.MlsStatus || 'Ready') as PropertyStatus,
       value: formattedPrice,
-      confidence: 94,
+      confidence: propConfidence,
       image: extractFirstImage(raw),
-      syncStatus: 'SYNCED',
+      syncStatus: 'Synced',
     };
   };
 
@@ -518,7 +523,11 @@ export default function PropertyInventoryScreen() {
 
   const activeCount = stats ? stats.activeCount : properties.length;
   const draftCount = stats ? stats.draftCount : 0;
-  const avgConfidence = stats ? stats.avgConfidence : 94;
+
+  const calculatedAvg = properties.length > 0
+    ? Math.round(properties.reduce((acc, p) => acc + (p.confidence || 94), 0) / properties.length)
+    : 94;
+  const avgConfidence = properties.length > 0 ? calculatedAvg : (stats?.avgConfidence ?? 94);
 
   const handleCreateListing = () => {
     router.push('/(main)/properties/create');
@@ -540,6 +549,15 @@ export default function PropertyInventoryScreen() {
 
   const handleDeletePress = (property: Property) => {
     setDeleteTarget(property);
+  };
+
+  const handleStatusChange = (targetProp: Property, newStatus: string) => {
+    setProperties(prev =>
+      prev.map(p => (p.id === targetProp.id ? { ...p, status: newStatus as PropertyStatus } : p))
+    );
+    if (accessToken) {
+      updatePropertyStatus(targetProp.id, newStatus, accessToken);
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -609,6 +627,27 @@ export default function PropertyInventoryScreen() {
           />
         </View>
 
+        {/* ── SEARCH BAR ── */}
+        {!isLoading && !error && properties.length > 0 && (
+          <View style={styles.searchContainer}>
+            <View style={styles.searchBar}>
+              <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Filter properties by address, city, type..."
+                placeholderTextColor={colors.textMuted || '#94A3B8'}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <MaterialCommunityIcons name="close-circle" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
         {isLoading && (
           <View style={styles.centerBox}>
             <ActivityIndicator size="large" color={colors.accentTeal} />
@@ -636,28 +675,38 @@ export default function PropertyInventoryScreen() {
           </View>
         )}
 
-
+        {!isLoading && !error && properties.length > 0 && filteredProperties.length === 0 && (
+          <View style={styles.centerBox}>
+            <MaterialCommunityIcons name="home-search-outline" size={48} color={colors.textSecondary} />
+            <Text style={styles.emptyText}>No properties match "{searchQuery}"</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => setSearchQuery('')}>
+              <Text style={styles.retryBtnText}>Clear Search</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── LIST HEADER (Only show if properties exist) ── */}
-        {properties.length > 0 && (
-          <View style={styles.tableHeaderRow}>
-            <Text style={styles.tableHeaderText}>PROPERTY IDENTITY</Text>
-            <Text style={styles.tableHeaderText}>STATUS</Text>
+        {!isLoading && !error && filteredProperties.length > 0 && (
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeaderText}>Property Identity</Text>
           </View>
         )}
 
         {/* ── PROPERTY LIST ── */}
-        <View style={styles.listContainer}>
-          {properties.map((property) => (
-            <PropertyRowCard
-              key={property.id}
-              property={property}
-              onManage={handleManageData}
-              onEdit={handleEditProperty}
-              onDeletePress={handleDeletePress}
-            />
-          ))}
-        </View>
+        {!isLoading && !error && filteredProperties.length > 0 && (
+          <View style={styles.listContainer}>
+            {filteredProperties.map((property) => (
+              <PropertyRowCard
+                key={property.id}
+                property={property}
+                onManage={handleManageData}
+                onEdit={handleEditProperty}
+                onDeletePress={handleDeletePress}
+                onStatusChange={handleStatusChange}
+              />
+            ))}
+          </View>
+        )}
 
         {/* ── DELETE MODAL ── */}
         <DeleteConfirmModal
@@ -712,6 +761,34 @@ function getStyles(colors: any) {
       paddingTop: 4,
     },
 
+    // ── Search Bar ──
+    searchContainer: {
+      paddingHorizontal: H_PADDING,
+      marginBottom: 16,
+    },
+    searchBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 1,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.textPrimary,
+      padding: 0,
+    },
+
     // ── Stat Cards Grid ──
     statsGrid: {
       flexDirection: 'row',
@@ -760,157 +837,115 @@ function getStyles(colors: any) {
       marginBottom: 4,
       letterSpacing: -0.5,
     },
-    statLabelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-    statLabel: {
-      fontSize: 9,
-      color: colors.textSecondary,
-      fontWeight: '800',
-      letterSpacing: 0.8,
-    },
-    tinyDotWrap: {
-      width: 4,
-      height: 4,
-      borderRadius: 2,
-      overflow: 'hidden',
-    },
-    tinyDot: {
-      flex: 1,
-    },
-    statDecoration: {
-      position: 'absolute',
-      right: -10,
-      bottom: -10,
-      width: 50,
-      height: 50,
-      borderRadius: 25,
-      zIndex: -1,
-    },
-
-
-
-    // ── Table header row ──
-    tableHeaderRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+    // ── Section Header ──
+    sectionHeaderRow: {
       paddingHorizontal: H_PADDING + 4,
       marginBottom: 10,
     },
-    tableHeaderText: {
-      fontSize: 10,
+    sectionHeaderText: {
+      fontSize: 11,
       fontWeight: '800',
-      color: colors.inputPlaceholder,
-      letterSpacing: 1,
+      color: colors.textSecondary,
+      letterSpacing: 0.8,
       textTransform: 'uppercase',
     },
 
-    // ── List ──
-    listContainer: {
-      paddingHorizontal: H_PADDING,
-      gap: 14,
-    },
-
-    // ── Property Card ──
     propertyCard: {
       backgroundColor: colors.cardBackground,
-      borderRadius: 20,
+      borderRadius: 24,
+      padding: 16,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.08,
-      shadowRadius: 16,
-      elevation: 4,
-      overflow: 'hidden',
-      marginBottom: 16,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
+      elevation: 3,
+      marginBottom: 14,
       borderWidth: 1,
       borderColor: colors.cardBorder,
     },
-    imageContainer: {
-      height: 170,
-      width: '100%',
-      position: 'relative',
+    cardHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    cardThumbImage: {
+      width: 56,
+      height: 56,
+      borderRadius: 14,
       backgroundColor: colors.surfaceSoft,
     },
-    cardImage: {
-      width: '100%',
-      height: '100%',
-    },
-    floatingHeader: {
-      position: 'absolute',
-      top: 12,
-      left: 12,
-      right: 12,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      zIndex: 2,
-    },
-    typeBadge: {
-      backgroundColor: 'rgba(26, 36, 47, 0.75)',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
-    typeBadgeText: {
-      color: '#FFFFFF',
-      fontSize: 10,
-      fontWeight: '800',
-      letterSpacing: 0.5,
-      textTransform: 'uppercase',
-    },
-    imageOverlay: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: 60,
-      justifyContent: 'flex-end',
-      paddingHorizontal: 16,
-      paddingBottom: 10,
-      zIndex: 1,
-    },
-    overlayPrice: {
-      color: '#FFFFFF',
-      fontSize: 20,
-      fontWeight: '900',
-      letterSpacing: -0.5,
-    },
-    cardBody: {
-      padding: 16,
-    },
-    bodyHeader: {
-      marginBottom: 8,
+    headerInfoCol: {
+      flex: 1,
+      marginLeft: 12,
+      marginRight: 8,
+      justifyContent: 'center',
     },
     cardAddress: {
-      fontSize: 15,
-      fontWeight: '800',
+      fontSize: 14,
+      fontWeight: '900',
       color: colors.textPrimary,
-      marginBottom: 2,
     },
     cardCityState: {
-      fontSize: 12,
+      fontSize: 11,
       color: colors.textSecondary,
       fontWeight: '500',
-      marginBottom: 6,
-    },
-    idAndSyncRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 4,
+      marginTop: 2,
     },
     cardIdText: {
       fontSize: 11,
-      color: colors.textSecondary,
-      fontWeight: '600',
+      color: colors.textMuted || colors.textSecondary,
+      fontWeight: '700',
+      marginTop: 2,
     },
-    bulletSeparator: {
-      width: 4,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: colors.inputPlaceholder,
-      marginHorizontal: 8,
+    statusPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 12,
+      gap: 4,
+    },
+    statusDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    statusText: {
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 0.5,
+    },
+    metaThreeColGrid: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginTop: 14,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderColor: colors.cardBorder + '60',
+    },
+    metaColItem: {
+      flex: 1,
+    },
+    metaColLabel: {
+      fontSize: 9,
+      fontWeight: '900',
+      color: colors.textMuted || colors.inputPlaceholder,
+      letterSpacing: 0.8,
+      marginBottom: 4,
+    },
+    metaColValue: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    bottomBarRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 14,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderColor: colors.cardBorder + '60',
     },
     syncContainer: {
       flexDirection: 'row',
@@ -918,74 +953,80 @@ function getStyles(colors: any) {
       gap: 4,
     },
     cardSyncText: {
-      fontSize: 11,
+      fontSize: 10,
       color: colors.accentTeal,
-      fontWeight: '700',
-      letterSpacing: 0.3,
-    },
-    cardDivider: {
-      height: 1,
-      backgroundColor: colors.cardBorder,
-      marginVertical: 12,
-    },
-    middleInfoRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    confidenceLabel: {
-      fontSize: 9,
       fontWeight: '800',
-      color: colors.inputPlaceholder,
-      letterSpacing: 0.8,
-    },
-    confidenceValRow: {
-      width: 120,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
     },
     actionsRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      marginTop: 4,
+      gap: 6,
     },
     actionButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor: colors.inputBackground,
-      alignItems: 'center',
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor: colors.surfaceIcon + '50',
       justifyContent: 'center',
+      alignItems: 'center',
       borderWidth: 1,
       borderColor: colors.cardBorder,
     },
     deleteButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor: 'rgba(239, 68, 68, 0.08)',
-      alignItems: 'center',
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor: '#FEE2E2',
       justifyContent: 'center',
+      alignItems: 'center',
       borderWidth: 1,
-      borderColor: 'rgba(239, 68, 68, 0.2)',
+      borderColor: '#FECACA',
     },
 
-    statusPill: {
+    // ── Status Picker Modal ──
+    statusDropdownCard: {
+      width: '85%',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.15,
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    statusDropdownTitle: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginBottom: 12,
+    },
+    statusDivider: {
+      height: 1,
+      backgroundColor: colors.cardBorder,
+      marginBottom: 10,
+    },
+    statusOptionRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
+      justifyContent: 'space-between',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      marginBottom: 4,
     },
-    statusDot: {
-      width: 5,
-      height: 5,
-      borderRadius: 3,
+    statusOptionSelected: {
+      backgroundColor: colors.accentTeal + '15',
     },
-    statusText: {
-      fontSize: 9,
-      fontWeight: '800',
-      letterSpacing: 0.5,
+    statusOptionText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.textPrimary,
     },
 
     confidenceWrap: {

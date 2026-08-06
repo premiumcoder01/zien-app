@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getPropertyDetails } from '@/services/propertyService';
+import { calculateWalkScore, formatLastSync, formatPropertyPrice, getPropertyDetails } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -146,10 +146,11 @@ export default function PropertyDetailScreen() {
       if (res.success) {
         const d = res.data.data;
         const coords = d.Coordinates || [-95.399529, 29.74878];
+        const walkData = calculateWalkScore(d);
         return {
           id: id,
           address: d.UnparsedAddress || d.address || 'Unknown Address',
-          price: d.ListPrice ? `$${d.ListPrice.toLocaleString()}` : (d.price || '—'),
+          price: formatPropertyPrice(d, '—'),
           beds: d.BedroomsTotal || d.beds || null,
           baths: (parseFloat(d.BathroomsFull || d.bathsFull || '0')) + (d.BathroomsHalf || d.bathsHalf ? 0.5 : 0) || null,
           sqft: d.BuildingAreaTotal || d.LivingArea || d.sqft || null,
@@ -167,16 +168,16 @@ export default function PropertyDetailScreen() {
           heating: d.Heating || d.heating || null,
           flooring: d.Flooring || d.flooring || [],
           status: d.StandardStatus || 'Ready for Use',
-          confidence: 98,
-          lastSync: '2 min ago',
+          confidence: d.confidence || d.data_confidence || 94,
+          lastSync: formatLastSync(res.data),
           listingId: d.ListingId || d.listingId || null,
           parking: d.ParkingFeatures || (d.ParkingTotal ? [`${d.ParkingTotal} Spaces`] : null) || null,
           garage: d.GarageYN === true ? (d.GarageSpaces ? `${d.GarageSpaces} Spaces` : 'Yes') : (d.GarageYN === false ? 'N/A' : null),
           foundation: d.FoundationDetails || d.foundation || null,
           lotFeatures: d.LotFeatures || null,
           zienAvm: '$734,020',
-          walkScore: 88,
-          walkLabel: 'EXTREMELY WALKABLE',
+          walkScore: walkData.score,
+          walkLabel: walkData.label,
           coordinates: { latitude: coords[1], longitude: coords[0] },
           // Nested Data
           appliances: d.Appliances || d.appliances || [],
@@ -418,10 +419,10 @@ export default function PropertyDetailScreen() {
 
         <View style={{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', gap: 12, marginTop: 16, paddingHorizontal: 20 }}>
           <View style={styles.confidenceBarContainer}>
-            <View style={styles.confidenceTrack}><View style={[styles.confidenceFill, { width: '98%' }]} /></View>
-            <Text style={styles.confidenceText}>98% Confidence</Text>
+            <View style={styles.confidenceTrack}><View style={[styles.confidenceFill, { width: `${property.confidence || 94}%` }]} /></View>
+            <Text style={styles.confidenceText}>{property.confidence || 94}% Confidence</Text>
           </View>
-          <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.shareBtn} onPress={() => setShowShareModal(true)} activeOpacity={0.7}>
             <MaterialCommunityIcons name="share-variant" size={16} color={colors.textPrimary} />
             <Text style={styles.shareBtnText}>Share</Text>
           </TouchableOpacity>
@@ -511,43 +512,17 @@ export default function PropertyDetailScreen() {
             </View>
           </View>
 
-          <View style={styles.valuationCard}>
-            <LinearGradient
-              colors={[colors.textPrimary + '05', 'transparent']}
-              style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-            />
-            <View style={styles.valHeader}>
-              <View style={styles.valPill}>
-                <MaterialCommunityIcons name="robot" size={10} color="#FFF" />
-                <Text style={styles.valPillText}>AI VALUATION</Text>
-              </View>
+          <TouchableOpacity
+            style={styles.priceCard}
+            activeOpacity={0.8}
+            onPress={() => router.push(`/(main)/properties/edit/${id}` as any)}
+          >
+            <View style={styles.priceHeaderRow}>
+              <Text style={styles.priceMainText}>{property.price}</Text>
+              <MaterialCommunityIcons name="pencil-outline" size={22} color={colors.textSecondary} style={{ marginLeft: 8 }} />
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-              <Text style={styles.valPrice}>{property.price}</Text>
-              <MaterialCommunityIcons name="trending-up" size={20} color={colors.accentTeal} />
-            </View>
-            <Text style={styles.valSubLabel}>Current Estimated Market Value</Text>
-
-            <View style={styles.valStatsGrid}>
-              <View style={styles.valRow}>
-                <Text style={styles.valKey}>MLS List Price</Text>
-                <Text style={styles.valVal}>{property.price}</Text>
-              </View>
-              <View style={styles.avmRow}>
-                <Text style={styles.avmKey}>Zien AVM Est.</Text>
-                <Text style={styles.avmVal}>{property.zienAvm}</Text>
-              </View>
-            </View>
-            <View style={styles.insightBox}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <MaterialCommunityIcons name="information-outline" size={16} color={colors.accentTeal} />
-                <Text style={styles.insightTitle}>AUTOMATED INSIGHT</Text>
-              </View>
-              <Text style={styles.insightText}>Our AI suggests this property is priced 2% below market based on recent Houston luxury comps.</Text>
-            </View>
-          </View>
+            <Text style={styles.priceSubLabel}>Actual Price</Text>
+          </TouchableOpacity>
 
           <View style={styles.locationCard}>
             <Text style={styles.sectionHead}>LOCATION ANALYSIS</Text>
@@ -555,35 +530,13 @@ export default function PropertyDetailScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <MaterialCommunityIcons name="map-marker-outline" size={24} color={colors.textPrimary} />
                 <View>
-                  <Text style={{ fontSize: 24, fontWeight: '900', color: colors.textPrimary }}>88</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '900', color: colors.textPrimary }}>{property.walkScore}</Text>
                   <Text style={{ fontSize: 8, fontWeight: '800', color: colors.textMuted }}>WALK SCORE</Text>
                 </View>
               </View>
               <Text style={{ fontSize: 10, fontWeight: '900', color: colors.accentTeal }}>{property.walkLabel}</Text>
             </View>
             <TouchableOpacity style={styles.mapBtn} onPress={() => setShowMap(true)}><Text style={styles.mapBtnText}>View Neighborhood Map</Text></TouchableOpacity>
-          </View>
-
-          <View style={styles.syndicationCard}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <MaterialCommunityIcons name="earth" size={20} color={colors.accent} />
-              <Text style={styles.syndicationTitle}>SYNDICATION & SHARING</Text>
-            </View>
-            <Text style={styles.syndicationDescription}>
-              Distribute this property to your marketing channels within the Zien ecosystem.
-            </Text>
-            <TouchableOpacity style={styles.syndicationBtn} activeOpacity={0.8} onPress={() => setShowShareModal(true)}>
-              <MaterialCommunityIcons name="bullhorn-outline" size={16} color="#FFF" />
-              <Text style={styles.syndicationBtnText}>Open Share Portal</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.integrityCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-              <Text style={styles.sectionHead}>DATA INTEGRITY SCORE</Text>
-              <Text style={{ fontSize: 14, fontWeight: '900', color: colors.accentTeal }}>98%</Text>
-            </View>
-            <View style={styles.integrityTrack}><View style={[styles.integrityFill, { width: '98%' }]} /></View>
           </View>
         </View>
       </ScrollView>
@@ -618,6 +571,23 @@ export default function PropertyDetailScreen() {
 
             {/* Options */}
             <View style={{ gap: 12 }}>
+              <TouchableOpacity
+                style={styles.shareOptionCard}
+                activeOpacity={0.7}
+                onPress={() => {
+                  setShowShareModal(false);
+                  handleShare();
+                }}
+              >
+                <View style={[styles.shareIconBox, { backgroundColor: '#F0FDF4' }]}>
+                  <MaterialCommunityIcons name="share-variant" size={22} color="#166534" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.shareOptionTitle}>Share Externally</Text>
+                  <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>Send property details via apps, messages, or link.</Text>
+                </View>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.shareOptionCard}
                 activeOpacity={0.7}
@@ -848,22 +818,34 @@ function getStyles(colors: any) {
     neighborhoodLabel: { fontSize: 10, fontWeight: '800', color: colors.textMuted, letterSpacing: 1 },
     remarksText: { fontSize: 14, color: colors.textPrimary, lineHeight: 22, marginTop: 12 },
     mediaLabel: { fontSize: 10, fontWeight: '900', color: colors.textMuted, letterSpacing: 1 },
-    valuationCard: { backgroundColor: colors.cardBackground, borderRadius: 28, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: colors.cardBorder, overflow: 'hidden' },
-    valHeader: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 16 },
-    valPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.textPrimary, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-    valPillText: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-    valPrice: { fontSize: 36, fontWeight: '900', color: colors.textPrimary, letterSpacing: -1 },
-    valSubLabel: { fontSize: 12, color: colors.textMuted, marginTop: 4, fontWeight: '500' },
-    valStatsGrid: { marginTop: 24, gap: 12 },
-    valRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: colors.surfaceIcon + '80', borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder },
-    valKey: { fontSize: 13, color: colors.textMuted, fontWeight: '700' },
-    valVal: { fontSize: 15, color: colors.textPrimary, fontWeight: '900' },
-    avmRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: '#FFF7ED', borderRadius: 16, borderWidth: 1.5, borderColor: '#FED7AA', borderStyle: 'dashed' },
-    avmKey: { fontSize: 13, color: '#C2410C', fontWeight: '800' },
-    avmVal: { fontSize: 15, color: '#C2410C', fontWeight: '900' },
-    insightBox: { marginTop: 20, padding: 16, backgroundColor: colors.accentTeal + '10', borderRadius: 16, borderWidth: 1, borderColor: colors.accentTeal + '20' },
-    insightTitle: { fontSize: 10, fontWeight: '900', color: colors.accentTeal, letterSpacing: 1 },
-    insightText: { fontSize: 13, color: colors.textPrimary, lineHeight: 18, marginTop: 4 },
+    priceCard: {
+      backgroundColor: colors.surfaceSoft || colors.cardBackground,
+      borderRadius: 20,
+      paddingVertical: 22,
+      paddingHorizontal: 24,
+      marginBottom: 16,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      justifyContent: 'center',
+    },
+    priceHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    priceMainText: {
+      fontSize: 34,
+      fontWeight: '900',
+      color: colors.textPrimary,
+      letterSpacing: -0.5,
+    },
+    priceSubLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginTop: 6,
+      textAlign: 'left',
+    },
     locationCard: { backgroundColor: colors.cardBackground, borderRadius: 24, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: colors.cardBorder },
     sectionHead: { fontSize: 10, fontWeight: '900', color: colors.textMuted, letterSpacing: 1 },
     mapBtn: { marginTop: 16, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, alignItems: 'center' },

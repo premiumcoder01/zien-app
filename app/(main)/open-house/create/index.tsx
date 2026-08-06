@@ -2,7 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { generateAiText } from '@/services/aiContentService';
 import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
-import { getProperties, RawPropertyItem, uploadPropertyImage } from '@/services/propertyService';
+import { formatPropertyPrice, getProperties, RawPropertyItem, uploadPropertyImage } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -659,7 +659,7 @@ function Step1SelectProperty({
               PLACEHOLDER_1;
 
             const status = isScheduled ? 'SCHEDULED' : (property.status === 1 ? 'READY' : 'REVIEW');
-            const price = property.data?.ListPrice ? `$${Number(property.data.ListPrice).toLocaleString()}` : 'Price N/A';
+            const price = formatPropertyPrice(property.data, 'Price N/A');
             const beds = property.data?.BedroomsTotal || property.data?.beds || '0';
             const baths = property.data?.BathroomsFull || property.data?.baths || '0';
 
@@ -1203,9 +1203,7 @@ function Step4Customization({
   const beds = property?.data?.BedroomsTotal || property?.data?.beds || '5';
   const baths = property?.data?.BathroomsFull || property?.data?.baths || '4.5';
   const sqft = property?.data?.LivingArea || property?.data?.sqft || '4,200';
-  const price = property?.data?.ListPrice
-    ? `$${Number(property.data.ListPrice).toLocaleString()}`
-    : '$2,450,000';
+  const price = formatPropertyPrice(property?.data, '$2,450,000');
 
   const allPreviewImages = useMemo(() => {
     const propertyImages = (property?.data?.user_images || property?.data?.Media?.map((m: any) => m.MediaURL) || []).filter(Boolean);

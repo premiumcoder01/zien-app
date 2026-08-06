@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { generateAiText } from '@/services/aiContentService';
 import { getOpenHouseById, updateOpenHouse } from '@/services/openHouseService';
-import { RawPropertyItem, uploadPropertyImage } from '@/services/propertyService';
+import { formatPropertyPrice, RawPropertyItem, uploadPropertyImage } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -920,7 +920,7 @@ function Step4Customization({
   const beds = property?.data?.BedroomsTotal || property?.data?.beds || '5';
   const baths = property?.data?.BathroomsFull || property?.data?.baths || '4.5';
   const sqft = property?.data?.LivingArea || property?.data?.sqft || '4,200';
-  const price = property?.data?.ListPrice ? `$${Number(property.data.ListPrice).toLocaleString()}` : '$2,450,000';
+  const price = formatPropertyPrice(property?.data, '$2,450,000');
 
   const allPreviewImages = useMemo(() => {
     const propertyImages = (property?.data?.user_images || property?.data?.Media?.map((m: any) => m.MediaURL) || []).filter(Boolean);

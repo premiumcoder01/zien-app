@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
-import { analyzeProperty as analyzePropertyService, finalizeProperty, uploadPropertyImage } from '@/services/propertyService';
+import { analyzeProperty as analyzePropertyService, extractPriceNumber, finalizeProperty, formatPropertyPrice, uploadPropertyImage } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -145,9 +145,9 @@ function StepAddress({
         </View>
 
         {!!searchError && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, marginBottom: 8, paddingHorizontal: 12, gap: 6 }}>
-            <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#EF4444" />
-            <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+          <View style={[styles.errorBox, { marginTop: 14, marginBottom: 14 }]}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={18} color="#EF4444" style={{ marginRight: 8, marginTop: 1 }} />
+            <Text style={[styles.errorText, { color: '#EF4444', fontSize: 13, lineHeight: 18, fontWeight: '500', flex: 1 }]}>
               {searchError}
             </Text>
           </View>
@@ -1314,6 +1314,9 @@ export default function CreateListingScreen() {
       if (resData.success && resData.data) {
         const d = resData.data;
 
+        const extractedPriceNum = extractPriceNumber(d);
+        const formattedPrice = formatPropertyPrice(d, '');
+
         // Map API response to expanded formData
         setFormData({
           ...formData,
@@ -1322,7 +1325,7 @@ export default function CreateListingScreen() {
           stories: String(d.StoriesTotal || d.Levels?.[0] || d.Stories || ''),
           structureType: Array.isArray(d.StructureType) ? d.StructureType[0] : d.StructureType || '',
           architecturalStyle: Array.isArray(d.ArchitecturalStyle) ? d.ArchitecturalStyle : [],
-          price: d.ListPrice ? `$${d.ListPrice.toLocaleString()}` : '',
+          price: formattedPrice || (d.price ? String(d.price) : ''),
           type: d.PropertySubType || d.PropertyType || 'Residential',
           beds: String(d.BedroomsTotal || ''),
           bathsFull: String(d.BathroomsFull || ''),
@@ -1410,8 +1413,13 @@ export default function CreateListingScreen() {
 
   const { mutate: finalizeMutation, isPending: isFinalizing } = useMutation({
     mutationFn: () => {
+      const extractedNum = extractPriceNumber(formData);
+      const finalPrice = formData.price || (extractedNum > 0 ? `$${extractedNum.toLocaleString()}` : '');
+
       const finalData = {
         ...formData,
+        price: finalPrice,
+        ...(extractedNum > 0 ? { ListPrice: extractedNum, HAR_CurrentPrice: extractedNum } : {}),
         user_images: userPhotos,
         Media: mlsPhotos.map(url => ({ MediaCategory: 'Photo', MediaURL: url }))
       };

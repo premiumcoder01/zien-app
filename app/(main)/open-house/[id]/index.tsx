@@ -3,6 +3,7 @@ import OutlineButton from '@/components/ui/OutlineButton';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { deleteOpenHouse, getOpenHouseById, updateOpenHouse } from '@/services/openHouseService';
+import { formatPropertyPrice } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
@@ -94,7 +95,7 @@ export default function EventDashboardScreen() {
     const eventRating = openHouseData?.feedback_rating ? `${openHouseData.feedback_rating}★` : '—';
     const pData = openHouseData?.property?.data;
 
-    const eventPrice = pData?.price || (pData?.ListPrice ? `$${Number(pData.ListPrice).toLocaleString()}` : 'N/A');
+    const eventPrice = formatPropertyPrice(pData, 'N/A');
     const eventStatus = openHouseData?.status?.toUpperCase() || 'UPCOMING';
     const eventBeds = pData?.beds || pData?.BedroomsTotal || 'N/A';
     const eventBaths = pData?.bathsFull || pData?.BathroomsFull || 'N/A';

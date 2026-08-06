@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { finalizeProperty, getPropertyDetails, uploadPropertyImage } from '@/services/propertyService';
+import { extractPriceNumber, finalizeProperty, formatPropertyPrice, getPropertyDetails, uploadPropertyImage } from '@/services/propertyService';
 import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -590,13 +590,18 @@ export default function EditListingScreen() {
 
 
         // Map backend fields to the keys used in StepDetails/StepReview
+        const extractedPrice = extractPriceNumber(d);
+        const formattedPrice = formatPropertyPrice(d, '');
+
         const mappedData = {
           ...d,
           beds: d.BedroomsTotal?.toString() || '',
           bathsFull: d.BathroomsFull?.toString() || '',
           bathsHalf: d.BathroomsHalf?.toString() || '',
           sqft: d.BuildingAreaTotal?.toString() || d.LivingArea?.toString() || '',
-          price: d.ListPrice ? `$${d.ListPrice.toLocaleString()}` : '',
+          price: formattedPrice || (d.price ? String(d.price) : ''),
+          ListPrice: extractedPrice > 0 ? extractedPrice : d.ListPrice,
+          HAR_CurrentPrice: extractedPrice > 0 ? extractedPrice : d.HAR_CurrentPrice,
           year: d.YearBuilt?.toString() || '',
           address: d.address || d.UnparsedAddress || '',
           type: d.PropertySubType || d.PropertyType || '',
@@ -630,8 +635,13 @@ export default function EditListingScreen() {
 
   const { mutate: finalizeMutation, isPending: isFinalizing } = useMutation({
     mutationFn: () => {
+      const extractedNum = extractPriceNumber(formData);
+      const finalPrice = formData.price || (extractedNum > 0 ? `$${extractedNum.toLocaleString()}` : '');
+
       const finalData = {
         ...formData,
+        price: finalPrice,
+        ...(extractedNum > 0 ? { ListPrice: extractedNum, HAR_CurrentPrice: extractedNum } : {}),
         user_images: userPhotos,
         Media: mlsPhotos.map(url => ({ MediaCategory: 'Photo', MediaURL: url }))
       };
@@ -671,7 +681,7 @@ export default function EditListingScreen() {
     <View style={{ flex: 1 }}>
       <LinearGradient colors={colors.backgroundGradient as any} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
       <View style={{ paddingTop: insets.top }}>
-        <PageHeader title="Edit Listing" subtitle={formData.address} onBack={() => router.back()} />
+        <PageHeader title="Edit Property" subtitle={formData.address} onBack={() => router.back()} />
       </View>
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: activeStep < 4 ? 120 : 40 }]} showsVerticalScrollIndicator={false}>
