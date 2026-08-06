@@ -463,12 +463,6 @@ export default function EventDashboardScreen() {
                         <Text style={[styles.statGridValueText, { color: '#F43F5E' }]}>{eventHotLeads}</Text>
                         <Text style={styles.statGridLabelText}>HOT LEADS</Text>
                     </View>
-                </View>
-                <View style={[styles.statsGridRow, { marginTop: 12 }]}>
-                    <View style={styles.statGridCellItem}>
-                        <Text style={styles.statGridValueText}>{eventRating.replace('★', '')}</Text>
-                        <Text style={styles.statGridLabelText}>RATING</Text>
-                    </View>
                     <View style={[styles.statGridCellItem, styles.hotScoreCellItem, { borderColor: currentColor + '40', backgroundColor: currentColor + '08' }]}>
                         <Text style={[styles.statGridValueText, { color: currentColor }]}>
                             {eventVisitors > 0 ? `${Math.round((eventHotLeads / eventVisitors) * 100)}%` : '0%'}

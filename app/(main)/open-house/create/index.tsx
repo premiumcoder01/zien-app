@@ -2993,7 +2993,6 @@ function getStyles(colors: any) {
       letterSpacing: 1,
       marginTop: 20,
       marginBottom: 12,
-      textTransform: 'uppercase',
     },
     sectionHeaderLabelPreview: {
       fontSize: 10,
@@ -3063,7 +3062,7 @@ function getStyles(colors: any) {
       letterSpacing: -0.5,
     },
     customCardSubLabelText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500', marginTop: -12, marginBottom: 16 },
-    aiFieldLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.8, marginTop: 16, marginBottom: 8, textTransform: 'uppercase' },
+    aiFieldLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.8, marginTop: 16, marginBottom: 8 },
     aiOutputHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 8, flexWrap: 'wrap', gap: 12 },
     swatchRow: {
       flexDirection: 'row',

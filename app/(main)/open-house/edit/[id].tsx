@@ -1447,14 +1447,14 @@ function getStyles(colors: any) {
     leftColumnMobile: { minWidth: '100%' },
     rightColumn: { width: 340 },
     rightColumnMobile: { width: '100%', alignItems: 'center' },
-    sectionHeaderLabelSmall: { fontSize: 10, fontWeight: '800', color: colors.textSecondary, letterSpacing: 1, marginTop: 20, marginBottom: 12, textTransform: 'uppercase' },
+    sectionHeaderLabelSmall: { fontSize: 10, fontWeight: '800', color: colors.textSecondary, letterSpacing: 1, marginTop: 20, marginBottom: 12 },
     sectionHeaderLabelPreview: { fontSize: 10, fontWeight: '800', color: colors.textMuted, letterSpacing: 1, marginBottom: 16, textTransform: 'uppercase' },
 
     customCard: { backgroundColor: colors.cardBackground, borderRadius: 16, padding: 24, marginBottom: 20 },
     customCardGallery: { minHeight: 260 },
     customCardTitle: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, marginBottom: 16, letterSpacing: -0.5 },
     customCardSubLabelText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500', marginTop: -12, marginBottom: 16 },
-    aiFieldLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.8, marginTop: 16, marginBottom: 8, textTransform: 'uppercase' },
+    aiFieldLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.8, marginTop: 16, marginBottom: 8 },
     aiOutputHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 8, flexWrap: 'wrap', gap: 12 },
 
     swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 12 },
