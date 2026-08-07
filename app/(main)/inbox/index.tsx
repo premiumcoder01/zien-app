@@ -23,6 +23,36 @@ import { useAuth } from '@/context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { getSoloInboxEmails, SoloInboxEmail } from '@/services/inboxService';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { WebView } from 'react-native-webview';
+
+const formatDisplayName = (emailOrPhone: string) => {
+  if (!emailOrPhone) return 'Contact';
+  if (emailOrPhone.includes('@')) {
+    const username = emailOrPhone.split('@')[0];
+    const words = username.split(/[\._\-]/).filter(Boolean);
+    if (words.length > 0) {
+      return words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+    return username;
+  }
+  return emailOrPhone;
+};
+
+const formatShortTime = (isoString: string) => {
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}/${month}`;
+  } catch (e) {
+    return '';
+  }
+};
 
 
 
@@ -163,6 +193,28 @@ export default function InboxScreen() {
     });
   }, [emails, searchQuery, channelFilter, dateFilter]);
 
+  // Group communications by contact/recipient_email (Web Parity)
+  const groupedConversations = useMemo(() => {
+    const map = new Map<string, { latestItem: SoloInboxEmail; count: number }>();
+
+    filteredEmails.forEach((item) => {
+      const key = item.recipient_email.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, { latestItem: item, count: 1 });
+      } else {
+        const existing = map.get(key)!;
+        existing.count += 1;
+        if (new Date(item.created_at).getTime() > new Date(existing.latestItem.created_at).getTime()) {
+          existing.latestItem = item;
+        }
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => 
+      new Date(b.latestItem.created_at).getTime() - new Date(a.latestItem.created_at).getTime()
+    );
+  }, [filteredEmails]);
+
 
 
   // Status Badge renderer helper
@@ -207,6 +259,15 @@ export default function InboxScreen() {
     </View>
   );
 
+  const navigateToDetail = (item: SoloInboxEmail) => {
+    router.push({
+      pathname: '/(main)/inbox/[id]',
+      params: {
+        recipient_email: item.recipient_email,
+      },
+    });
+  };
+
   // Render Table Row (Wide layout / Table view)
   const renderTableRow = (item: SoloInboxEmail) => {
     const avatarLetter = item.recipient_email ? item.recipient_email.charAt(0).toUpperCase() : '?';
@@ -248,7 +309,7 @@ export default function InboxScreen() {
         <View style={[styles.cell, { flex: 0.8, alignItems: 'center' }]}>
           <Pressable
             style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}
-            onPress={() => setSelectedEmail(item)}
+            onPress={() => navigateToDetail(item)}
           >
             <MaterialCommunityIcons name="eye-outline" size={18} color={colors.textSecondary} />
           </Pressable>
@@ -257,54 +318,55 @@ export default function InboxScreen() {
     );
   };
 
-  // Render Card Item (Mobile layout / card-based view)
+  // Render Card Item (Mobile layout / Web-matching conversation view)
   const renderCardItem = (item: SoloInboxEmail) => {
-    const avatarLetter = item.recipient_email ? item.recipient_email.charAt(0).toUpperCase() : '?';
-    const displayDate = formatDate(item.created_at);
+    const displayName = formatDisplayName(item.recipient_email);
+    const avatarLetter = displayName.charAt(0).toUpperCase();
+    const shortTime = formatShortTime(item.created_at);
+    const channel = getCommunicationChannel(item);
 
     return (
       <Pressable
         key={item.id}
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-        onPress={() => setSelectedEmail(item)}
+        onPress={() => navigateToDetail(item)}
       >
-        <View style={styles.cardHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-            <View style={styles.avatarBox}>
-              <Text style={styles.avatarLetter}>{avatarLetter}</Text>
-            </View>
-            <Text style={styles.recipientText} numberOfLines={1}>
-              {item.recipient_email}
-            </Text>
+        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+          <View style={styles.avatarBox}>
+            <Text style={styles.avatarLetter}>{avatarLetter}</Text>
           </View>
-          <Pressable
-            style={styles.actionButton}
-            onPress={() => setSelectedEmail(item)}
-          >
-            <MaterialCommunityIcons name="eye-outline" size={18} color={colors.textSecondary} />
-          </Pressable>
-        </View>
 
-        <View style={styles.cardBody}>
-          <View style={styles.cardRow}>
-            <Text style={styles.cardLabel}>Module:</Text>
-            <View style={styles.moduleBadge}>
-              <Text style={styles.moduleBadgeText}>
-                {item.module_source.toUpperCase()}
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+              <Text style={styles.recipientName} numberOfLines={1}>
+                {displayName}
               </Text>
+              <Text style={styles.timeText}>{shortTime}</Text>
             </View>
-          </View>
 
-          <View style={styles.cardRow}>
-            <Text style={styles.cardLabel}>Status:</Text>
-            {renderStatusBadge(item.status)}
-          </View>
+            <Text style={styles.subjectText} numberOfLines={1}>
+              {item.subject || 'No Subject'}
+            </Text>
 
-          <View style={styles.cardRow}>
-            <Text style={styles.cardLabel}>Sent Date:</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <MaterialCommunityIcons name="calendar-blank-outline" size={14} color={colors.textSecondary} />
-              <Text style={styles.dateText}>{displayDate}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={[
+                  styles.channelBadge,
+                  channel === 'email' ? { backgroundColor: '#E0F2FE' } :
+                  channel === 'whatsapp' ? { backgroundColor: '#DCFCE7' } : { backgroundColor: '#F3E8FF' }
+                ]}>
+                  <Text style={[
+                    styles.channelBadgeText,
+                    channel === 'email' ? { color: '#0369A1' } :
+                    channel === 'whatsapp' ? { color: '#15803D' } : { color: '#6B21A8' }
+                  ]}>
+                    {channel.toUpperCase()}
+                  </Text>
+                </View>
+                {renderStatusBadge(item.status)}
+              </View>
+
+              <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textMuted} />
             </View>
           </View>
         </View>
@@ -368,10 +430,10 @@ export default function InboxScreen() {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.channelsPillsContainer} style={{ marginTop: 4 }}>
             {[
-              { key: 'all', label: `All (${channelCounts.all})` },
-              { key: 'email', label: `Email (${channelCounts.email})` },
-              { key: 'sms', label: `SMS (${channelCounts.sms})` },
-              { key: 'whatsapp', label: `WhatsApp (${channelCounts.whatsapp})` }
+              { key: 'all', label: 'All' },
+              { key: 'email', label: 'Email' },
+              { key: 'sms', label: 'SMS' },
+              { key: 'whatsapp', label: 'WhatsApp' }
             ].map((pill) => {
               const isActive = channelFilter === pill.key;
               return (
@@ -395,16 +457,7 @@ export default function InboxScreen() {
           </ScrollView>
         </View>
 
-        {/* Total Sent Stats Summary Info */}
-        <View style={styles.statsSummaryRow}>
-          <Text style={styles.statsSummaryText}>
-            Showing {filteredEmails.length} of {emails.length} communications
-          </Text>
-          <View style={styles.totalSentBadge}>
-            <Text style={styles.totalSentBadgeLabel}>TOTAL SENT</Text>
-            <Text style={styles.totalSentBadgeValue}>{emails.length}</Text>
-          </View>
-        </View>
+
 
         {/* Content Section (Loading / Empty / Table / Cards) */}
         {isLoading ? (
@@ -421,12 +474,12 @@ export default function InboxScreen() {
           /* Desktop / Tablet Grid Table View */
           <View style={styles.tableCard}>
             {renderTableHeader()}
-            {filteredEmails.map((item) => renderTableRow(item))}
+            {groupedConversations.map((group) => renderTableRow(group.latestItem))}
           </View>
         ) : (
           /* Mobile Card View */
           <View style={styles.cardsList}>
-            {filteredEmails.map((item) => renderCardItem(item))}
+            {groupedConversations.map((group) => renderCardItem(group.latestItem))}
           </View>
         )}
       </ScrollView>
@@ -466,70 +519,7 @@ export default function InboxScreen() {
         />
       )}
 
-      {/* Email Preview Modal Dialog */}
-      <Modal
-        visible={!!selectedEmail}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelectedEmail(null)}
-      >
-        <Pressable style={styles.modalBackdrop} onPress={() => setSelectedEmail(null)}>
-          <Pressable style={styles.detailModalContainer} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.detailModalHeader}>
-              <Text style={styles.detailModalTitle}>Email Preview</Text>
-              <Pressable style={styles.closeButton} onPress={() => setSelectedEmail(null)}>
-                <MaterialCommunityIcons name="close" size={22} color={colors.textPrimary} />
-              </Pressable>
-            </View>
 
-            {selectedEmail && (
-              <ScrollView contentContainerStyle={styles.detailModalBody} showsVerticalScrollIndicator={false}>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Recipient</Text>
-                  <Text style={styles.detailValue}>{selectedEmail.recipient_email}</Text>
-                </View>
-
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Subject</Text>
-                  <Text style={styles.detailValueBold}>{selectedEmail.subject}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <View style={[styles.detailItem, { flex: 1 }]}>
-                    <Text style={styles.detailLabel}>Module Source</Text>
-                    <View style={styles.moduleBadge}>
-                      <Text style={styles.moduleBadgeText}>
-                        {selectedEmail.module_source.toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={[styles.detailItem, { flex: 1 }]}>
-                    <Text style={styles.detailLabel}>Status</Text>
-                    <View style={{ alignItems: 'flex-start' }}>
-                      {renderStatusBadge(selectedEmail.status)}
-                    </View>
-                  </View>
-                </View>
-
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Sent Date</Text>
-                  <Text style={styles.detailValue}>{formatDate(selectedEmail.created_at)}</Text>
-                </View>
-
-                <View style={styles.detailDivider} />
-
-                <Text style={styles.detailLabel}>Email Content Body</Text>
-                <View style={styles.messageContentBox}>
-                  <Text style={styles.messageContentText}>
-                    {selectedEmail.content_preview}
-                  </Text>
-                </View>
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
     </LinearGradient>
   );
 }
@@ -554,6 +544,20 @@ function getStyles(colors: any, width: number, theme: string) {
       fontWeight: '600',
       color: colors.textSecondary,
     },
+    recipientName: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
+    subjectText: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+    timeText: { fontSize: 11, color: colors.textMuted, fontWeight: '500' },
+    channelBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+    channelBadgeText: { fontSize: 10, fontWeight: '800' },
+    detailModalSub: { fontSize: 11, color: colors.textSecondary, marginTop: 2, fontWeight: '600' },
+    viewProfileBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#0B2D3E', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+    viewProfileBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+    webSubjectBanner: { backgroundColor: '#0B2341', padding: 14, borderRadius: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+    webSubjectText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', flex: 1, paddingRight: 10 },
+    webSubjectTime: { color: '#94A3B8', fontSize: 11, fontWeight: '600' },
+    metaInfoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingHorizontal: 2 },
+    metaInfoText: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
+    webViewWrapper: { height: 420, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: '#FFFFFF' },
     totalSentBadge: {
       flexDirection: 'row',
       alignItems: 'center',

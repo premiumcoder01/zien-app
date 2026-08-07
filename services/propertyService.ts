@@ -112,6 +112,98 @@ export const formatPropertyPrice = (data: any, fallback: string = '$0'): string 
 };
 
 /**
+ * Safely extracts all valid image URLs from a property item or property data object.
+ */
+export const getAllPropertyImages = (property: RawPropertyItem | null | any): string[] => {
+  if (!property) return [];
+  const d = property.data || property;
+  const urls: string[] = [];
+
+  const addItems = (field: any) => {
+    if (!field) return;
+    let items = field;
+    if (typeof field === 'string') {
+      try {
+        const parsed = JSON.parse(field);
+        if (Array.isArray(parsed)) items = parsed;
+        else if (typeof parsed === 'string') items = [parsed];
+      } catch (_) {
+        if (field.startsWith('http://') || field.startsWith('https://')) {
+          urls.push(field);
+          return;
+        }
+      }
+    }
+    if (Array.isArray(items)) {
+      items.forEach((item: any) => {
+        if (typeof item === 'string' && (item.startsWith('http://') || item.startsWith('https://'))) {
+          urls.push(item);
+        } else if (item && typeof item === 'object') {
+          const u = item.MediaURL || item.MediaUrl || item.url || item.URL || item.uri;
+          if (typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://'))) {
+            urls.push(u);
+          }
+        }
+      });
+    }
+  };
+
+  // 1. user_images / userImages
+  addItems(d.user_images || d.userImages);
+  // 2. images / Images
+  addItems(d.images || d.Images || property.images || property.Images);
+  // 3. Media / media
+  addItems(d.Media || d.media);
+
+  return Array.from(new Set(urls)).filter(Boolean);
+};
+
+/**
+ * Safely extracts bedrooms count from property data.
+ */
+export const extractPropertyBeds = (data: any, fallback: string = '-'): string => {
+  if (!data) return fallback;
+  const val = data.BedroomsTotal ?? data.bedrooms ?? data.beds ?? data.Beds ?? data.Bedrooms;
+  if (val !== undefined && val !== null && val !== '') {
+    return String(val);
+  }
+  return fallback;
+};
+
+/**
+ * Safely extracts bathrooms count from property data.
+ */
+export const extractPropertyBaths = (data: any, fallback: string = '-'): string => {
+  if (!data) return fallback;
+  const val = data.BathroomsFull ?? data.BathroomsTotalInteger ?? data.bathrooms ?? data.bathsFull ?? data.baths ?? data.Baths ?? data.Bathrooms;
+  if (val !== undefined && val !== null && val !== '') {
+    return String(val);
+  }
+  return fallback;
+};
+
+/**
+ * Safely extracts and formats living area / square feet from property data.
+ */
+export const extractPropertySqft = (data: any, fallback: string = '-'): string => {
+  if (!data) return fallback;
+  const val = data.LivingArea ?? data.BuildingAreaTotal ?? data.SquareFeet ?? data.sqft ?? data.Sqft;
+  if (val !== undefined && val !== null && val !== '') {
+    if (typeof val === 'number' && !isNaN(val) && val > 0) {
+      return val.toLocaleString();
+    }
+    if (typeof val === 'string') {
+      const cleaned = val.replace(/[^0-9.]/g, '');
+      const parsed = parseFloat(cleaned);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed.toLocaleString();
+      }
+    }
+  }
+  return fallback;
+};
+
+/**
  * Formats relative timestamp for last property sync (e.g. "Just now", "5 min ago", "2 hrs ago", "3 days ago").
  */
 export const formatLastSync = (item: any): string => {

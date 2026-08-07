@@ -30,7 +30,6 @@ const HUB_TOOLS = [
   { id: 'Library', label: 'Content Library', icon: 'image-outline' as const, route: '/(main)/social-hub/content-library' },
   { id: 'Scheduler', label: 'Scheduler', icon: 'calendar-blank-outline' as const, route: '/(main)/social-hub/scheduler' },
   { id: 'History', label: 'Post History', icon: 'history' as const, route: '/(main)/social-hub/post-history' },
-  { id: 'Templates', label: 'Templates', icon: 'content-copy' as const, route: '/(main)/social-hub/templates' },
   { id: 'Analytics', label: 'Analytics', icon: 'chart-bar' as const, route: '/(main)/social-hub/analytics' },
   { id: 'Automation', label: 'Automations Rules', icon: 'lightning-bolt-outline' as const, route: '/(main)/social-hub/automation-rules' },
   { id: 'Accounts', label: 'Account Settings', icon: 'cog-outline' as const, route: '/(main)/social-hub/accounts' },

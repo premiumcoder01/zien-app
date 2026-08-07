@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { deleteOpenHouse, getOpenHouses, OpenHouseEvent } from '@/services/openHouseService';
+import { getAllPropertyImages } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -148,7 +149,7 @@ export default function OpenHouseScreen() {
     address: event.property?.address || 'Unnamed Property',
     date: event.date || 'No Date',
     time: `${event.start_time} - ${event.end_time}`,
-    image: event.gallery_images?.[0] || 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800',
+    image: event.gallery_images?.[0] || getAllPropertyImages(event.property)[0] || 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800',
     visitors: event.visitors_count || 0,
     hotLeads: event.hot_leads_count || 0,
     isLive: event.status === 'live',

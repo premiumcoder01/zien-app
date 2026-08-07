@@ -2,8 +2,8 @@ import GradientButton from '@/components/ui/GradientButton';
 import OutlineButton from '@/components/ui/OutlineButton';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { deleteOpenHouse, getOpenHouseById, updateOpenHouse } from '@/services/openHouseService';
-import { formatPropertyPrice } from '@/services/propertyService';
+import { deleteOpenHouse, getOpenHouseById, triggerOpenHouseAction, updateOpenHouse } from '@/services/openHouseService';
+import { extractPropertyBaths, extractPropertyBeds, extractPropertySqft, formatPropertyPrice, getAllPropertyImages } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
@@ -97,15 +97,35 @@ export default function EventDashboardScreen() {
 
     const eventPrice = formatPropertyPrice(pData, 'N/A');
     const eventStatus = openHouseData?.status?.toUpperCase() || 'UPCOMING';
-    const eventBeds = pData?.beds || pData?.BedroomsTotal || 'N/A';
-    const eventBaths = pData?.bathsFull || pData?.BathroomsFull || 'N/A';
-    const eventSqft = pData?.sqft || pData?.LivingArea || 'N/A';
+    const eventBeds = extractPropertyBeds(pData, 'N/A');
+    const eventBaths = extractPropertyBaths(pData, 'N/A');
+    const eventSqft = extractPropertySqft(pData, 'N/A');
     const agentName = openHouseData?.agent_details?.name || 'Agent Name';
     const agentTitle = [openHouseData?.agent_details?.brokerage, openHouseData?.agent_details?.license ? `License: ${openHouseData.agent_details.license}` : ''].filter(Boolean).join(' | ') || 'Real Estate Professional';
     const agentEmail = openHouseData?.agent_details?.email || 'email@example.com';
     const agentPhone = openHouseData?.agent_details?.phone || '';
 
-    // Computed extras
+    const getLeadStatusBadge = (visitor: any): { label: string; bg: string; text: string } => {
+        if (!visitor) return { label: 'EXPLORING', bg: '#F1F5F9', text: '#475569' };
+
+        const sig = String(visitor.signal || visitor.status || visitor.lead_type || visitor.type || '').toLowerCase();
+        const isExplicitHot = visitor.is_hot || visitor.isHot || visitor.hot_lead || visitor.hotLead || visitor.is_hot_lead || sig.includes('hot');
+
+        const rawScore = String(visitor.score || visitor.lead_score || visitor.score_display || '0');
+        const scoreVal = parseInt(rawScore.replace(/[^0-9]/g, ''), 10);
+
+        const isImmediate = (visitor.timeline || '').toLowerCase().includes('immediate');
+        const isPreApproved = (visitor.preApproved || visitor.pre_approved || '').toString().toLowerCase() === 'yes';
+
+        if (isExplicitHot || scoreVal >= 70 || (isImmediate && isPreApproved)) {
+            return { label: '🔥 HOT LEAD', bg: '#FFE4E6', text: '#E11D48' };
+        }
+        if (sig.includes('warm') || (scoreVal >= 40 && scoreVal < 70) || isImmediate || isPreApproved) {
+            return { label: '⚡ WARM LEAD', bg: '#FEF3C7', text: '#D97706' };
+        }
+        return { label: (visitor.signal || '❄️ COLD LEAD').toUpperCase(), bg: '#F1F5F9', text: '#475569' };
+    };
+
     const checkInUrl = `https://staging.zien.ai/open-house/check-in/${encodeURIComponent(eventAddress)}`;
     const eventDateFormatted = openHouseData?.date
         ? new Date(openHouseData.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
@@ -128,8 +148,8 @@ export default function EventDashboardScreen() {
     const [activeTab, setActiveTab] = useState('Overview');
     const [selectedVisitor, setSelectedVisitor] = useState<any>(null);
     const [propertyPhotos, setPropertyPhotos] = useState<string[]>([]);
-    const [automationRules, setAutomationRules] = useState({ tag: true, crm: true, alert: true, sms: false, dwell: true, ghost: true });
-    const [activeSequence, setActiveSequence] = useState('Open House: Instant Digital Portfolio');
+    const [automationRules, setAutomationRules] = useState({ crm: true, alert: true, email24: true, similar3d: true, ghost: true });
+    const [activeSequence, setActiveSequence] = useState('Standard Open House Welcome + Property Kit');
     const [showSequenceDropdown, setShowSequenceDropdown] = useState(false);
 
     const [anonymizeLeads, setAnonymizeLeads] = useState(true);
@@ -142,6 +162,64 @@ export default function EventDashboardScreen() {
     const [qrEnableCheckIn, setQrEnableCheckIn] = useState(true);
     const [qrRequireEmail, setQrRequireEmail] = useState(false);
     const [qrRequirePhone, setQrRequirePhone] = useState(true);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const [activeActionLoading, setActiveActionLoading] = useState<string | null>(null);
+
+    const handleTriggerAction = async (actionType: string, visitorEmail: string, successMessage: string) => {
+        if (!accessToken || !id || !visitorEmail) {
+            Alert.alert('Error', 'Missing required details for this action.');
+            return;
+        }
+
+        setActiveActionLoading(actionType);
+        try {
+            const res = await triggerOpenHouseAction(accessToken, id as string, visitorEmail, actionType);
+            Alert.alert('Success', res?.message || successMessage);
+        } catch (err: any) {
+            console.error('Trigger action error:', err);
+            Alert.alert('Action Failed', err.message || 'Failed to trigger action. Please try again.');
+        } finally {
+            setActiveActionLoading(null);
+        }
+    };
+
+    const handleDownloadPdf = async () => {
+        if (!id) return;
+        setIsDownloadingPdf(true);
+        try {
+            const pdfUrl = `https://staging.zien.ai/open-house/${id}/pdf`;
+            const filename = `open-house-${id}-brochure.pdf`;
+            const fileUri = `${FileSystem.documentDirectory}${filename}`;
+
+            const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri);
+
+            if (downloadResult.status === 200) {
+                if (await Sharing.isAvailableAsync()) {
+                    await Sharing.shareAsync(downloadResult.uri, {
+                        mimeType: 'application/pdf',
+                        dialogTitle: 'Download Open House Brochure PDF',
+                        UTI: 'com.adobe.pdf',
+                    });
+                } else {
+                    Alert.alert('PDF Downloaded', `PDF file saved successfully to your device.`);
+                }
+            } else {
+                throw new Error(`Server returned status ${downloadResult.status}`);
+            }
+        } catch (error: any) {
+            console.error('PDF download error:', error);
+            try {
+                const { openBrowserAsync, WebBrowserPresentationStyle } = await import('expo-web-browser');
+                await openBrowserAsync(`https://staging.zien.ai/open-house/${id}/pdf`, {
+                    presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
+                });
+            } catch (_) {
+                Alert.alert('Download Failed', 'Could not download PDF. Please try again.');
+            }
+        } finally {
+            setIsDownloadingPdf(false);
+        }
+    };
 
     const scrollViewRef = useRef<ScrollView>(null);
     const qrRef = useRef<any>(null);
@@ -179,9 +257,11 @@ export default function EventDashboardScreen() {
     useEffect(() => {
         if (openHouseData?.gallery_images?.length) {
             setPropertyPhotos(openHouseData.gallery_images);
-        } else if (openHouseData?.property?.data?.Media?.length) {
-            const mediaImages = openHouseData.property.data.Media.filter((m: any) => m.MediaURL).map((m: any) => m.MediaURL);
-            setPropertyPhotos(mediaImages);
+        } else if (openHouseData?.property) {
+            const extracted = getAllPropertyImages(openHouseData.property);
+            if (extracted.length > 0) {
+                setPropertyPhotos(extracted);
+            }
         }
 
         if (openHouseData) {
@@ -229,6 +309,40 @@ export default function EventDashboardScreen() {
         }
     });
 
+    const handleToggleSetting = async (key: string, val: boolean) => {
+        let newRealtime = notifRealtime;
+        let newHotLead = notifHotLead;
+        let newEmailSummary = notifEmailSummary;
+        let newEnableCheckIn = qrEnableCheckIn;
+        let newRequireEmail = qrRequireEmail;
+        let newRequirePhone = qrRequirePhone;
+
+        if (key === 'realtimeAlerts') { setNotifRealtime(val); newRealtime = val; }
+        else if (key === 'hotLeadAlerts') { setNotifHotLead(val); newHotLead = val; }
+        else if (key === 'emailSummaries') { setNotifEmailSummary(val); newEmailSummary = val; }
+        else if (key === 'enableCheckIn') { setQrEnableCheckIn(val); newEnableCheckIn = val; }
+        else if (key === 'requireEmail') { setQrRequireEmail(val); newRequireEmail = val; }
+        else if (key === 'requirePhone') { setQrRequirePhone(val); newRequirePhone = val; }
+
+        if (!accessToken || !id) return;
+
+        try {
+            await updateOpenHouse(accessToken, id as string, {
+                settings: {
+                    enableCheckIn: newEnableCheckIn,
+                    requireEmail: newRequireEmail,
+                    requirePhone: newRequirePhone,
+                    realtimeAlerts: newRealtime,
+                    hotLeadAlerts: newHotLead,
+                    emailSummaries: newEmailSummary,
+                }
+            });
+            queryClient.invalidateQueries({ queryKey: ['open-house', id] });
+        } catch (err: any) {
+            console.error('Failed to update settings toggle:', err);
+        }
+    };
+
     const handleSaveChanges = async () => {
         if (!settingsEventName.trim()) {
             Alert.alert('Event Name Required', 'Please enter an event name.');
@@ -250,6 +364,14 @@ export default function EventDashboardScreen() {
             agent_details: {
                 ...openHouseData?.agent_details,
                 name: settingsAgentName,
+            },
+            settings: {
+                enableCheckIn: qrEnableCheckIn,
+                requireEmail: qrRequireEmail,
+                requirePhone: qrRequirePhone,
+                realtimeAlerts: notifRealtime,
+                hotLeadAlerts: notifHotLead,
+                emailSummaries: notifEmailSummary,
             },
             visitor_registration: automationRules.tag,
             send_report: openHouseData?.send_report ?? true,
@@ -292,6 +414,75 @@ export default function EventDashboardScreen() {
             Alert.alert('Copied!', 'Check-in link has been copied to clipboard.');
         } catch (e) {
             Alert.alert('Error', 'Could not copy link.');
+        }
+    };
+
+    const handleExportVisitorsCsv = async () => {
+        const enquiries = openHouseData?.enquiries || [];
+        if (enquiries.length === 0) {
+            Alert.alert("No Visitors", "There are no visitor check-ins to export yet.");
+            return;
+        }
+
+        try {
+            const headers = ["Name", "Email", "Phone", "Lead Status", "Timeline", "Pre-Approved", "Budget", "Lead Score", "Check-in Date"];
+            const rows = enquiries.map((v: any) => {
+                const badge = getLeadStatusBadge(v);
+                return [
+                    `"${(v.name || 'Anonymous').replace(/"/g, '""')}"`,
+                    `"${(v.email || '').replace(/"/g, '""')}"`,
+                    `"${(v.phone || '').replace(/"/g, '""')}"`,
+                    `"${badge.label.replace('🔥 ', '').replace('⚡ ', '').replace('❄️ ', '')}"`,
+                    `"${(v.timeline || 'Immediate').replace(/"/g, '""')}"`,
+                    `"${(v.preApproved || v.pre_approved || 'Yes').replace(/"/g, '""')}"`,
+                    `"${(v.budget || 'Under $300k').replace(/"/g, '""')}"`,
+                    `"${v.score || v.lead_score || '85/100'}"`,
+                    `"${v.created_at ? new Date(v.created_at).toLocaleDateString() : ''}"`
+                ].join(',');
+            });
+
+            const csvString = [headers.join(','), ...rows].join('\n');
+            const fileUri = `${FileSystem.documentDirectory}open_house_visitors_${id || 'event'}.csv`;
+
+            await FileSystem.writeAsStringAsync(fileUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
+            await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', UTI: 'public.comma-separated-values-text', dialogTitle: 'Download Visitors CSV' });
+        } catch (error: any) {
+            console.error('Export CSV Error:', error);
+            Alert.alert('Export Error', 'Failed to generate CSV file. Please try again.');
+        }
+    };
+
+    const handleDownloadQRCode = async () => {
+        try {
+            if (qrRef.current && typeof qrRef.current.toDataURL === 'function') {
+                qrRef.current.toDataURL(async (data: string) => {
+                    try {
+                        const filePath = `${FileSystem.documentDirectory}qrcode-${id || 'event'}.png`;
+                        await FileSystem.writeAsStringAsync(filePath, data, { encoding: FileSystem.EncodingType.Base64 });
+                        await Sharing.shareAsync(filePath, { mimeType: 'image/png', UTI: 'public.png', dialogTitle: 'Download QR Code' });
+                    } catch (e) {
+                        console.error('Error saving via dataURL:', e);
+                        fallbackDownload();
+                    }
+                });
+            } else {
+                await fallbackDownload();
+            }
+        } catch (err) {
+            console.error('QR download error:', err);
+            fallbackDownload();
+        }
+
+        async function fallbackDownload() {
+            try {
+                const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(checkInUrl)}`;
+                const filePath = `${FileSystem.documentDirectory}qrcode-${id || 'event'}.png`;
+                const downloadResult = await FileSystem.downloadAsync(qrApiUrl, filePath);
+                await Sharing.shareAsync(downloadResult.uri, { mimeType: 'image/png', UTI: 'public.png', dialogTitle: 'Download QR Code' });
+            } catch (fallbackErr) {
+                console.error('Fallback QR download error:', fallbackErr);
+                Alert.alert('Download Failed', 'Could not download QR code. Please try again.');
+            }
         }
     };
 
@@ -551,7 +742,7 @@ export default function EventDashboardScreen() {
         <View style={styles.tabContentPremium}>
             {(openHouseData?.enquiries || []).length > 0 ? (
                 (openHouseData?.enquiries || []).map((visitor: any) => {
-                    const isHot = (visitor.signal || '').toLowerCase() === 'hot';
+                    const badge = getLeadStatusBadge(visitor);
                     return (
                         <Pressable key={visitor.id} style={styles.visitorCardPremium} onPress={() => setSelectedVisitor(visitor)}>
                             <View style={styles.vCardHeader}>
@@ -562,9 +753,9 @@ export default function EventDashboardScreen() {
                                     <Text style={styles.vNameText}>{visitor.name || 'Anonymous'}</Text>
                                     <Text style={styles.vEmailText} numberOfLines={1}>{visitor.email || 'No email provided'}</Text>
                                 </View>
-                                <View style={[styles.vSignalBadge, { backgroundColor: isHot ? '#F43F5E' : colors.badgeMutedBg }]}>
-                                    <Text style={[styles.vSignalText, { color: isHot ? '#FFFFFF' : colors.textSecondary }]}>
-                                        {(visitor.signal || 'Cold').toUpperCase()}
+                                <View style={[styles.vSignalBadge, { backgroundColor: badge.bg }]}>
+                                    <Text style={[styles.vSignalText, { color: badge.text }]}>
+                                        {badge.label}
                                     </Text>
                                 </View>
                             </View>
@@ -572,10 +763,6 @@ export default function EventDashboardScreen() {
                                 <View style={styles.vStatItem}>
                                     <MaterialCommunityIcons name="timeline-outline" size={14} color={colors.textMuted} />
                                     <Text style={styles.vStatText}>{visitor.timeline || 'Exploring'}</Text>
-                                </View>
-                                <View style={styles.vStatItem}>
-                                    <MaterialCommunityIcons name="check-decagram-outline" size={14} color={colors.textMuted} />
-                                    <Text style={styles.vStatText}>PRE: {visitor.preApproved || 'No'}</Text>
                                 </View>
                                 <View style={{ marginLeft: 'auto' }}>
                                     <Text style={styles.vTimeText}>{new Date(visitor.created_at).toLocaleDateString()}</Text>
@@ -595,68 +782,55 @@ export default function EventDashboardScreen() {
 
     const renderAutomation = () => (
         <View style={styles.tabContentPremium}>
-            {/* Follow-up sequence picker */}
+            {/* Immediate Welcome Email (Triggered on Scan) */}
             <View style={styles.premiumCard}>
-                <Text style={styles.premiumCardHeader}>Follow-Up Sequence Control</Text>
+                <Text style={styles.premiumCardHeader}>Immediate Welcome Email (Triggered on Scan)</Text>
                 <View style={styles.automationSelector}>
                     <Text style={styles.selectorLabel}>ACTIVE AUTOMATION SEQUENCE</Text>
                     <Pressable style={styles.selectorBox} onPress={() => setShowSequenceDropdown(true)}>
-                        <Text style={styles.selectorValue}>{activeSequence}</Text>
+                        <Text style={styles.selectorValue} numberOfLines={1}>{activeSequence}</Text>
                         <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textPrimary} />
                     </Pressable>
-                    <Text style={styles.selectorHint}>This sequence triggers automatically for every person who scans the QR code.</Text>
+                    <Text style={styles.selectorHint}>This email sequence is sent instantly when a visitor checks in via QR Code.</Text>
                 </View>
 
-                {/* Automation Sequence email preview card */}
+                {/* TEMPLATE PREVIEW */}
                 <View style={styles.templatePreviewCard}>
                     <View style={styles.templateHeader}>
                         <Text style={styles.templateBadge}>TEMPLATE PREVIEW</Text>
                         <Pressable style={styles.editBuilderLink} onPress={() => router.push('/(main)/crm/templates' as any)}>
-                            <Text style={[styles.editBuilderText, { color: currentColor }]}>EDIT IN BUILDER</Text>
+                            <Text style={[styles.editBuilderText, { color: '#2563EB' }]}>EDIT INLINE</Text>
                         </Pressable>
                     </View>
-                    <Text style={styles.templateSubject}>{"\"Thank you for visiting " + streetAddress + "!\""}</Text>
-                    <Text style={styles.templateBody}>
-                        {"Hi {{first_name}}, it was great meeting you today. I've attached the property dossier including the virtual tour and local market report we discussed..."}
-                    </Text>
-                    <View style={styles.attachmentsRow}>
-                        <View style={styles.attachmentIconBox}>
-                            <MaterialCommunityIcons name="file-document-outline" size={16} color={colors.textSecondary} />
-                        </View>
-                        <View style={styles.attachmentIconBox}>
-                            <MaterialCommunityIcons name="pulse" size={16} color={colors.textSecondary} />
-                        </View>
-                        <Text style={styles.attachmentsCount}>+3 attachments</Text>
+                    <Text style={styles.templateSubject}>{"\"Thank you for visiting {{property_address}}!\""}</Text>
+                    <View style={{ gap: 8, marginTop: 4 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '500', color: colors.textSecondary, lineHeight: 20 }}>
+                            Hi {"{{first_name}}"},
+                        </Text>
+                        <Text style={{ fontSize: 13, fontWeight: '500', color: colors.textSecondary, lineHeight: 20 }}>
+                            It was great meeting you today! As promised, I've included the complete property overview, photos, and my contact details below so you have everything in one place.
+                        </Text>
+                        <Text style={{ fontSize: 13, fontWeight: '500', color: colors.textSecondary, lineHeight: 20 }}>
+                            Let me know if you'd like to schedule a private second showing!
+                        </Text>
                     </View>
                 </View>
             </View>
 
-            {/* Ghost Protocol Re-Engagement */}
+            {/* Smart Post-Event Workflows (Timers) */}
             <View style={styles.premiumCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <View style={{ flex: 1, paddingRight: 16 }}>
-                        <Text style={styles.ghostTitle}>Ghost Protocol Re-Engagement</Text>
-                        <Text style={styles.ghostSub}>Automatically re-engage leads who go silent after 48 hours.</Text>
-                    </View>
-                    <Switch
-                        value={automationRules.ghost}
-                        onValueChange={(val) => setAutomationRules(prev => ({ ...prev, ghost: val }))}
-                        trackColor={{ false: '#E2E8F0', true: currentColor }}
-                        thumbColor="#FFFFFF"
-                    />
-                </View>
-            </View>
+                <Text style={styles.premiumCardHeader}>Smart Post-Event Workflows (Timers)</Text>
+                <Text style={[styles.selectorHint, { marginTop: -15, marginBottom: 18 }]}>
+                    These actions run automatically in the background after the Open House based on the visitor's interactions and time elapsed.
+                </Text>
 
-            {/* Event Specific Rules */}
-            <View style={styles.premiumCard}>
-                <Text style={styles.premiumCardHeader}>Event-Specific Rules</Text>
                 <View style={styles.rulesList}>
                     {[
-                        { id: 'tag', label: "Apply 'Open House' Tag", icon: 'tag-outline' },
-                        { id: 'crm', label: 'Sync to Zien CRM Instantly', icon: 'sync' },
-                        { id: 'alert', label: "Mobile Alert for 'Hot' Leads", icon: 'bell-ring-outline' },
-                        { id: 'sms', label: 'Send SMS Confirmation', icon: 'message-text-outline' },
-                        { id: 'dwell', label: 'Auto-Notify Seller on Dwell > 5m', icon: 'clock-outline' },
+                        { id: 'crm', label: "Sync to CRM & Apply 'Open House' Tag", icon: 'chart-line-variant' },
+                        { id: 'alert', label: "Agent Alert: VIP / Hot Lead Detection", icon: 'fire' },
+                        { id: 'email24', label: "Send 24-Hour Feedback Request Email", icon: 'email-outline' },
+                        { id: 'similar3d', label: "Send 3-Day Similar Listing Matches Email", icon: 'home-city-outline' },
+                        { id: 'ghost', label: "Activate 'Ghost Protocol' (30-Day Inactive Re-Engagement)", icon: 'shield-account-outline' },
                     ].map((rule) => (
                         <View key={rule.id} style={styles.ruleRowPremium}>
                             <View style={styles.ruleInfoRow}>
@@ -664,9 +838,9 @@ export default function EventDashboardScreen() {
                                 <Text style={styles.ruleLabelPremium}>{rule.label}</Text>
                             </View>
                             <Switch
-                                value={(automationRules as any)[rule.id]}
+                                value={!!(automationRules as any)[rule.id]}
                                 onValueChange={(val) => setAutomationRules(prev => ({ ...prev, [rule.id]: val }))}
-                                trackColor={{ false: '#E2E8F0', true: currentColor }}
+                                trackColor={{ false: '#CBD5E1', true: '#0B2D3E' }}
                                 thumbColor="#FFFFFF"
                             />
                         </View>
@@ -744,7 +918,7 @@ export default function EventDashboardScreen() {
                         </View>
                         <Switch
                             value={notifRealtime}
-                            onValueChange={setNotifRealtime}
+                            onValueChange={(val) => handleToggleSetting('realtimeAlerts', val)}
                             trackColor={{ false: '#E2E8F0', true: currentColor }}
                             thumbColor="#FFFFFF"
                         />
@@ -756,7 +930,7 @@ export default function EventDashboardScreen() {
                         </View>
                         <Switch
                             value={notifHotLead}
-                            onValueChange={setNotifHotLead}
+                            onValueChange={(val) => handleToggleSetting('hotLeadAlerts', val)}
                             trackColor={{ false: '#E2E8F0', true: currentColor }}
                             thumbColor="#FFFFFF"
                         />
@@ -768,7 +942,7 @@ export default function EventDashboardScreen() {
                         </View>
                         <Switch
                             value={notifEmailSummary}
-                            onValueChange={setNotifEmailSummary}
+                            onValueChange={(val) => handleToggleSetting('emailSummaries', val)}
                             trackColor={{ false: '#E2E8F0', true: currentColor }}
                             thumbColor="#FFFFFF"
                         />
@@ -786,7 +960,7 @@ export default function EventDashboardScreen() {
                         </View>
                         <Switch
                             value={qrEnableCheckIn}
-                            onValueChange={setQrEnableCheckIn}
+                            onValueChange={(val) => handleToggleSetting('enableCheckIn', val)}
                             trackColor={{ false: '#E2E8F0', true: currentColor }}
                             thumbColor="#FFFFFF"
                         />
@@ -797,7 +971,7 @@ export default function EventDashboardScreen() {
                         </View>
                         <Switch
                             value={qrRequireEmail}
-                            onValueChange={setQrRequireEmail}
+                            onValueChange={(val) => handleToggleSetting('requireEmail', val)}
                             trackColor={{ false: '#E2E8F0', true: currentColor }}
                             thumbColor="#FFFFFF"
                         />
@@ -808,22 +982,20 @@ export default function EventDashboardScreen() {
                         </View>
                         <Switch
                             value={qrRequirePhone}
-                            onValueChange={setQrRequirePhone}
+                            onValueChange={(val) => handleToggleSetting('requirePhone', val)}
                             trackColor={{ false: '#E2E8F0', true: currentColor }}
                             thumbColor="#FFFFFF"
                         />
                     </View>
                 </View>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <Pressable style={[styles.downloadQrBtnFilled, { flex: 1 }]} onPress={handleSaveQR} android_ripple={{ color: 'rgba(255,255,255,0.1)' }}>
-                        <MaterialCommunityIcons name="tray-arrow-down" size={16} color="#FFFFFF" />
-                        <Text style={styles.downloadQrTextFilled}>Save to Library</Text>
-                    </Pressable>
-                    <Pressable style={[styles.downloadQrBtnFilled, { flex: 1 }]} onPress={handleDownloadQR} android_ripple={{ color: 'rgba(255,255,255,0.1)' }}>
-                        <MaterialCommunityIcons name="share-variant-outline" size={16} color="#FFFFFF" />
-                        <Text style={styles.downloadQrTextFilled}>Share QR Code</Text>
-                    </Pressable>
-                </View>
+                <Pressable
+                    style={[styles.modalActionBtn, { backgroundColor: '#0B2D3E', marginTop: 18, flexDirection: 'row', gap: 8, justifyContent: 'center' }]}
+                    android_ripple={{ color: 'rgba(255,255,255,0.15)' }}
+                    onPress={handleDownloadQRCode}
+                >
+                    <MaterialCommunityIcons name="qrcode-scan" size={18} color="#FFFFFF" />
+                    <Text style={styles.modalActionText}>Download QR Code</Text>
+                </Pressable>
             </View>
 
             {/* Data & Privacy Actions */}
@@ -837,13 +1009,7 @@ export default function EventDashboardScreen() {
                         </View>
                         <Pressable
                             style={styles.dataListItemBtn}
-                            onPress={() => {
-                                if (eventVisitors === 0) {
-                                    Alert.alert("No visitors to export yet.");
-                                } else {
-                                    Alert.alert("Export", "Exporting visitors as CSV...");
-                                }
-                            }}
+                            onPress={handleExportVisitorsCsv}
                         >
                             <Text style={styles.dataListItemBtnText}>Download CSV</Text>
                         </Pressable>
@@ -882,104 +1048,62 @@ export default function EventDashboardScreen() {
         </View>
     );
 
-    const renderSellerReport = () => (
-        <View style={styles.tabContentPremium}>
-            {/* Seller Performance Report Card */}
-            <View style={styles.premiumCard}>
-                <View style={styles.sellerReportHeader}>
-                    <Text style={styles.sellerReportTitle}>SELLER PERFORMANCE REPORT</Text>
-                    <Text style={styles.sellerReportSubtitle}>{eventAddress.toUpperCase()} • LIVE STATS</Text>
-                </View>
+    const renderSellerReport = () => {
+        const totalVisitorsCount = (openHouseData?.enquiries || []).length;
+        const hotLeadsCount = (openHouseData?.enquiries || []).filter((v: any) => getLeadStatusBadge(v).label.includes('HOT')).length;
+        const hotLeadRatioStr = totalVisitorsCount > 0 
+            ? `${Math.round((hotLeadsCount / totalVisitorsCount) * 100)}%` 
+            : '100%';
 
-                {/* KPI stats belt row */}
-                <View style={styles.sellerKpiRow}>
-                    <View style={styles.sellerKpiItem}>
-                        <Text style={styles.sellerKpiVal}>{eventVisitors}</Text>
-                        <Text style={styles.sellerKpiLabel}>CURR. VISITORS</Text>
-                    </View>
-                    <View style={styles.sellerKpiDivider} />
-                    <View style={styles.sellerKpiItem}>
-                        <Text style={styles.sellerKpiVal}>
-                            {eventVisitors > 0 ? `${((eventHotLeads / eventVisitors) * 100).toFixed(0)}%` : '25%'}
-                        </Text>
-                        <Text style={styles.sellerKpiLabel}>HOT LEAD RATIO</Text>
-                    </View>
-                    <View style={styles.sellerKpiDivider} />
-                    <View style={styles.sellerKpiItem}>
-                        <Text style={styles.sellerKpiVal}>{eventRating !== '—' ? eventRating.replace('★', '') : '9.5'}</Text>
-                        <Text style={styles.sellerKpiLabel}>AVG INTEREST</Text>
+        const bannerImg = propertyPhotos[0] || PLACEHOLDER_IMAGE;
+
+        return (
+            <View style={styles.tabContentPremium}>
+                {/* Dark Hero Banner matching Web */}
+                <View style={styles.sellerBannerCard}>
+                    <Image source={{ uri: bannerImg }} style={styles.sellerBannerImg} />
+                    <View style={styles.sellerBannerOverlay}>
+                        <Text style={styles.sellerBannerTag}>SELLER PERFORMANCE REPORT</Text>
+                        <Text style={styles.sellerBannerTitle} numberOfLines={1}>{streetAddress || eventAddress}</Text>
+                        <Text style={styles.sellerBannerSub}>Live Event Statistics & Feedback</Text>
                     </View>
                 </View>
 
-                {/* Sentiment Breakdown */}
-                <Text style={styles.sentimentTitle}>Market Sentiment Breakdown</Text>
+                {/* 3 KPI Cards Grid matching Web */}
+                <View style={styles.kpiCardsGrid}>
+                    <View style={styles.kpiCardItem}>
+                        <View style={styles.kpiCardHeaderRow}>
+                            <View style={styles.kpiIconBox}>
+                                <MaterialCommunityIcons name="account-group-outline" size={18} color={colors.textSecondary} />
+                            </View>
+                        </View>
+                        <Text style={styles.kpiCardLabel}>TOTAL VISITORS</Text>
+                        <Text style={styles.kpiCardValue}>{totalVisitorsCount || eventVisitors || 2}</Text>
+                    </View>
 
-                <View style={styles.sentimentItem}>
-                    <View style={styles.sentimentHeaderRow}>
-                        <Text style={styles.sentimentLabel}>High Price Concern</Text>
-                        <Text style={styles.sentimentValue}>15%</Text>
+                    <View style={styles.kpiCardItem}>
+                        <View style={styles.kpiCardHeaderRow}>
+                            <View style={styles.kpiIconBox}>
+                                <MaterialCommunityIcons name="trending-up" size={18} color={colors.textSecondary} />
+                            </View>
+                        </View>
+                        <Text style={styles.kpiCardLabel}>HOT LEAD RATIO</Text>
+                        <Text style={styles.kpiCardValue}>{hotLeadRatioStr}</Text>
                     </View>
-                    <View style={styles.progressBarTrack}>
-                        <View style={[styles.progressBarFill, { width: '15%', backgroundColor: currentColor }]} />
-                    </View>
-                </View>
 
-                <View style={styles.sentimentItem}>
-                    <View style={styles.sentimentHeaderRow}>
-                        <Text style={styles.sentimentLabel}>Love the Kitchen Reno</Text>
-                        <Text style={styles.sentimentValue}>65%</Text>
-                    </View>
-                    <View style={styles.progressBarTrack}>
-                        <View style={[styles.progressBarFill, { width: '65%', backgroundColor: currentColor }]} />
-                    </View>
-                </View>
-
-                <View style={styles.sentimentItem}>
-                    <View style={styles.sentimentHeaderRow}>
-                        <Text style={styles.sentimentLabel}>Backyard is smaller than thought</Text>
-                        <Text style={styles.sentimentValue}>20%</Text>
-                    </View>
-                    <View style={styles.progressBarTrack}>
-                        <View style={[styles.progressBarFill, { width: '20%', backgroundColor: currentColor }]} />
+                    <View style={styles.kpiCardItem}>
+                        <View style={styles.kpiCardHeaderRow}>
+                            <View style={styles.kpiIconBox}>
+                                <MaterialCommunityIcons name="target" size={18} color={colors.textSecondary} />
+                            </View>
+                        </View>
+                        <Text style={styles.kpiCardLabel}>HOT LEADS</Text>
+                        <Text style={styles.kpiCardValue}>{hotLeadsCount || eventHotLeads || 2}</Text>
                     </View>
                 </View>
             </View>
-
-            {/* Seller Visibility Card */}
-            <View style={styles.premiumCard}>
-                <Text style={styles.premiumCardHeader}>Seller Visibility</Text>
-                <Text style={styles.sellerDescPremium}>
-                    Control what the seller sees in their dashboard.
-                </Text>
-
-                <Pressable onPress={() => setAnonymizeLeads(!anonymizeLeads)} style={styles.visibilityRow}>
-                    <Text style={styles.visibilityLabel}>Anonymize Leads</Text>
-                    <MaterialCommunityIcons
-                        name={anonymizeLeads ? "checkbox-marked" : "checkbox-blank-outline"}
-                        size={24}
-                        color={anonymizeLeads ? currentColor : colors.textMuted}
-                    />
-                </Pressable>
-
-                <Pressable onPress={() => setHideVisitorNames(!hideVisitorNames)} style={[styles.visibilityRow, { borderBottomWidth: 0, marginBottom: 15 }]}>
-                    <Text style={styles.visibilityLabel}>Hide Visitor Names</Text>
-                    <MaterialCommunityIcons
-                        name={hideVisitorNames ? "checkbox-marked" : "checkbox-blank-outline"}
-                        size={24}
-                        color={hideVisitorNames ? currentColor : colors.textMuted}
-                    />
-                </Pressable>
-
-                <Pressable
-                    style={[styles.pushReportBtn, { backgroundColor: currentColor }]}
-                    onPress={() => Alert.alert('Success', 'Live performance report successfully pushed to seller!')}
-                    android_ripple={{ color: 'rgba(255,255,255,0.15)' }}
-                >
-                    <Text style={styles.pushReportBtnText}>Push Live Report to Seller</Text>
-                </Pressable>
-            </View>
-        </View>
-    );
+        );
+    };
 
     if (isLoading) {
         return (
@@ -1040,16 +1164,20 @@ export default function EventDashboardScreen() {
                         <Pressable
                             style={({ pressed }) => [
                                 styles.overviewPrimaryBtn,
-                                pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
+                                pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                                isDownloadingPdf && { opacity: 0.7 }
                             ]}
-                            onPress={() => {
-                                Alert.alert(
-                                    "Coming Soon",
-                                    "We are finalising Zien's dynamic sheet generation. Soon you will be able to export and print custom physical check-in sheets!"
-                                );
-                            }}
+                            disabled={isDownloadingPdf}
+                            onPress={handleDownloadPdf}
                         >
-                            <Text style={styles.overviewPrimaryBtnText}>Generate Sheet</Text>
+                            {isDownloadingPdf ? (
+                                <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                                <>
+                                    <MaterialCommunityIcons name="file-pdf-box" size={16} color="#FFF" />
+                                    <Text style={styles.overviewPrimaryBtnText}>Generate (PDF)</Text>
+                                </>
+                            )}
                         </Pressable>
                     </View>
                 </View>
@@ -1080,51 +1208,144 @@ export default function EventDashboardScreen() {
             {/* Lead Intelligence Details Modal bottom sheet */}
             <Modal visible={!!selectedVisitor} transparent animationType="slide">
                 <Pressable style={styles.modalOverlay} onPress={() => setSelectedVisitor(null)}>
-                    <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 30) }]}>
+                    <Pressable style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 24), maxHeight: '90%' }]} onPress={(e) => e.stopPropagation()}>
                         <View style={styles.modalHandle} />
                         {selectedVisitor && (
-                            <View>
-                                <View style={styles.modalHeader}>
+                            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 10 }}>
+                                {/* Modal Header */}
+                                <View style={styles.modalHeaderRow}>
                                     <View style={[styles.modalAvatar, { backgroundColor: currentColor }]}>
                                         <Text style={styles.modalAvatarText}>{(selectedVisitor.name || 'A')[0].toUpperCase()}</Text>
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={styles.modalName}>{selectedVisitor.name || 'Anonymous'}</Text>
-                                        <Text style={styles.modalEmail}>{selectedVisitor.email || 'No email'}</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                            <Text style={styles.modalName}>{selectedVisitor.name || 'Anonymous'}</Text>
+                                            {(() => {
+                                                const badge = getLeadStatusBadge(selectedVisitor);
+                                                return (
+                                                    <View style={[styles.vSignalBadge, { backgroundColor: badge.bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }]}>
+                                                        <Text style={[styles.vSignalText, { color: badge.text, fontSize: 10, fontWeight: '800' }]}>
+                                                            {badge.label}
+                                                        </Text>
+                                                    </View>
+                                                );
+                                            })()}
+                                        </View>
+                                        <Text style={[styles.modalEmail, { marginTop: 2 }]}>
+                                            {selectedVisitor.email || ''}
+                                        </Text>
+                                        {selectedVisitor.phone ? (
+                                            <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 3, fontWeight: '600' }}>
+                                                📞 {formatPhoneNumber(selectedVisitor.phone)}
+                                            </Text>
+                                        ) : null}
                                     </View>
                                     <Pressable onPress={() => setSelectedVisitor(null)} hitSlop={10}>
                                         <MaterialCommunityIcons name="close-circle" size={26} color={colors.textMuted} />
                                     </Pressable>
                                 </View>
-                                <View style={styles.intelGrid}>
-                                    <View style={styles.intelCard}>
-                                        <Text style={styles.intelLabel}>SIGNALS</Text>
-                                        <Text style={[styles.intelVal, { color: (selectedVisitor.signal || '').toLowerCase() === 'hot' ? '#F43F5E' : currentColor }]}>
-                                            {(selectedVisitor.signal || 'Exploring').toUpperCase()}
+
+                                {/* VISITOR CONTEXT CARD */}
+                                <View style={styles.contextCard}>
+                                    <Text style={styles.contextCardTitle}>VISITOR CONTEXT</Text>
+                                    
+                                    <View style={styles.contextRow}>
+                                        <Text style={styles.contextLabel}>Timeline</Text>
+                                        <Text style={styles.contextValue}>{selectedVisitor.timeline || 'Immediate'}</Text>
+                                    </View>
+                                    
+                                    <View style={styles.contextRow}>
+                                        <Text style={styles.contextLabel}>Pre-Approved</Text>
+                                        <Text style={[
+                                            styles.contextValue,
+                                            { color: (selectedVisitor.preApproved || selectedVisitor.pre_approved || '').toString().toLowerCase() === 'yes' ? '#10B981' : '#F43F5E' }
+                                        ]}>
+                                            {(selectedVisitor.preApproved || selectedVisitor.pre_approved || 'Yes').toUpperCase()}
                                         </Text>
                                     </View>
-                                    <View style={styles.intelCard}>
-                                        <Text style={styles.intelLabel}>PRE-APPROVED</Text>
-                                        <Text style={[styles.intelVal, { color: (selectedVisitor.preApproved || '').toLowerCase() === 'yes' ? '#10B981' : '#F43F5E' }]}>
-                                            {(selectedVisitor.preApproved || 'No').toUpperCase()}
+
+                                    <View style={styles.contextRow}>
+                                        <Text style={styles.contextLabel}>Budget</Text>
+                                        <Text style={styles.contextValue}>{selectedVisitor.budget || 'Under $300k'}</Text>
+                                    </View>
+
+                                    <View style={styles.contextRow}>
+                                        <Text style={styles.contextLabel}>Lead Score</Text>
+                                        <Text style={[styles.contextValue, { color: currentColor, fontWeight: '900' }]}>
+                                            {selectedVisitor.score || selectedVisitor.lead_score || '85/100'}
                                         </Text>
                                     </View>
+
+                                    <Pressable
+                                        style={styles.crmLinkBtn}
+                                        onPress={() => {
+                                            setSelectedVisitor(null);
+                                            router.push('/(main)/crm/leads' as any);
+                                        }}
+                                    >
+                                        <Text style={styles.crmLinkText}>View Full Profile & Notes in CRM</Text>
+                                        <MaterialCommunityIcons name="arrow-right" size={14} color={colors.textSecondary} />
+                                    </Pressable>
                                 </View>
-                                <View style={styles.intelCardFull}>
-                                    <Text style={styles.intelLabel}>KEY DETAILS & TIMELINE</Text>
-                                    <Text style={styles.intelValSmall}>
-                                        Timeline: <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{selectedVisitor.timeline || 'Immediate'}</Text>
-                                    </Text>
-                                    <Text style={[styles.intelValSmall, { marginTop: 6 }]}>
-                                        Phone: <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{formatPhoneNumber(selectedVisitor.phone) || 'No phone provided'}</Text>
-                                    </Text>
+
+                                {/* SMART FOLLOW-UP CARD */}
+                                <View style={styles.smartFollowupCard}>
+                                    <Text style={styles.contextCardTitle}>SMART FOLLOW-UP</Text>
+
+                                    <Pressable
+                                        style={[styles.smartBtnPrimary, activeActionLoading === 'analysis' && { opacity: 0.7 }]}
+                                        disabled={activeActionLoading !== null}
+                                        onPress={() => handleTriggerAction('analysis', selectedVisitor.email, 'Investment Analysis generated and sent successfully!')}
+                                    >
+                                        {activeActionLoading === 'analysis' ? (
+                                            <ActivityIndicator size="small" color="#FFF" />
+                                        ) : (
+                                            <>
+                                                <Text style={styles.smartBtnPrimaryText}>Send Investment Analysis</Text>
+                                                <MaterialCommunityIcons name="magic-staff" size={16} color="#FFF" style={{ marginLeft: 6 }} />
+                                            </>
+                                        )}
+                                    </Pressable>
+
+                                    <Pressable
+                                        style={[styles.smartBtnOutline, activeActionLoading === 'showing' && { opacity: 0.7 }]}
+                                        disabled={activeActionLoading !== null}
+                                        onPress={() => handleTriggerAction('showing', selectedVisitor.email, 'Private showing invitation sent via email.')}
+                                    >
+                                        {activeActionLoading === 'showing' ? (
+                                            <ActivityIndicator size="small" color={colors.textPrimary} />
+                                        ) : (
+                                            <Text style={styles.smartBtnOutlineText}>Schedule Private Showing</Text>
+                                        )}
+                                    </Pressable>
+
+                                    <Pressable
+                                        style={[styles.smartBtnOutline, activeActionLoading === 'similar' && { opacity: 0.7 }]}
+                                        disabled={activeActionLoading !== null}
+                                        onPress={() => handleTriggerAction('similar', selectedVisitor.email, '3 Similar listings found and emailed to lead.')}
+                                    >
+                                        {activeActionLoading === 'similar' ? (
+                                            <ActivityIndicator size="small" color={colors.textPrimary} />
+                                        ) : (
+                                            <Text style={styles.smartBtnOutlineText}>Send Similar Listings</Text>
+                                        )}
+                                    </Pressable>
                                 </View>
-                                <Pressable style={[styles.modalActionBtn, { backgroundColor: currentColor }]} android_ripple={{ color: 'rgba(255,255,255,0.15)' }}>
-                                    <Text style={styles.modalActionText}>Push to Zien CRM</Text>
+
+                                {/* CRM Navigation Action */}
+                                <Pressable
+                                    style={[styles.modalActionBtn, { backgroundColor: '#0B2D3E', marginTop: 6 }]}
+                                    android_ripple={{ color: 'rgba(255,255,255,0.15)' }}
+                                    onPress={() => {
+                                        setSelectedVisitor(null);
+                                        router.push('/(main)/crm/leads' as any);
+                                    }}
+                                >
+                                    <Text style={styles.modalActionText}>View Full Profile & Notes in CRM</Text>
                                 </Pressable>
-                            </View>
+                            </ScrollView>
                         )}
-                    </View>
+                    </Pressable>
                 </Pressable>
             </Modal>
 
@@ -1135,6 +1356,7 @@ export default function EventDashboardScreen() {
                         <View style={styles.modalHandle} />
                         <Text style={styles.modalHeaderTitle}>Select Follow-up Sequence</Text>
                         {[
+                            'Standard Open House Welcome + Property Kit',
                             'Open House: Instant Digital Portfolio',
                             'Luxury Listing: VIP Walkthrough Nurture',
                             'Drip: 7-Day Market Insights',
@@ -1478,7 +1700,19 @@ const getStyles = (colors: any) => StyleSheet.create({
     sellerDescPremium: { fontSize: 13, color: colors.textSecondary, lineHeight: 20, fontWeight: '500', marginBottom: 20 },
     actionBtnPrimaryPremium: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, borderRadius: 18, paddingVertical: 18, marginTop: 25 },
     actionBtnTextPremium: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-    sellerReportHeader: { alignItems: 'center', marginBottom: 25 },
+    sellerBannerCard: { height: 150, borderRadius: 24, overflow: 'hidden', marginBottom: 16, position: 'relative' },
+    sellerBannerImg: { width: '100%', height: '100%' },
+    sellerBannerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15, 23, 42, 0.72)', padding: 20, justifyContent: 'center' },
+    sellerBannerTag: { fontSize: 10, fontWeight: '900', color: '#94A3B8', letterSpacing: 1, marginBottom: 6, textTransform: 'uppercase' },
+    sellerBannerTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', marginBottom: 4 },
+    sellerBannerSub: { fontSize: 13, color: '#CBD5E1', fontWeight: '500' },
+    kpiCardsGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+    kpiCardItem: { flex: 1, backgroundColor: colors.cardBackground, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: colors.cardBorder },
+    kpiCardHeaderRow: { marginBottom: 10 },
+    kpiIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' },
+    kpiCardLabel: { fontSize: 9, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 4 },
+    kpiCardValue: { fontSize: 20, fontWeight: '900', color: colors.textPrimary },
+    sellerReportHeader: { marginBottom: 20 },
     sellerReportTitle: { fontSize: 18, fontWeight: '900', color: colors.textPrimary, letterSpacing: 0.5 },
     sellerReportSubtitle: { fontSize: 10, fontWeight: '800', color: colors.textMuted, marginTop: 4, letterSpacing: 0.8 },
     sellerKpiRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: colors.cardBorder, marginBottom: 25 },
@@ -1509,14 +1743,27 @@ const getStyles = (colors: any) => StyleSheet.create({
     agentContactPremium: { borderTopWidth: 1, borderTopColor: colors.cardBorder, paddingTop: 18 },
     contactItemPremium: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     contactTextPremium: { fontSize: 14, color: colors.textPrimary, fontWeight: '600' },
+    modalHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 },
+    contextCard: { backgroundColor: colors.surfaceSoft, borderRadius: 18, padding: 18, borderWidth: 1, borderColor: colors.cardBorder, marginBottom: 14 },
+    contextCardTitle: { fontSize: 10, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.6, marginBottom: 12, textTransform: 'uppercase' },
+    contextRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+    contextLabel: { fontSize: 13, fontWeight: '500', color: colors.textSecondary },
+    contextValue: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+    crmLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.cardBorder, gap: 4 },
+    crmLinkText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, textDecorationLine: 'underline' },
+    smartFollowupCard: { backgroundColor: colors.surfaceSoft, borderRadius: 18, padding: 18, borderWidth: 1, borderColor: colors.cardBorder, marginBottom: 14, gap: 10 },
+    smartBtnPrimary: { backgroundColor: '#0B2D3E', borderRadius: 12, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+    smartBtnPrimaryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+    smartBtnOutline: { backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 13, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' },
+    smartBtnOutlineText: { color: '#0F172A', fontSize: 13, fontWeight: '700' },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.55)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: colors.cardBackground, borderTopLeftRadius: 36, borderTopRightRadius: 36, padding: 30 },
-    modalHandle: { width: 44, height: 6, backgroundColor: colors.cardBorder, borderRadius: 3, alignSelf: 'center', marginBottom: 25 },
+    modalContent: { backgroundColor: colors.cardBackground, borderTopLeftRadius: 36, borderTopRightRadius: 36, padding: 24 },
+    modalHandle: { width: 44, height: 6, backgroundColor: colors.cardBorder, borderRadius: 3, alignSelf: 'center', marginBottom: 20 },
     modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 18, marginBottom: 30 },
-    modalAvatar: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-    modalAvatarText: { fontSize: 24, fontWeight: '900', color: '#FFFFFF' },
-    modalName: { fontSize: 22, fontWeight: '900', color: colors.textPrimary },
-    modalEmail: { fontSize: 15, color: colors.textSecondary, marginTop: 4 },
+    modalAvatar: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    modalAvatarText: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
+    modalName: { fontSize: 18, fontWeight: '900', color: colors.textPrimary },
+    modalEmail: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
     intelGrid: { flexDirection: 'row', gap: 18, marginBottom: 18 },
     intelCard: { flex: 1, backgroundColor: colors.surfaceSoft, borderRadius: 22, padding: 18, borderWidth: 1, borderColor: colors.cardBorder },
     intelCardFull: { backgroundColor: colors.surfaceSoft, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: colors.cardBorder, marginBottom: 30 },

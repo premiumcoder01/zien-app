@@ -126,9 +126,45 @@ export const updateOpenHouse = async (token: string, id: number | string, payloa
     body: JSON.stringify(payload),
   });
 
-  const json = await response.json();
+  const text = await response.text();
+  let json: any = {};
+  try {
+    json = JSON.parse(text);
+  } catch (_) {
+    if (!response.ok) {
+      throw new Error(`Failed to update open house (${response.status})`);
+    }
+  }
+
   if (!response.ok) {
     throw new Error(json.message || 'Failed to update open house');
+  }
+
+  return json;
+};
+
+export const triggerOpenHouseAction = async (
+  token: string,
+  openHouseId: number | string,
+  visitorEmail: string,
+  action: string
+): Promise<any> => {
+  const response = await fetch(`${API_BASE_URL}/solo/open-houses/${openHouseId}/action`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      visitor_email: visitorEmail,
+      action: action,
+    }),
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Failed to trigger action');
   }
 
   return json;

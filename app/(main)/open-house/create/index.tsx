@@ -2,7 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { generateAiText } from '@/services/aiContentService';
 import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
-import { formatPropertyPrice, getProperties, RawPropertyItem, uploadPropertyImage } from '@/services/propertyService';
+import { extractPropertyBaths, extractPropertyBeds, extractPropertySqft, formatPropertyPrice, getAllPropertyImages, getProperties, RawPropertyItem, uploadPropertyImage } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -653,15 +653,12 @@ function Step1SelectProperty({
           properties.map((property) => {
             const isScheduled = activePropertyIds?.has(property.id) || false;
             const isSelected = selectedPropertyId === property.id.toString();
-            // Use user_images first, then media from bridgedata if available
-            const imageUrl = property.data?.user_images?.[0] ||
-              property.data?.Media?.[0]?.MediaURL ||
-              PLACEHOLDER_1;
+            const imageUrl = getAllPropertyImages(property)[0] || PLACEHOLDER_1;
 
             const status = isScheduled ? 'SCHEDULED' : (property.status === 1 ? 'READY' : 'REVIEW');
             const price = formatPropertyPrice(property.data, 'Price N/A');
-            const beds = property.data?.BedroomsTotal || property.data?.beds || '0';
-            const baths = property.data?.BathroomsFull || property.data?.baths || '0';
+            const beds = extractPropertyBeds(property.data);
+            const baths = extractPropertyBaths(property.data);
 
             return (
               <Pressable
@@ -1197,16 +1194,22 @@ function Step4Customization({
   };
 
   const property = selectedPropertyId ? properties.find((p) => p.id.toString() === selectedPropertyId) : null;
-  const addressLine1 = property ? property.address.split(',')[0] : '1601 Welch Street';
-  const addressLine2 = property ? property.address.split(',').slice(1).join(',').trim() : 'Houston TX 77006';
+  const addressLine1 = property
+    ? (property.address ? property.address.split(',')[0].trim() : (property.data?.UnparsedAddress?.split(',')[0] || 'Property Address'))
+    : '1601 Welch Street';
+  const addressLine2 = property
+    ? (property.address ? property.address.split(',').slice(1).join(',').trim() : `${property.data?.City || ''} ${property.data?.StateOrProvince || ''}`.trim())
+    : 'Houston TX 77006';
 
-  const beds = property?.data?.BedroomsTotal || property?.data?.beds || '5';
-  const baths = property?.data?.BathroomsFull || property?.data?.baths || '4.5';
-  const sqft = property?.data?.LivingArea || property?.data?.sqft || '4,200';
-  const price = formatPropertyPrice(property?.data, '$2,450,000');
+  const beds = extractPropertyBeds(property?.data);
+  const baths = extractPropertyBaths(property?.data);
+  const sqft = extractPropertySqft(property?.data);
+  const price = property ? formatPropertyPrice(property.data, 'Price N/A') : '$0';
+
+  const displayDescription = description.trim() || property?.data?.PrivateRemarks || 'Experience the pinnacle of sophisticated living in this architecturally significant estate. Meticulously curated with bespoke finishes...';
 
   const allPreviewImages = useMemo(() => {
-    const propertyImages = (property?.data?.user_images || property?.data?.Media?.map((m: any) => m.MediaURL) || []).filter(Boolean);
+    const propertyImages = getAllPropertyImages(property);
     const combined = [...galleryImages, ...propertyImages];
     return combined.length > 0 ? combined : [PLACEHOLDER_3];
   }, [galleryImages, property]);
@@ -1535,7 +1538,7 @@ function Step4Customization({
                 <View style={styles.phoneStatsRow}>
                   <View style={styles.phoneStatItem}><Text style={styles.phoneStatValue}>{beds}</Text><Text style={styles.phoneStatLabel}>BEDS</Text></View>
                   <View style={styles.phoneStatItem}><Text style={styles.phoneStatValue}>{baths}</Text><Text style={styles.phoneStatLabel}>BATHS</Text></View>
-                  <View style={styles.phoneStatItem}><Text style={styles.phoneStatValue}>{Number(sqft).toLocaleString()}</Text><Text style={styles.phoneStatLabel}>SQFT</Text></View>
+                  <View style={styles.phoneStatItem}><Text style={styles.phoneStatValue}>{sqft}</Text><Text style={styles.phoneStatLabel}>SQFT</Text></View>
                 </View>
 
                 <Text style={styles.phoneScheduleLabel}>SCHEDULE</Text>
@@ -1547,6 +1550,34 @@ function Step4Customization({
                   <View style={styles.phoneScheduleBox}>
                     <Text style={styles.phoneScheduleVal}>{`${formatDisplayTime(startTimeDate)} - ${formatDisplayTime(endTimeDate)}`}</Text>
                     <Text style={styles.phoneScheduleSub}>TIME</Text>
+                  </View>
+                </View>
+
+                {/* Description */}
+                <Text style={styles.phoneDescLabel}>DESCRIPTION</Text>
+                <Text style={styles.phoneDescText} numberOfLines={3}>
+                  {displayDescription}
+                </Text>
+
+                <View style={styles.phoneDivider} />
+
+                {/* Agent & QR Footer */}
+                <View style={styles.phoneFooterRow}>
+                  <View style={styles.phoneAgentBox}>
+                    <View style={styles.phoneAgentAvatar}>
+                      <MaterialCommunityIcons name="account" size={16} color={currentAccent} />
+                    </View>
+                    <View style={styles.phoneAgentInfo}>
+                      <Text style={styles.phoneAgentName} numberOfLines={1}>
+                        {agentName || 'Agent Name'}
+                      </Text>
+                      <Text style={styles.phoneAgentSub} numberOfLines={1}>
+                        {agencyName || 'Agency'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={[styles.phoneQrBox, { borderColor: currentAccent + '30' }]}>
+                    <MaterialCommunityIcons name="qrcode-scan" size={18} color={currentAccent} />
                   </View>
                 </View>
               </View>
@@ -3415,6 +3446,68 @@ function getStyles(colors: any) {
       fontWeight: '700',
       color: colors.textMuted,
       marginTop: 2,
+    },
+    phoneDescLabel: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: '#0F172A',
+      letterSpacing: 0.5,
+      marginTop: 4,
+      marginBottom: 6,
+    },
+    phoneDescText: {
+      fontSize: 11,
+      fontWeight: '400',
+      color: '#64748B',
+      lineHeight: 16,
+    },
+    phoneDivider: {
+      height: 1,
+      backgroundColor: '#F1F5F9',
+      marginVertical: 14,
+    },
+    phoneFooterRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    phoneAgentBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      marginRight: 10,
+    },
+    phoneAgentAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: '#F0FDFA',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 8,
+    },
+    phoneAgentInfo: {
+      flex: 1,
+    },
+    phoneAgentName: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#0F172A',
+    },
+    phoneAgentSub: {
+      fontSize: 10,
+      fontWeight: '500',
+      color: '#94A3B8',
+    },
+    phoneQrBox: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#FAFAFA',
     },
 
     bottomActions: {
