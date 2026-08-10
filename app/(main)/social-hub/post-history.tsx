@@ -51,7 +51,7 @@ function PostDetailModal({
   const platforms = post.post_platforms?.map(p => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
   const mainPlatform = platforms[0];
 
-  const statusLabel = post.status === 2 ? 'PUBLISHED' : post.status === 3 ? 'FAILED' : 'SCHEDULED';
+  const statusLabel = post.status === 2 ? 'Published' : post.status === 3 ? 'Failed' : 'Scheduled';
   const statusColor = post.status === 2 ? '#10B981' : post.status === 3 ? '#EF4444' : colors.accentTeal;
   const timeStr = post.scheduled_at ? formatTime(post.scheduled_at) : '';
 
@@ -136,7 +136,7 @@ function PostDetailModal({
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <Text style={{ flex: 1, fontSize: 18, fontWeight: '900', color: colors.textPrimary, lineHeight: 24 }}>{captionFirstLine}</Text>
               <View style={{ marginLeft: 12, alignItems: 'flex-end' }}>
-                <Text style={{ fontSize: 8, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 2 }}>STATUS</Text>
+                <Text style={{ fontSize: 8, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 2 }}>Status</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <MaterialCommunityIcons name={post.status === 2 ? 'check-circle' : post.status === 3 ? 'alert-circle' : 'clock-outline'} size={12} color={statusColor} />
                   <Text style={{ fontSize: 10, fontWeight: '900', color: statusColor, letterSpacing: 0.3 }}>{statusLabel}</Text>
@@ -177,7 +177,7 @@ function PostDetailModal({
               }}>
                 <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#EF4444" style={{ marginTop: 2 }} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#EF4444', marginBottom: 2 }}>PUBLISH ERROR</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#EF4444', marginBottom: 2 }}>Publish Error</Text>
                   <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '600' }}>{post.error_message}</Text>
                 </View>
               </View>
@@ -311,7 +311,7 @@ export default function PostHistoryScreen() {
 
     const platforms = item.post_platforms?.map(p => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
 
-    const statusLabel = item.status === 2 ? 'PUBLISHED' : item.status === 3 ? 'FAILED' : 'SCHEDULED';
+    const statusLabel = item.status === 2 ? 'Published' : item.status === 3 ? 'Failed' : 'Scheduled';
     const statusColor = item.status === 2 ? '#10B981' : item.status === 3 ? '#EF4444' : colors.accentTeal;
     const statusBg = item.status === 2 ? 'rgba(16, 185, 129, 0.08)' : item.status === 3 ? 'rgba(239, 68, 68, 0.08)' : `${colors.accentTeal}12`;
 
@@ -409,7 +409,7 @@ export default function PostHistoryScreen() {
             flexDirection: 'row', alignItems: 'center', gap: 6, 
             borderTopWidth: 1, borderTopColor: colors.cardBorder, paddingTop: 10, marginTop: 4 
           }}>
-            <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted, marginRight: 2 }}>PLATFORMS:</Text>
+            <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textMuted, marginRight: 2 }}>Platforms:</Text>
             {platforms.map((plat, idx) => {
               const iconName = plat === 'instagram' ? 'instagram' :
                                plat === 'facebook' ? 'facebook' :

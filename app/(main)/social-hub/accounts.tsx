@@ -26,8 +26,8 @@ import { WebView } from 'react-native-webview';
 const SOCIAL_PLATFORMS = [
   { id: 'instagram', name: 'Instagram', icon: 'instagram', color: '#E1306C', bgColor: '#FDF2F8' },
   { id: 'facebook', name: 'Facebook', icon: 'facebook', color: '#1877F2', bgColor: '#EFF6FF' },
-  // { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin', color: '#0A66C2', bgColor: '#F0F9FF' },
   { id: 'tiktok', name: 'TikTok', icon: 'music-note', color: '#000000', bgColor: '#F8FAFC' },
+  { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin', color: '#0A66C2', bgColor: '#F0F9FF', isComingSoon: true },
 ];
 
 
@@ -363,7 +363,14 @@ export default function AccountsScreen() {
 
                   {/* Content Section */}
                   <View style={styles.accountTextContentPremium}>
-                    <Text style={styles.accountRowNamePremium} numberOfLines={1}>{platform.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.accountRowNamePremium} numberOfLines={1}>{platform.name}</Text>
+                      {platform.isComingSoon && (
+                        <View style={styles.comingSoonPill}>
+                          <Text style={styles.comingSoonPillText}>Coming Soon</Text>
+                        </View>
+                      )}
+                    </View>
 
                     {/* Connection status badge */}
                     <View style={styles.statusBadgeRow}>
@@ -385,6 +392,16 @@ export default function AccountsScreen() {
                         onPress={() => handleDisconnectPress(platform, apiAccount)}
                       >
                         <Text style={styles.disconnectBtnCardText}>Disconnect</Text>
+                      </Pressable>
+                    ) : platform.isComingSoon ? (
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.waitlistBtn,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                        onPress={() => Alert.alert('Coming Soon', 'LinkedIn integration is coming soon! You will be notified once available.')}
+                      >
+                        <Text style={styles.waitlistBtnText}>Waitlist</Text>
                       </Pressable>
                     ) : (
                       <Pressable
@@ -754,6 +771,33 @@ function getStyles(colors: any, theme: string) {
       fontWeight: '900',
       color: '#FFFFFF',
       letterSpacing: 0.2,
+    },
+    comingSoonPill: {
+      backgroundColor: '#FEF3C7',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+    },
+    comingSoonPillText: {
+      fontSize: 9.5,
+      fontWeight: '800',
+      color: '#D97706',
+    },
+    waitlistBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.surfaceSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 84,
+    },
+    waitlistBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textMuted,
     },
 
     // Modals

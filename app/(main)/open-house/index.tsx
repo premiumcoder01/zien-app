@@ -186,12 +186,12 @@ export default function OpenHouseScreen() {
           <View style={styles.kpiCard}>
             <View style={styles.kpiItem}>
               <Text style={styles.kpiValue}>{totalLeads}</Text>
-              <Text style={styles.kpiLabel}>TOTAL LEADS</Text>
+              <Text style={styles.kpiLabel}>Total Leads</Text>
             </View>
             <View style={styles.kpiDivider} />
             <View style={styles.kpiItem}>
               <Text style={[styles.kpiValue, { color: colors.accentTeal }]}>{avgHotScore}%</Text>
-              <Text style={[styles.kpiLabel, { color: colors.textMuted }]}>HOT SCORE</Text>
+              <Text style={[styles.kpiLabel, { color: colors.textMuted }]}>Hot Score</Text>
             </View>
           </View>
         </View>
@@ -317,11 +317,10 @@ function getStyles(colors: any) {
       letterSpacing: -0.5
     },
     kpiLabel: {
-      fontSize: 10,
-      fontWeight: '800',
+      fontSize: 12,
+      fontWeight: '600',
       color: colors.textMuted,
       marginTop: 4,
-      letterSpacing: 1,
     },
     kpiDivider: {
       width: 1,

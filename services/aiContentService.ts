@@ -226,3 +226,46 @@ export const generateAiText = async (
     clearTimeout(timeoutId);
   }
 };
+
+/**
+ * Generates AI images using the shared AI generation endpoint.
+ * POST /api/shared/ai/generate-image
+ * Payload: { prompt: string }
+ * Response: { result: string[] }
+ */
+export const generateAiImage = async (
+  prompt: string,
+  accessToken: string
+): Promise<{ result: string[] }> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AI_GENERATE_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${AI_API_BASE_URL}/shared/ai/generate-image`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+    }
+
+    return data;
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('AI image generation timed out. Please try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+

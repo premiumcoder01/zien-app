@@ -54,7 +54,7 @@ function PostDetailModal({
   const platforms = post.post_platforms?.map(p => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
   const mainPlatform = platforms[0];
 
-  const statusLabel = post.status === 2 ? 'PUBLISHED' : post.status === 3 ? 'FAILED' : 'SCHEDULED';
+  const statusLabel = post.status === 2 ? 'Published' : post.status === 3 ? 'Failed' : 'Scheduled';
   const statusColor = post.status === 2 ? '#10B981' : post.status === 3 ? '#EF4444' : colors.accentTeal;
   const timeStr = post.scheduled_at ? formatTime(post.scheduled_at) : '';
 
@@ -463,7 +463,7 @@ export default function SchedulerScreen() {
 
                       const platforms = post.post_platforms?.map(p => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
 
-                      const statusLabel = post.status === 2 ? 'PUBLISHED' : post.status === 3 ? 'FAILED' : 'SCHEDULED';
+                      const statusLabel = post.status === 2 ? 'Published' : post.status === 3 ? 'Failed' : 'Scheduled';
                       const statusColor = post.status === 2 ? '#10B981' : post.status === 3 ? '#EF4444' : colors.accentTeal;
                       const statusBg = post.status === 2 ? 'rgba(16, 185, 129, 0.08)' : post.status === 3 ? 'rgba(239, 68, 68, 0.08)' : `${colors.accentTeal}12`;
 

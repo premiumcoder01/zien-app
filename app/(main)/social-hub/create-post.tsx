@@ -1,6 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { generateAiText } from '@/services/aiContentService';
+import { generateAiImage, generateAiText } from '@/services/aiContentService';
 import { getProperties, getPropertyDetails, uploadPropertyImage } from '@/services/propertyService';
 import { createSocialPost, getSocialAccounts, getSocialPostById, updateSocialPost } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -54,6 +54,7 @@ const PLATFORMS: { id: PlatformId; label: string; icon: string }[] = [
 ];
 
 const HASHTAG_CHIPS = ['#Luxury', '#OpenHouse', '#ZienRealty', '#LALiving'];
+const AI_IMAGE_PRESETS = ['+ Cinematic', '+ Realistic', '+ Dusk', '+ Drone View', '+ Interior Design'];
 
 const DEFAULT_CAPTION = `JUST LISTED: 1601 Welch Street, Houston TX 77006\n\nExperience luxury living at its finest. This stunning property is now available for private tours.\n\nDM for details! #Zien #RealEstate #JustListed`;
 
@@ -78,18 +79,14 @@ function ProgressStepper({ currentStep }: { currentStep: number }) {
 
   return (
     <View style={styles.stepperOuterContainer}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.stepperScrollContent}
-      >
+      <View style={styles.stepperRow}>
         {STEPS.map((step, idx) => {
           const isActive = step.id === (currentStep as number);
           const isPast = (step.id as number) < (currentStep as number);
           const isLast = idx === STEPS.length - 1;
 
           return (
-            <View key={step.id} style={styles.stepWrapper}>
+            <View key={step.id} style={[styles.stepFlexWrapper, isLast && { flex: 0 }]}>
               <View style={styles.stepItem}>
                 <View style={[
                   styles.stepCircle,
@@ -118,7 +115,7 @@ function ProgressStepper({ currentStep }: { currentStep: number }) {
             </View>
           );
         })}
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -241,10 +238,11 @@ export default function CreatePostScreen() {
   const [selectedMediaIds, setSelectedMediaIds] = useState<string[]>([]);
   const [lastSelectedMediaUri, setLastSelectedMediaUri] = useState<string | undefined>(undefined);
   const [strategy, setStrategy] = useState<StrategyId>('optimal');
-  const [acquisitionType, setAcquisitionType] = useState<'manual' | 'ai'>('manual');
+  const [acquisitionType, setAcquisitionType] = useState<'manual' | 'ai' | 'property'>('manual');
   const [aiPrompt, setAiPrompt] = useState('');
   const [captionContext, setCaptionContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isPickerVisible, setIsPickerVisible] = useState(false);
   const [isTargetDropdownVisible, setIsTargetDropdownVisible] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -359,21 +357,12 @@ export default function CreatePostScreen() {
     enabled: !!accessToken,
   });
 
-  // Default platforms initialization for new posts
+  // Do not auto-select platforms by default - user selects manually
   useEffect(() => {
-    if (!isEditMode && socialAccounts && Array.isArray(socialAccounts) && !hasInitializedPlatforms) {
-      const activePlatformIds = socialAccounts
-        .filter((acc: any) => acc && acc.status === 1)
-        .map((acc: any) => acc.platform?.toLowerCase())
-        .filter((platformId: any) => PLATFORMS.some(p => p.id === platformId)) as PlatformId[];
-
-      setPlatforms(activePlatformIds);
+    if (!hasInitializedPlatforms) {
       setHasInitializedPlatforms(true);
-      if (activePlatformIds.length > 0 && !activePlatformIds.includes(previewPlatform)) {
-        setPreviewPlatform(activePlatformIds[0]);
-      }
     }
-  }, [socialAccounts, isEditMode, hasInitializedPlatforms]);
+  }, [hasInitializedPlatforms]);
 
   useEffect(() => {
     if (isEditMode && hasPrefilledRef.current) return; // Don't override edit prefill
@@ -402,9 +391,87 @@ export default function CreatePostScreen() {
     return properties.find((p: any) => `${p.address} (Property)` === targetContent);
   }, [properties, targetContent]);
 
+  const propertyGalleryImages = useMemo(() => {
+    const list: { id: string; uri: string }[] = [];
+
+    if (selectedProperty?.data) {
+      if (Array.isArray(selectedProperty.data.Media)) {
+        selectedProperty.data.Media.forEach((m: any, idx: number) => {
+          const url = typeof m === 'string' ? m : m?.MediaURL || m?.url || m?.uri;
+          if (url && typeof url === 'string') {
+            list.push({ id: `prop-${selectedProperty.id}-media-${idx}`, uri: url });
+          }
+        });
+      }
+      if (Array.isArray(selectedProperty.data.user_images)) {
+        selectedProperty.data.user_images.forEach((m: any, idx: number) => {
+          const url = typeof m === 'string' ? m : m?.MediaURL || m?.url || m?.uri;
+          if (url && typeof url === 'string' && !list.some((item) => item.uri === url)) {
+            list.push({ id: `prop-${selectedProperty.id}-user-${idx}`, uri: url });
+          }
+        });
+      }
+    }
+
+    if (list.length === 0 && properties.length > 0) {
+      properties.forEach((p: any) => {
+        if (p.data?.Media && Array.isArray(p.data.Media)) {
+          p.data.Media.forEach((m: any, idx: number) => {
+            const url = typeof m === 'string' ? m : m?.MediaURL || m?.url || m?.uri;
+            if (url && typeof url === 'string' && !list.some((item) => item.uri === url)) {
+              list.push({ id: `prop-${p.id}-media-${idx}`, uri: url });
+            }
+          });
+        }
+        if (p.data?.user_images && Array.isArray(p.data.user_images)) {
+          p.data.user_images.forEach((m: any, idx: number) => {
+            const url = typeof m === 'string' ? m : m?.MediaURL || m?.url || m?.uri;
+            if (url && typeof url === 'string' && !list.some((item) => item.uri === url)) {
+              list.push({ id: `prop-${p.id}-user-${idx}`, uri: url });
+            }
+          });
+        }
+      });
+    }
+
+    return list;
+  }, [selectedProperty, properties]);
+
   const hashtagChips = useMemo(() => {
-    return ['#Zien', '#RealEstate', '#JustListed'];
-  }, []);
+    const tags = new Set<string>();
+
+    // 1. If property is selected, extract city & state hashtags (e.g. #OnalaskaTX, #LuxuryRealEstate)
+    if (selectedProperty) {
+      const city =
+        selectedProperty.data?.city ||
+        selectedProperty.address?.split(',')?.[1]?.trim()?.split(' ')?.[0];
+      if (city) {
+        const cleanCity = city.replace(/[^a-zA-Z0-9]/g, '');
+        tags.add(`#${cleanCity}TX`);
+      }
+      tags.add('#LuxuryRealEstate');
+      tags.add('#ElegantLiving');
+      tags.add('#HighEndHomes');
+      tags.add('#PropertyForSale');
+      tags.add('#DreamHome');
+      tags.add('#RealEstate');
+    } else {
+      tags.add('#LuxuryRealEstate');
+      tags.add('#ElegantLiving');
+      tags.add('#HighEndHomes');
+      tags.add('#PropertyForSale');
+      tags.add('#RealEstate');
+      tags.add('#JustListed');
+    }
+
+    // 2. Also include any hashtags extracted from the generated caption
+    const captionTags = caption.match(/#[a-zA-Z0-9_]+/g);
+    if (captionTags) {
+      captionTags.forEach((t) => tags.add(t));
+    }
+
+    return Array.from(tags).slice(0, 8);
+  }, [selectedProperty, caption]);
 
   const handleGenerateAICaption = async () => {
     if (!accessToken) return;
@@ -425,6 +492,99 @@ export default function CreatePostScreen() {
       setIsGenerating(false);
     }
   };
+
+  const handleAddPreset = (preset: string) => {
+    const cleanPreset = preset.replace(/^\+\s*/, '');
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+    setAiPrompt((prev) => {
+      const trimmed = prev.trim();
+      if (!trimmed) return cleanPreset;
+      if (trimmed.toLowerCase().includes(cleanPreset.toLowerCase())) return trimmed;
+      return `${trimmed}, ${cleanPreset}`;
+    });
+  };
+
+  const handleGenerateAIImage = async () => {
+    if (!aiPrompt.trim()) {
+      Alert.alert('Prompt Required', 'Please enter a description for the image you want to generate.');
+      return;
+    }
+    if (!accessToken) {
+      Alert.alert('Authentication Required', 'Please sign in to generate images.');
+      return;
+    }
+
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    setIsGeneratingImage(true);
+    try {
+      const propertyContext = selectedProperty?.address
+        ? ` Context: This image is for a property located at ${selectedProperty.address}. `
+        : '';
+      const fullPrompt = `${aiPrompt.trim()}${propertyContext}`;
+
+      const res = await generateAiImage(fullPrompt, accessToken);
+      if (res && res.result && Array.isArray(res.result) && res.result.length > 0) {
+        const newItems: { id: string; uri: string }[] = [];
+        const newSelectedIds: string[] = [];
+
+        res.result.forEach((url: string, idx: number) => {
+          if (url) {
+            const newId = `ai-${Date.now()}-${idx}`;
+            newItems.push({ id: newId, uri: url });
+            newSelectedIds.push(newId);
+          }
+        });
+
+        if (newItems.length > 0) {
+          setUploadedMedia((prev) => [...newItems, ...prev]);
+          setSelectedMediaIds((prev) => [...newSelectedIds, ...prev]);
+          setLastSelectedMediaUri(newItems[0].uri);
+          triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
+        }
+      } else {
+        Alert.alert('No Image Generated', 'The AI service could not generate an image for this prompt. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('[CreatePost] Failed to generate image:', error);
+      Alert.alert('Image Generation Failed', error.message || 'Something went wrong while generating the image.');
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  const handleTogglePropertyImage = useCallback(
+    (item: { id: string; uri: string }) => {
+      triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+
+      const existingInUploaded = uploadedMedia.find((m) => m.uri === item.uri);
+      const mediaId = existingInUploaded ? existingInUploaded.id : item.id;
+
+      setSelectedMediaIds((prev) => {
+        const isSelected = prev.includes(mediaId);
+        if (isSelected) {
+          const filtered = prev.filter((id) => id !== mediaId);
+          if (item.uri === lastSelectedMediaUri && filtered.length > 0) {
+            const nextId = filtered[filtered.length - 1];
+            const nextMedia =
+              uploadedMedia.find((m) => m.id === nextId) ||
+              propertyGalleryImages.find((m) => m.id === nextId);
+            if (nextMedia) setLastSelectedMediaUri(nextMedia.uri);
+          }
+          return filtered;
+        } else {
+          setUploadedMedia((upPrev) => {
+            if (!upPrev.some((m) => m.uri === item.uri)) {
+              return [{ id: mediaId, uri: item.uri }, ...upPrev];
+            }
+            return upPrev;
+          });
+          setLastSelectedMediaUri(item.uri);
+          return [...prev, mediaId];
+        }
+      });
+    },
+    [uploadedMedia, lastSelectedMediaUri, propertyGalleryImages]
+  );
 
   const progress = useSharedValue(1);
 
@@ -697,14 +857,21 @@ export default function CreatePostScreen() {
                   <View style={styles.selectedPropertyInfo}>
                     <Text style={styles.selectedPropertyTitle}>{selectedProperty.address}</Text>
                     <View style={styles.selectedPropertyBadges}>
-                      {(selectedProperty.data?.MlsStatus || selectedProperty.status === 1) && (
+                      {(selectedProperty.data?.mlsStatus || selectedProperty.data?.MlsStatus || selectedProperty.data?.standardStatus || selectedProperty.status === 1) && (
                         <View style={[styles.badge, styles.badgeActive]}>
-                          <Text style={styles.badgeActiveText}>{selectedProperty.data?.MlsStatus?.toUpperCase() || 'ACTIVE'}</Text>
+                          <Text style={styles.badgeActiveText}>
+                            {`MLS ${(selectedProperty.data?.mlsStatus || selectedProperty.data?.MlsStatus || selectedProperty.data?.standardStatus || 'Active').toUpperCase()}`}
+                          </Text>
                         </View>
                       )}
-                      {selectedProperty.data?.PropertyType && (
+                      {(selectedProperty.data?.type || selectedProperty.data?.PropertyType || selectedProperty.data?.propertyType || selectedProperty) && (
                         <View style={[styles.badge, styles.badgeBlue]}>
-                          <Text style={styles.badgeBlueText}>{selectedProperty.data.PropertyType}</Text>
+                          <Text style={styles.badgeBlueText}>
+                            {(() => {
+                              const t = selectedProperty.data?.type || selectedProperty.data?.PropertyType || selectedProperty.data?.propertyType || 'Residential';
+                              return t.charAt(0).toUpperCase() + t.slice(1);
+                            })()}
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -842,23 +1009,35 @@ export default function CreatePostScreen() {
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Media Asset Acquisition</Text>
               <View style={styles.segmentedControl}>
-                {['manual', 'ai'].map((type) => (
-                  <Pressable
-                    key={type}
-                    style={[styles.segment, acquisitionType === type && styles.segmentActive]}
-                    onPress={() => {
-                      triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
-                      setAcquisitionType(type as 'manual' | 'ai');
-                    }}
-                  >
-                    <Text style={[styles.segmentText, acquisitionType === type && styles.segmentTextActive]}>
-                      {type === 'manual' ? 'Manual Upload' : 'AI Generation'}
-                    </Text>
-                  </Pressable>
-                ))}
+                {[
+                  { id: 'manual', label: 'Manual Upload' },
+                  { id: 'ai', label: 'Generate by AI' },
+                  { id: 'property', label: 'Property Gallery' },
+                ].map((tab) => {
+                  const isActive = acquisitionType === tab.id;
+                  return (
+                    <Pressable
+                      key={tab.id}
+                      style={[styles.segment, isActive && styles.segmentActive]}
+                      onPress={() => {
+                        triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+                        setAcquisitionType(tab.id as 'manual' | 'ai' | 'property');
+                      }}
+                    >
+                      <Text
+                        style={[styles.segmentText, isActive && styles.segmentTextActive]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.8}
+                      >
+                        {tab.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
 
-              {acquisitionType === 'manual' ? (
+              {acquisitionType === 'manual' && (
                 <Pressable
                   style={styles.uploadDropzone}
                   onPress={() => {
@@ -873,7 +1052,9 @@ export default function CreatePostScreen() {
                   <Text style={styles.uploadPrimaryText}>Tap to Upload Media</Text>
                   <Text style={styles.uploadSecondaryText}>Supports high-res JPG, PNG, and 4K MP4</Text>
                 </Pressable>
-              ) : (
+              )}
+
+              {acquisitionType === 'ai' && (
                 <View style={styles.aiGenerationWrapper}>
                   <TextInput
                     style={styles.aiPromptInput}
@@ -882,18 +1063,94 @@ export default function CreatePostScreen() {
                     multiline
                     value={aiPrompt}
                     onChangeText={setAiPrompt}
+                    editable={!isGeneratingImage}
                   />
+
+                  {/* Preset Style Chips */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.presetsScroll}
+                  >
+                    {AI_IMAGE_PRESETS.map((chip) => (
+                      <Pressable
+                        key={chip}
+                        style={styles.presetChip}
+                        onPress={() => handleAddPreset(chip)}
+                        disabled={isGeneratingImage}
+                      >
+                        <Text style={styles.presetChipText}>{chip}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+
                   <View style={styles.aiPromptFooter}>
                     <Pressable
-                      style={styles.aiGenerateBtn}
-                      onPress={() => triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy)}
+                      style={[styles.aiGenerateBtn, isGeneratingImage && { opacity: 0.7 }]}
+                      onPress={handleGenerateAIImage}
+                      disabled={isGeneratingImage}
                     >
                       <LinearGradient colors={['#0a2341', '#0D9488']} style={styles.aiGenerateBtnGradient}>
-                        <MaterialCommunityIcons name="star-four-points" size={16} color="#FFF" />
-                        <Text style={styles.aiGenerateBtnText}>Generate Magic</Text>
+                        {isGeneratingImage ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <>
+                            <MaterialCommunityIcons name="star-four-points" size={16} color="#FFF" />
+                            <Text style={styles.aiGenerateBtnText}>Generate Image</Text>
+                          </>
+                        )}
                       </LinearGradient>
                     </Pressable>
                   </View>
+                </View>
+              )}
+
+              {acquisitionType === 'property' && (
+                <View style={styles.propertyGalleryWrapper}>
+                  <View style={styles.propertyGalleryHeader}>
+                    <Text style={styles.propertyGalleryTitle}>
+                      SELECT IMAGES FROM PROPERTY ({propertyGalleryImages.length})
+                    </Text>
+                  </View>
+
+                  {propertyGalleryImages.length > 0 ? (
+                    <View style={styles.propertyGrid}>
+                      {propertyGalleryImages.map((item) => {
+                        const isSelected = selectedMediaIds.some((id) => {
+                          const found = uploadedMedia.find((m) => m.id === id);
+                          return id === item.id || (found && found.uri === item.uri);
+                        });
+
+                        return (
+                          <Pressable
+                            key={item.id}
+                            style={[
+                              styles.propertyGridCell,
+                              isSelected && styles.propertyGridCellSelected,
+                            ]}
+                            onPress={() => handleTogglePropertyImage(item)}
+                          >
+                            <Image source={{ uri: item.uri }} style={styles.propertyGridImage} resizeMode="cover" />
+                            <View style={[styles.propertyCheckCircle, isSelected && styles.propertyCheckCircleSelected]}>
+                              {isSelected && (
+                                <MaterialCommunityIcons name="check" size={13} color="#FFFFFF" />
+                              )}
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View style={styles.emptyGalleryBox}>
+                      <MaterialCommunityIcons name="image-multiple-outline" size={36} color={colors.textMuted} />
+                      <Text style={styles.emptyGalleryTitle}>No Property Images Available</Text>
+                      <Text style={styles.emptyGallerySubtitle}>
+                        {selectedProperty
+                          ? `No photos attached to ${selectedProperty.address}.`
+                          : 'Please select a property in Step 1 to load its gallery.'}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -1224,21 +1481,26 @@ function getStyles(colors: any) {
     headerTitle: { fontSize: 22, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.5 },
     headerSubtitle: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
     scrollContent: { paddingHorizontal: 20, paddingTop: 10 },
-    stepperOuterContainer: { marginHorizontal: -20, marginBottom: 32 },
-    stepperScrollContent: { paddingHorizontal: 20, alignItems: 'flex-start' },
-    stepWrapper: { flexDirection: 'row', alignItems: 'flex-start' },
-    stepItem: { alignItems: 'center', width: 110 },
+    stepperOuterContainer: { marginBottom: 24, width: '100%', paddingHorizontal: 6 },
+    stepperRow: { flexDirection: 'row', alignItems: 'flex-start', width: '100%' },
+    stepFlexWrapper: { flex: 1, flexDirection: 'row', alignItems: 'flex-start' },
+    stepItem: { alignItems: 'center' },
     stepCircle: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.cardBackground, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.cardBorder, zIndex: 2 },
     stepCircleActive: { backgroundColor: colors.cardBackground, borderColor: colors.accentTeal },
     stepCirclePast: { backgroundColor: colors.accentTeal, borderColor: colors.accentTeal },
     stepGlow: { ...StyleSheet.absoluteFillObject, borderRadius: 17, backgroundColor: colors.accentTeal, opacity: 0.15, transform: [{ scale: 1.3 }] },
     stepNumber: { fontSize: 13, fontWeight: '800', color: colors.textMuted },
     stepNumberActive: { color: colors.accentTeal },
-    stepLabelText: { fontSize: 10, fontWeight: '800', color: colors.textMuted, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.8, textAlign: 'center' },
+    stepLabelText: { fontSize: 11, fontWeight: '700', color: colors.textMuted, marginTop: 8, textAlign: 'center' },
     stepLabelTextActive: { color: colors.textPrimary },
-    connectorContainer: { width: 40, height: 34, justifyContent: 'center', alignItems: 'center' },
+    connectorContainer: { flex: 1, height: 34, justifyContent: 'center', alignItems: 'center', marginHorizontal: 4 },
     connectorLine: { height: 2, width: '100%', backgroundColor: colors.cardBorder },
     connectorLineActive: { backgroundColor: colors.accentTeal },
+    segmentedControl: { flexDirection: 'row', backgroundColor: colors.surfaceSoft, borderRadius: 16, padding: 3, marginBottom: 20, borderWidth: 1, borderColor: colors.cardBorder, width: '100%' },
+    segment: { flex: 1, paddingVertical: 10, paddingHorizontal: 2, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+    segmentActive: { backgroundColor: colors.cardBackground, shadowColor: colors.cardShadowColor, shadowOpacity: 0.08, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6, elevation: 3 },
+    segmentText: { fontSize: 11, fontWeight: '700', color: colors.textMuted, textAlign: 'center' },
+    segmentTextActive: { color: colors.textPrimary, fontWeight: '800' },
     stepFade: { flex: 1 },
     card: { backgroundColor: colors.cardBackground, borderRadius: 28, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: colors.cardBorder, shadowColor: colors.cardShadowColor, shadowOpacity: 0.06, shadowOffset: { width: 0, height: 10 }, shadowRadius: 20, elevation: 4 },
     cardLabel: { fontSize: 12, fontWeight: '900', color: colors.textPrimary, marginBottom: 16, letterSpacing: -0.3 },
@@ -1268,23 +1530,114 @@ function getStyles(colors: any) {
     platformCheckBadge: { position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10, backgroundColor: colors.accentTeal, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.cardBackground },
     platformLabel: { fontSize: 10, fontWeight: '800', color: colors.textSecondary },
     platformLabelActive: { color: colors.textPrimary },
-    segmentedControl: { flexDirection: 'row', backgroundColor: colors.surfaceSoft, borderRadius: 18, padding: 6, marginBottom: 20, borderWidth: 1, borderColor: colors.cardBorder },
-    segment: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 14 },
-    segmentActive: { backgroundColor: colors.cardBackground, shadowColor: colors.cardShadowColor, shadowOpacity: 0.08, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6, elevation: 3 },
-    segmentText: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
-    segmentTextActive: { color: colors.textPrimary },
+    tabsScrollView: {
+      marginBottom: 20,
+      marginHorizontal: -4,
+    },
+    tabsScrollContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 4,
+      paddingVertical: 4,
+    },
+    scrollTabItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+    },
+    scrollTabItemActive: {
+      backgroundColor: colors.cardBackground,
+      borderColor: colors.accentTeal,
+      shadowColor: colors.accentTeal,
+      shadowOpacity: 0.12,
+      shadowOffset: { width: 0, height: 2 },
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    scrollTabText: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.textMuted,
+    },
+    scrollTabTextActive: {
+      color: colors.textPrimary,
+      fontWeight: '800',
+    },
+    propertyGalleryWrapper: { gap: 12 },
+    propertyGalleryHeader: { marginBottom: 4 },
+    propertyGalleryTitle: { fontSize: 11, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5 },
+    propertyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    propertyGridCell: {
+      width: Math.floor((SCREEN_WIDTH - 100) / 3),
+      aspectRatio: 1,
+      borderRadius: 16,
+      overflow: 'hidden',
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 2,
+      borderColor: colors.cardBorder,
+      position: 'relative',
+    },
+    propertyGridCellSelected: { borderColor: colors.accentTeal },
+    propertyGridImage: { width: '100%', height: '100%' },
+    propertyCheckCircle: {
+      position: 'absolute',
+      top: 6,
+      left: 6,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: '#FFFFFF',
+    },
+    propertyCheckCircleSelected: { backgroundColor: '#0a2341', borderColor: '#0a2341' },
+    emptyGalleryBox: {
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 20,
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    emptyGalleryTitle: { fontSize: 13.5, fontWeight: '800', color: colors.textPrimary },
+    emptyGallerySubtitle: { fontSize: 12, color: colors.textMuted, textAlign: 'center', fontWeight: '500' },
     uploadDropzone: { height: 180, borderRadius: 28, borderWidth: 2, borderColor: colors.accentTeal, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', padding: 20, overflow: 'hidden' },
     uploadIconContainer: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(11, 160, 178, 0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
     uploadPrimaryText: { fontSize: 16, fontWeight: '900', color: colors.textPrimary },
     uploadSecondaryText: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 6, fontWeight: '600' },
     aiGenerationWrapper: { gap: 12 },
     aiPromptInput: { backgroundColor: colors.surfaceSoft, borderRadius: 22, padding: 18, fontSize: 12, color: colors.textPrimary, minHeight: 120, textAlignVertical: 'top', borderWidth: 1, borderColor: colors.cardBorder },
+    presetsScroll: { gap: 8, paddingVertical: 4 },
+    presetChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 12,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    presetChipText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
     aiPromptFooter: { alignItems: 'flex-end' },
     aiGenerateBtn: { borderRadius: 16, overflow: 'hidden', shadowColor: colors.accentTeal, shadowOpacity: 0.3, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
     aiGenerateBtnGradient: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 20 },
     aiGenerateBtnText: { color: '#FFF', fontWeight: '800', fontSize: 14 },
-    modernMediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    modernMediaCell: { width: (SCREEN_WIDTH - 94) / 3, aspectRatio: 1, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surfaceSoft, borderWidth: 2, borderColor: 'transparent' },
+    modernMediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    modernMediaCell: { width: Math.floor((SCREEN_WIDTH - 100) / 3), aspectRatio: 1, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surfaceSoft, borderWidth: 2, borderColor: 'transparent' },
     modernMediaCellSelected: { borderColor: colors.accentTeal },
     modernMediaImage: { width: '100%', height: '100%' },
     modernMediaCheck: { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.accentTeal, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' },
