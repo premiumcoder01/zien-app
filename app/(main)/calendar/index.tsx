@@ -66,6 +66,70 @@ function getEventVisual(evt: CalendarEvent, isDark: boolean) {
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const toDateKey = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
+const NOTIFICATION_OPTIONS = [
+  'No notification',
+  '5 minutes before',
+  '15 minutes before',
+  '30 minutes before',
+  '1 hour before',
+  '2 hours before',
+  '1 day before',
+  '2 days before',
+  '1 week before',
+];
+
+const parseEventDate = (dateStr: string, isAllDay: boolean = false): Date => {
+  if (!dateStr) return new Date();
+  const isDateOnly = isAllDay || !dateStr.includes('T') || dateStr.endsWith('T00:00:00.000Z') || dateStr.endsWith('T00:00:00Z');
+  if (isDateOnly) {
+    const cleanStr = dateStr.split('T')[0];
+    const parts = cleanStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        return new Date(year, month, day);
+      }
+    }
+  }
+  return new Date(dateStr);
+};
+
+const toLocalISOString = (d: Date): string => {
+  const offsetMin = d.getTimezoneOffset();
+  const sign = offsetMin <= 0 ? '+' : '-';
+  const absOffset = Math.abs(offsetMin);
+  const offsetHours = pad2(Math.floor(absOffset / 60));
+  const offsetMins = pad2(absOffset % 60);
+
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}${sign}${offsetHours}:${offsetMins}`;
+};
+
+const getNotificationMinutes = (label: string): string => {
+  switch (label) {
+    case '5 minutes before':
+      return '5';
+    case '15 minutes before':
+      return '15';
+    case '30 minutes before':
+      return '30';
+    case '1 hour before':
+      return '60';
+    case '2 hours before':
+      return '120';
+    case '1 day before':
+      return '1440';
+    case '2 days before':
+      return '2880';
+    case '1 week before':
+      return '10080';
+    case 'No notification':
+    default:
+      return '0';
+  }
+};
+
 export default function CalendarScreen() {
   const { colors } = useAppTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -91,6 +155,8 @@ export default function CalendarScreen() {
   const [newItemLocation, setNewItemLocation] = useState('');
   const [newItemType, setNewItemType] = useState('Calendar Event');
   const [newItemNotes, setNewItemNotes] = useState('');
+  const [newItemNotification, setNewItemNotification] = useState('30 minutes before');
+  const [showNotificationPicker, setShowNotificationPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -465,6 +531,24 @@ export default function CalendarScreen() {
       return;
     }
 
+    if (!isConnected) {
+      Alert.alert(
+        'Calendar Not Connected',
+        'Please first connect the calendar under Integrations.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Go to Integrations',
+            onPress: () => {
+              setShowModal(false);
+              setActiveTab('integrations');
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     setShowModal(false);
     setIsLoadingEvents(true);
 
@@ -490,12 +574,14 @@ export default function CalendarScreen() {
           ? `${newItemNotes}\n\nLocation: ${newItemLocation.trim()}`
           : newItemNotes;
 
+        const validEnd = end > start ? end : new Date(start.getTime() + 60 * 60 * 1000);
         await createBackendCalendarEvent(accessToken, {
           title: newItemTitle,
           description,
           location: newItemLocation.trim() || undefined,
-          start: start.toISOString(),
-          end: (end > start ? end : new Date(start.getTime() + 60 * 60 * 1000)).toISOString(),
+          notificationMinutes: getNotificationMinutes(newItemNotification),
+          start: toLocalISOString(start),
+          end: toLocalISOString(validEnd),
         });
 
         showToast('Event created successfully', 'success');
@@ -521,12 +607,14 @@ export default function CalendarScreen() {
           ? `${newItemNotes}\n\nLocation: ${newItemLocation.trim()}`
           : newItemNotes;
 
+        const validEnd = end > start ? end : new Date(start.getTime() + 60 * 60 * 1000);
         await createBackendCalendarEvent(accessToken, {
           title: `[Appointment] ${newItemTitle}`,
           description,
           location: newItemLocation.trim() || undefined,
-          start: start.toISOString(),
-          end: (end > start ? end : new Date(start.getTime() + 60 * 60 * 1000)).toISOString(),
+          notificationMinutes: getNotificationMinutes(newItemNotification),
+          start: toLocalISOString(start),
+          end: toLocalISOString(validEnd),
         });
 
         showToast('Appointment created successfully', 'success');
@@ -543,7 +631,7 @@ export default function CalendarScreen() {
         await createBackendCalendarTask(accessToken, {
           title: newItemTitle,
           notes: newItemNotes || undefined,
-          due: newItemDate ? due.toISOString() : undefined,
+          due: newItemDate ? toLocalISOString(due) : undefined,
         });
 
         showToast('Task created successfully', 'success');
@@ -551,8 +639,29 @@ export default function CalendarScreen() {
 
       await loadSyncSettingsAndEvents();
     } catch (error: any) {
-      console.error('Error creating item:', error);
-      Alert.alert('Error', error.message || 'Failed to create item. Please try again.');
+      const errMsg = error?.message || error?.toString() || '';
+      if (
+        errMsg.toLowerCase().includes('no calendar connected') ||
+        errMsg.toLowerCase().includes('calendar not connected')
+      ) {
+        Alert.alert(
+          'Calendar Not Connected',
+          'Please first connect the calendar under Integrations.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Go to Integrations',
+              onPress: () => {
+                setShowModal(false);
+                setActiveTab('integrations');
+              },
+            },
+          ]
+        );
+      } else {
+        console.error('Error creating item:', error);
+        Alert.alert('Error', errMsg || 'Failed to create item. Please try again.');
+      }
     } finally {
       setIsLoadingEvents(false);
       setNewItemTitle('');
@@ -562,6 +671,7 @@ export default function CalendarScreen() {
       setNewItemEndTime('');
       setNewItemLocation('');
       setNewItemNotes('');
+      setNewItemNotification('30 minutes before');
       setNewItemType('Calendar Event');
       setIsEditing(false);
     }
@@ -600,6 +710,20 @@ export default function CalendarScreen() {
   };
 
   const openCreateModal = (type: string = 'Calendar Event') => {
+    if (!isConnected) {
+      Alert.alert(
+        'Calendar Not Connected',
+        'Please first connect the calendar under Integrations.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Go to Integrations',
+            onPress: () => setActiveTab('integrations'),
+          },
+        ]
+      );
+      return;
+    }
     const now = new Date();
     const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
     setIsEditing(false);
@@ -610,6 +734,7 @@ export default function CalendarScreen() {
     setNewItemEndTime(oneHourLater.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
     setNewItemLocation('');
     setNewItemNotes('');
+    setNewItemNotification('30 minutes before');
     setNewItemType(type);
     setDateValue(now);
     setTimeValue(now);
@@ -673,10 +798,19 @@ export default function CalendarScreen() {
   const eventsByDate = useMemo(() => {
     const map: { [key: string]: CalendarEvent[] } = {};
     backendEvents.forEach(evt => {
-      const start = new Date(evt.startDate);
-      const end = new Date(evt.endDate);
+      const isAllDay = evt.allDay === true;
+      const start = parseEventDate(evt.startDate, isAllDay);
+      let end = parseEventDate(evt.endDate, isAllDay);
+
+      // Google Calendar API all-day end dates are exclusive (e.g. start Aug 26, end Aug 27 = 1 day on Aug 26).
+      // If end > start for an all-day event, subtract 1 day from end so exclusive end date becomes inclusive.
+      if (isAllDay && end > start) {
+        end = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1);
+      }
+
       const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
       const last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+
       while (cursor <= last) {
         const key = toDateKey(cursor);
         if (!map[key]) map[key] = [];
@@ -693,7 +827,7 @@ export default function CalendarScreen() {
   // Filter events for active switcher month on the Event Links tab
   const filteredEventsForMonth = useMemo(() => {
     return backendEvents.filter(evt => {
-      const evtDate = new Date(evt.startDate);
+      const evtDate = parseEventDate(evt.startDate, evt.allDay);
       return (
         evtDate.getMonth() === selectedMonth.getMonth() &&
         evtDate.getFullYear() === selectedMonth.getFullYear()
@@ -977,7 +1111,7 @@ export default function CalendarScreen() {
                       },
                     } as any}
                     dayComponent={({ date, state }: any) => {
-                      if (!date) return <View style={{ width: calGridWidth / 7 }} />;
+                      if (!date) return <View style={{ width: calGridWidth / 7, minHeight: 52 }} />;
                       const cellDate = new Date(date.year, date.month - 1, date.day);
                       const dayEvents = eventsByDate[date.dateString] || [];
                       const isDisabled = state === 'disabled';
@@ -1011,6 +1145,7 @@ export default function CalendarScreen() {
                                 style={[
                                   styles.dayNumText,
                                   isTodayCell && styles.dayNumTextToday,
+                                  isSelectedCell && !isTodayCell && styles.dayNumTextSelected,
                                   isDisabled && styles.dayNumTextMuted,
                                 ]}
                               >
@@ -1020,25 +1155,19 @@ export default function CalendarScreen() {
                           </View>
 
                           <View style={styles.dayEvents}>
-                            {dayEvents.slice(0, 2).map((evt, idx) => {
+                            {dayEvents.map((evt, idx) => {
                               const v = getEventVisual(evt, isDark);
                               return (
                                 <View
                                   key={evt.id || idx}
                                   style={[styles.dayEventBar, { backgroundColor: v.barBg }]}
                                 >
-                                  <Text
-                                    style={[styles.dayEventBarText, { color: v.barText }]}
-                                    numberOfLines={1}
-                                  >
+                                  <Text style={[styles.dayEventBarText, { color: v.barText }]}>
                                     {evt.title}
                                   </Text>
                                 </View>
                               );
                             })}
-                            {dayEvents.length > 2 && (
-                              <Text style={styles.dayMoreText}>+{dayEvents.length - 2} more</Text>
-                            )}
                           </View>
                         </Pressable>
                       );
@@ -1230,9 +1359,6 @@ export default function CalendarScreen() {
             </View>
 
             <View style={styles.taskCardFooter}>
-              <View style={[styles.priorityBadge, styles[`priority${task.priority}`]]}>
-                <Text style={styles.priorityText}>{task.priority.toUpperCase()}</Text>
-              </View>
               <View style={[styles.statusBadge, task.status === 'completed' && styles.statusCompleted]}>
                 <Text
                   style={[styles.statusText, task.status === 'completed' && styles.statusTextCompleted]}>
@@ -1513,7 +1639,7 @@ export default function CalendarScreen() {
               {/* Title */}
               <View style={styles.ceField}>
                 <Text style={styles.ceLabel}>
-                  {newItemType === 'Calendar Event' ? 'EVENT TITLE' : newItemType === 'Team Task' ? 'TASK TITLE' : 'APPOINTMENT TITLE'}
+                  {newItemType === 'Calendar Event' ? 'Event Title' : newItemType === 'Team Task' ? 'Task Title' : 'Appointment Title'}
                   <Text style={styles.ceRequired}> *</Text>
                 </Text>
                 <View style={styles.ceInputRow}>
@@ -1521,9 +1647,9 @@ export default function CalendarScreen() {
                   <TextInput
                     style={styles.ceInput}
                     placeholder={
-                      newItemType === 'Calendar Event' ? 'E.g., Property Showing at 123 Main St' :
-                      newItemType === 'Team Task' ? 'E.g., Call the plumber' :
-                      'E.g., Meeting with client'
+                      newItemType === 'Calendar Event' ? 'E.g., Property Showing' :
+                      newItemType === 'Team Task' ? 'E.g., Call plumber' :
+                      'E.g., Client meeting'
                     }
                     placeholderTextColor={colors.inputPlaceholder}
                     value={newItemTitle}
@@ -1537,7 +1663,7 @@ export default function CalendarScreen() {
                 <>
                   <View style={styles.ceRow}>
                     <View style={[styles.ceField, { flex: 1 }]}>
-                      <Text style={styles.ceLabel}>START DATE <Text style={styles.ceRequired}>*</Text></Text>
+                      <Text style={styles.ceLabel}>Start Date <Text style={styles.ceRequired}>*</Text></Text>
                       <Pressable style={styles.ceInputRow} onPress={() => setShowDatePicker(true)}>
                         <TextInput
                           style={[styles.ceInput, { flex: 1 }]}
@@ -1551,7 +1677,7 @@ export default function CalendarScreen() {
                       </Pressable>
                     </View>
                     <View style={[styles.ceField, { flex: 1 }]}>
-                      <Text style={styles.ceLabel}>START TIME <Text style={styles.ceRequired}>*</Text></Text>
+                      <Text style={styles.ceLabel}>Start Time <Text style={styles.ceRequired}>*</Text></Text>
                       <Pressable style={styles.ceInputRow} onPress={() => setShowTimePicker(true)}>
                         <TextInput
                           style={[styles.ceInput, { flex: 1 }]}
@@ -1568,7 +1694,7 @@ export default function CalendarScreen() {
 
                   <View style={styles.ceRow}>
                     <View style={[styles.ceField, { flex: 1 }]}>
-                      <Text style={styles.ceLabel}>END DATE <Text style={styles.ceRequired}>*</Text></Text>
+                      <Text style={styles.ceLabel}>End Date <Text style={styles.ceRequired}>*</Text></Text>
                       <Pressable style={styles.ceInputRow} onPress={() => setShowEndDatePicker(true)}>
                         <TextInput
                           style={[styles.ceInput, { flex: 1 }]}
@@ -1582,7 +1708,7 @@ export default function CalendarScreen() {
                       </Pressable>
                     </View>
                     <View style={[styles.ceField, { flex: 1 }]}>
-                      <Text style={styles.ceLabel}>END TIME <Text style={styles.ceRequired}>*</Text></Text>
+                      <Text style={styles.ceLabel}>End Time <Text style={styles.ceRequired}>*</Text></Text>
                       <Pressable style={styles.ceInputRow} onPress={() => setShowEndTimePicker(true)}>
                         <TextInput
                           style={[styles.ceInput, { flex: 1 }]}
@@ -1599,7 +1725,7 @@ export default function CalendarScreen() {
 
                   {/* Location */}
                   <View style={styles.ceField}>
-                    <Text style={styles.ceLabel}>LOCATION (OPTIONAL)</Text>
+                    <Text style={styles.ceLabel}>Location (Optional)</Text>
                     <View style={styles.ceInputRow}>
                       <MaterialCommunityIcons name="map-marker-outline" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
                       <TextInput
@@ -1617,7 +1743,7 @@ export default function CalendarScreen() {
               {/* Task: Due Date only */}
               {newItemType === 'Team Task' && (
                 <View style={styles.ceField}>
-                  <Text style={styles.ceLabel}>DUE DATE (OPTIONAL)</Text>
+                  <Text style={styles.ceLabel}>Due Date (Optional)</Text>
                   <Pressable style={styles.ceInputRow} onPress={() => setShowDatePicker(true)}>
                     <TextInput
                       style={[styles.ceInput, { flex: 1 }]}
@@ -1632,9 +1758,21 @@ export default function CalendarScreen() {
                 </View>
               )}
 
+              {/* Notification */}
+              <View style={styles.ceField}>
+                <Text style={styles.ceLabel}>Notification</Text>
+                <Pressable style={styles.ceInputRow} onPress={() => setShowNotificationPicker(true)}>
+                  <MaterialCommunityIcons name="bell-outline" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
+                  <Text style={[styles.ceInput, { flex: 1, color: colors.textPrimary }]}>
+                    {newItemNotification}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+
               {/* Description */}
               <View style={styles.ceField}>
-                <Text style={styles.ceLabel}>DESCRIPTION (OPTIONAL)</Text>
+                <Text style={styles.ceLabel}>Description (Optional)</Text>
                 <TextInput
                   style={styles.ceTextarea}
                   placeholder="Add meeting agenda or notes..."
@@ -1724,6 +1862,49 @@ export default function CalendarScreen() {
               </View>
               <DateTimePicker value={endTimeValue} mode="time" display="spinner" is24Hour={false} onChange={onEndTimeChange} textColor={colors.textPrimary} style={styles.pickerInternal} />
             </View>
+          </Pressable>
+        </Modal>
+
+        {/* Notification Picker Modal */}
+        <Modal visible={showNotificationPicker} transparent animationType="fade" onRequestClose={() => setShowNotificationPicker(false)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setShowNotificationPicker(false)}>
+            <Pressable style={[styles.deleteModalContent, { maxWidth: 360, padding: 20 }]} onPress={(e) => e.stopPropagation()}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: colors.textPrimary }}>Notification</Text>
+                <Pressable onPress={() => setShowNotificationPicker(false)} style={{ padding: 4 }}>
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+              <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                {NOTIFICATION_OPTIONS.map((opt) => {
+                  const isSel = newItemNotification === opt;
+                  return (
+                    <Pressable
+                      key={opt}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingVertical: 12,
+                        paddingHorizontal: 14,
+                        borderRadius: 10,
+                        backgroundColor: isSel ? (isDark ? 'rgba(0,167,181,0.15)' : '#EFF6FF') : 'transparent',
+                        marginBottom: 4,
+                      }}
+                      onPress={() => {
+                        setNewItemNotification(opt);
+                        setShowNotificationPicker(false);
+                      }}
+                    >
+                      <Text style={{ fontSize: 14, fontWeight: isSel ? '700' : '500', color: isSel ? colors.accentTeal : colors.textPrimary }}>
+                        {opt}
+                      </Text>
+                      {isSel && <MaterialCommunityIcons name="check" size={18} color={colors.accentTeal} />}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </Pressable>
           </Pressable>
         </Modal>
       </Modal>
@@ -2217,15 +2398,15 @@ function getStyles(colors: any) {
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: 6,
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: isDark ? 'rgba(217,119,6,0.2)' : '#FEF3C7',
     },
-    statusCompleted: { backgroundColor: '#D1FAE5' },
+    statusCompleted: { backgroundColor: isDark ? 'rgba(4,120,87,0.2)' : '#D1FAE5' },
     statusText: {
       fontSize: 10,
       fontWeight: '900',
-      color: colors.textSecondary,
+      color: isDark ? '#FBBF24' : '#D97706',
     },
-    statusTextCompleted: { color: '#047857' },
+    statusTextCompleted: { color: isDark ? '#34D399' : '#047857' },
 
     // ── Modal Styles ──
     modalScreen: {
@@ -3237,26 +3418,28 @@ function getStyles(colors: any) {
       marginTop: 2,
     },
     monthDayCell: {
-      minHeight: 78,
-      paddingTop: 4,
+      minHeight: 52,
+      paddingTop: 3,
       paddingBottom: 3,
-      borderRadius: 12,
+      borderRadius: 10,
       alignItems: 'stretch',
     },
     monthDayCellSelected: {
-      backgroundColor: isDark ? 'rgba(0,167,181,0.12)' : '#EAF4FB',
+      backgroundColor: isDark ? 'rgba(0,167,181,0.14)' : '#EFF6FF',
+      borderWidth: 1,
+      borderColor: colors.accentTeal,
     },
     dayNumWrap: {
-      height: 24,
+      height: 22,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 3,
+      marginBottom: 2,
     },
     dayNumCircle: {
-      minWidth: 24,
-      height: 24,
-      paddingHorizontal: 5,
-      borderRadius: 12,
+      minWidth: 20,
+      height: 20,
+      paddingHorizontal: 4,
+      borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -3264,11 +3447,10 @@ function getStyles(colors: any) {
       backgroundColor: colors.accentTeal,
     },
     dayNumCircleSelected: {
-      borderWidth: 1.5,
-      borderColor: colors.accentTeal,
+      backgroundColor: colors.accentTeal,
     },
     dayNumText: {
-      fontSize: 12.5,
+      fontSize: 11.5,
       fontWeight: '700',
       color: colors.textPrimary,
     },
@@ -3276,29 +3458,37 @@ function getStyles(colors: any) {
       color: colors.textOnAccent,
       fontWeight: '800',
     },
+    dayNumTextSelected: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+    },
     dayNumTextMuted: {
       color: colors.inputPlaceholder,
     },
     dayEvents: {
-      gap: 2.5,
-      paddingHorizontal: 3,
+      gap: 2,
+      paddingHorizontal: 2,
+      alignItems: 'stretch',
     },
     dayEventBar: {
-      borderRadius: 5,
-      paddingHorizontal: 4,
-      paddingVertical: 2,
+      borderRadius: 4,
+      paddingHorizontal: 2.5,
+      paddingVertical: 1.5,
+      minHeight: 13,
+      justifyContent: 'center',
     },
     dayEventBarText: {
-      fontSize: 8.5,
+      fontSize: 7.5,
       fontWeight: '700',
-      lineHeight: 11,
+      lineHeight: 9.5,
+      flexWrap: 'wrap',
     },
     dayMoreText: {
-      fontSize: 8,
-      fontWeight: '800',
+      fontSize: 7.5,
+      fontWeight: '700',
       color: colors.textMuted,
-      paddingHorizontal: 3,
-      marginTop: 1,
+      textAlign: 'center',
+      marginTop: 0.5,
     },
     weekdayHeadersRow: {
       flexDirection: 'row',

@@ -290,7 +290,8 @@ export const disconnectBackendCalendar = async (token: string): Promise<boolean>
 };
 
 export const getBackendCalendarEvents = async (token: string): Promise<CalendarEvent[]> => {
-  const response = await fetch(`${API_BASE_URL}/solo/calendar/events`, {
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Calcutta';
+  const response = await fetch(`${API_BASE_URL}/solo/calendar/events?timeZone=${encodeURIComponent(userTz)}`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -374,14 +375,25 @@ export const getBackendCalendarTasks = async (token: string): Promise<BackendTas
 
 export const createBackendCalendarEvent = async (
   token: string,
-  event: { title: string; description?: string; location?: string; start: string; end: string }
+  event: {
+    title: string;
+    description?: string;
+    location?: string;
+    start: string;
+    end: string;
+    notificationMinutes?: string;
+    timeZone?: string;
+  }
 ): Promise<any> => {
+  const userTz = event.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Calcutta';
   const body = {
     title: event.title,
     description: event.description,
     location: event.location,
     start: event.start,
     end: event.end,
+    notificationMinutes: event.notificationMinutes,
+    timeZone: userTz,
   };
 
   const response = await fetch(`${API_BASE_URL}/solo/calendar/events`, {
