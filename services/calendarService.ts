@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Calendar from 'expo-calendar';
 import { Platform } from 'react-native';
 
-const API_BASE_URL = 'https://api.zien.ai/api';
+const API_BASE_URL = 'https://staging-api.zien.ai/api';
 
 export interface CalendarEvent {
   id: string;

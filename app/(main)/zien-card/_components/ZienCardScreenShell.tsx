@@ -10,6 +10,7 @@ type ZienCardScreenShellProps = {
   title: string;
   subtitle?: string;
   showBack?: boolean;
+  onBack?: () => void;
   children: ReactNode;
   /** Optional element shown on the right side of the header (e.g. save icon). */
   headerRight?: ReactNode;
@@ -19,6 +20,7 @@ export function ZienCardScreenShell({
   title,
   subtitle,
   showBack = true,
+  onBack,
   children,
   headerRight,
 }: ZienCardScreenShellProps) {
@@ -26,6 +28,14 @@ export function ZienCardScreenShell({
   const router = useRouter();
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+
+  const handleBackPress = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.back();
+    }
+  };
 
   return (
     <LinearGradient
@@ -36,7 +46,7 @@ export function ZienCardScreenShell({
       <View style={styles.headerWrap}>
         <View style={styles.header}>
           {showBack && (
-            <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Pressable style={styles.backButton} onPress={handleBackPress}>
               <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textPrimary} />
             </Pressable>
           )}

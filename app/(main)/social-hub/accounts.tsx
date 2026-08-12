@@ -138,7 +138,7 @@ export default function AccountsScreen() {
       setConnectingPlatform(null);
 
       const response = await fetch(
-        `https://api.zien.ai/api/solo/social/oauth/${provider}/callback`,
+        `https://staging-api.zien.ai/api/solo/social/oauth/${provider}/callback`,
         {
           method: 'POST',
           headers: {
@@ -226,7 +226,7 @@ export default function AccountsScreen() {
           access_token: `mock_token_${timestamp}`,
         };
 
-        const response = await fetch('https://api.zien.ai/api/solo/social/accounts', {
+        const response = await fetch('https://staging-api.zien.ai/api/solo/social/accounts', {
           method: 'POST',
           headers,
           body: JSON.stringify(payload),
@@ -243,7 +243,7 @@ export default function AccountsScreen() {
       } else {
         const provider = activeAccount.id === 'instagram' ? 'facebook' : activeAccount.id;
         const response = await fetch(
-          `https://api.zien.ai/api/solo/social/oauth/${provider}/url`,
+          `https://staging-api.zien.ai/api/solo/social/oauth/${provider}/url`,
           { method: 'GET', headers }
         );
         const data = await response.json();

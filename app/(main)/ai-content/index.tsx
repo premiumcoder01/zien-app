@@ -321,9 +321,10 @@ export default function AiContentScreen() {
         }
       });
     } else if (item.type === 'email-templates') {
+      const emailType = item.metadata?.template_type || item.metadata?.email_type || '';
       router.push({
         pathname: '/(main)/ai-content/email-templates',
-        params: { id: item.id.toString(), prefill, content, address: item.metadata?.address || '' }
+        params: { id: item.id.toString(), prefill, content, address: item.metadata?.address || '', emailType }
       });
     } else if (item.type === 'image-enhancer') {
       router.push({
@@ -612,7 +613,7 @@ export default function AiContentScreen() {
                         </View>
                         {item.metadata?.template_type && (
                           <View style={styles.templateTypeBadge}>
-                            <Text style={styles.templateTypeText} numberOfLines={1} ellipsizeMode="tail">{item.metadata.template_type.toUpperCase()}</Text>
+                            <Text style={styles.templateTypeText} numberOfLines={1} ellipsizeMode="tail">{item.metadata.template_type}</Text>
                           </View>
                         )}
                       </View>

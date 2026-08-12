@@ -476,22 +476,6 @@ export default function SocialPostLabScreen() {
                                 <Text style={styles.fbLinkDesc} numberOfLines={1}>{propertyLocation} - Active Listing</Text>
                             </View>
                         </View>
-
-                        {/* FB Actions */}
-                        <View style={styles.fbActions}>
-                            <View style={styles.fbActionBtn}>
-                                <MaterialCommunityIcons name="thumb-up-outline" size={16} color={colors.textSecondary} />
-                                <Text style={styles.fbActionText}>Like</Text>
-                            </View>
-                            <View style={styles.fbActionBtn}>
-                                <MaterialCommunityIcons name="chat-outline" size={16} color={colors.textSecondary} />
-                                <Text style={styles.fbActionText}>Comment</Text>
-                            </View>
-                            <View style={styles.fbActionBtn}>
-                                <MaterialCommunityIcons name="share-outline" size={16} color={colors.textSecondary} />
-                                <Text style={styles.fbActionText}>Share</Text>
-                            </View>
-                        </View>
                     </View>
                 );
 
@@ -528,26 +512,6 @@ export default function SocialPostLabScreen() {
                             <View style={styles.liMediaFooter}>
                                 <Text style={styles.liMediaTitle} numberOfLines={1}>{propertyTitle}</Text>
                                 <Text style={styles.liMediaSubtitle} numberOfLines={1}>{propertyLocation}</Text>
-                            </View>
-                        </View>
-
-                        {/* LI Actions */}
-                        <View style={styles.liActions}>
-                            <View style={styles.liActionBtn}>
-                                <MaterialCommunityIcons name="thumb-up-outline" size={16} color={colors.textSecondary} />
-                                <Text style={styles.liActionText}>Like</Text>
-                            </View>
-                            <View style={styles.liActionBtn}>
-                                <MaterialCommunityIcons name="chat-outline" size={16} color={colors.textSecondary} />
-                                <Text style={styles.liActionText}>Comment</Text>
-                            </View>
-                            <View style={styles.liActionBtn}>
-                                <MaterialCommunityIcons name="share-outline" size={16} color={colors.textSecondary} />
-                                <Text style={styles.liActionText}>Repost</Text>
-                            </View>
-                            <View style={styles.liActionBtn}>
-                                <MaterialCommunityIcons name="send" size={16} color={colors.textSecondary} />
-                                <Text style={styles.liActionText}>Send</Text>
                             </View>
                         </View>
                     </View>

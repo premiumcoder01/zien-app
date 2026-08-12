@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://api.zien.ai/api';
+const API_BASE_URL = 'https://staging-api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 /** Thrown when the server responds with HTTP 503 (Service Unavailable / maintenance). */

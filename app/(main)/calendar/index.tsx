@@ -916,219 +916,145 @@ export default function CalendarScreen() {
 
     return (
       <View style={styles.calendarTabRoot}>
-        {/* Sync Settings Header & Button */}
-        {isConnected ? (
-          <View style={styles.syncHeaderRowActive}>
-            <View style={styles.activeBadgeRow}>
-              <View style={styles.activeDot} />
-              <Text style={styles.syncHeaderTitleActive}>
-                {isGoogleConnected 
-                  ? 'Google Calendar Sync Active' 
-                  : isMicrosoftConnected 
-                    ? 'Microsoft Outlook Sync Active' 
-                    : 'Apple iCloud Sync Active'}
-              </Text>
-            </View>
-            <Pressable
-              style={styles.disconnectBtnHeader}
-              onPress={() => {
-                setCalendarToDisconnect(isGoogleConnected ? 'Google' : isMicrosoftConnected ? 'Microsoft' : 'Apple');
-                setDisconnectModalVisible(true);
-              }}
-            >
-              <Text style={styles.disconnectBtnHeaderText}>
-                Disconnect {isGoogleConnected ? 'Google' : isMicrosoftConnected ? 'Microsoft' : 'Apple'}
-              </Text>
+        <View style={styles.calendarViewContainer}>
+          {/* Month / Day view selector — its own dedicated segment, always available */}
+          {renderViewModeSwitch()}
+
+          {/* Custom Control Bar (Today, <, >, title) */}
+          <View style={styles.calendarControlBar}>
+            <Pressable style={styles.controlTodayBtn} onPress={handleGoToday}>
+              <Text style={styles.controlTodayBtnText}>Today</Text>
             </Pressable>
-          </View>
-        ) : (
-          <View style={styles.syncHeaderRow}>
-            <View style={styles.syncHeaderInfo}>
-              <Text style={styles.syncHeaderTitle}>Cloud Calendar Integration</Text>
-              <Text style={styles.syncHeaderSubtitle}>
-                Sync with your Google, Outlook, or iCloud account to view and manage events.
-              </Text>
-              <View style={{ marginTop: 8, gap: 8 }}>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Pressable
-                    style={[styles.connectGoogleBtnHeader, { flex: 1, justifyContent: 'center' }]}
-                    onPress={handleConnectGoogle}
-                  >
-                    <MaterialCommunityIcons name="google" size={14} color="#FFF" style={{ marginRight: 4 }} />
-                    <Text style={styles.connectGoogleBtnHeaderText}>Connect Google</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.connectGoogleBtnHeader, { flex: 1, justifyContent: 'center', backgroundColor: '#0078D4' }]}
-                    onPress={handleConnectMicrosoft}
-                  >
-                    <MaterialCommunityIcons name="microsoft" size={14} color="#FFF" style={{ marginRight: 4 }} />
-                    <Text style={styles.connectGoogleBtnHeaderText}>Connect Outlook</Text>
-                  </Pressable>
-                </View>
-                <Pressable
-                  style={[styles.connectGoogleBtnHeader, { justifyContent: 'center', backgroundColor: '#555555', alignSelf: 'stretch' }]}
-                  onPress={() => setAppleModalVisible(true)}
-                >
-                  <MaterialCommunityIcons name="apple" size={14} color="#FFF" style={{ marginRight: 4 }} />
-                  <Text style={styles.connectGoogleBtnHeaderText}>Connect Apple</Text>
-                </Pressable>
-              </View>
-            </View>
 
-          </View>
-        )}
-
-        {/* Schedule / Agenda list or Month Calendar Grid */}
-        {backendEvents.length === 0 ? (
-          // Standard empty state when no events exist
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconCircle}>
-              <MaterialCommunityIcons name="calendar-clock-outline" size={56} color={colors.accentTeal} />
-            </View>
-            <Text style={styles.emptyTitle}>Your Workspace Schedule</Text>
-            <Text style={styles.emptySubtitle}>Sync your personal and work calendars to see all events here in one place.</Text>
-          </View>
-        ) : (
-          <View style={styles.calendarViewContainer}>
-            {/* Month / Day view selector — its own dedicated segment, always available */}
-            {renderViewModeSwitch()}
-
-            {/* Custom Control Bar (Today, <, >, title) */}
-            <View style={styles.calendarControlBar}>
-              <Pressable style={styles.controlTodayBtn} onPress={handleGoToday}>
-                <Text style={styles.controlTodayBtnText}>Today</Text>
+            <View style={styles.arrowControls}>
+              <Pressable style={styles.controlArrowBtn} onPress={handlePrev}>
+                <MaterialCommunityIcons name="chevron-left" size={18} color={colors.textPrimary} />
               </Pressable>
-
-              <View style={styles.arrowControls}>
-                <Pressable style={styles.controlArrowBtn} onPress={handlePrev}>
-                  <MaterialCommunityIcons name="chevron-left" size={18} color={colors.textPrimary} />
-                </Pressable>
-                <Pressable style={styles.controlArrowBtn} onPress={handleNext}>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textPrimary} />
-                </Pressable>
-              </View>
-
-              <Text style={styles.calendarTitleLabel} numberOfLines={1}>{calendarTitleString}</Text>
+              <Pressable style={styles.controlArrowBtn} onPress={handleNext}>
+                <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textPrimary} />
+              </Pressable>
             </View>
 
-            {/* Render selected view */}
-            {calendarViewMode === 'month' ? (
-              <View style={styles.monthViewWrapper}>
-                {/* Premium month grid (react-native-calendars) */}
-                <View
-                  style={styles.calendarCard}
-                  onLayout={(e) => {
-                    const w = e.nativeEvent.layout.width - 12; // minus card horizontal padding
-                    if (Math.abs(w - calGridWidth) > 1) setCalGridWidth(w);
-                  }}
-                >
-                  {/* Weekday Headers */}
-                  <View style={styles.weekdayHeadersRow}>
-                    {daysOfWeek.map(day => (
-                      <Text key={day} style={styles.weekdayHeaderText}>{day}</Text>
-                    ))}
-                  </View>
+            <Text style={styles.calendarTitleLabel} numberOfLines={1}>{calendarTitleString}</Text>
+          </View>
 
-                  {calGridWidth > 0 && (
-                    <RNCalendar
-                      key={`${selectedMonth.getFullYear()}-${selectedMonth.getMonth()}`}
-                      current={toDateKey(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1))}
-                      firstDay={0}
-                      hideArrows
-                      hideDayNames
-                      disableMonthChange
-                      renderHeader={() => null}
-                      enableSwipeMonths
-                      onMonthChange={(m) => setSelectedMonth(new Date(m.year, m.month - 1, 1))}
-                      style={styles.rnCalendar}
-                      theme={{
-                        calendarBackground: 'transparent',
-                        'stylesheet.calendar.main': {
-                          container: { paddingLeft: 0, paddingRight: 0 },
-                          week: { marginTop: 0, marginBottom: 0, flexDirection: 'row' },
-                          dayContainer: { flex: 0 },
-                        },
-                      } as any}
-                      dayComponent={({ date, state }: any) => {
-                        if (!date) return <View style={{ width: calGridWidth / 7 }} />;
-                        const cellDate = new Date(date.year, date.month - 1, date.day);
-                        const dayEvents = eventsByDate[date.dateString] || [];
-                        const isDisabled = state === 'disabled';
-                        const isTodayCell = state === 'today';
-                        const isSelectedCell =
-                          date.year === selectedDay.getFullYear() &&
-                          date.month - 1 === selectedDay.getMonth() &&
-                          date.day === selectedDay.getDate();
+          {/* Render selected view */}
+          {calendarViewMode === 'month' ? (
+            <View style={styles.monthViewWrapper}>
+              {/* Premium month grid (react-native-calendars) */}
+              <View
+                style={styles.calendarCard}
+                onLayout={(e) => {
+                  const w = e.nativeEvent.layout.width - 12; // minus card horizontal padding
+                  if (Math.abs(w - calGridWidth) > 1) setCalGridWidth(w);
+                }}
+              >
+                {/* Weekday Headers */}
+                <View style={styles.weekdayHeadersRow}>
+                  {daysOfWeek.map(day => (
+                    <Text key={day} style={styles.weekdayHeaderText}>{day}</Text>
+                  ))}
+                </View>
 
-                        return (
-                          <Pressable
-                            style={[
-                              styles.monthDayCell,
-                              { width: calGridWidth / 7 },
-                              isSelectedCell && styles.monthDayCellSelected,
-                            ]}
-                            onPress={() => {
-                              setSelectedDay(cellDate);
-                              if (isDisabled) setSelectedMonth(cellDate);
-                            }}
-                          >
-                            <View style={styles.dayNumWrap}>
-                              <View
+                {calGridWidth > 0 && (
+                  <RNCalendar
+                    key={`${selectedMonth.getFullYear()}-${selectedMonth.getMonth()}`}
+                    current={toDateKey(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1))}
+                    firstDay={0}
+                    hideArrows
+                    hideDayNames
+                    disableMonthChange
+                    renderHeader={() => null}
+                    enableSwipeMonths
+                    onMonthChange={(m) => setSelectedMonth(new Date(m.year, m.month - 1, 1))}
+                    style={styles.rnCalendar}
+                    theme={{
+                      calendarBackground: 'transparent',
+                      'stylesheet.calendar.main': {
+                        container: { paddingLeft: 0, paddingRight: 0 },
+                        week: { marginTop: 0, marginBottom: 0, flexDirection: 'row' },
+                        dayContainer: { flex: 0 },
+                      },
+                    } as any}
+                    dayComponent={({ date, state }: any) => {
+                      if (!date) return <View style={{ width: calGridWidth / 7 }} />;
+                      const cellDate = new Date(date.year, date.month - 1, date.day);
+                      const dayEvents = eventsByDate[date.dateString] || [];
+                      const isDisabled = state === 'disabled';
+                      const isTodayCell = state === 'today';
+                      const isSelectedCell =
+                        date.year === selectedDay.getFullYear() &&
+                        date.month - 1 === selectedDay.getMonth() &&
+                        date.day === selectedDay.getDate();
+
+                      return (
+                        <Pressable
+                          style={[
+                            styles.monthDayCell,
+                            { width: calGridWidth / 7 },
+                            isSelectedCell && styles.monthDayCellSelected,
+                          ]}
+                          onPress={() => {
+                            setSelectedDay(cellDate);
+                            if (isDisabled) setSelectedMonth(cellDate);
+                          }}
+                        >
+                          <View style={styles.dayNumWrap}>
+                            <View
+                              style={[
+                                styles.dayNumCircle,
+                                isTodayCell && styles.dayNumCircleToday,
+                                isSelectedCell && !isTodayCell && styles.dayNumCircleSelected,
+                              ]}
+                            >
+                              <Text
                                 style={[
-                                  styles.dayNumCircle,
-                                  isTodayCell && styles.dayNumCircleToday,
-                                  isSelectedCell && !isTodayCell && styles.dayNumCircleSelected,
+                                  styles.dayNumText,
+                                  isTodayCell && styles.dayNumTextToday,
+                                  isDisabled && styles.dayNumTextMuted,
                                 ]}
                               >
-                                <Text
-                                  style={[
-                                    styles.dayNumText,
-                                    isTodayCell && styles.dayNumTextToday,
-                                    isDisabled && styles.dayNumTextMuted,
-                                  ]}
+                                {date.day}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.dayEvents}>
+                            {dayEvents.slice(0, 2).map((evt, idx) => {
+                              const v = getEventVisual(evt, isDark);
+                              return (
+                                <View
+                                  key={evt.id || idx}
+                                  style={[styles.dayEventBar, { backgroundColor: v.barBg }]}
                                 >
-                                  {date.day}
-                                </Text>
-                              </View>
-                            </View>
-
-                            <View style={styles.dayEvents}>
-                              {dayEvents.slice(0, 2).map((evt, idx) => {
-                                const v = getEventVisual(evt, isDark);
-                                return (
-                                  <View
-                                    key={evt.id || idx}
-                                    style={[styles.dayEventBar, { backgroundColor: v.barBg }]}
+                                  <Text
+                                    style={[styles.dayEventBarText, { color: v.barText }]}
+                                    numberOfLines={1}
                                   >
-                                    <Text
-                                      style={[styles.dayEventBarText, { color: v.barText }]}
-                                      numberOfLines={1}
-                                    >
-                                      {evt.title}
-                                    </Text>
-                                  </View>
-                                );
-                              })}
-                              {dayEvents.length > 2 && (
-                                <Text style={styles.dayMoreText}>+{dayEvents.length - 2} more</Text>
-                              )}
-                            </View>
-                          </Pressable>
-                        );
-                      }}
-                    />
-                  )}
-                </View>
-
-                {/* Day Agenda Details */}
-                {renderSelectedDayAgenda()}
+                                    {evt.title}
+                                  </Text>
+                                </View>
+                              );
+                            })}
+                            {dayEvents.length > 2 && (
+                              <Text style={styles.dayMoreText}>+{dayEvents.length - 2} more</Text>
+                            )}
+                          </View>
+                        </Pressable>
+                      );
+                    }}
+                  />
+                )}
               </View>
-            ) : (
-              // Day View
-              renderDayView()
-            )}
-          </View>
-        )}
+
+              {/* Day Agenda Details */}
+              {renderSelectedDayAgenda()}
+            </View>
+          ) : (
+            // Day View
+            renderDayView()
+          )}
+        </View>
       </View>
     );
   };

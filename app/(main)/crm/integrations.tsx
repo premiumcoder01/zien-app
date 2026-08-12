@@ -212,7 +212,7 @@ export default function IntegrationsScreen() {
     console.log('🌐 [HubSpot WebView Nav]:', url);
 
     const isHubspotAuthPage = url.includes('hubspot.com');
-    const isBackendCallback = url.includes('/hubspot/callback') || url.includes('api.zien.ai');
+    const isBackendCallback = url.includes('/hubspot/callback') || url.includes('staging-api.zien.ai') || url.includes('api.zien.ai');
 
     // Only intercept and close AFTER the backend callback has executed and redirected to frontend/success/login
     if (!isHubspotAuthPage && !isBackendCallback) {
@@ -239,7 +239,7 @@ export default function IntegrationsScreen() {
     console.log('🌐 [HubSpot WebView ShouldStart]:', url);
 
     const isHubspotAuthPage = url.includes('hubspot.com');
-    const isBackendCallback = url.includes('/hubspot/callback') || url.includes('api.zien.ai');
+    const isBackendCallback = url.includes('/hubspot/callback') || url.includes('staging-api.zien.ai') || url.includes('api.zien.ai');
 
     // Allow HubSpot Auth pages AND backend callback API request to load!
     if (isHubspotAuthPage || isBackendCallback) {

@@ -86,7 +86,7 @@ function getSocialPostImage(item: SocialPost | null, propertiesList: any[] = [])
         if (m && typeof m === 'object') {
           const url = m.media_url || (m as any).url || (m as any).MediaURL || (m as any).uri || (m as any).MediaUrl;
           if (typeof url === 'string' && url.trim() !== '') {
-            return url.startsWith('/') ? `https://api.zien.ai${url}` : url;
+            return url.startsWith('/') ? `https://staging-api.zien.ai${url}` : url;
           }
         }
       }
@@ -96,7 +96,7 @@ function getSocialPostImage(item: SocialPost | null, propertiesList: any[] = [])
   // 2. Direct property image attributes on item
   const directPropUrl = (item as any).image || (item as any).image_url || (item as any).cover_image || (item as any).property_image || (item as any).media_url;
   if (typeof directPropUrl === 'string' && directPropUrl.trim() !== '') {
-    return directPropUrl.startsWith('/') ? `https://api.zien.ai${directPropUrl}` : directPropUrl;
+    return directPropUrl.startsWith('/') ? `https://staging-api.zien.ai${directPropUrl}` : directPropUrl;
   }
 
   // 3. Check attached item.property object

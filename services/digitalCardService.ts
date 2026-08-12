@@ -1,5 +1,5 @@
-const DIGITAL_CARD_API_BASE_URL = 'https://api.zien.ai/api';
-const ASSET_UPLOAD_API_URL = 'https://api.zien.ai/api/shared/upload/card-asset';
+const DIGITAL_CARD_API_BASE_URL = 'https://staging-api.zien.ai/api';
+const ASSET_UPLOAD_API_URL = 'https://staging-api.zien.ai/api/shared/upload/card-asset';
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface DigitalCard {
@@ -247,7 +247,7 @@ export const getCardAnalytics = async (accessToken: string, cardId: string): Pro
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  const ANALYTICS_API_URL = `https://api.zien.ai/api/solo/digital-cards/stats/analytics?digital_card_id=${cardId}`;
+  const ANALYTICS_API_URL = `https://staging-api.zien.ai/api/solo/digital-cards/stats/analytics?digital_card_id=${cardId}`;
 
   try {
     const response = await fetch(ANALYTICS_API_URL, {

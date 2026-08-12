@@ -72,7 +72,7 @@ export default function EmailTemplatesScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { accessToken } = useAuth();
-    const { id, prefill, content, address } = useLocalSearchParams<{ id?: string; prefill?: string; content?: string; address?: string }>();
+    const { id, prefill, content, address, emailType } = useLocalSearchParams<{ id?: string; prefill?: string; content?: string; address?: string; emailType?: string }>();
 
     const [selectedType, setSelectedType] = useState('just_listed');
     const [campaignContext, setCampaignContext] = useState(prefill || '');
@@ -127,6 +127,20 @@ export default function EmailTemplatesScreen() {
     }, [properties, address]);
 
     useEffect(() => {
+        if (emailType) {
+            const lower = emailType.toLowerCase().replace(/[-\s_]/g, '');
+            if (lower.includes('newsletter')) setSelectedType('newsletter');
+            else if (lower.includes('followup') || lower.includes('follow')) setSelectedType('follow_up');
+            else if (lower.includes('pricedrop') || lower.includes('price')) setSelectedType('price_drop');
+            else if (lower.includes('justlisted') || lower.includes('listed')) setSelectedType('just_listed');
+        } else if (content) {
+            const lowerContent = content.toLowerCase();
+            if (lowerContent.includes('newsletter') || lowerContent.includes('market update') || lowerContent.includes('monthly')) setSelectedType('newsletter');
+            else if (lowerContent.includes('follow-up') || lowerContent.includes('follow up') || lowerContent.includes('tour')) setSelectedType('follow_up');
+            else if (lowerContent.includes('price drop') || lowerContent.includes('price reduction')) setSelectedType('price_drop');
+            else if (lowerContent.includes('just listed')) setSelectedType('just_listed');
+        }
+
         if (prefill) setCampaignContext(prefill);
         if (content) {
             const subject = content.split('\n')[0].replace(/^Subject:\s*/i, '');
@@ -134,7 +148,7 @@ export default function EmailTemplatesScreen() {
             setOutputEmail({ subject, body });
             setActiveViewTab('form'); // Default to Configure Template tab when editing
         }
-    }, [prefill, content]);
+    }, [emailType, prefill, content]);
 
     const handleGenerate = async () => {
         if (!campaignContext.trim() || !accessToken) return;
@@ -196,6 +210,7 @@ export default function EmailTemplatesScreen() {
                 content: fullText,
                 metadata: {
                     template_type: emailTypeLabel,
+                    email_type: selectedType,
                     input_details: campaignContext || '',
                     property_id: prop ? prop.id : null,
                     address: prop ? prop.address : '',

@@ -56,6 +56,7 @@ export default function ZienCardDashboardScreen() {
   const { data: leads = [], refetch: refetchLeads } = useLeadEnquiries();
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [saveTrigger, setSaveTrigger] = useState(0);
+  const [menuVisible, setMenuVisible] = useState(false);
 
   // Sync with server whenever screen is focused
   useFocusEffect(
@@ -105,27 +106,64 @@ export default function ZienCardDashboardScreen() {
     exportLeadsToCSV(cardLeads);
   };
 
-  const headerRight = ((showGlobalSave || showExport) && cards.length > 0) ? (
-    <Pressable
-      onPress={showGlobalSave ? onSavePress : onExportPress}
-      style={({ pressed }) => ({
-        opacity: pressed ? 0.6 : 1,
-        width: 35,
-        height: 35,
-        borderRadius: 10,
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-      })}>
-      <MaterialCommunityIcons
-        name={showGlobalSave ? "content-save-outline" : "download"}
-        size={20}
-        color={colors.textPrimary}
-      />
-    </Pressable>
-  ) : undefined;
+  const isMainDashboard = activeSectionPath === '/(main)/zien-card';
+
+  const headerRight = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      {((showGlobalSave || showExport) && cards.length > 0) && (
+        <Pressable
+          onPress={showGlobalSave ? onSavePress : onExportPress}
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.6 : 1,
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.2)',
+          })}>
+          <MaterialCommunityIcons
+            name={showGlobalSave ? "content-save-outline" : "download"}
+            size={18}
+            color={colors.textPrimary}
+          />
+        </Pressable>
+      )}
+
+      {/* 3-line Menu Icon ONLY on Digital Card Manager screen */}
+      {isMainDashboard && (
+        <Pressable
+          onPress={() => setMenuVisible(true)}
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.6 : 1,
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.2)',
+          })}>
+          <MaterialCommunityIcons
+            name="menu"
+            size={22}
+            color={colors.textPrimary}
+          />
+        </Pressable>
+      )}
+    </View>
+  );
+
+  const handleHeaderBack = () => {
+    if (!isMainDashboard) {
+      handleSectionChange('/(main)/zien-card');
+    } else {
+      router.back();
+    }
+  };
 
   const styles = getStyles(colors);
 
@@ -133,6 +171,7 @@ export default function ZienCardDashboardScreen() {
     <ZienCardScreenShell
       title={title}
       subtitle={subtitle}
+      onBack={handleHeaderBack}
       headerRight={headerRight}
     >
       <View style={{ flex: 1 }}>
@@ -168,10 +207,12 @@ export default function ZienCardDashboardScreen() {
           />
         )}
 
-        {/* Controlled Navigation */}
+        {/* Right-Side Drawer Navigation */}
         <ZienCardNav
           activeSection={activeSectionPath}
           onSectionChange={handleSectionChange}
+          visible={menuVisible}
+          onClose={() => setMenuVisible(false)}
         />
       </View>
     </ZienCardScreenShell>

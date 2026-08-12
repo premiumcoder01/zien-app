@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://api.zien.ai/api';
+const API_BASE_URL = 'https://staging-api.zien.ai/api';
 
 export interface OpenHouseEvent {
   id: number;
