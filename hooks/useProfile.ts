@@ -13,7 +13,8 @@ export function useProfile() {
     queryKey: ['userProfile', accessToken],
     queryFn: () => getProfile(accessToken!),
     enabled: !!accessToken,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 10 * 1000, // 10 seconds
+    refetchOnMount: true,
     retry: 1,
   });
 }

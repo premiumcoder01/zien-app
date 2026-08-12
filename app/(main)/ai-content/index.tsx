@@ -222,10 +222,10 @@ export default function AiContentScreen() {
         };
       case 'presentation-builder':
         return {
-          label: 'Presentation CMA',
+          label: 'Presentation Builder',
           icon: 'chart-pie',
-          color: '#EC4899',
-          bg: '#EC489915',
+          color: '#0BA0B2',
+          bg: 'rgba(11, 160, 178, 0.12)',
         };
       default:
         return {

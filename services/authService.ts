@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://staging-api.zien.ai/api';
+const API_BASE_URL = 'https://api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface LoginRequest {
@@ -37,6 +37,14 @@ export interface ResetPasswordResponse {
   reset: boolean;
 }
 
+export interface UserCredits {
+  plan_credits?: number;
+  topup_credits?: number;
+  total_purchased?: number;
+  total_used?: number;
+  balance?: number;
+}
+
 export interface UserProfile {
   id: number;
   first_name: string;
@@ -54,6 +62,7 @@ export interface UserProfile {
   complete_profile?: boolean;
   address?: string;
   license_number?: string;
+  credits?: UserCredits | number;
 }
 
 export const loginAgent = async (payload: LoginRequest): Promise<LoginResponse> => {
@@ -199,23 +208,64 @@ export const getProfile = async (accessToken: string): Promise<UserProfile> => {
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/teams/settings/profile`, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      'Cookie': `website_access_token=${accessToken}; access_token=${accessToken}`,
+    };
 
-    const data = await response.json().catch(() => ({}));
+    const [profileRes, meRes1, meRes2, subRes] = await Promise.all([
+      fetch(`${API_BASE_URL}/teams/settings/profile`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
+      fetch(`${API_BASE_URL}/website/auth/me`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
+      fetch(`https://zien.ai/api/website/auth/me`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
+      fetch(`${API_BASE_URL}/solo/billing/subscription`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
+    ]);
 
-    if (!response.ok) {
-      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+    let profileData: any = {};
+    if (profileRes && profileRes.ok) profileData = await profileRes.json().catch(() => ({}));
+
+    let meData1: any = {};
+    if (meRes1 && meRes1.ok) meData1 = await meRes1.json().catch(() => ({}));
+
+    let meData2: any = {};
+    if (meRes2 && meRes2.ok) meData2 = await meRes2.json().catch(() => ({}));
+
+    let subData: any = {};
+    if (subRes && subRes.ok) subData = await subRes.json().catch(() => ({}));
+
+    const extractCredits = (...objs: any[]) => {
+      for (const obj of objs) {
+        if (!obj) continue;
+        const target = obj.credits || obj.data?.credits || obj.user?.credits || (obj.balance !== undefined ? obj : null);
+        if (target) {
+          if (typeof target === 'number') return target;
+          if (typeof target === 'object') {
+            if (typeof target.balance === 'number') return target.balance;
+            if (typeof target.topup_credits === 'number' && target.topup_credits > 0) return target.topup_credits;
+            if (typeof target.total_purchased === 'number' && target.total_purchased > 0) return target.total_purchased;
+            if (typeof target.plan_credits === 'number' && target.plan_credits > 0) return target.plan_credits;
+          }
+        }
+      }
+      return null;
+    };
+
+    const creditsVal = extractCredits(meData1, meData2, subData, profileData);
+
+    const mergedProfile: UserProfile = {
+      ...profileData,
+      ...meData1,
+      ...meData2,
+      credits: creditsVal ?? meData1.credits ?? meData2.credits ?? profileData.credits,
+    };
+
+    if (!profileRes?.ok && !meRes1?.ok && !meRes2?.ok) {
+      const errorMsg = profileData.message || meData1.message || meData2.message || `Server error fetching profile`;
+      throw new Error(errorMsg);
     }
 
-    return data;
+    return mergedProfile;
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Profile request timed out. Please check your connection and try again.');

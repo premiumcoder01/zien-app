@@ -33,7 +33,7 @@ import {
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
 const { width } = Dimensions.get('window');
-const API_BASE_URL = 'https://staging-api.zien.ai/api';
+const API_BASE_URL = 'https://api.zien.ai/api';
 
 // Custom API integrations for Role & Menu CRUD
 const createRoleApi = async (accessToken: string, companyId: number, name: string, description: string) => {

@@ -1,12 +1,11 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { uploadPropertyImage } from '@/services/propertyService';
-import { getSocialPosts, deleteSocialPost, SocialPost, updateSocialPost } from '@/services/socialService';
+import { getSocialPosts, deleteSocialPost, SocialPost } from '@/services/socialService';
+import { getAllPropertyImages, getProperties } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -66,89 +65,133 @@ function formatDate(dateStr: string | null): string {
 
 const CATEGORIES = ['AI Generated', 'Property', 'Open House', 'Custom'];
 const PLATFORMS_LIST = ['Instagram', 'Facebook', 'TikTok', 'Multi'];
+const FALLBACK_PROPERTY_IMAGE = 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800';
 
-// ─── Edit Post Modal ────────────────────────────────────────────────
-function EditPostModal({
-  visible, item, onClose, accessToken,
+function getSocialPostImage(item: SocialPost | null, propertiesList: any[] = []): string {
+  if (!item) return FALLBACK_PROPERTY_IMAGE;
+
+  // 1. Check item.media array or JSON string
+  if (item.media) {
+    let mediaArr = item.media;
+    if (typeof mediaArr === 'string') {
+      try {
+        mediaArr = JSON.parse(mediaArr);
+      } catch (_) {}
+    }
+    if (Array.isArray(mediaArr) && mediaArr.length > 0) {
+      for (const m of mediaArr) {
+        if (typeof m === 'string' && (m.startsWith('http://') || m.startsWith('https://') || m.startsWith('file://'))) {
+          return m;
+        }
+        if (m && typeof m === 'object') {
+          const url = m.media_url || (m as any).url || (m as any).MediaURL || (m as any).uri || (m as any).MediaUrl;
+          if (typeof url === 'string' && url.trim() !== '') {
+            return url.startsWith('/') ? `https://api.zien.ai${url}` : url;
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Direct property image attributes on item
+  const directPropUrl = (item as any).image || (item as any).image_url || (item as any).cover_image || (item as any).property_image || (item as any).media_url;
+  if (typeof directPropUrl === 'string' && directPropUrl.trim() !== '') {
+    return directPropUrl.startsWith('/') ? `https://api.zien.ai${directPropUrl}` : directPropUrl;
+  }
+
+  // 3. Check attached item.property object
+  if ((item as any).property) {
+    const propImages = getAllPropertyImages((item as any).property);
+    if (propImages.length > 0) return propImages[0];
+  }
+
+  // 4. Fallback lookup via property_id from properties list
+  if (item.property_id && Array.isArray(propertiesList) && propertiesList.length > 0) {
+    const foundProp = propertiesList.find((p: any) => String(p.id) === String(item.property_id));
+    if (foundProp) {
+      const propImages = getAllPropertyImages(foundProp);
+      if (propImages.length > 0) return propImages[0];
+    }
+  }
+
+  // 5. Fallback lookup via caption address match
+  if (Array.isArray(propertiesList) && propertiesList.length > 0 && item.caption) {
+    const captionLower = item.caption.toLowerCase();
+    const matchedProp = propertiesList.find((p: any) => p.address && captionLower.includes(p.address.toLowerCase().split(',')[0].trim()));
+    if (matchedProp) {
+      const propImages = getAllPropertyImages(matchedProp);
+      if (propImages.length > 0) return propImages[0];
+    }
+  }
+
+  // 6. Default fallback image if post is property-tagged
+  return FALLBACK_PROPERTY_IMAGE;
+}
+
+function getSocialPostShareUrl(item: SocialPost | null): string | null {
+  if (!item) return null;
+
+  // 1. Direct post URL properties on post item
+  const directUrl = (item as any).post_url || (item as any).published_url || (item as any).url || (item as any).share_url || (item as any).link || (item as any).external_url;
+  if (typeof directUrl === 'string' && directUrl.startsWith('http')) {
+    return directUrl;
+  }
+
+  // 2. Check post_platforms for platform-specific URLs (e.g. Instagram post link, Facebook post link, etc.)
+  if (Array.isArray(item.post_platforms)) {
+    for (const p of item.post_platforms) {
+      if (!p) continue;
+      const pUrl = p.post_url || p.platform_post_url || p.url || p.permalink || p.link || p.external_url;
+      if (typeof pUrl === 'string' && pUrl.startsWith('http')) {
+        return pUrl;
+      }
+    }
+  }
+
+  // 3. Check property URL if attached
+  if ((item as any).property?.url && typeof (item as any).property.url === 'string' && (item as any).property.url.startsWith('http')) {
+    return (item as any).property.url;
+  }
+
+  // 4. Default direct published post / asset link using Zien app domain
+  if (item.id) {
+    return `https://app.zien.ai/post/${item.id}`;
+  }
+
+  if (item.property_id) {
+    return `https://app.zien.ai/property/${item.property_id}`;
+  }
+
+  return null;
+}
+
+// ─── View Library Asset Modal ──────────────────────────────────────
+function ViewPostModal({
+  visible, item, onClose, propertiesList = [],
 }: {
   visible: boolean;
   item: SocialPost | null;
-  onClose: (updated?: boolean) => void;
-  accessToken: string;
+  onClose: () => void;
+  propertiesList?: any[];
 }) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [caption, setCaption] = useState('');
   const [assetName, setAssetName] = useState('');
   const [category, setCategory] = useState('Property');
-  const [customCategory, setCustomCategory] = useState('');
   const [platformVal, setPlatformVal] = useState('Multi');
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-  const [localMediaUri, setLocalMediaUri] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
-  const [showImagePicker, setShowImagePicker] = useState(false);
 
   useEffect(() => {
     if (item && visible) {
       const firstLine = (item.caption || '').split('\n')[0].trim();
       setAssetName(firstLine);
       setCaption(item.caption || '');
-      setMediaUrl(item.media?.[0]?.media_url || null);
-      setLocalMediaUri(null);
+      setMediaUrl(getSocialPostImage(item, propertiesList));
       setCategory(item.property_id ? 'Property' : 'AI Generated');
-      setCustomCategory('');
       setPlatformVal('Multi');
     }
-  }, [item, visible]);
-
-  const pickImage = (useCamera: boolean) => {
-    setShowImagePicker(false);
-    setTimeout(async () => {
-      const perm = useCamera
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (perm.status !== 'granted') {
-        Alert.alert('Permission Denied', 'Please enable access in settings.');
-        return;
-      }
-      const result = useCamera
-        ? await ImagePicker.launchCameraAsync({ aspect: [1, 1], quality: 0.8 })
-        : await ImagePicker.launchImageLibraryAsync({ aspect: [1, 1], quality: 0.8 });
-      if (!result.canceled && result.assets[0]?.uri) {
-        setLocalMediaUri(result.assets[0].uri);
-        setMediaUrl(null);
-      }
-    }, 300);
-  };
-
-  const handleSave = async () => {
-    if (!item) return;
-    setIsSaving(true);
-    try {
-      let finalMediaUrl = localMediaUri || mediaUrl;
-
-      if (localMediaUri && (localMediaUri.startsWith('file://') || localMediaUri.startsWith('/'))) {
-        const uploadRes = await uploadPropertyImage(localMediaUri, accessToken);
-        finalMediaUrl = uploadRes.url;
-      }
-
-      const payload: any = {
-        caption,
-        media: finalMediaUrl ? [{ media_url: finalMediaUrl, media_type: 'image' }] : [],
-      };
-
-      await updateSocialPost(accessToken, item.id, payload);
-      onClose(true);
-    } catch (error: any) {
-      Alert.alert('Update Failed', error.message || 'Something went wrong.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const displayImage = localMediaUri || mediaUrl;
+  }, [item, visible, propertiesList]);
 
   if (!visible || !item) return null;
 
@@ -162,8 +205,8 @@ function EditPostModal({
           borderBottomWidth: 1, borderBottomColor: colors.cardBorder,
         }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 22, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.5 }}>Edit Library Asset</Text>
-            <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: '600', marginTop: 2 }}>Modify your high-performing social content</Text>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.5 }}>Library Asset</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: '600', marginTop: 2 }}>View your high-performing social content</Text>
           </View>
           <Pressable
             onPress={() => onClose()}
@@ -178,58 +221,18 @@ function EditPostModal({
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 100 }}
+          contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 40 }}
           keyboardShouldPersistTaps="handled"
         >
           {/* Image Preview */}
-          <View style={{
-            borderRadius: 24, overflow: 'hidden', backgroundColor: colors.surfaceSoft,
-            marginBottom: 28, borderWidth: 1, borderColor: colors.cardBorder, position: 'relative',
-          }}>
-            {displayImage ? (
-              <>
-                <RNImage source={{ uri: displayImage }} style={{ width: '100%', height: 220 }} resizeMode="cover" />
-                <Pressable
-                  onPress={() => { setMediaUrl(null); setLocalMediaUri(null); }}
-                  style={{
-                    position: 'absolute', top: 14, left: 14,
-                    width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.5)',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  <MaterialCommunityIcons name="close" size={16} color="#FFF" />
-                </Pressable>
-                <Pressable
-                  onPress={() => setShowImagePicker(true)}
-                  style={{
-                    position: 'absolute', top: 14, right: 14,
-                    flexDirection: 'row', alignItems: 'center', gap: 4,
-                    backgroundColor: 'rgba(0,0,0,0.5)', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 12,
-                  }}
-                >
-                  <MaterialCommunityIcons name="camera-outline" size={14} color="#FFF" />
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#FFF' }}>Change</Text>
-                </Pressable>
-              </>
-            ) : (
-              <Pressable
-                onPress={() => setShowImagePicker(true)}
-                style={{
-                  height: 180, alignItems: 'center', justifyContent: 'center', gap: 10,
-                  borderWidth: 2, borderStyle: 'dashed', borderColor: colors.cardBorder, borderRadius: 24,
-                }}
-              >
-                <View style={{
-                  width: 56, height: 56, borderRadius: 28, backgroundColor: `${colors.accentTeal}12`,
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <MaterialCommunityIcons name="cloud-upload" size={28} color={colors.accentTeal} />
-                </View>
-                <Text style={{ fontSize: 15, fontWeight: '900', color: colors.textPrimary }}>Upload Media</Text>
-                <Text style={{ fontSize: 12, color: colors.textMuted, fontWeight: '600' }}>JPG, PNG, or MP4</Text>
-              </Pressable>
-            )}
-          </View>
+          {mediaUrl ? (
+            <View style={{
+              borderRadius: 24, overflow: 'hidden', backgroundColor: colors.surfaceSoft,
+              marginBottom: 28, borderWidth: 1, borderColor: colors.cardBorder,
+            }}>
+              <RNImage source={{ uri: mediaUrl }} style={{ width: '100%', height: 220 }} resizeMode="cover" />
+            </View>
+          ) : null}
 
           {/* Asset Identity */}
           <View style={{ marginBottom: 24 }}>
@@ -241,21 +244,13 @@ function EditPostModal({
                 fontSize: 14, fontWeight: '600', color: colors.textPrimary,
               }}
               value={assetName}
-              onChangeText={setAssetName}
-              placeholder="e.g. Modern Exterior - Bel Air"
-              placeholderTextColor={colors.textMuted}
+              editable={false}
             />
           </View>
 
           {/* Creative Description */}
           <View style={{ marginBottom: 24 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <Text style={{ fontSize: 13, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.2 }}>Creative Description</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <MaterialCommunityIcons name="star-four-points" size={12} color={colors.accentTeal} />
-                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.accentTeal }}>AI Generate</Text>
-              </View>
-            </View>
+            <Text style={{ fontSize: 13, fontWeight: '900', color: colors.textPrimary, marginBottom: 10, letterSpacing: -0.2 }}>Creative Description</Text>
             <TextInput
               style={{
                 minHeight: 120, backgroundColor: colors.surfaceSoft, borderRadius: 16,
@@ -264,206 +259,35 @@ function EditPostModal({
                 textAlignVertical: 'top', lineHeight: 22,
               }}
               value={caption}
-              onChangeText={setCaption}
+              editable={false}
               multiline
-              placeholder="Write your caption..."
-              placeholderTextColor={colors.textMuted}
             />
           </View>
 
-          {/* Category Type Dropdown */}
+          {/* Category Type */}
           <View style={{ marginBottom: 24 }}>
             <Text style={{ fontSize: 13, fontWeight: '900', color: colors.textPrimary, marginBottom: 10, letterSpacing: -0.2 }}>Category Type</Text>
-            <Pressable
-              onPress={() => { setShowCategoryDropdown(!showCategoryDropdown); setShowPlatformDropdown(false); }}
-              style={{
-                height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                backgroundColor: colors.surfaceSoft, borderRadius: 16,
-                borderWidth: showCategoryDropdown ? 2 : 1.5, borderColor: showCategoryDropdown ? colors.textPrimary : colors.cardBorder,
-                paddingHorizontal: 18,
-              }}
-            >
+            <View style={{
+              height: 54, backgroundColor: colors.surfaceSoft, borderRadius: 16,
+              borderWidth: 1.5, borderColor: colors.cardBorder, paddingHorizontal: 18,
+              justifyContent: 'center',
+            }}>
               <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>{category}</Text>
-              <MaterialCommunityIcons name={showCategoryDropdown ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textPrimary} />
-            </Pressable>
-
-            {showCategoryDropdown && (
-              <Animated.View entering={FadeIn.duration(150)} style={{
-                marginTop: 6, backgroundColor: colors.cardBackground, borderRadius: 16,
-                borderWidth: 1, borderColor: colors.cardBorder, overflow: 'hidden',
-                ...Platform.select({
-                  ios: { shadowColor: '#000', shadowOpacity: 0.12, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
-                  android: { elevation: 8 },
-                }),
-              }}>
-                {CATEGORIES.map((cat, idx) => (
-                  <Pressable
-                    key={cat}
-                    onPress={() => { setCategory(cat); setShowCategoryDropdown(false); }}
-                    style={{
-                      flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18,
-                      borderBottomWidth: idx < CATEGORIES.length - 1 ? 1 : 0, borderBottomColor: colors.cardBorder,
-                      backgroundColor: category === cat ? `${colors.accentTeal}08` : 'transparent',
-                    }}
-                  >
-                    {category === cat && (
-                      <MaterialCommunityIcons name="check" size={16} color={colors.textPrimary} style={{ marginRight: 10 }} />
-                    )}
-                    <Text style={{
-                      fontSize: 14, fontWeight: category === cat ? '800' : '600', color: colors.textPrimary,
-                    }}>{cat}</Text>
-                  </Pressable>
-                ))}
-              </Animated.View>
-            )}
+            </View>
           </View>
 
-          {/* Custom category + Platform row */}
-          {category === 'Custom' ? (
-            <View style={{ flexDirection: 'row', gap: 14, marginBottom: 24 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: '900', color: colors.textPrimary, marginBottom: 10, letterSpacing: -0.2 }}>Manual Category Name</Text>
-                <TextInput
-                  style={{
-                    height: 54, backgroundColor: colors.surfaceSoft, borderRadius: 16,
-                    borderWidth: 1.5, borderColor: colors.cardBorder, paddingHorizontal: 18,
-                    fontSize: 14, fontWeight: '600', color: colors.textPrimary,
-                  }}
-                  value={customCategory}
-                  onChangeText={setCustomCategory}
-                  placeholder="e.g. Market Report"
-                  placeholderTextColor={colors.textMuted}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: '900', color: colors.textPrimary, marginBottom: 10, letterSpacing: -0.2 }}>Primary Platform</Text>
-                <View style={{
-                  height: 54, backgroundColor: colors.surfaceSoft, borderRadius: 16,
-                  borderWidth: 1.5, borderColor: colors.cardBorder, paddingHorizontal: 18,
-                  justifyContent: 'center',
-                }}>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>{platformVal}</Text>
-                </View>
-              </View>
-            </View>
-          ) : (
-            <View style={{ marginBottom: 24 }}>
-              <Text style={{ fontSize: 13, fontWeight: '900', color: colors.textPrimary, marginBottom: 10, letterSpacing: -0.2 }}>Primary Platform</Text>
-              <Pressable
-                onPress={() => { setShowPlatformDropdown(!showPlatformDropdown); setShowCategoryDropdown(false); }}
-                style={{
-                  height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                  backgroundColor: colors.surfaceSoft, borderRadius: 16,
-                  borderWidth: showPlatformDropdown ? 2 : 1.5, borderColor: showPlatformDropdown ? colors.textPrimary : colors.cardBorder,
-                  paddingHorizontal: 18,
-                }}
-              >
-                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>{platformVal}</Text>
-                <MaterialCommunityIcons name={showPlatformDropdown ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textPrimary} />
-              </Pressable>
-
-              {showPlatformDropdown && (
-                <Animated.View entering={FadeIn.duration(150)} style={{
-                  marginTop: 6, backgroundColor: colors.cardBackground, borderRadius: 16,
-                  borderWidth: 1, borderColor: colors.cardBorder, overflow: 'hidden',
-                  ...Platform.select({
-                    ios: { shadowColor: '#000', shadowOpacity: 0.12, shadowOffset: { width: 0, height: 8 }, shadowRadius: 16 },
-                    android: { elevation: 8 },
-                  }),
-                }}>
-                  {PLATFORMS_LIST.map((p, idx) => (
-                    <Pressable
-                      key={p}
-                      onPress={() => { setPlatformVal(p); setShowPlatformDropdown(false); }}
-                      style={{
-                        flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18,
-                        borderBottomWidth: idx < PLATFORMS_LIST.length - 1 ? 1 : 0, borderBottomColor: colors.cardBorder,
-                        backgroundColor: platformVal === p ? `${colors.accentTeal}08` : 'transparent',
-                      }}
-                    >
-                      {platformVal === p && (
-                        <MaterialCommunityIcons name="check" size={16} color={colors.textPrimary} style={{ marginRight: 10 }} />
-                      )}
-                      <Text style={{
-                        fontSize: 14, fontWeight: platformVal === p ? '800' : '600', color: colors.textPrimary,
-                      }}>{p}</Text>
-                    </Pressable>
-                  ))}
-                </Animated.View>
-              )}
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Sticky Footer Buttons */}
-        <View style={{
-          flexDirection: 'row', gap: 12, paddingHorizontal: 24, paddingTop: 16,
-          paddingBottom: Math.max(insets.bottom, 24),
-          backgroundColor: colors.cardBackground, borderTopWidth: 1, borderTopColor: colors.cardBorder,
-        }}>
-          <Pressable
-            onPress={() => onClose()}
-            style={{
-              flex: 1, height: 56, borderRadius: 18, borderWidth: 1.5, borderColor: colors.cardBorder,
-              backgroundColor: colors.cardBackground, alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <Text style={{ fontSize: 15, fontWeight: '800', color: colors.textPrimary }}>Cancel</Text>
-          </Pressable>
-          <Pressable
-            onPress={handleSave}
-            disabled={isSaving}
-            style={{ flex: 1.5, height: 56, borderRadius: 18, overflow: 'hidden' }}
-          >
-            <LinearGradient colors={['#0a2341', '#0D9488']} style={{
-              flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-            }}>
-              {isSaving ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="content-save-outline" size={18} color="#FFF" />
-                  <Text style={{ fontSize: 15, fontWeight: '900', color: '#FFF' }}>Save Changes</Text>
-                </>
-              )}
-            </LinearGradient>
-          </Pressable>
-        </View>
-
-        {/* Image Picker Bottom Sheet */}
-        <Modal visible={showImagePicker} transparent animationType="fade" onRequestClose={() => setShowImagePicker(false)}>
-          <Pressable style={{ flex: 1, backgroundColor: 'rgba(11,35,65,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowImagePicker(false)}>
+          {/* Primary Platform */}
+          <View style={{ marginBottom: 24 }}>
+            <Text style={{ fontSize: 13, fontWeight: '900', color: colors.textPrimary, marginBottom: 10, letterSpacing: -0.2 }}>Primary Platform</Text>
             <View style={{
-              backgroundColor: colors.cardBackground, borderTopLeftRadius: 28, borderTopRightRadius: 28,
-              padding: 24, paddingBottom: Math.max(insets.bottom, 32),
+              height: 54, backgroundColor: colors.surfaceSoft, borderRadius: 16,
+              borderWidth: 1.5, borderColor: colors.cardBorder, paddingHorizontal: 18,
+              justifyContent: 'center',
             }}>
-              <View style={{ alignItems: 'center', marginBottom: 24 }}>
-                <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: colors.cardBorder, marginBottom: 16 }} />
-                <Text style={{ fontSize: 18, fontWeight: '900', color: colors.textPrimary }}>Upload Content</Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 40, marginBottom: 28 }}>
-                <Pressable onPress={() => pickImage(true)} style={{ alignItems: 'center', gap: 10 }}>
-                  <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
-                    <MaterialCommunityIcons name="camera" size={28} color="#3B82F6" />
-                  </View>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.textSecondary }}>Camera</Text>
-                </Pressable>
-                <Pressable onPress={() => pickImage(false)} style={{ alignItems: 'center', gap: 10 }}>
-                  <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#F0FDF4', alignItems: 'center', justifyContent: 'center' }}>
-                    <MaterialCommunityIcons name="image-multiple" size={28} color="#22C55E" />
-                  </View>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.textSecondary }}>Gallery</Text>
-                </Pressable>
-              </View>
-              <Pressable
-                onPress={() => setShowImagePicker(false)}
-                style={{ height: 52, borderRadius: 16, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.textSecondary }}>Cancel</Text>
-              </Pressable>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>{platformVal}</Text>
             </View>
-          </Pressable>
-        </Modal>
+          </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -483,16 +307,18 @@ function ContentCardItem({
   index,
   onDelete,
   onEdit,
+  propertiesList = [],
 }: {
   item: SocialPost;
   index: number;
   onDelete: (id: number) => void;
   onEdit: (item: SocialPost) => void;
+  propertiesList?: any[];
 }) {
   const { colors } = useAppTheme();
   const tag = getPostTag(item);
   const status = getStatusInfo(item);
-  const mediaUrl = item.media?.[0]?.media_url;
+  const mediaUrl = getSocialPostImage(item, propertiesList);
   const captionPreview = (item.caption || 'Untitled Content').split('\n')[0].trim();
   const fullCaption = item.caption || '';
   const dateStr = formatCardDate(item.scheduled_at || item.created_at);
@@ -603,8 +429,16 @@ function ContentCardItem({
           <Pressable
             onPress={async () => {
               try {
+                const postUrl = getSocialPostShareUrl(item);
+                const captionText = item.caption || 'Library Asset';
+                const message = postUrl
+                  ? `${captionText}\n\n🔗 View Published Post:\n${postUrl}`
+                  : captionText;
+
                 await Share.share({
-                  message: item.caption || 'Untitled Content',
+                  message,
+                  url: postUrl || undefined,
+                  title: captionText.split('\n')[0].trim() || 'Library Asset',
                 });
               } catch (error) {
                 console.log('Error sharing post:', error);
@@ -690,21 +524,18 @@ function DeleteConfirmationModal({
 // ─── Dropdown Options Configuration ────────────────────────────────
 const DROPDOWN_OPTIONS = {
   type: [
-    { id: 'all', label: 'All Types' },
-    { id: 'property', label: 'Property' },
-    { id: 'open-house', label: 'Open House' },
-    { id: 'campaign', label: 'Campaign' },
-    { id: 'custom', label: 'Custom' },
+    { id: 'all', label: 'Type: All' },
+    { id: 'custom', label: 'Type: Custom' },
   ],
   status: [
-    { id: 'all', label: 'All Statuses' },
+    { id: 'all', label: 'Status: All' },
     { id: 'draft', label: 'Drafts' },
     { id: 'scheduled', label: 'Scheduled' },
     { id: 'published', label: 'Published' },
   ],
   date: [
-    { id: 'oldest', label: 'Oldest First' },
-    { id: 'newest', label: 'Newest First' },
+    { id: 'newest', label: 'Date: Newest First' },
+    { id: 'oldest', label: 'Date: Oldest First' },
   ],
 } as const;
 
@@ -714,9 +545,9 @@ export default function ContentLibraryScreen() {
   const { accessToken } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [activeType, setActiveType] = useState<'all' | 'property' | 'open-house' | 'campaign' | 'custom'>('all');
+  const [activeType, setActiveType] = useState<'all' | 'custom'>('all');
   const [activeStatus, setActiveStatus] = useState<'all' | 'draft' | 'scheduled' | 'published'>('all');
-  const [activeSort, setActiveSort] = useState<'oldest' | 'newest'>('oldest');
+  const [activeSort, setActiveSort] = useState<'newest' | 'oldest'>('newest');
   const [activeDropdown, setActiveDropdown] = useState<'type' | 'status' | 'date' | null>(null);
 
   const [itemToDelete, setItemToDelete] = useState<number | null>(null);
@@ -730,15 +561,20 @@ export default function ContentLibraryScreen() {
     enabled: !!accessToken,
   });
 
+  const { data: propertiesData } = useQuery({
+    queryKey: ['properties'],
+    queryFn: () => getProperties(accessToken || ''),
+    enabled: !!accessToken,
+  });
+
+  const propertiesList = propertiesData?.properties || [];
+
   const filteredCards = useMemo(() => {
     let list = [...contentList];
 
     // Filter by Type
-    if (activeType !== 'all') {
-      if (activeType === 'property') list = list.filter(c => c.property_id);
-      else if (activeType === 'open-house') list = list.filter(c => c.caption?.toLowerCase().includes('open house'));
-      else if (activeType === 'campaign') list = list.filter(c => c.campaign_id);
-      else if (activeType === 'custom') list = list.filter(c => !c.property_id && !c.campaign_id && !c.caption?.toLowerCase().includes('open house'));
+    if (activeType === 'custom') {
+      list = list.filter(c => !c.property_id && !c.campaign_id && !c.caption?.toLowerCase().includes('open house'));
     }
 
     // Filter by Status
@@ -784,9 +620,9 @@ export default function ContentLibraryScreen() {
     }
   };
 
-  const activeTypeLabel = DROPDOWN_OPTIONS.type.find(o => o.id === activeType)?.label.replace('All Types', 'All') || 'All';
-  const activeStatusLabel = DROPDOWN_OPTIONS.status.find(o => o.id === activeStatus)?.label.replace('All Statuses', 'All') || 'All';
-  const activeDateLabel = DROPDOWN_OPTIONS.date.find(o => o.id === activeSort)?.label || 'Oldest First';
+  const activeTypeLabel = DROPDOWN_OPTIONS.type.find(o => o.id === activeType)?.label || 'Type: All';
+  const activeStatusLabel = DROPDOWN_OPTIONS.status.find(o => o.id === activeStatus)?.label || 'Status: All';
+  const activeDateLabel = DROPDOWN_OPTIONS.date.find(o => o.id === activeSort)?.label || 'Date: Newest First';
 
   return (
     <View style={{ flex: 1 }}>
@@ -807,11 +643,11 @@ export default function ContentLibraryScreen() {
           isDeleting={isDeleting}
         />
 
-        <EditPostModal
+        <ViewPostModal
           visible={!!editingItem}
           item={editingItem}
           onClose={handleEditClose}
-          accessToken={accessToken || ''}
+          propertiesList={propertiesList}
         />
 
         {/* Filter Dropdowns Bar */}
@@ -833,7 +669,7 @@ export default function ContentLibraryScreen() {
               }}
             >
               <Text style={{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }}>
-                Type: {activeTypeLabel}
+                {activeTypeLabel}
               </Text>
               <MaterialCommunityIcons name="chevron-down" size={14} color={colors.textMuted} />
             </Pressable>
@@ -850,7 +686,7 @@ export default function ContentLibraryScreen() {
               }}
             >
               <Text style={{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }}>
-                Status: {activeStatusLabel}
+                {activeStatusLabel}
               </Text>
               <MaterialCommunityIcons name="chevron-down" size={14} color={colors.textMuted} />
             </Pressable>
@@ -867,7 +703,7 @@ export default function ContentLibraryScreen() {
               }}
             >
               <Text style={{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }}>
-                Date: {activeDateLabel}
+                {activeDateLabel}
               </Text>
               <MaterialCommunityIcons name="chevron-down" size={14} color={colors.textMuted} />
             </Pressable>
@@ -925,6 +761,7 @@ export default function ContentLibraryScreen() {
                   index={index}
                   onDelete={(id) => setItemToDelete(id)}
                   onEdit={handleEdit}
+                  propertiesList={propertiesList}
                 />
               ))}
             </View>
@@ -968,12 +805,11 @@ export default function ContentLibraryScreen() {
 
             {/* Title */}
             <Text style={{
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: '900',
               color: colors.textPrimary,
               marginBottom: 16,
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
+              letterSpacing: -0.2,
             }}>
               Select {activeDropdown === 'type' ? 'Content Type' : activeDropdown === 'status' ? 'Publication Status' : 'Sort Order'}
             </Text>

@@ -42,12 +42,14 @@ type UserMenuSheetProps = {
   userName: string;
   userEmail: string;
   userAvatarUri?: string | null;
+  credits?: number;
   actions: MenuAction[];
 };
 
 export default function UserMenuSheet({
-  visible, onClose, userInitials, userName, userEmail, userAvatarUri, actions,
+  visible, onClose, userInitials, userName, userEmail, userAvatarUri, credits, actions,
 }: UserMenuSheetProps) {
+  const router = useRouter();
   const { colors, theme } = useAppTheme();
   const styles = getStyles(colors);
   const sheetStyles = getSheetStyles(colors);
@@ -116,10 +118,24 @@ export default function UserMenuSheet({
             <Text style={[sheetStyles.userName, { color: colors.textPrimary }]}>{userName}</Text>
             <Text style={[sheetStyles.userEmail, { color: colors.textSecondary }]}>{userEmail}</Text>
           </View>
-          {/* Online badge */}
-          <View style={sheetStyles.onlineBadge}>
-            <View style={sheetStyles.onlineDot} />
-            <Text style={sheetStyles.onlineText}>Online</Text>
+          {/* Online & Credits badge */}
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            {credits !== undefined && (
+              <Pressable
+                style={sheetStyles.creditsBadge}
+                onPress={() => {
+                  handleClose();
+                  setTimeout(() => router.push('/(main)/billing-usage'), 260);
+                }}
+              >
+                <MaterialCommunityIcons name="lightning-bolt" size={13} color="#7C3AED" />
+                <Text style={sheetStyles.creditsBadgeText}>{credits} Credits</Text>
+              </Pressable>
+            )}
+            <View style={sheetStyles.onlineBadge}>
+              <View style={sheetStyles.onlineDot} />
+              <Text style={sheetStyles.onlineText}>Online</Text>
+            </View>
           </View>
         </View>
 
@@ -290,6 +306,22 @@ function getSheetStyles(colors: any) {
       fontWeight: '700',
       color: '#16A34A',
     },
+    creditsBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: '#EDE9FE',
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderWidth: 1,
+      borderColor: '#DDD6FE',
+    },
+    creditsBadgeText: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#6D28D9',
+    },
     divider: {
       height: 1,
       backgroundColor: '#F1F5F9',
@@ -356,6 +388,18 @@ function MainHeaderComponent({
   const { logout } = useAuth();
   const { data: profile } = useProfile();
   const [avatarError, setAvatarError] = useState(false);
+
+  const creditsObj = (profile?.credits || (profile as any)?.data?.credits) as any;
+  const creditBalance = useMemo(() => {
+    if (typeof creditsObj === 'number') return creditsObj;
+    if (creditsObj && typeof creditsObj === 'object') {
+      if (typeof creditsObj.balance === 'number') return creditsObj.balance;
+      if (typeof creditsObj.topup_credits === 'number' && creditsObj.topup_credits > 0) return creditsObj.topup_credits;
+      if (typeof creditsObj.total_purchased === 'number' && creditsObj.total_purchased > 0) return creditsObj.total_purchased;
+      if (typeof creditsObj.plan_credits === 'number') return creditsObj.plan_credits;
+    }
+    return 0;
+  }, [creditsObj]);
 
   const userInitials = propUserInitials || (profile ? ((profile.first_name?.[0] || '') + (profile.last_name?.[0] || '')).toUpperCase() : '') || 'P';
   const userName = propUserName || (profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : '') || 'User';
@@ -433,11 +477,16 @@ function MainHeaderComponent({
           )}
         </View>
 
-        {isAgency ? (
-          <View style={styles.agencyHeaderRight}>
+        <View style={styles.headerRight}>
+          <Pressable
+            style={({ pressed }) => [styles.creditsPill, pressed && { opacity: 0.8 }]}
+            onPress={() => router.push('/(main)/billing-usage')}
+          >
+            <MaterialCommunityIcons name="lightning-bolt" size={14} color="#7C3AED" />
+            <Text style={styles.creditsPillText}>{creditBalance} Credits</Text>
+          </Pressable>
 
-
-            {/* Agency Avatar Block */}
+          {isAgency ? (
             <Pressable
               style={styles.agencyAvatarRow}
               onPress={() => setMenuOpen(true)}
@@ -454,34 +503,32 @@ function MainHeaderComponent({
                   <Text style={styles.agencyAvatarText}>{userInitials}</Text>
                 </View>
               )}
-
             </Pressable>
-          </View>
-        ) : (
-          /* Standard Avatar → opens bottom sheet */
-          <Pressable
-            style={({ pressed }) => [styles.avatarWrap, pressed && { opacity: 0.8 }]}
-            onPress={() => setMenuOpen(true)}
-          >
-            {userAvatarUri && !avatarError ? (
-              <Image
-                source={{ uri: userAvatarUri }}
-                style={styles.avatarImage}
-                resizeMode="cover"
-                onError={() => setAvatarError(true)}
-              />
-            ) : (
-              <LinearGradient
-                colors={['#0a2341', '#1B5E9A']}
-                style={styles.avatar}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Text style={styles.avatarText}>{userInitials}</Text>
-              </LinearGradient>
-            )}
-          </Pressable>
-        )}
+          ) : (
+            <Pressable
+              style={({ pressed }) => [styles.avatarWrap, pressed && { opacity: 0.8 }]}
+              onPress={() => setMenuOpen(true)}
+            >
+              {userAvatarUri && !avatarError ? (
+                <Image
+                  source={{ uri: userAvatarUri }}
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                <LinearGradient
+                  colors={['#0a2341', '#1B5E9A']}
+                  style={styles.avatar}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.avatarText}>{userInitials}</Text>
+                </LinearGradient>
+              )}
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* Bottom sheet user menu */}
@@ -492,6 +539,7 @@ function MainHeaderComponent({
         userName={userName}
         userEmail={userEmail}
         userAvatarUri={userAvatarUri && !avatarError ? userAvatarUri : undefined}
+        credits={creditBalance}
         actions={MENU_ACTIONS}
       />
 
@@ -581,6 +629,27 @@ function getStyles(colors: any) {
     },
     avatarWrap: {
       position: 'relative',
+    },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    creditsPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: '#EDE9FE',
+      borderWidth: 1,
+      borderColor: '#DDD6FE',
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 18,
+    },
+    creditsPillText: {
+      fontSize: 11.5,
+      fontWeight: '800',
+      color: '#6D28D9',
     },
     avatar: {
       width: 38,

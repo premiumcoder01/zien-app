@@ -1,4 +1,4 @@
-const CRM_API_BASE_URL = 'https://staging-api.zien.ai/api';
+const CRM_API_BASE_URL = 'https://api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface CRMOverviewResponse {
@@ -1940,7 +1940,7 @@ export const analyzeContactsFile = async (
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-        const response = await fetch('https://staging-api.zien.ai/api/shared/ai/generate-text', {
+        const response = await fetch('https://api.zien.ai/api/shared/ai/generate-text', {
             method: 'POST',
             signal: controller.signal,
             headers: {
@@ -1982,7 +1982,7 @@ export const extractContactsWithAI = async (
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-        const response = await fetch('https://staging-api.zien.ai/api/shared/ai/extract-data', {
+        const response = await fetch('https://api.zien.ai/api/shared/ai/extract-data', {
             method: 'POST',
             signal: controller.signal,
             headers: {
@@ -2169,7 +2169,7 @@ export const generateCRMAutomationWithAI = async (
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-        const response = await fetch('https://staging-api.zien.ai/api/shared/ai/extract-data', {
+        const response = await fetch('https://api.zien.ai/api/shared/ai/extract-data', {
             method: 'POST',
             signal: controller.signal,
             headers: {
