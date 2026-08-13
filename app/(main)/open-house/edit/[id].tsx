@@ -547,7 +547,7 @@ export default function OpenHouseEditScreen() {
 
         {/* Global Fixed Bottom Bar */}
         {!isFinalized && (
-          <Animated.View style={[styles.fixedBottomBar, animatedBottomBarStyle, { paddingBottom: isKeyboardVisible ? 16 : Math.max(insets.bottom, 16) }]}>
+          <Animated.View style={[styles.fixedBottomBar, animatedBottomBarStyle, { paddingBottom: isKeyboardVisible ? 16 : Math.max(insets.bottom + 8, 20) }]}>
             {activeStep === 0 && (
               <View style={styles.fixedBtnRow}>
                 <OutlineButton
@@ -657,7 +657,7 @@ function Step2Details({
     <View style={styles.stepContent}>
       <ScrollView
         style={styles.detailsScroll}
-        contentContainerStyle={{ paddingBottom: 140 }}
+        contentContainerStyle={{ paddingBottom: 220 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -987,7 +987,7 @@ function Step4Customization({
 
   return (
     <View style={styles.stepContent}>
-      <ScrollView style={styles.customizationScroll} contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.customizationScroll} contentContainerStyle={{ paddingBottom: 220 }} showsVerticalScrollIndicator={false}>
         <View style={[styles.titleBlock, isMobile ? styles.titleBlockMobile : styles.titleBlockDesktop]}>
           <Text style={styles.screenTitle}>Personalize Your Event</Text>
           <Text style={styles.screenSubtitle}>Customize the look and feel for visitors.</Text>
@@ -1371,7 +1371,7 @@ function getStyles(colors: any) {
     backBtnWrapper: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     backBtnText: { fontSize: 14, fontWeight: '800', color: colors.accentTeal },
     stepsWrapper: { flex: 1 },
-    stepContent: { paddingTop: 8, paddingBottom: 24 },
+    stepContent: { flex: 1, paddingTop: 8, paddingBottom: 0 },
 
     // Form Card
     formCardWrap: {
@@ -1587,7 +1587,7 @@ function getStyles(colors: any) {
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: colors.cardBackgroundSemi,
+      backgroundColor: colors.cardBackground,
       borderTopWidth: 1,
       borderColor: colors.cardBorder,
       paddingHorizontal: H_PADDING,

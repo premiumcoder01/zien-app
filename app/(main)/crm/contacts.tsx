@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -314,9 +315,10 @@ export default function ContactsScreen() {
 
   const handleExportContacts = async () => {
     if (!contactsList || contactsList.length === 0) {
-      Alert.alert('No Data', 'There are no contacts to export.');
+      Alert.alert('Export Contacts', 'No contacts available to export.');
       return;
     }
+
     try {
       setIsExporting(true);
       const csvHeader = ['First Name', 'Last Name', 'Email', 'Country Code', 'Phone', 'Group', 'Tag', 'Status', 'Heat Index', 'Source', 'Pipeline Stage', 'Budget', 'Timeline', 'Pre-Approved', 'Created At'];
@@ -341,18 +343,48 @@ export default function ContactsScreen() {
       const csvString = [csvHeader.join(','), ...csvRows].join('\n');
       const dateStr = new Date().toISOString().split('T')[0];
       const fileName = `Contacts_Export_${dateStr}.csv`;
-      const fileUri = FileSystem.documentDirectory + fileName;
+      const cacheUri = `${FileSystem.cacheDirectory}${fileName}`;
+      const docUri = `${FileSystem.documentDirectory}${fileName}`;
 
-      await FileSystem.writeAsStringAsync(fileUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
+      await FileSystem.writeAsStringAsync(cacheUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
 
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/csv',
-          dialogTitle: 'Export Contacts',
-          UTI: 'public.comma-separated-values-text',
-        });
+      if (Platform.OS === 'android') {
+        try {
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (permissions.granted) {
+            const safUri = await FileSystem.StorageAccessFramework.createFileAsync(
+              permissions.directoryUri,
+              fileName,
+              'text/csv'
+            );
+            await FileSystem.writeAsStringAsync(safUri, csvString, {
+              encoding: FileSystem.EncodingType.UTF8,
+            });
+            Alert.alert(
+              "Download Complete",
+              `"${fileName}" has been saved to your selected folder.`
+            );
+            return;
+          }
+        } catch (safError) {
+          console.warn("StorageAccessFramework failed, falling back to share:", safError);
+        }
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(cacheUri, {
+            mimeType: 'text/csv',
+            dialogTitle: 'Export Contacts',
+            UTI: 'public.comma-separated-values-text',
+          });
+        } else {
+          Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+        }
       } else {
-        Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+        await FileSystem.writeAsStringAsync(docUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
+        Alert.alert(
+          "Download Complete",
+          `"${fileName}" has been saved directly to your Files app.`
+        );
       }
     } catch (error) {
       console.error('Error exporting contacts:', error);

@@ -443,10 +443,10 @@ export default function PostHistoryScreen() {
         {/* Footer Platforms / Errors Section */}
         {platforms.length > 0 && (
           <View style={{ 
-            flexDirection: 'row', alignItems: 'center', gap: 6, 
+            flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, 
             borderTopWidth: 1, borderTopColor: colors.cardBorder, paddingTop: 10, marginTop: 4 
           }}>
-            <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textMuted, marginRight: 2 }}>Platforms:</Text>
+            <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textMuted, marginRight: 2 }}>PLATFORMS:</Text>
             {platforms.map((plat, idx) => {
               const iconName = plat === 'instagram' ? 'instagram' :
                                plat === 'facebook' ? 'facebook' :
@@ -458,7 +458,7 @@ export default function PostHistoryScreen() {
                   backgroundColor: colors.surfaceSoft, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 
                 }}>
                   <MaterialCommunityIcons name={iconName} size={11} color={colors.textPrimary} />
-                  <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textPrimary, textTransform: 'capitalize' }}>{plat}</Text>
+                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.textPrimary, textTransform: 'capitalize' }}>{plat}</Text>
                 </View>
               );
             })}

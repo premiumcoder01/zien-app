@@ -651,10 +651,10 @@ export default function CRMSettingsScreen() {
                     >
                       <MaterialCommunityIcons
                         name="email"
-                        size={20}
+                        size={17}
                         color={reEngagementChannel === 'EMAIL' ? '#FFFFFF' : '#94A3B8'}
                       />
-                      <Text style={[styles.premiumSegmentBtnText, reEngagementChannel === 'EMAIL' && styles.premiumSegmentBtnTextActive]}>EMAIL</Text>
+                      <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.premiumSegmentBtnText, reEngagementChannel === 'EMAIL' && styles.premiumSegmentBtnTextActive]}>EMAIL</Text>
                     </Pressable>
                     <Pressable
                       style={[styles.premiumSegmentBtn, reEngagementChannel === 'SMS' && styles.premiumSegmentBtnActive]}
@@ -662,10 +662,10 @@ export default function CRMSettingsScreen() {
                     >
                       <MaterialCommunityIcons
                         name="cellphone"
-                        size={20}
+                        size={17}
                         color={reEngagementChannel === 'SMS' ? '#FFFFFF' : '#94A3B8'}
                       />
-                      <Text style={[styles.premiumSegmentBtnText, reEngagementChannel === 'SMS' && styles.premiumSegmentBtnTextActive]}>SMS</Text>
+                      <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.premiumSegmentBtnText, reEngagementChannel === 'SMS' && styles.premiumSegmentBtnTextActive]}>SMS</Text>
                     </Pressable>
                     <Pressable
                       style={[styles.premiumSegmentBtn, reEngagementChannel === 'WHATSAPP' && styles.premiumSegmentBtnActive]}
@@ -673,10 +673,10 @@ export default function CRMSettingsScreen() {
                     >
                       <MaterialCommunityIcons
                         name="whatsapp"
-                        size={20}
+                        size={17}
                         color={reEngagementChannel === 'WHATSAPP' ? '#FFFFFF' : '#94A3B8'}
                       />
-                      <Text style={[styles.premiumSegmentBtnText, reEngagementChannel === 'WHATSAPP' && styles.premiumSegmentBtnTextActive]}>WHATSAPP</Text>
+                      <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.premiumSegmentBtnText, reEngagementChannel === 'WHATSAPP' && styles.premiumSegmentBtnTextActive]}>WHATSAPP</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -1647,7 +1647,7 @@ function getStyles(colors: any, theme: string) {
       flexDirection: 'row',
       backgroundColor: colors.inputBackground,
       borderRadius: 18,
-      padding: 6,
+      padding: 5,
       gap: 4,
     },
     premiumSegmentBtn: {
@@ -1655,18 +1655,19 @@ function getStyles(colors: any, theme: string) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      height: 48,
+      height: 46,
       borderRadius: 14,
-      gap: 10,
+      paddingHorizontal: 4,
+      gap: 5,
     },
     premiumSegmentBtnActive: {
       backgroundColor: colors.accentTeal,
     },
     premiumSegmentBtnText: {
-      fontSize: 13,
+      fontSize: 11.5,
       fontWeight: '800',
       color: colors.textSecondary,
-      letterSpacing: 0.5,
+      letterSpacing: 0.2,
     },
     premiumSegmentBtnTextActive: {
       color: '#FFFFFF',

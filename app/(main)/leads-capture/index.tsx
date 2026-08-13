@@ -539,7 +539,7 @@ export default function LeadsCaptureScreen() {
                         <View style={styles.leadsModalHeader}>
                             <View style={styles.leadsModalHeaderLeft}>
                                 <Text style={styles.leadsModalTitle}>Captured Leads</Text>
-                                <Text style={styles.leadsModalSubtitle} numberOfLines={1}>
+                                <Text style={styles.leadsModalSubtitle}>
                                     Data stream from {selectedPageForLeads?.name || 'Untitled Landing Page'}
                                 </Text>
                             </View>
@@ -1015,6 +1015,7 @@ const getStyles = (colors: any, isDark: boolean, isTablet: boolean) => StyleShee
     },
     leadsModalHeaderLeft: {
         flex: 1,
+        marginRight: 12,
         gap: 2,
     },
     leadsModalTitle: {
@@ -1025,6 +1026,8 @@ const getStyles = (colors: any, isDark: boolean, isTablet: boolean) => StyleShee
     leadsModalSubtitle: {
         fontSize: 13,
         color: colors.textSecondary,
+        marginTop: 2,
+        lineHeight: 18,
     },
     leadsModalCloseBtn: {
         width: 32,

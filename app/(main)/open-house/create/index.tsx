@@ -554,7 +554,7 @@ export default function OpenHouseCreateScreen() {
 
         {/* Global Fixed Bottom Bar */}
         {!isFinalized && (
-          <Animated.View style={[styles.fixedBottomBar, animatedBottomBarStyle, { paddingBottom: isKeyboardVisible ? 16 : Math.max(insets.bottom, 16) }]}>
+          <Animated.View style={[styles.fixedBottomBar, animatedBottomBarStyle, { paddingBottom: isKeyboardVisible ? 16 : Math.max(insets.bottom + 8, 20) }]}>
             {activeStep === 0 && (
               <GradientButton
                 title="Continue to Details"
@@ -635,7 +635,7 @@ function Step1SelectProperty({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.propertiesScrollContent, { paddingBottom: 140 }]}
+        contentContainerStyle={[styles.propertiesScrollContent, { paddingBottom: 220 }]}
         style={styles.propertiesScroll}
       >
         {isLoading ? (
@@ -837,7 +837,7 @@ function Step2Details({
     <View style={styles.stepContent}>
       <ScrollView
         style={styles.detailsScroll}
-        contentContainerStyle={{ paddingBottom: 140 }}
+        contentContainerStyle={{ paddingBottom: 220 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -1317,7 +1317,7 @@ function Step4Customization({
     <View style={styles.stepContent}>
       <ScrollView
         style={styles.customizationScroll}
-        contentContainerStyle={{ paddingBottom: 140 }}
+        contentContainerStyle={{ paddingBottom: 220 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets={true}
@@ -1790,8 +1790,9 @@ function getStyles(colors: any) {
       flex: 1,
     },
     stepContent: {
+      flex: 1,
       paddingTop: 8,
-      paddingBottom: 24,
+      paddingBottom: 0,
     },
     placeholderStep: {
       padding: 24,
@@ -3545,7 +3546,7 @@ function getStyles(colors: any) {
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: colors.cardBackgroundSemi,
+      backgroundColor: colors.cardBackground,
       borderTopWidth: 1,
       borderColor: colors.cardBorder,
       paddingHorizontal: H_PADDING,

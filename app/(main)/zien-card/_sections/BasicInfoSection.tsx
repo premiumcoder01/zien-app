@@ -971,7 +971,6 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: colors.textSecondary,
-    textTransform: 'uppercase',
   },
   uploadInfo: {
     flex: 1,

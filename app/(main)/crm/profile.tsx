@@ -971,7 +971,7 @@ export default function ProfileScreen() {
 
                         {/* Body */}
                         <KeyboardAvoidingView
-                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                             style={{ flex: 1 }}>
                             <ScrollView
                                 style={styles.fullPageScroll}
@@ -990,8 +990,8 @@ export default function ProfileScreen() {
                             </ScrollView>
 
                             {/* Footer */}
-                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
-                                <Pressable onPress={() => setIsNoteModalVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 24, 48) }]}>
+                                <Pressable onPress={() => setIsNoteModalVisible(false)} style={styles.cancelBtn} hitSlop={8}>
                                     <Text style={styles.cancelText}>Cancel</Text>
                                 </Pressable>
                                 <Pressable
@@ -1030,7 +1030,7 @@ export default function ProfileScreen() {
 
                         {/* Body */}
                         <KeyboardAvoidingView
-                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                             style={{ flex: 1 }}>
                             <ScrollView
                                 style={styles.fullPageScroll}
@@ -1093,8 +1093,8 @@ export default function ProfileScreen() {
                             </ScrollView>
 
                             {/* Footer */}
-                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
-                                <Pressable onPress={() => { setIsEventModalVisible(false); setShowEventDatePicker(false); }} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 24, 48) }]}>
+                                <Pressable onPress={() => { setIsEventModalVisible(false); setShowEventDatePicker(false); }} style={styles.cancelBtn} hitSlop={8}>
                                     <Text style={styles.cancelText}>Cancel</Text>
                                 </Pressable>
                                 <Pressable
@@ -1133,7 +1133,7 @@ export default function ProfileScreen() {
 
                         {/* Body */}
                         <KeyboardAvoidingView
-                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                             style={{ flex: 1 }}>
                             <ScrollView
                                 style={styles.fullPageScroll}
@@ -1142,7 +1142,7 @@ export default function ProfileScreen() {
                                 <TextInput
                                     ref={taskSubjectInputRef}
                                     style={styles.singleInput}
-                                    placeholder="Task subject (e.g. Call to discuss contract)"
+                                    placeholder="Task Subject (e.g. Schedual all)"
                                     placeholderTextColor={colors.textMuted}
                                     autoFocus={!showTaskDatePicker}
                                     value={taskSubject}
@@ -1208,8 +1208,8 @@ export default function ProfileScreen() {
                             </ScrollView>
 
                             {/* Footer */}
-                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
-                                <Pressable onPress={() => { setIsTaskModalVisible(false); setShowTaskDatePicker(false); }} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 24, 48) }]}>
+                                <Pressable onPress={() => { setIsTaskModalVisible(false); setShowTaskDatePicker(false); }} style={styles.cancelBtn} hitSlop={8}>
                                     <Text style={styles.cancelText}>Cancel</Text>
                                 </Pressable>
                                 <Pressable
@@ -1274,7 +1274,7 @@ export default function ProfileScreen() {
 
                         {/* Body */}
                         <KeyboardAvoidingView
-                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                             style={{ flex: 1 }}>
                             <ScrollView
                                 style={styles.fullPageScroll}
@@ -1334,8 +1334,8 @@ export default function ProfileScreen() {
                             </ScrollView>
 
                             {/* Footer */}
-                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
-                                <Pressable onPress={() => setIsHeatModalVisible(false)} style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
+                            <View style={[styles.fullPageFooter, { paddingBottom: Math.max(insets.bottom + 24, 48) }]}>
+                                <Pressable onPress={() => setIsHeatModalVisible(false)} style={styles.cancelBtn} hitSlop={8}>
                                     <Text style={styles.cancelText}>Cancel</Text>
                                 </Pressable>
                                 <Pressable
@@ -2244,6 +2244,12 @@ function getStyles(colors: any, isDark: boolean) {
             borderTopColor: colors.borderLight,
             paddingTop: 16,
         },
+        cancelBtn: {
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
         cancelText: {
             fontSize: 14,
             fontWeight: '700',
@@ -2251,13 +2257,15 @@ function getStyles(colors: any, isDark: boolean) {
         },
         saveBtn: {
             backgroundColor: '#0B213E',
-            paddingHorizontal: 18,
-            paddingVertical: 10,
-            borderRadius: 10,
+            paddingHorizontal: 20,
+            paddingVertical: 12,
+            borderRadius: 12,
+            justifyContent: 'center',
+            alignItems: 'center',
         },
         saveBtnText: {
             color: '#FFFFFF',
-            fontSize: 13,
+            fontSize: 13.5,
             fontWeight: '800',
         },
 

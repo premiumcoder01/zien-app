@@ -173,6 +173,21 @@ function getBStyles(colors: any) {
   });
 }
 
+const COUNTRY_OPTIONS = [
+  { code: '1', flag: '🇺🇸', name: 'United States (+1)' },
+  { code: '44', flag: '🇬🇧', name: 'United Kingdom (+44)' },
+  { code: '91', flag: '🇮🇳', name: 'India (+91)' },
+  { code: '61', flag: '🇦🇺', name: 'Australia (+61)' },
+  { code: '971', flag: '🇦🇪', name: 'UAE (+971)' },
+  { code: '33', flag: '🇫🇷', name: 'France (+33)' },
+  { code: '49', flag: '🇩🇪', name: 'Germany (+49)' },
+];
+
+const getFlagEmoji = (code: string) => {
+  const found = COUNTRY_OPTIONS.find(c => c.code === code);
+  return found ? found.flag : '🌐';
+};
+
 // ─────────────────────────────────────────────────────
 // Main Screen
 // ─────────────────────────────────────────────────────
@@ -195,8 +210,8 @@ export default function ProfileScreen() {
   const [mobilePhone, setMobilePhone] = useState('');
   const [professionalEmail, setProfessionalEmail] = useState('');
 
-  // Phone input country calling code state
   const [countryCallingCode, setCountryCallingCode] = useState('91');
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
 
   // Verification states
   const [isEmailVerified, setIsEmailVerified] = useState(false);
@@ -311,28 +326,62 @@ export default function ProfileScreen() {
       setLastName(profile.last_name || '');
       setProfessionalEmail(profile.email || '');
 
-      // Use profile.country_code if present, otherwise parse from phone number
-      let phoneStr = profile.phone || '';
-      let detectedCallingCode = '91';
+      // Cleanly parse country code & phone number from profile
+      let rawPhone = profile.phone || '';
+      let rawCountryCode = profile.country_code || '';
 
-      if (profile.country_code) {
-        detectedCallingCode = profile.country_code.replace('+', '');
+      let phoneDigits = rawPhone.replace(/[^\d]/g, '');
+      let ccDigits = rawCountryCode.replace(/[^\d]/g, '');
+
+      // If country_code accidentally stored full phone number (e.g. 16565556264), combine into full phone digits
+      let fullDigits = phoneDigits;
+      if (ccDigits.length > 4) {
+        if (!fullDigits || fullDigits === ccDigits || ccDigits.endsWith(fullDigits)) {
+          fullDigits = ccDigits;
+        } else if (!fullDigits.startsWith(ccDigits)) {
+          fullDigits = ccDigits + fullDigits;
+        }
+      } else if (ccDigits.length > 0 && !fullDigits.startsWith(ccDigits)) {
+        fullDigits = ccDigits + fullDigits;
+      }
+
+      let detectedCallingCode = '91';
+      let cleanNumber = fullDigits;
+
+      if (fullDigits.startsWith('1') && fullDigits.length === 11) {
+        detectedCallingCode = '1';
+        cleanNumber = fullDigits.substring(1);
+      } else if (fullDigits.startsWith('91') && fullDigits.length === 12) {
+        detectedCallingCode = '91';
+        cleanNumber = fullDigits.substring(2);
+      } else if (fullDigits.startsWith('44') && fullDigits.length >= 11) {
+        detectedCallingCode = '44';
+        cleanNumber = fullDigits.substring(2);
+      } else if (fullDigits.startsWith('971') && fullDigits.length >= 11) {
+        detectedCallingCode = '971';
+        cleanNumber = fullDigits.substring(3);
+      } else if (fullDigits.startsWith('61') && fullDigits.length >= 11) {
+        detectedCallingCode = '61';
+        cleanNumber = fullDigits.substring(2);
+      } else if (ccDigits && ccDigits.length <= 4) {
+        detectedCallingCode = ccDigits;
+        if (fullDigits.startsWith(ccDigits)) {
+          cleanNumber = fullDigits.substring(ccDigits.length);
+        } else {
+          cleanNumber = fullDigits;
+        }
       } else {
-        if (phoneStr.startsWith('+')) {
-          if (phoneStr.startsWith('+91')) {
-            detectedCallingCode = '91';
-            phoneStr = phoneStr.substring(3);
-          } else {
-            // If it starts with + but is not India, try stripping +
-            phoneStr = phoneStr.substring(1);
-          }
-        } else if (phoneStr.startsWith('91') && phoneStr.length > 10) {
-          detectedCallingCode = '91';
-          phoneStr = phoneStr.substring(2);
+        if (ccDigits.startsWith('1')) detectedCallingCode = '1';
+        else if (ccDigits.startsWith('44')) detectedCallingCode = '44';
+        else if (ccDigits.startsWith('91')) detectedCallingCode = '91';
+        else detectedCallingCode = '91';
+
+        if (cleanNumber.startsWith(detectedCallingCode) && cleanNumber.length > 10) {
+          cleanNumber = cleanNumber.substring(detectedCallingCode.length);
         }
       }
 
-      setMobilePhone(phoneStr);
+      setMobilePhone(cleanNumber);
       setCountryCallingCode(detectedCallingCode);
 
       setLicenseNumber(profile.license_number || '');
@@ -533,10 +582,10 @@ export default function ProfileScreen() {
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
-                    editable={false}
-                    inputRowStyle={{ opacity: 0.7 }}
+                    inputStyle={{ fontSize: 13.5, color: colors.textPrimary }}
+                    inputRowStyle={{ paddingHorizontal: 10 }}
                     leftInputElement={
-                      <MaterialCommunityIcons name="email-outline" size={20} color={colors.textSecondary} />
+                      <MaterialCommunityIcons name="email-outline" size={18} color={colors.textSecondary} />
                     }
                   />
                 </View>
@@ -561,17 +610,19 @@ export default function ProfileScreen() {
                       Mobile Phone <Text style={{ color: '#ef4444' }}>*</Text>
                     </Text>
                     <View style={styles.phoneInputRow}>
-                      <View style={styles.flagContainer}>
+                      <Pressable style={styles.flagContainer} onPress={() => setCountryPickerVisible(true)}>
                         <Text style={styles.flagEmoji}>
-                          {countryCallingCode === '1' ? '🇺🇸' : countryCallingCode === '44' ? '🇬🇧' : '🇮🇳'}
+                          {getFlagEmoji(countryCallingCode)}
                         </Text>
                         <Text style={styles.countryCodeText}>+{countryCallingCode}</Text>
                         <MaterialCommunityIcons name="chevron-down" size={14} color={colors.textSecondary} />
-                      </View>
+                      </Pressable>
                       <TextInput
                         style={styles.phoneTextInput}
                         value={mobilePhone}
-                        editable={false}
+                        onChangeText={setMobilePhone}
+                        editable={true}
+                        keyboardType="phone-pad"
                         placeholder="Mobile Phone"
                         placeholderTextColor={colors.inputPlaceholder}
                       />
@@ -737,7 +788,7 @@ export default function ProfileScreen() {
     isEmailVerified, isPhoneVerified, newPassword, confirmPassword, showNewPassword, showConfirmPassword
   ]);
 
-  const bottomBarHeight = 56 + insets.bottom + 16;
+  const bottomBarHeight = 125 + insets.bottom;
 
   return (
     <LinearGradient
@@ -886,6 +937,41 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
+        </Modal>
+
+        {/* ── Country Code Selection Modal ── */}
+        <Modal
+          visible={countryPickerVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setCountryPickerVisible(false)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setCountryPickerVisible(false)}>
+            <View style={[styles.modalContent, { maxWidth: 340 }]}>
+              <Text style={styles.modalTitle}>Select Country Code</Text>
+              <View style={{ marginTop: 12, gap: 4 }}>
+                {COUNTRY_OPTIONS.map((item) => (
+                  <Pressable
+                    key={item.code}
+                    style={({ pressed }) => [
+                      styles.countryOptionRow,
+                      countryCallingCode === item.code && styles.countryOptionSelected,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() => {
+                      setCountryCallingCode(item.code);
+                      setCountryPickerVisible(false);
+                    }}
+                  >
+                    <Text style={{ fontSize: 20 }}>{item.flag}</Text>
+                    <Text style={[styles.countryOptionText, countryCallingCode === item.code && { fontWeight: '700', color: colors.accentTeal }]}>
+                      {item.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </Pressable>
         </Modal>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -1099,31 +1185,46 @@ function getStyles(colors: any, theme: string) {
       borderRadius: colors.inputBorderRadius || 12,
       borderWidth: 1,
       borderColor: colors.borderInput,
-      paddingHorizontal: 14,
+      paddingHorizontal: 12,
       height: 50,
-      opacity: 0.7,
     },
     flagContainer: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      marginRight: 10,
+      marginRight: 8,
       borderRightWidth: 1,
       borderRightColor: colors.cardBorder,
-      paddingRight: 10,
+      paddingRight: 8,
     },
     flagEmoji: {
       fontSize: 16,
     },
     countryCodeText: {
-      fontSize: 15,
+      fontSize: 14,
       color: colors.textPrimary,
       fontWeight: '600',
     },
     phoneTextInput: {
       flex: 1,
+      fontSize: 14,
+      color: colors.textPrimary,
+      paddingVertical: 0,
+    },
+    countryOptionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+    },
+    countryOptionSelected: {
+      backgroundColor: colors.inputBackground,
+    },
+    countryOptionText: {
       fontSize: 15,
-      color: colors.textSecondary,
+      color: colors.textPrimary,
     },
     labeledInputContainer: {
       gap: 8,

@@ -15,6 +15,7 @@ import {
   Animated,
   Dimensions,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -282,21 +283,51 @@ export default function CRMScreen() {
 
       const dateStr = new Date().toISOString().split('T')[0];
       const fileName = `CRM_ROI_Report_${dateStr}.csv`;
-      const fileUri = FileSystem.documentDirectory + fileName;
+      const cacheUri = `${FileSystem.cacheDirectory}${fileName}`;
+      const docUri = `${FileSystem.documentDirectory}${fileName}`;
 
-      await FileSystem.writeAsStringAsync(fileUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
+      await FileSystem.writeAsStringAsync(cacheUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
 
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/csv',
-          dialogTitle: 'Download ROI Report',
-          UTI: 'public.comma-separated-values-text'
-        });
+      if (Platform.OS === 'android') {
+        try {
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (permissions.granted) {
+            const safUri = await FileSystem.StorageAccessFramework.createFileAsync(
+              permissions.directoryUri,
+              fileName,
+              'text/csv'
+            );
+            await FileSystem.writeAsStringAsync(safUri, csvString, {
+              encoding: FileSystem.EncodingType.UTF8,
+            });
+            Alert.alert(
+              "Download Complete",
+              `"${fileName}" has been saved to your selected folder.`
+            );
+            return;
+          }
+        } catch (safError) {
+          console.warn("StorageAccessFramework failed, falling back to share:", safError);
+        }
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(cacheUri, {
+            mimeType: 'text/csv',
+            dialogTitle: 'Download ROI Report',
+            UTI: 'public.comma-separated-values-text'
+          });
+        } else {
+          Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+        }
       } else {
-        Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+        await FileSystem.writeAsStringAsync(docUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
+        Alert.alert(
+          "Download Complete",
+          `"${fileName}" has been saved directly to your Files app.`
+        );
       }
     } catch (error) {
-      console.error('Error sharing CSV:', error);
+      console.error('Error downloading CSV report:', error);
       Alert.alert('Error', 'Failed to generate the report.');
     }
   };
