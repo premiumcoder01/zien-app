@@ -1,8 +1,10 @@
 import { useAppTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     Pressable,
@@ -11,149 +13,249 @@ import {
     TextInput,
     View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-interface RecentSearch {
-    id: string;
-    address: string;
-    cityState: string;
-    type: string;
-    price: string;
-    time: string;
-    dateGroup: string;
-    icon: any;
+interface HistoryItem {
+    id: number;
+    user_id: number;
+    query: string;
+    property_type: string;
+    created_at: string;
+    updated_at: string;
 }
-
-const INITIAL_RECENT: RecentSearch[] = [
-    { id: '1', address: '4521 Wilshire Blvd', cityState: 'Los Angeles, CA 90010', type: 'Single Family', price: '$1.28M', time: '2 hours ago', dateGroup: 'TODAY', icon: 'home-outline' },
-    { id: '2', address: '123 Ocean View Drive', cityState: 'Malibu, CA 90265', type: 'Single Family', price: '$4.1M', time: '5 hours ago', dateGroup: 'TODAY', icon: 'home-outline' },
-    { id: '3', address: '456 Hillside Ave', cityState: 'Beverly Hills, CA 90210', type: 'Condo', price: '$2.4M', time: '8 hours ago', dateGroup: 'TODAY', icon: 'office-building-outline' },
-    { id: '4', address: '789 Palm Blvd', cityState: 'Santa Monica, CA 90401', type: 'Multi-family', price: '$3.7M', time: '1 day ago', dateGroup: 'YESTERDAY', icon: 'home-group' },
-    { id: '5', address: '2901 Ocean Ave', cityState: 'Santa Monica, CA 90405', type: 'Condo', price: '$2.1M', time: '2 days ago', dateGroup: 'YESTERDAY', icon: 'office-building-outline' },
-    { id: '6', address: '812 Rosecrans Ave', cityState: 'Manhattan Beach, CA 90266', type: 'Single Family', price: '$1.87M', time: '3 days ago', dateGroup: 'MAR 14', icon: 'home-outline' },
-];
 
 export default function RecentSearchesScreen() {
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
     const router = useRouter();
-    const insets = useSafeAreaInsets();
+    const { accessToken } = useAuth();
 
-    const [recentList, setRecentList] = useState<RecentSearch[]>(INITIAL_RECENT);
+    const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
-    const filteredList = useMemo(() => {
-        return recentList.filter(item =>
-            item.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.cityState.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [recentList, searchQuery]);
+    const fetchHistory = async () => {
+        if (!accessToken) return;
+        setIsLoading(true);
+        try {
+            const url = 'https://staging.zien.ai/api/solo/properties/intelligence/history';
+            console.log('[RecentSearches] Fetching history:', url);
+            const res = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+            const json = await res.json();
+            console.log('[RecentSearches] API Response:', res.status, json);
+            if (json?.success && Array.isArray(json.data)) {
+                setHistoryList(json.data);
+            }
+        } catch (e) {
+            console.error('[RecentSearches] Network Error:', e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-    // Grouping logic for the list
+    useEffect(() => {
+        fetchHistory();
+    }, [accessToken]);
+
+    const filteredList = useMemo(() => {
+        if (!searchQuery.trim()) return historyList;
+        return historyList.filter(item =>
+            item.query.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.property_type?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [historyList, searchQuery]);
+
+    // Grouping by Date (DD/MM/YYYY) matching Web UI
     const groupedData = useMemo(() => {
-        const groups: { title: string; data: RecentSearch[] }[] = [];
+        const groups: { dateTitle: string; items: HistoryItem[] }[] = [];
+
         filteredList.forEach(item => {
-            const group = groups.find(g => g.title === item.dateGroup);
-            if (group) {
-                group.data.push(item);
+            let dateStr = 'Recent';
+            if (item.created_at) {
+                const d = new Date(item.created_at);
+                if (!isNaN(d.getTime())) {
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const year = d.getFullYear();
+                    dateStr = `${day}/${month}/${year}`;
+                }
+            }
+
+            const existingGroup = groups.find(g => g.dateTitle === dateStr);
+            if (existingGroup) {
+                existingGroup.items.push(item);
             } else {
-                groups.push({ title: item.dateGroup, data: [item] });
+                groups.push({ dateTitle: dateStr, items: [item] });
             }
         });
+
         return groups;
     }, [filteredList]);
 
     const handleClearAll = () => {
         Alert.alert(
-            "Clear All Searches",
-            "Are you sure you want to permanently delete your entire search history?",
-            [
-                { text: "Cancel", style: "cancel" },
-                { text: "Clear All", style: "destructive", onPress: () => setRecentList([]) }
-            ]
-        );
-    };
-
-    const handleDeleteItem = (id: string) => {
-        Alert.alert(
-            "Remove Item",
-            "Delete this property from your recent searches?",
+            "Clear All Search History",
+            "Are you sure you want to delete your entire search history?",
             [
                 { text: "Cancel", style: "cancel" },
                 {
-                    text: "Delete",
+                    text: "Clear All",
                     style: "destructive",
-                    onPress: () => setRecentList(prev => prev.filter(item => item.id !== id))
+                    onPress: async () => {
+                        setHistoryList([]);
+                        try {
+                            const url = 'https://staging.zien.ai/api/solo/properties/intelligence/history/all';
+                            console.log('[RecentSearches] 🗑️ CLEAR ALL REQUEST:', url);
+                            const res = await fetch(url, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'Authorization': `Bearer ${accessToken}`,
+                                },
+                            });
+                            const json = await res.json();
+                            console.log('[RecentSearches] ✅ CLEAR ALL RESPONSE:', res.status, json);
+                        } catch (e) {
+                            console.error('[RecentSearches] 💥 Failed to clear all history:', e);
+                        }
+                    }
                 }
             ]
         );
     };
 
-    const handleItemPress = (item: RecentSearch) => {
-        // Logic to navigate back to search with this property
-        // For now we'll just go back to main hub
-        router.push("/(main)/property-intelligence");
+    const handleDeleteItem = (id: number) => {
+        Alert.alert(
+            "Remove Search History",
+            "Are you sure you want to delete this search history item?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        // Optimistically remove from state
+                        setHistoryList(prev => prev.filter(item => item.id !== id));
+
+                        try {
+                            const url = `https://staging.zien.ai/api/solo/properties/intelligence/history/${id}`;
+                            console.log('[RecentSearches] 🗑️ DELETE REQUEST:', url);
+                            const res = await fetch(url, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'Authorization': `Bearer ${accessToken}`,
+                                },
+                            });
+                            const json = await res.json();
+                            console.log('[RecentSearches] ✅ DELETE RESPONSE:', res.status, json);
+                        } catch (e) {
+                            console.error('[RecentSearches] 💥 Failed to delete history item:', e);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
-    const renderItem = ({ item }: { item: RecentSearch }) => (
-        <Pressable
-            style={({ pressed }) => [styles.itemCard, pressed && { opacity: 0.8 }]}
-            onPress={() => handleItemPress(item)}
-        >
-            <View style={styles.itemLeft}>
-                <View style={styles.iconContainer}>
-                    <MaterialCommunityIcons name={item.icon} size={20} color={colors.accent} />
+    const handleItemPress = (queryAddress: string) => {
+        router.replace({
+            pathname: '/(main)/property-intelligence',
+            params: { address: queryAddress, ts: String(Date.now()) },
+        });
+    };
+
+    const renderHistoryItem = (item: HistoryItem) => {
+        // Format time HH:mm:ss
+        let timeStr = '';
+        if (item.created_at) {
+            const d = new Date(item.created_at);
+            if (!isNaN(d.getTime())) {
+                const hours = String(d.getHours()).padStart(2, '0');
+                const mins = String(d.getMinutes()).padStart(2, '0');
+                const secs = String(d.getSeconds()).padStart(2, '0');
+                timeStr = `${hours}:${mins}:${secs}`;
+            }
+        }
+
+        const addressParts = item.query.split(',');
+        const primaryAddress = addressParts[0] || item.query;
+        const secondaryAddress = addressParts.slice(1).join(',').trim();
+
+        return (
+            <Pressable
+                key={item.id}
+                style={({ pressed }) => [styles.itemCard, pressed && { opacity: 0.8 }]}
+                onPress={() => handleItemPress(item.query)}
+            >
+                <View style={styles.pinIconBadge}>
+                    <MaterialCommunityIcons name="map-marker-outline" size={18} color="#06B6D4" />
                 </View>
-                <View style={styles.itemInfo}>
-                    <Text style={styles.itemAddress} numberOfLines={1}>{item.address}</Text>
-                    <View style={styles.itemSubRow}>
-                        <View style={styles.typeBadge}>
-                            <Text style={styles.typeText}>{item.type}</Text>
-                        </View>
-                        <Text style={styles.itemCity} numberOfLines={1}>{item.cityState}</Text>
+
+                <View style={styles.itemMainInfo}>
+                    <Text style={styles.primaryAddress} numberOfLines={1}>
+                        {primaryAddress}
+                    </Text>
+                    {secondaryAddress ? (
+                        <Text style={styles.secondaryAddress} numberOfLines={1}>
+                            {secondaryAddress}
+                        </Text>
+                    ) : null}
+                </View>
+
+                <View style={styles.itemRight}>
+                    <View style={styles.typeBadge}>
+                        <Text style={styles.typeBadgeText}>{item.property_type || 'Land'}</Text>
                     </View>
-                </View>
-            </View>
 
-            <View style={styles.itemRight}>
-                <View style={styles.priceContainer}>
-                    <Text style={styles.itemPrice}>{item.price}</Text>
-                    <Text style={styles.itemTime}>{item.time}</Text>
-                </View>
+                    {timeStr ? <Text style={styles.timeText}>{timeStr}</Text> : null}
 
-                <View style={styles.itemActions}>
+                    {/* Red Delete Button with Confirmation Alert & DELETE API Call */}
                     <Pressable
-                        onPress={() => handleDeleteItem(item.id)}
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            handleDeleteItem(item.id);
+                        }}
                         hitSlop={8}
                         style={styles.deleteBtn}
                     >
-                        <MaterialCommunityIcons name="delete-outline" size={18} color={colors.textSecondary} />
+                        <MaterialCommunityIcons name="delete-outline" size={16} color="#EF4444" />
                     </Pressable>
-                    <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSecondary} />
+
+                    <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textSecondary} />
                 </View>
-            </View>
-        </Pressable>
-    );
+            </Pressable>
+        );
+    };
 
     return (
         <View style={styles.container}>
             {/* Header Area */}
             <View style={styles.header}>
-                <View>
-                    <View style={styles.titleRow}>
-                        <MaterialCommunityIcons name="clock-outline" size={24} color={colors.accent} />
-                        <Text style={styles.title}>Recent Searches</Text>
+                <View style={styles.headerTitleRow}>
+                    <View style={styles.headerIconBadge}>
+                        <MaterialCommunityIcons name="history" size={20} color="#06B6D4" />
                     </View>
-                    <Text style={styles.subtitle}>{recentList.length} properties analyzed</Text>
+                    <View>
+                        <Text style={styles.title}>Recent Searches</Text>
+                        <Text style={styles.subtitle}>{historyList.length} properties analyzed</Text>
+                    </View>
                 </View>
-                <Pressable style={styles.clearBtn} onPress={handleClearAll}>
-                    <Text style={styles.clearBtnText}>Clear All</Text>
-                </Pressable>
+
+                {historyList.length > 0 && (
+                    <Pressable style={styles.clearBtn} onPress={handleClearAll}>
+                        <Text style={styles.clearBtnText}>Clear All</Text>
+                    </Pressable>
+                )}
             </View>
 
-            {/* Filter Bar */}
-            <View style={styles.filterContainer}>
-                <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
+            {/* Filter Search Input */}
+            <View style={styles.filterCard}>
+                <MaterialCommunityIcons name="magnify" size={18} color={colors.textSecondary} />
                 <TextInput
                     style={styles.filterInput}
                     placeholder="Filter by address or city..."
@@ -161,245 +263,154 @@ export default function RecentSearchesScreen() {
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                 />
+                {searchQuery ? (
+                    <Pressable onPress={() => setSearchQuery('')}>
+                        <MaterialCommunityIcons name="close-circle" size={16} color={colors.textSecondary} />
+                    </Pressable>
+                ) : null}
             </View>
 
-            <FlatList
-                data={groupedData}
-                keyExtractor={(item) => item.title}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-                renderItem={({ item }) => (
-                    <View style={styles.groupSection}>
-                        <View style={styles.groupHeader}>
-                            <Text style={styles.groupTitle}>{item.title}</Text>
-                            <View style={styles.groupLine} />
-                            <Text style={styles.groupCount}>{item.data.length} searches</Text>
+            {/* Content Area */}
+            {isLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#06B6D4" />
+                    <Text style={styles.loadingText}>Loading search history...</Text>
+                </View>
+            ) : groupedData.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                    <MaterialCommunityIcons name="history" size={48} color={colors.surfaceMuted} />
+                    <Text style={styles.emptyTitle}>No recent searches</Text>
+                    <Text style={styles.emptySub}>Properties you search for will appear here for quick access.</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={groupedData}
+                    keyExtractor={(group) => group.dateTitle}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.listContent}
+                    renderItem={({ item: group }) => (
+                        <View style={styles.groupContainer}>
+                            <View style={styles.groupHeader}>
+                                <Text style={styles.groupDate}>{group.dateTitle}</Text>
+                                <Text style={styles.groupCount}>{group.items.length} searches</Text>
+                            </View>
+
+                            <View style={styles.groupCardsWrapper}>
+                                {group.items.map(item => renderHistoryItem(item))}
+                            </View>
                         </View>
-                        <View style={styles.groupData}>
-                            {item.data.map(search => (
-                                <React.Fragment key={search.id}>
-                                    {renderItem({ item: search })}
-                                </React.Fragment>
-                            ))}
-                        </View>
-                    </View>
-                )}
-                ListEmptyComponent={
-                    <View style={styles.emptyState}>
-                        <MaterialCommunityIcons name="history" size={64} color={colors.surfaceMuted} />
-                        <Text style={styles.emptyTitle}>No Recent Searches</Text>
-                        <Text style={styles.emptySubtitle}>Your search history will appear here once you analyze properties.</Text>
-                    </View>
-                }
-            />
+                    )}
+                />
+            )}
         </View>
     );
 }
 
 function getStyles(colors: any) {
     return StyleSheet.create({
-        container: {
-            flex: 1,
-            backgroundColor: colors.cardBackground,
-        },
+        container: { flex: 1, paddingHorizontal: 16, paddingTop: 10 },
         header: {
             flexDirection: 'row',
-            alignItems: 'center',
             justifyContent: 'space-between',
-            paddingHorizontal: 20,
-            paddingVertical: 16,
-        },
-        titleRow: {
-            flexDirection: 'row',
             alignItems: 'center',
-            gap: 10,
-            marginBottom: 4,
+            marginBottom: 16,
         },
-        title: {
-            fontSize: 24,
-            fontWeight: '900',
-            color: colors.textPrimary,
-            letterSpacing: -0.5,
-        },
-        subtitle: {
-            fontSize: 13,
-            color: colors.textSecondary,
-            fontWeight: '600',
-        },
-        clearBtn: {
-            borderWidth: .5,
-            borderColor: '#FCA5A5',
-            paddingHorizontal: 16,
-            paddingVertical: 8,
+        headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+        headerIconBadge: {
+            width: 38,
+            height: 38,
             borderRadius: 12,
+            backgroundColor: 'rgba(6,182,212,0.1)',
+            alignItems: 'center',
+            justifyContent: 'center',
         },
-        clearBtnText: {
-            color: '#EF4444',
-            fontSize: 13,
-            fontWeight: '800',
+        title: { fontSize: 18, fontWeight: '900', color: colors.textPrimary },
+        subtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+        clearBtn: {
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: 'rgba(239,68,68,0.3)',
+            backgroundColor: 'rgba(239,68,68,0.08)',
         },
-        filterContainer: {
+        clearBtnText: { fontSize: 11, fontWeight: '800', color: '#EF4444' },
+
+        filterCard: {
             flexDirection: 'row',
             alignItems: 'center',
             backgroundColor: colors.cardBackground,
-            marginHorizontal: 20,
-            marginBottom: 24,
+            borderRadius: 12,
             paddingHorizontal: 12,
-            height: 48,
-            borderRadius: 14,
+            paddingVertical: 10,
             borderWidth: 1,
             borderColor: colors.cardBorder,
+            marginBottom: 16,
+            gap: 8,
         },
         filterInput: {
             flex: 1,
-            fontSize: 14,
+            fontSize: 13,
             color: colors.textPrimary,
-            paddingHorizontal: 10,
+            padding: 0,
         },
-        listContent: {
-            paddingHorizontal: 20,
-            paddingBottom: 40,
-        },
-        groupSection: {
-            marginBottom: 24,
-        },
+
+        loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+        loadingText: { fontSize: 13, color: colors.textSecondary },
+
+        emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: 60 },
+        emptyTitle: { fontSize: 16, fontWeight: '800', color: colors.textPrimary },
+        emptySub: { fontSize: 12, color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 30 },
+
+        listContent: { paddingBottom: 30, gap: 18 },
+        groupContainer: { gap: 8 },
         groupHeader: {
             flexDirection: 'row',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            gap: 12,
-            marginBottom: 16,
+            paddingHorizontal: 4,
         },
-        groupTitle: {
-            fontSize: 11,
-            fontWeight: '900',
-            color: colors.textSecondary,
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-        },
-        groupLine: {
-            flex: 1,
-            height: 1,
-            backgroundColor: colors.borderLight,
-        },
-        groupCount: {
-            fontSize: 10,
-            fontWeight: '700',
-            color: colors.textSecondary,
-        },
-        groupData: {
-            gap: 12,
-        },
+        groupDate: { fontSize: 12, fontWeight: '800', color: colors.textSecondary },
+        groupCount: { fontSize: 11, color: colors.textSecondary, fontWeight: '500' },
+        groupCardsWrapper: { gap: 8 },
+
         itemCard: {
             flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'space-between',
             backgroundColor: colors.cardBackground,
-            padding: 16,
-            borderRadius: 20,
+            borderRadius: 14,
+            padding: 12,
             borderWidth: 1,
             borderColor: colors.cardBorder,
+            gap: 10,
         },
-        itemLeft: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            flex: 1,
-            gap: 12,
-        },
-        iconContainer: {
-            width: 44,
-            height: 44,
-            borderRadius: 12,
-            backgroundColor: colors.surfaceSoft,
+        pinIconBadge: {
+            width: 34,
+            height: 34,
+            borderRadius: 10,
+            backgroundColor: 'rgba(6,182,212,0.1)',
             alignItems: 'center',
             justifyContent: 'center',
         },
-        itemInfo: {
-            flex: 1,
-            justifyContent: 'center',
-        },
-        itemAddress: {
-            fontSize: 16,
-            fontWeight: '900',
-            color: colors.textPrimary,
-            marginBottom: 4,
-            letterSpacing: -0.3,
-        },
-        itemSubRow: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-        },
-        itemCity: {
-            fontSize: 12,
-            color: colors.textSecondary,
-            fontWeight: '500',
-            flex: 1,
-        },
-        itemRight: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-        },
-        priceContainer: {
-            alignItems: 'flex-end',
-            minWidth: 60,
-        },
+        itemMainInfo: { flex: 1, gap: 2 },
+        primaryAddress: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
+        secondaryAddress: { fontSize: 11, color: colors.textSecondary },
+
+        itemRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
         typeBadge: {
-            backgroundColor: colors.surfaceSoft,
-            paddingHorizontal: 6,
-            paddingVertical: 2,
+            backgroundColor: 'rgba(6,182,212,0.1)',
+            paddingHorizontal: 8,
+            paddingVertical: 3,
             borderRadius: 6,
-            borderWidth: 1,
-            borderColor: colors.cardBorder,
         },
-        typeText: {
-            fontSize: 9,
-            fontWeight: '800',
-            color: colors.accent,
-            textTransform: 'uppercase',
-        },
-        itemPrice: {
-            fontSize: 15,
-            fontWeight: '900',
-            color: colors.textPrimary,
-            letterSpacing: -0.5,
-        },
-        itemTime: {
-            fontSize: 10,
-            color: colors.textSecondary,
-            marginTop: 2,
-            fontWeight: '600',
-        },
-        itemActions: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 4,
-            borderLeftWidth: 1,
-            borderLeftColor: colors.borderLight,
-            paddingLeft: 8,
-            marginLeft: 4,
-        },
+        typeBadgeText: { fontSize: 10, fontWeight: '700', color: '#06B6D4' },
+        timeText: { fontSize: 10, color: colors.textSecondary, fontWeight: '500' },
         deleteBtn: {
-            padding: 4,
-        },
-        emptyState: {
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingTop: 80,
-        },
-        emptyTitle: {
-            fontSize: 20,
-            fontWeight: '900',
-            color: colors.textPrimary,
-            marginTop: 16,
-        },
-        emptySubtitle: {
-            fontSize: 14,
-            color: colors.textSecondary,
-            textAlign: 'center',
-            marginTop: 8,
-            paddingHorizontal: 40,
-            lineHeight: 22,
+            padding: 6,
+            borderRadius: 8,
+            backgroundColor: 'rgba(239,68,68,0.1)',
+            borderWidth: 1,
+            borderColor: 'rgba(239,68,68,0.2)',
         },
     });
 }

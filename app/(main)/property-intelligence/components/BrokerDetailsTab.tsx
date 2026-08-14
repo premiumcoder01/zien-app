@@ -2,18 +2,30 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { generatePropertyData } from '../utils/generatePropertyData';
 
 interface BrokerDetailsTabProps {
   property: any;
+  apiData?: any;
 }
 
-export const BrokerDetailsTab: React.FC<BrokerDetailsTabProps> = ({ property }) => {
+export const BrokerDetailsTab: React.FC<BrokerDetailsTabProps> = ({ property, apiData }) => {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
 
-  const handleCall = () => Linking.openURL('tel:+13105550182');
-  const handleEmail = () => Linking.openURL('mailto:michael@sterlingrealty.com');
-  const handleWeb = () => Linking.openURL('https://www.sterlingrealty.com');
+  const address = property?.address || apiData?.UnparsedAddress || '4521 Wilshire Blvd, Los Angeles, CA';
+  const pd = generatePropertyData(address);
+
+  // Use real listing agent data from API if available
+  const agentName = apiData?.ListAgentFullName || pd.brokerName;
+  const agentPhone = apiData?.ListAgentPreferredPhone?.replace('1+', '+') || pd.brokerPhone;
+  const agentEmail = apiData?.ListAgentEmail || pd.brokerEmail;
+  const officeName = apiData?.ListOfficeName || pd.brokerTitle;
+  const agentLicense = apiData?.ListAgentStateLicense || pd.brokerLicense;
+
+  const handleCall = () => Linking.openURL(`tel:${agentPhone}`);
+  const handleEmail = () => Linking.openURL(`mailto:${agentEmail}`);
+  const handleWeb = () => Linking.openURL(`https://www.${officeName.replace(/\s+/g, '').toLowerCase()}.com`);
 
   return (
     <View style={styles.container}>
@@ -23,7 +35,7 @@ export const BrokerDetailsTab: React.FC<BrokerDetailsTabProps> = ({ property }) 
         <View style={styles.profileRow}>
           <View style={styles.photoContainer}>
             <Image 
-                source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }} 
+                source={{ uri: pd.brokerPhoto }} 
                 style={styles.profilePhoto} 
             />
           </View>
@@ -41,17 +53,17 @@ export const BrokerDetailsTab: React.FC<BrokerDetailsTabProps> = ({ property }) 
 
         <View style={styles.brokerInfo}>
           <View style={styles.nameRow}>
-            <Text style={styles.brokerName}>Michael D. Sterling</Text>
+            <Text style={styles.brokerName}>{agentName}</Text>
             <MaterialCommunityIcons name="check-decagram" size={18} color="#3B82F6" />
             <View style={styles.verifiedBadge}>
                 <Text style={styles.verifiedText}>VERIFIED</Text>
             </View>
           </View>
-          <Text style={styles.brokerTitle}>Sterling Global Realty</Text>
-          <Text style={styles.dreNumber}>CA DRE #01987654</Text>
+          <Text style={styles.brokerTitle}>{officeName}</Text>
+          <Text style={styles.dreNumber}>{agentLicense || pd.brokerLicense}</Text>
           
           <Text style={styles.bioText}>
-            Michael Sterling is a top-producing agent in Los Angeles County with over $480M in career sales. Specializing in Wilshire Corridor, Beverly Hills, and Bel-Air luxury properties, he provides data-driven insights and white-glove service to both buyers and sellers.
+            {agentName} is a licensed real estate professional at {officeName} with over ${pd.brokerSalesM}M in career sales and {pd.brokerDeals}+ closed transactions. Specializing in residential and luxury properties, they provide data-driven insights and white-glove service to both buyers and sellers.
           </Text>
         </View>
       </View>
@@ -61,22 +73,22 @@ export const BrokerDetailsTab: React.FC<BrokerDetailsTabProps> = ({ property }) 
         <View style={styles.metricCard}>
             <MaterialCommunityIcons name="briefcase-outline" size={20} color={colors.textSecondary} />
             <Text style={styles.metricLabel}>YEARS EXPERIENCE</Text>
-            <Text style={styles.metricValue}>14 Years</Text>
+            <Text style={styles.metricValue}>{pd.brokerYears} Years</Text>
         </View>
         <View style={styles.metricCard}>
             <MaterialCommunityIcons name="check-circle-outline" size={20} color="#10B981" />
             <Text style={styles.metricLabel}>CLOSED DEALS</Text>
-            <Text style={styles.metricValue}>312+</Text>
+            <Text style={styles.metricValue}>{pd.brokerDeals}+</Text>
         </View>
         <View style={styles.metricCard}>
             <MaterialCommunityIcons name="star-outline" size={20} color="#F59E0B" />
             <Text style={styles.metricLabel}>CLIENT RATING</Text>
-            <Text style={styles.metricValue}>4.9/5</Text>
+            <Text style={styles.metricValue}>{pd.brokerRating}/5</Text>
         </View>
         <View style={styles.metricCard}>
             <MaterialCommunityIcons name="clock-outline" size={20} color="#8B5CF6" />
             <Text style={styles.metricLabel}>AVG CLOSE TIME</Text>
-            <Text style={styles.metricValue}>24 days</Text>
+            <Text style={styles.metricValue}>{18 + (pd.brokerDeals % 20)} days</Text>
         </View>
       </View>
 
@@ -90,21 +102,21 @@ export const BrokerDetailsTab: React.FC<BrokerDetailsTabProps> = ({ property }) 
                     <MaterialCommunityIcons name="phone" size={18} color={colors.accent} />
                     <View>
                         <Text style={styles.itemLabel}>DIRECT LINE</Text>
-                        <Text style={styles.itemValue}>+1 (310) 555-0182</Text>
+                        <Text style={styles.itemValue}>{pd.brokerPhone}</Text>
                     </View>
                 </Pressable>
                 <Pressable onPress={handleEmail} style={styles.contactItem}>
                     <MaterialCommunityIcons name="email" size={18} color={colors.accent} />
                     <View>
                         <Text style={styles.itemLabel}>EMAIL</Text>
-                        <Text style={styles.itemValue}>michael@sterlingrealty.com</Text>
+                        <Text style={styles.itemValue}>{pd.brokerEmail}</Text>
                     </View>
                 </Pressable>
                 <Pressable onPress={handleWeb} style={styles.contactItem}>
                     <MaterialCommunityIcons name="web" size={18} color={colors.accent} />
                     <View>
                         <Text style={styles.itemLabel}>WEBSITE</Text>
-                        <Text style={styles.itemValue}>www.sterlingrealty.com</Text>
+                        <Text style={styles.itemValue}>www.{pd.brokerTitle.replace(/\s+/g, '').toLowerCase()}.com</Text>
                     </View>
                 </Pressable>
                 <View style={styles.contactItem}>

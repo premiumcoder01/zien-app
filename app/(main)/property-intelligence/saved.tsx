@@ -1,9 +1,11 @@
 import { useAppTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Dimensions,
+    ActivityIndicator,
+    Alert,
     FlatList,
     Image,
     Pressable,
@@ -12,509 +14,425 @@ import {
     TextInput,
     View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SavedProperty {
     id: string;
+    rawAddress: string;
     address: string;
     cityState: string;
     type: string;
-    growth: string;
-    beds: number;
-    baths: number;
-    sqft: string;
     estValue: string;
-    estRent: string;
     yield: string;
     savedDate: string;
     image: string;
-    icon: any;
 }
-
-const SAVED_PROPERTIES: SavedProperty[] = [
-    {
-        id: '1',
-        address: '101 Sunset Blvd',
-        cityState: 'Los Angeles, CA 90028',
-        type: 'Single Family',
-        growth: '+8.2% YoY',
-        beds: 5,
-        baths: 4,
-        sqft: '4,800 sqft',
-        estValue: '$3,200,000',
-        estRent: '$15,000/mo',
-        yield: '5.6%',
-        savedDate: 'Mar 12, 2025',
-        image: 'https://images.unsplash.com/photo-1518780664697-55e3ad937233?auto=format&fit=crop&q=80&w=800',
-        icon: 'home-outline'
-    },
-    {
-        id: '2',
-        address: '202 Terrace Way',
-        cityState: 'Pasadena, CA 91103',
-        type: 'Condo',
-        growth: '+4.1% YoY',
-        beds: 3,
-        baths: 2,
-        sqft: '1,900 sqft',
-        estValue: '$1,100,000',
-        estRent: '$5,500/mo',
-        yield: '6.0%',
-        savedDate: 'Mar 10, 2025',
-        image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&q=80&w=800',
-        icon: 'office-building-outline'
-    },
-    {
-        id: '3',
-        address: '812 Rosecrans Ave',
-        cityState: 'Manhattan Beach, CA 90266',
-        type: 'Townhouse',
-        growth: '+4.1% YoY',
-        beds: 4,
-        baths: 3,
-        sqft: '2,600 sqft',
-        estValue: '$1,870,000',
-        estRent: '$8,200/mo',
-        yield: '5.3%',
-        savedDate: 'Mar 8, 2025',
-        image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=800',
-        icon: 'home-group'
-    },
-    {
-        id: '4',
-        address: '4521 Wilshire Blvd',
-        cityState: 'Los Angeles, CA 90010',
-        type: 'Multi-family',
-        growth: '+6.8% YoY',
-        beds: 4,
-        baths: 3.5,
-        sqft: '3,240 sqft',
-        estValue: '$1,285,000',
-        estRent: '$5,800/mo',
-        yield: '5.4%',
-        savedDate: 'Mar 6, 2025',
-        image: 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&q=80&w=800',
-        icon: 'home-outline'
-    },
-];
 
 export default function SavedPropertiesScreen() {
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
-    const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { accessToken } = useAuth();
 
+    const [savedList, setSavedList] = useState<SavedProperty[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('Newest'); // 'Newest', 'Value', 'Yield'
 
+    const fetchSavedProperties = async () => {
+        if (!accessToken) return;
+        setIsLoading(true);
+        try {
+            const url = 'https://staging.zien.ai/api/solo/properties/intelligence/saved';
+            console.log('[SavedProperties] Fetching saved properties:', url);
+            const res = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+            const json = await res.json();
+            console.log('[SavedProperties] API Response status:', res.status, JSON.stringify(json, null, 2));
+
+            if (json?.success && Array.isArray(json.data)) {
+                const mapped: SavedProperty[] = json.data.map((item: any, idx: number) => {
+                    const dataObj = item.data || item.propertyData || {};
+                    const detailsObj = dataObj.details || {};
+                    const valObj = dataObj.valuation || {};
+
+                    const addr = item.address || detailsObj.address || dataObj.UnparsedAddress || '8826 W Humble Westfield Road, Humble TX 77338';
+                    const parts = addr.split(',');
+                    const primary = parts[0] || addr;
+                    const secondary = parts.slice(1).join(',').trim() || `${detailsObj.city || 'Humble'}, ${detailsObj.state || 'TX'} ${detailsObj.zip || '77338'}`;
+
+                    // Extract image
+                    let mediaUrl = 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800';
+                    if (Array.isArray(detailsObj.images) && detailsObj.images.length > 0) {
+                        mediaUrl = detailsObj.images[0];
+                    } else if (Array.isArray(dataObj.Media) && dataObj.Media.length > 0) {
+                        mediaUrl = dataObj.Media[0]?.MediaURL || mediaUrl;
+                    }
+
+                    // Extract estimated value
+                    let valStr = '$303,000';
+                    if (valObj.estimatedValue) {
+                        valStr = `$${Number(valObj.estimatedValue).toLocaleString()}`;
+                    } else if (dataObj.ListPrice) {
+                        valStr = `$${Number(dataObj.ListPrice).toLocaleString()}`;
+                    }
+
+                    // Extract date
+                    let dateStr = '13/08/2026';
+                    if (item.created_at) {
+                        const d = new Date(item.created_at);
+                        if (!isNaN(d.getTime())) {
+                            const day = String(d.getDate()).padStart(2, '0');
+                            const month = String(d.getMonth() + 1).padStart(2, '0');
+                            const year = d.getFullYear();
+                            dateStr = `${day}/${month}/${year}`;
+                        }
+                    }
+
+                    return {
+                        id: String(item.id || idx),
+                        rawAddress: addr,
+                        address: primary,
+                        cityState: secondary,
+                        type: detailsObj.type || dataObj.PropertySubType || dataObj.PropertyType || 'Land',
+                        estValue: valStr,
+                        yield: valObj.rentYield || 'N/A',
+                        savedDate: dateStr,
+                        image: mediaUrl,
+                    };
+                });
+                setSavedList(mapped);
+            }
+        } catch (e) {
+            console.error('[SavedProperties] Network Error:', e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchSavedProperties();
+    }, [accessToken]);
+
     const filteredProperties = useMemo(() => {
-        let result = SAVED_PROPERTIES.filter(p =>
-            p.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.cityState.toLowerCase().includes(searchQuery.toLowerCase())
+        let list = savedList.filter(item =>
+            item.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.cityState.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.rawAddress.toLowerCase().includes(searchQuery.toLowerCase())
         );
 
-        // Sorting logic based on activeTab
         if (activeTab === 'Value') {
-            result.sort((a, b) => {
-                const valA = parseFloat(a.estValue.replace(/[$,]/g, ''));
-                const valB = parseFloat(b.estValue.replace(/[$,]/g, ''));
+            list = [...list].sort((a, b) => {
+                const valA = parseInt(a.estValue.replace(/[^0-9]/g, '')) || 0;
+                const valB = parseInt(b.estValue.replace(/[^0-9]/g, '')) || 0;
                 return valB - valA;
             });
-        } else if (activeTab === 'Yield') {
-            result.sort((a, b) => {
-                const yieldA = parseFloat(a.yield.replace(/[%]/g, ''));
-                const yieldB = parseFloat(b.yield.replace(/[%]/g, ''));
-                return yieldB - yieldA;
-            });
-        } else {
-            // Newest (Default mock order or date parsing)
-            // For mock data, we'll stick to the original order as "newest"
         }
+        return list;
+    }, [savedList, searchQuery, activeTab]);
 
-        return result;
-    }, [searchQuery, activeTab]);
+    const handleRemoveSaved = async (id: string) => {
+        Alert.alert(
+            "Remove Saved Property",
+            "Are you sure you want to remove this property from your saved list?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        // Optimistically remove from list
+                        setSavedList(prev => prev.filter(item => item.id !== id));
+                        try {
+                            const url = `https://staging.zien.ai/api/solo/properties/intelligence/saved/${id}`;
+                            console.log('────────────────────────────────────────');
+                            console.log('[SavedProperties] 🗑️ DELETE REQUEST URL:', url);
+                            console.log('[SavedProperties] TOKEN  :', accessToken ? `Bearer ${accessToken.substring(0, 20)}...` : 'NO TOKEN');
+                            console.log('────────────────────────────────────────');
+
+                            const res = await fetch(url, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'Authorization': `Bearer ${accessToken}`,
+                                },
+                            });
+                            const json = await res.json();
+                            console.log('[SavedProperties] ✅ DELETE RESPONSE STATUS:', res.status);
+                            console.log('[SavedProperties] 📦 DELETE RESPONSE DATA  :', json);
+                            console.log('────────────────────────────────────────');
+                        } catch (e) {
+                            console.error(`[SavedProperties] 💥 Delete error for item ${id}:`, e);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handlePropertyPress = (address: string) => {
+        router.replace({
+            pathname: '/(main)/property-intelligence',
+            params: { address, ts: String(Date.now()) },
+        });
+    };
 
     const renderCard = ({ item }: { item: SavedProperty }) => (
-        <View style={styles.card}>
-            <View style={styles.imageSection}>
-                <Image source={{ uri: item.image }} style={styles.propertyImage} />
-                <View style={styles.imageOverlay}>
-                    <View style={[styles.badge, styles.typeBadge]}>
-                        <Text style={styles.typeText}>{item.type}</Text>
-                    </View>
-                    <View style={[styles.badge, styles.growthBadge]}>
-                        <Text style={styles.growthText}>{item.growth}</Text>
-                    </View>
+        <Pressable
+            style={({ pressed }) => [styles.card, pressed && { opacity: 0.92 }]}
+            onPress={() => handlePropertyPress(item.rawAddress)}
+        >
+            {/* Image Header with Land Badge & Trash Icon */}
+            <View style={styles.imageContainer}>
+                <Image source={{ uri: item.image }} style={styles.image} resizeMode="cover" />
+
+                <View style={styles.typeBadge}>
+                    <Text style={styles.typeBadgeText}>{item.type}</Text>
                 </View>
-                <Pressable style={styles.deleteBtn}>
+
+                <Pressable
+                    style={styles.deleteBtn}
+                    onPress={(e) => {
+                        e.stopPropagation();
+                        handleRemoveSaved(item.id);
+                    }}
+                    hitSlop={8}
+                >
                     <MaterialCommunityIcons name="delete-outline" size={18} color="#EF4444" />
                 </Pressable>
             </View>
 
-            <View style={styles.detailsSection}>
-                <Text style={styles.cardAddress} numberOfLines={1}>{item.address}</Text>
-                <View style={styles.locationRow}>
-                    <MaterialCommunityIcons name="map-marker-outline" size={12} color={colors.textSecondary} />
-                    <Text style={styles.cardLocation} numberOfLines={1}>{item.cityState}</Text>
+            {/* Card Content matching Web UI */}
+            <View style={styles.cardContent}>
+                <Text style={styles.addressTitle} numberOfLines={2}>
+                    {item.rawAddress}
+                </Text>
+
+                <View style={styles.cityRow}>
+                    <MaterialCommunityIcons name="map-marker-outline" size={14} color={colors.textSecondary} />
+                    <Text style={styles.cityText} numberOfLines={1}>{item.cityState}</Text>
                 </View>
 
-                <View style={styles.statsRow}>
-                    <View style={styles.statChip}><Text style={styles.statChipText}>{item.beds} Beds</Text></View>
-                    <View style={styles.statChip}><Text style={styles.statChipText}>{item.baths} Baths</Text></View>
-                    <View style={styles.statChip}><Text style={styles.statChipText}>{item.sqft}</Text></View>
-                </View>
-
-                <View style={styles.metricsGrid}>
-                    <View style={styles.metricItem}>
-                        <Text style={styles.metricLabel}>EST. VALUE</Text>
-                        <Text style={styles.metricValue}>{item.estValue}</Text>
+                {/* 2-Column EST VALUE / YIELD Box */}
+                <View style={styles.statsGrid}>
+                    <View style={styles.statCol}>
+                        <Text style={styles.statLabel}>EST. VALUE</Text>
+                        <Text style={styles.statValue}>{item.estValue}</Text>
                     </View>
-                    <View style={[styles.metricItem, styles.metricBorder]}>
-                        <Text style={styles.metricLabel}>EST. RENT</Text>
-                        <Text style={[styles.metricValue, { color: colors.accent }]}>{item.estRent}</Text>
-                    </View>
-                    <View style={styles.metricItem}>
-                        <Text style={styles.metricLabel}>YIELD</Text>
-                        <Text style={[styles.metricValue, { color: colors.accentGreen || '#16A34A' }]}>{item.yield}</Text>
+                    <View style={styles.statCol}>
+                        <Text style={styles.statLabel}>YIELD</Text>
+                        <Text style={styles.statValue}>{item.yield}</Text>
                     </View>
                 </View>
 
-                <Pressable style={styles.viewBtn}>
+                {/* View Intelligence Dark Button */}
+                <Pressable
+                    style={styles.viewBtn}
+                    onPress={() => handlePropertyPress(item.rawAddress)}
+                >
                     <Text style={styles.viewBtnText}>View Intelligence</Text>
-                    <MaterialCommunityIcons name="arrow-top-right" size={14} color="#FFF" />
+                    <MaterialCommunityIcons name="arrow-top-right" size={16} color="#FFFFFF" />
                 </Pressable>
 
-                <View style={styles.cardFooter}>
-                    <Text style={styles.savedDate}>Saved {item.savedDate}</Text>
+                {/* Saved Date */}
+                <View style={styles.footerRow}>
+                    <Text style={styles.savedDateText}>Saved {item.savedDate}</Text>
                 </View>
             </View>
-        </View>
+        </Pressable>
     );
 
     return (
         <View style={styles.container}>
-            {/* Header Area */}
+            {/* Header section */}
             <View style={styles.header}>
-                <View style={styles.titleContainer}>
-                    <View style={styles.iconBox}>
+                <View style={styles.headerTitleRow}>
+                    <View style={styles.headerIconBadge}>
                         <MaterialCommunityIcons name="star" size={20} color="#F59E0B" />
                     </View>
                     <View>
                         <Text style={styles.title}>Saved Properties</Text>
-                        <Text style={styles.subtitle}>{SAVED_PROPERTIES.length} properties saved for monitoring</Text>
+                        <Text style={styles.subtitle}>{savedList.length} property saved for monitoring</Text>
                     </View>
                 </View>
             </View>
 
-            {/* Control Bar */}
-            <View style={styles.controls}>
-                <View style={styles.searchRow}>
-                  <View style={styles.searchBar}>
-                      <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
-                      <TextInput
-                          style={styles.searchInput}
-                          placeholder="Filter saved properties..."
-                          placeholderTextColor={colors.textSecondary}
-                          value={searchQuery}
-                          onChangeText={setSearchQuery}
-                      />
-                  </View>
-                </View>
-                
-                <View style={styles.tabsRow}>
-                  <View style={styles.tabs}>
-                      {['Newest', 'Value', 'Yield'].map(tab => (
-                          <Pressable
-                              key={tab}
-                              onPress={() => setActiveTab(tab)}
-                              style={[styles.tab, activeTab === tab && styles.tabActive]}
-                          >
-                              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
-                          </Pressable>
-                      ))}
-                  </View>
-                </View>
+            {/* Filter Search Input */}
+            <View style={styles.filterCard}>
+                <MaterialCommunityIcons name="magnify" size={18} color={colors.textSecondary} />
+                <TextInput
+                    style={styles.filterInput}
+                    placeholder="Filter saved properties..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                />
+                {searchQuery ? (
+                    <Pressable onPress={() => setSearchQuery('')}>
+                        <MaterialCommunityIcons name="close-circle" size={16} color={colors.textSecondary} />
+                    </Pressable>
+                ) : null}
             </View>
 
-            <FlatList
-                data={filteredProperties}
-                renderItem={renderCard}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                    <View style={styles.emptyState}>
-                        <MaterialCommunityIcons name="bookmark-off-outline" size={64} color={colors.surfaceMuted} />
-                        <Text style={styles.emptyText}>No matches found</Text>
-                    </View>
-                }
-            />
+            {/* Filter Tabs */}
+            <View style={styles.tabsRow}>
+                {['Newest', 'Value', 'Yield'].map((tab) => {
+                    const isActive = activeTab === tab;
+                    return (
+                        <Pressable
+                            key={tab}
+                            style={[styles.tabChip, isActive && styles.tabChipActive]}
+                            onPress={() => setActiveTab(tab)}
+                        >
+                            <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab}</Text>
+                        </Pressable>
+                    );
+                })}
+            </View>
+
+            {/* Content List */}
+            {isLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#06B6D4" />
+                    <Text style={styles.loadingText}>Loading saved properties...</Text>
+                </View>
+            ) : filteredProperties.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                    <MaterialCommunityIcons name="star-outline" size={48} color={colors.surfaceMuted} />
+                    <Text style={styles.emptyTitle}>No saved properties</Text>
+                    <Text style={styles.emptySub}>Search a property to see your history here.</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={filteredProperties}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderCard}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.listContent}
+                />
+            )}
         </View>
     );
 }
 
 function getStyles(colors: any) {
-    const { width } = Dimensions.get('window');
-    const cardWidth = (width - 60) / 2;
-
     return StyleSheet.create({
-        container: {
-            flex: 1,
-            backgroundColor: colors.cardBackground,
-        },
-        header: {
-            paddingHorizontal: 20,
-            paddingVertical: 20,
-        },
-        titleContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-        },
-        iconBox: {
-            width: 34,
-            height: 34,
-            borderRadius: 10,
-            backgroundColor: colors.surfaceSoft,
+        container: { flex: 1, paddingHorizontal: 16, paddingTop: 10 },
+        header: { marginBottom: 14 },
+        headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+        headerIconBadge: {
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            backgroundColor: 'rgba(245,158,11,0.12)',
             alignItems: 'center',
             justifyContent: 'center',
         },
-        title: {
-            fontSize: 24,
-            fontWeight: '900',
-            color: colors.textPrimary,
-            letterSpacing: -0.5,
-        },
-        subtitle: {
-            fontSize: 13,
-            color: colors.textSecondary,
-            fontWeight: '600',
-            marginTop: 2,
-        },
-        controls: {
-            paddingHorizontal: 20,
-            marginBottom: 24,
-            gap: 16,
-        },
-        searchRow: {
-          width: '100%',
-        },
-        searchBar: {
+        title: { fontSize: 18, fontWeight: '900', color: colors.textPrimary },
+        subtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+
+        filterCard: {
             flexDirection: 'row',
             alignItems: 'center',
             backgroundColor: colors.cardBackground,
-            height: 48,
-            borderRadius: 14,
-            paddingHorizontal: 16,
-            borderWidth: 1,
-            borderColor: colors.cardBorder,
-            shadowColor: '#000',
-            shadowOpacity: 0.02,
-            shadowRadius: 10,
-        },
-        searchInput: {
-            flex: 1,
-            fontSize: 14,
-            paddingHorizontal: 10,
-            color: colors.textPrimary,
-        },
-        tabsRow: {
-          flexDirection: 'row',
-          justifyContent: 'flex-end',
-          width: '100%',
-        },
-        tabs: {
-            flexDirection: 'row',
-            backgroundColor: colors.surfaceSoft,
-            padding: 4,
             borderRadius: 12,
-        },
-        tab: {
             paddingHorizontal: 12,
-            paddingVertical: 6,
-            borderRadius: 8,
+            paddingVertical: 10,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            marginBottom: 12,
+            gap: 8,
         },
-        tabActive: {
-            backgroundColor: colors.cardBackground,
-            shadowColor: '#000',
-            shadowOpacity: 0.05,
-            shadowRadius: 4,
-            elevation: 2,
+        filterInput: { flex: 1, fontSize: 13, color: colors.textPrimary, padding: 0 },
+
+        tabsRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+        tabChip: {
+            paddingHorizontal: 16,
+            paddingVertical: 6,
+            borderRadius: 20,
+            backgroundColor: colors.surfaceSoft,
             borderWidth: 1,
             borderColor: colors.cardBorder,
         },
-        tabText: {
-            fontSize: 11,
-            fontWeight: '700',
-            color: colors.textSecondary,
-        },
-        tabTextActive: {
-            color: colors.textPrimary,
-        },
-        listContent: {
-            paddingHorizontal: 20,
-            paddingBottom: 40,
-            gap: 15
-        },
-        row: {
-            justifyContent: 'space-between',
-            marginBottom: 20,
-        },
+        tabChipActive: { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+        tabText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+        tabTextActive: { color: colors.textPrimary, fontWeight: '900' },
+
+        loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+        loadingText: { fontSize: 13, color: colors.textSecondary },
+
+        emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: 60 },
+        emptyTitle: { fontSize: 16, fontWeight: '800', color: colors.textPrimary },
+        emptySub: { fontSize: 12, color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 30 },
+
+        listContent: { paddingBottom: 30, gap: 16 },
         card: {
-            width: "100%",
             backgroundColor: colors.cardBackground,
-            borderRadius: 20,
+            borderRadius: 16,
             overflow: 'hidden',
             borderWidth: 1,
             borderColor: colors.cardBorder,
-            shadowColor: '#000',
-            shadowOpacity: 0.04,
-            shadowRadius: 10,
-            elevation: 2,
         },
-        imageSection: {
-            width: '100%',
-            height: 120,
-        },
-        propertyImage: {
-            width: '100%',
-            height: '100%',
-        },
-        imageOverlay: {
+        imageContainer: { height: 180, width: '100%', position: 'relative' },
+        image: { width: '100%', height: '100%' },
+        typeBadge: {
             position: 'absolute',
-            top: 10,
-            left: 10,
-            right: 10,
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-        },
-        badge: {
-            paddingHorizontal: 8,
+            top: 12,
+            left: 12,
+            backgroundColor: '#06B6D4',
+            paddingHorizontal: 10,
             paddingVertical: 4,
             borderRadius: 6,
         },
-        typeBadge: {
-            backgroundColor: colors.accent,
-        },
-        growthBadge: {
-            backgroundColor: '#16A34A',
-        },
-        typeText: {
-            fontSize: 9,
-            fontWeight: '900',
-            color: '#FFF',
-        },
-        growthText: {
-            fontSize: 9,
-            fontWeight: '900',
-            color: '#FFF',
-        },
+        typeBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
         deleteBtn: {
             position: 'absolute',
-            bottom: 10,
-            right: 10,
-            width: 28,
-            height: 28,
+            top: 12,
+            right: 12,
+            width: 32,
+            height: 32,
             borderRadius: 8,
-            backgroundColor: 'rgba(255,255,255,0.95)',
+            backgroundColor: '#FFFFFF',
             alignItems: 'center',
             justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOpacity: 0.15,
+            shadowRadius: 4,
+            elevation: 3,
         },
-        detailsSection: {
+
+        cardContent: { padding: 16, gap: 10 },
+        addressTitle: { fontSize: 14, fontWeight: '900', color: colors.textPrimary, lineHeight: 20 },
+        cityRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+        cityText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
+
+        statsGrid: {
+            flexDirection: 'row',
+            backgroundColor: colors.surfaceSoft,
+            borderRadius: 12,
             padding: 12,
+            marginTop: 4,
         },
-        cardAddress: {
-            fontSize: 15,
-            fontWeight: '900',
-            color: colors.textPrimary,
-            marginBottom: 4,
-        },
-        locationRow: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 4,
-            marginBottom: 10,
-        },
-        cardLocation: {
-            fontSize: 11,
-            color: colors.textSecondary,
-            fontWeight: '600',
-        },
-        statsRow: {
-            flexDirection: 'row',
-            gap: 6,
-            marginBottom: 12,
-        },
-        statChip: {
-            backgroundColor: colors.surfaceSoft,
-            paddingHorizontal: 8,
-            paddingVertical: 4,
-            borderRadius: 6,
-        },
-        statChipText: {
-            fontSize: 9,
-            fontWeight: '700',
-            color: colors.textSecondary,
-        },
-        metricsGrid: {
-            flexDirection: 'row',
-            backgroundColor: colors.surfaceSoft,
-            borderRadius: 10,
-            paddingVertical: 8,
-            marginBottom: 12,
-        },
-        metricItem: {
-            flex: 1,
-            alignItems: 'center',
-        },
-        metricBorder: {
-            borderLeftWidth: 1,
-            borderRightWidth: 1,
-            borderColor: colors.cardBorder,
-        },
-        metricLabel: {
-            fontSize: 7,
-            fontWeight: '900',
-            color: colors.textSecondary,
-            marginBottom: 2,
-        },
-        metricValue: {
-            fontSize: 11,
-            fontWeight: '900',
-            color: colors.textPrimary,
-        },
+        statCol: { flex: 1, gap: 2 },
+        statLabel: { fontSize: 9, fontWeight: '900', color: colors.textSecondary, letterSpacing: 0.8 },
+        statValue: { fontSize: 14, fontWeight: '900', color: colors.textPrimary },
+
         viewBtn: {
-            backgroundColor: '#0B2D3E',
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 6,
-            paddingVertical: 10,
+            backgroundColor: '#0F172A',
             borderRadius: 10,
-            marginBottom: 8,
+            paddingVertical: 12,
+            gap: 6,
+            marginTop: 4,
         },
-        viewBtnText: {
-            color: '#FFF',
-            fontSize: 11,
-            fontWeight: '900',
-        },
-        cardFooter: {
-            alignItems: 'flex-end',
-        },
-        savedDate: {
-            fontSize: 9,
-            color: colors.textSecondary,
-            fontWeight: '600',
-        },
-        emptyState: {
-            paddingTop: 60,
-            alignItems: 'center',
-        },
-        emptyText: {
-            marginTop: 12,
-            fontSize: 16,
-            fontWeight: '700',
-            color: colors.textSecondary,
-        }
+        viewBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+
+        footerRow: { alignItems: 'flex-end', marginTop: 2 },
+        savedDateText: { fontSize: 10, color: colors.textSecondary, fontWeight: '500' },
     });
 }
