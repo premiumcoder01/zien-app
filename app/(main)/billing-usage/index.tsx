@@ -3,7 +3,18 @@ import { ExternalLink } from '@/components/external-link';
 import { Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getSoloInvoices, getSoloSubscription, cancelSoloSubscription, type SoloAddon, type SoloInvoice, type SoloSubscriptionResponse } from '@/services/billingService';
+import { 
+  getSoloInvoices, 
+  getSoloSubscription, 
+  cancelSoloSubscription, 
+  getSoloCreditFlow, 
+  getSoloCreditTimeline, 
+  type SoloAddon, 
+  type SoloInvoice, 
+  type SoloSubscriptionResponse,
+  type CreditFlowData,
+  type CreditTimelineItem
+} from '@/services/billingService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -46,6 +57,8 @@ export default function BillingUsageScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState<SoloSubscriptionResponse | null>(null);
   const [invoicesData, setInvoicesData] = useState<SoloInvoice[]>([]);
+  const [creditFlowData, setCreditFlowData] = useState<CreditFlowData | null>(null);
+  const [timelineData, setTimelineData] = useState<CreditTimelineItem[]>([]);
 
   // Features lists show all / collapsible state
   const [showAllFeatures, setShowAllFeatures] = useState(false);
@@ -86,12 +99,16 @@ export default function BillingUsageScreen() {
     else setLoading(true);
 
     try {
-      const [subResult, invResult] = await Promise.all([
+      const [subResult, invResult, flowResult, timelineResult] = await Promise.all([
         getSoloSubscription(accessToken),
-        getSoloInvoices(accessToken)
+        getSoloInvoices(accessToken),
+        getSoloCreditFlow(accessToken),
+        getSoloCreditTimeline(accessToken)
       ]);
       setSubscriptionData(subResult);
       setInvoicesData(invResult);
+      setCreditFlowData(flowResult);
+      setTimelineData(timelineResult);
     } catch (error) {
       console.error('[BillingUsageScreen] Error fetching billing details:', error);
       Alert.alert('Connection Alert', 'Using secure offline cache for billing details.');
@@ -348,9 +365,78 @@ export default function BillingUsageScreen() {
   );
 };
 
+  // Subscription & Credit Timeline Component
+  const renderSubscriptionTimeline = () => (
+    <View style={styles.premiumPlanCard}>
+      <View style={styles.sectionHeaderWrap}>
+        <Text style={styles.addonsSectionTitle}>Subscription & Credit Timeline</Text>
+        <Text style={styles.addonsSectionSubtitle}>
+          A unified chronological record of all your plan renewals, addon purchases, and credit transactions.
+        </Text>
+      </View>
+
+      <View style={styles.timelineList}>
+        {timelineData.map((item, index) => {
+          const isFirst = index === 0;
+          const isLast = index === timelineData.length - 1;
+
+          let iconName = 'credit-card-outline';
+          let iconBg = isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF';
+          let iconColor = '#3B82F6';
+          let amountColor = colors.textPrimary;
+
+          if (item.amountType === 'positive' || item.tagType === 'plan_renewal' || item.tagType === 'signup_bonus') {
+            iconName = item.tagType === 'signup_bonus' ? 'seal' : 'refresh';
+            iconBg = isDark ? 'rgba(34, 197, 94, 0.15)' : '#F0FDF4';
+            iconColor = '#22C55E';
+            amountColor = '#22C55E';
+          } else if (item.amountType === 'negative' || item.tagType === 'data_fetch' || item.tagType === 'ai_usage') {
+            iconName = 'trending-up';
+            iconBg = isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2';
+            iconColor = '#EF4444';
+            amountColor = '#EF4444';
+          } else {
+            iconName = 'credit-card-outline';
+            iconBg = isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF';
+            iconColor = '#3B82F6';
+            amountColor = colors.textPrimary;
+          }
+
+          return (
+            <View key={item.id || index} style={styles.timelineRow}>
+              {/* Left Column: Vertical Line & Node */}
+              <View style={styles.timelineNodeCol}>
+                {!isFirst && <View style={styles.timelineLineTop} />}
+                {!isLast && <View style={styles.timelineLineBottom} />}
+                <View style={[styles.timelineNodeCircle, { backgroundColor: iconBg }]}>
+                  <MaterialCommunityIcons name={iconName as any} size={18} color={iconColor} />
+                </View>
+              </View>
+
+              {/* Right Column: Transaction Card */}
+              <View style={styles.timelineCardBody}>
+                <View style={styles.timelineCardTopRow}>
+                  <Text style={styles.timelineTitleText} numberOfLines={1}>{item.title}</Text>
+                  <Text style={[styles.timelineAmountText, { color: amountColor }]}>{item.amount}</Text>
+                </View>
+                <View style={styles.timelineCardMetaRow}>
+                  <MaterialCommunityIcons name="clock-outline" size={13} color={isDark ? '#94A3B8' : '#64748B'} />
+                  <Text style={styles.timelineMetaDate}>{item.date}</Text>
+                  <Text style={styles.timelineMetaDot}>•</Text>
+                  <Text style={styles.timelineMetaTag}>{item.tag}</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+
   // History / Invoices Tab
   const renderHistory = () => (
     <View style={styles.tabContainer}>
+      {/* Payment Ledger Section */}
       <BillingCard>
         <View style={styles.ledgerHeaderWrap}>
           <Text style={styles.ledgerTitle}>Payment Ledger</Text>
@@ -476,8 +562,8 @@ export default function BillingUsageScreen() {
     const addonsList = subscriptionData?.addons || [];
     const activeAddons = addonsList.filter(a => a.status === 'active').length;
     const cancelingAddons = addonsList.filter(a => a.status === 'canceling').length;
-    const inactiveAddons = Math.max(0, 3 - activeAddons - cancelingAddons);
-    const totalAddons = Math.max(3, activeAddons + cancelingAddons + inactiveAddons);
+    const inactiveAddons = Math.max(3, 6 - activeAddons - cancelingAddons);
+    const totalAddons = activeAddons + cancelingAddons + inactiveAddons;
 
     // SVG donut dimensions
     const donutRadius = 46;
@@ -589,26 +675,119 @@ export default function BillingUsageScreen() {
                 </View>
               </View>
 
-              {/* Right Legend */}
-              <View style={styles.donutLegendWrap}>
-                <View style={styles.legendRow}>
-                  <View style={[styles.legendBadgeSquare, { backgroundColor: '#00a7b5' }]} />
-                  <Text style={styles.legendLabelText}>Active ({activeAddons})</Text>
+              {/* Right Legend List (Web style layout with right aligned counts) */}
+              <View style={styles.addonLegendListWrap}>
+                <View style={styles.addonLegendRow}>
+                  <View style={styles.addonLegendLeft}>
+                    <View style={[styles.legendBadgeSquare, { backgroundColor: '#00a7b5' }]} />
+                    <Text style={styles.legendLabelText}>Active</Text>
+                  </View>
+                  <Text style={styles.addonLegendValueText}>{activeAddons}</Text>
                 </View>
 
-                <View style={styles.legendRow}>
-                  <View style={[styles.legendBadgeSquare, { backgroundColor: isDark ? '#475569' : '#0B1E2F' }]} />
-                  <Text style={styles.legendLabelText}>Canceling ({cancelingAddons})</Text>
+                <View style={styles.addonLegendRow}>
+                  <View style={styles.addonLegendLeft}>
+                    <View style={[styles.legendBadgeSquare, { backgroundColor: isDark ? '#475569' : '#0B1E2F' }]} />
+                    <Text style={styles.legendLabelText}>Canceling</Text>
+                  </View>
+                  <Text style={styles.addonLegendValueText}>{cancelingAddons}</Text>
                 </View>
 
-                <View style={styles.legendRow}>
-                  <View style={[styles.legendBadgeSquare, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]} />
-                  <Text style={styles.legendLabelText}>Inactive ({inactiveAddons})</Text>
+                <View style={styles.addonLegendRow}>
+                  <View style={styles.addonLegendLeft}>
+                    <View style={[styles.legendBadgeSquare, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]} />
+                    <Text style={styles.legendLabelText}>Inactive</Text>
+                  </View>
+                  <Text style={styles.addonLegendValueText}>{inactiveAddons}</Text>
                 </View>
               </View>
             </View>
           </View>
         </View>
+
+        {/* Card 3: Credit Flow & Usage Distribution */}
+        <View style={styles.premiumPlanCard}>
+          <View style={styles.analyticsHeaderWrap}>
+            <Text style={styles.analyticsTitle}>Credit Flow & Usage Distribution</Text>
+            <Text style={styles.analyticsSubtitle}>A complete breakdown of where your credits are being consumed.</Text>
+          </View>
+
+          <View style={styles.dashedChartContainer}>
+            <View style={styles.creditFlowContainer}>
+              {(() => {
+                const totalSpent = creditFlowData?.totalSpent ?? 16;
+                const remaining = creditFlowData?.remainingCredits ?? 2484;
+                const used = creditFlowData?.usedCredits ?? 16;
+                const sum = remaining + used;
+
+                const cfRadius = 48;
+                const cfStroke = 14;
+                const cfCenter = 65;
+                const cfCircumference = 2 * Math.PI * cfRadius;
+
+                const usedStroke = (used / Math.max(1, sum)) * cfCircumference;
+
+                return (
+                  <>
+                    {/* Centered Donut Ring */}
+                    <View style={styles.creditFlowDonutCenterWrap}>
+                      <View style={styles.donutSvgWrap}>
+                        <Svg width={130} height={130} viewBox="0 0 130 130">
+                          <G transform="rotate(-90 65 65)">
+                            {/* Base Circle (Remaining Credits - Cyan) */}
+                            <Circle
+                              cx={cfCenter}
+                              cy={cfCenter}
+                              r={cfRadius}
+                              stroke="#00a7b5"
+                              strokeWidth={cfStroke}
+                              fill="transparent"
+                            />
+
+                            {/* Used Credits Arc (Navy / Dark) */}
+                            {used > 0 && (
+                              <Circle
+                                cx={cfCenter}
+                                cy={cfCenter}
+                                r={cfRadius}
+                                stroke={isDark ? '#475569' : '#0B1E2F'}
+                                strokeWidth={cfStroke}
+                                strokeDasharray={`${usedStroke} ${cfCircumference}`}
+                                strokeDashoffset={0}
+                                fill="transparent"
+                              />
+                            )}
+                          </G>
+                        </Svg>
+
+                        <View style={styles.donutCenterLabel}>
+                          <Text style={styles.creditFlowNumberText}>{totalSpent}</Text>
+                          <Text style={styles.creditFlowSubText}>Total Spent</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Centered Bottom Legend */}
+                    <View style={styles.creditFlowBottomLegendRow}>
+                      <View style={styles.legendRow}>
+                        <View style={[styles.legendBadgeSquare, { backgroundColor: '#00a7b5' }]} />
+                        <Text style={styles.legendLabelText}>Remaining Credits</Text>
+                      </View>
+
+                      <View style={styles.legendRow}>
+                        <View style={[styles.legendBadgeSquare, { backgroundColor: isDark ? '#475569' : '#0B1E2F' }]} />
+                        <Text style={styles.legendLabelText}>Used Credits</Text>
+                      </View>
+                    </View>
+                  </>
+                );
+              })()}
+            </View>
+          </View>
+        </View>
+
+        {/* Subscription & Credit Timeline Section (Below Credit Flow) */}
+        {renderSubscriptionTimeline()}
       </View>
     );
   };
@@ -622,7 +801,7 @@ export default function BillingUsageScreen() {
       default:
         return renderOverview();
     }
-  }, [activeTab, subscriptionData, invoicesData, showAllFeatures, colors, isDark]);
+  }, [activeTab, subscriptionData, invoicesData, creditFlowData, timelineData, showAllFeatures, colors, isDark]);
 
   return (
     <>
@@ -632,7 +811,11 @@ export default function BillingUsageScreen() {
         end={{ x: 0.9, y: 1 }}
         style={[styles.background, { paddingTop: insets.top }]}>
 
-        <BillingScreenHeader activeTab={activeTab} onTabChange={goToTab} />
+        <BillingScreenHeader 
+          activeTab={activeTab} 
+          onTabChange={goToTab} 
+          credits={creditFlowData?.remainingCredits ?? 2484}
+        />
 
         {loading ? (
           <View style={styles.loaderContainer}>
@@ -1771,9 +1954,16 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   donutCenterText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '900',
     color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  donutCenterSubtext: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginTop: 2,
     textAlign: 'center',
   },
   donutLegendWrap: {
@@ -1796,4 +1986,151 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textPrimary,
   },
 
+  // Addon Legend List (Web style layout)
+  addonLegendListWrap: {
+    flex: 1,
+    gap: 12,
+    justifyContent: 'center',
+  },
+  addonLegendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addonLegendLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  addonLegendValueText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: colors.textPrimary,
+  },
+
+  // Credit Flow Centered Layout (Web style layout)
+  creditFlowContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 16,
+  },
+  creditFlowDonutCenterWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  creditFlowNumberText: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  creditFlowSubText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  creditFlowBottomLegendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+    flexWrap: 'wrap',
+  },
+
+  // Timeline list styles
+  timelineList: {
+    marginTop: 14,
+    gap: 4,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginVertical: 2,
+  },
+  timelineNodeCol: {
+    width: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginRight: 8,
+  },
+  timelineLineTop: {
+    position: 'absolute',
+    top: 0,
+    bottom: '50%',
+    width: 2,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#E2E8F0',
+  },
+  timelineLineBottom: {
+    position: 'absolute',
+    top: '50%',
+    bottom: 0,
+    width: 2,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#E2E8F0',
+  },
+  timelineNodeCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    borderWidth: 2,
+    borderColor: colors.cardBackground,
+  },
+  timelineCardBody: {
+    flex: 1,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  timelineCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  timelineTitleText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    flex: 1,
+    marginRight: 8,
+  },
+  timelineAmountText: {
+    fontSize: 13.5,
+    fontWeight: '900',
+  },
+  timelineCardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  timelineMetaDate: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  timelineMetaDot: {
+    fontSize: 11.5,
+    color: colors.textSecondary,
+  },
+  timelineMetaTag: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
 });
+

@@ -140,6 +140,11 @@ export interface CRMLead {
     lead_date_label: string;
     created_at: string;
     updated_at: string;
+    utm_source?: string | null;
+    utm_medium?: string | null;
+    utm_campaign?: string | null;
+    utm_term?: string | null;
+    utm_content?: string | null;
     group: {
         id: number;
         name: string;
@@ -745,6 +750,38 @@ export const getCRMLeads = async (accessToken: string): Promise<CRMLead[]> => {
         });
 
         const data = await response.json().catch(() => ([]));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export const getCRMLeadDetail = async (accessToken: string, leadId: string): Promise<CRMLead & any> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads/${leadId}`, {
+            method: 'GET',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
             throw new Error(data.message || `Server error: ${response.status}`);

@@ -493,9 +493,11 @@ export default function CRMScreen() {
                   <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: '600' }}>No recent leads captured</Text>
                 </View>
               ) : displayRecentLeads.map((lead, idx) => (
-                <View
+                <Pressable
                   key={lead.id}
-                  style={[styles.leadRow, idx === displayRecentLeads.length - 1 && styles.leadRowLast]}>
+                  style={[styles.leadRow, idx === displayRecentLeads.length - 1 && styles.leadRowLast]}
+                  onPress={() => router.push({ pathname: '/(main)/crm/leads/[id]', params: { id: lead.id } })}
+                >
                   <View style={styles.leadAvatar}>
                     <Text style={styles.avatarText}>{lead.name.charAt(0)}</Text>
                   </View>
@@ -509,7 +511,7 @@ export default function CRMScreen() {
                     </View>
                     <Text style={styles.leadTime}>{lead.time}</Text>
                   </View>
-                </View>
+                </Pressable>
               ))}
               <Pressable style={styles.cardLinkBtn} onPress={() => router.push('/(main)/crm/leads')}>
                 <Text style={styles.cardLinkText}>View Leads</Text>

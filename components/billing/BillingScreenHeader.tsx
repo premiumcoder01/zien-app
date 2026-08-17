@@ -19,9 +19,10 @@ const TABS: Array<{
 type BillingScreenHeaderProps = {
   activeTab: BillingTabKey;
   onTabChange: (tab: BillingTabKey) => void;
+  credits?: number;
 };
 
-function BillingScreenHeaderComponent({ activeTab, onTabChange }: BillingScreenHeaderProps) {
+function BillingScreenHeaderComponent({ activeTab, onTabChange, credits = 2484 }: BillingScreenHeaderProps) {
   const { colors, theme } = useAppTheme();
   const isDark = theme === 'dark';
   const styles = getStyles(colors, isDark);
@@ -34,7 +35,13 @@ function BillingScreenHeaderComponent({ activeTab, onTabChange }: BillingScreenH
           <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
         </Pressable>
         <View style={styles.headerText}>
-          <Text style={styles.title}>Billing & Usage</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Billing & Usage</Text>
+            <View style={styles.creditPillHeader}>
+              <MaterialCommunityIcons name="flash" size={13} color={isDark ? '#818CF8' : '#4F46E5'} />
+              <Text style={styles.creditPillText}>{credits.toLocaleString()} Credits</Text>
+            </View>
+          </View>
           <Text style={styles.subtitle}>
             Manage your current plan, add-ons, and view full payment history.
           </Text>
@@ -103,17 +110,40 @@ function getStyles(colors: any, isDark: boolean) {
     headerText: {
       flex: 1,
     },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
     title: {
-      fontSize: 24,
+      fontSize: 22,
       fontWeight: '900',
       color: colors.textPrimary,
       letterSpacing: -0.5,
     },
+    creditPillHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : '#C7D2FE',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    creditPillText: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: isDark ? '#A5B4FC' : '#4F46E5',
+    },
     subtitle: {
-      fontSize: 13,
+      fontSize: 12.5,
       color: colors.textSecondary,
-      marginTop: 4,
-      lineHeight: 18,
+      marginTop: 2,
+      lineHeight: 17,
       fontWeight: '600',
     },
     tabsScroll: {

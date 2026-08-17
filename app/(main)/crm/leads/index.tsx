@@ -13,8 +13,8 @@ import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Platform, Pressabl
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import PhoneInput from "react-native-phone-number-input";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AILeadImportModal } from './components/modals/AILeadImportModal';
-import { ManageMetaModal } from './components/modals/ManageMetaModal';
+import { AILeadImportModal } from '../components/modals/AILeadImportModal';
+import { ManageMetaModal } from '../components/modals/ManageMetaModal';
 
 
 function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEditPress, isArchiving, isConverting, isSelectMode, isSelected, onToggleSelect }: {
@@ -29,6 +29,7 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
   isSelected?: boolean,
   onToggleSelect?: () => void,
 }) {
+  const router = useRouter();
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
   const fullName = `${lead.first_name} ${lead.last_name}`;
@@ -41,8 +42,13 @@ function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEdit
   return (
     <Pressable
       style={[styles.leadCard, isHot && styles.leadCardHotBorder, isSelectMode && isSelected && styles.leadCardSelected]}
-      onPress={isSelectMode ? onToggleSelect : undefined}
-      disabled={!isSelectMode}
+      onPress={() => {
+        if (isSelectMode) {
+          onToggleSelect?.();
+        } else {
+          router.push({ pathname: '/(main)/crm/leads/[id]', params: { id: lead.id } });
+        }
+      }}
     >
       {isSelectMode && (
         <Pressable style={styles.selectCheckboxRow} onPress={onToggleSelect}>

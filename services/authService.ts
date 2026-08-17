@@ -215,8 +215,9 @@ export const getProfile = async (accessToken: string): Promise<UserProfile> => {
       'Cookie': `website_access_token=${accessToken}; access_token=${accessToken}`,
     };
 
-    const [profileRes, meRes1, meRes2, subRes] = await Promise.all([
+    const [profileRes, meResStaging, meRes1, meRes2, subRes] = await Promise.all([
       fetch(`${API_BASE_URL}/teams/settings/profile`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
+      fetch(`https://staging.zien.ai/api/website/auth/me`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
       fetch(`${API_BASE_URL}/website/auth/me`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
       fetch(`https://zien.ai/api/website/auth/me`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
       fetch(`${API_BASE_URL}/solo/billing/subscription`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
@@ -224,6 +225,9 @@ export const getProfile = async (accessToken: string): Promise<UserProfile> => {
 
     let profileData: any = {};
     if (profileRes && profileRes.ok) profileData = await profileRes.json().catch(() => ({}));
+
+    let meDataStaging: any = {};
+    if (meResStaging && meResStaging.ok) meDataStaging = await meResStaging.json().catch(() => ({}));
 
     let meData1: any = {};
     if (meRes1 && meRes1.ok) meData1 = await meRes1.json().catch(() => ({}));
@@ -242,22 +246,26 @@ export const getProfile = async (accessToken: string): Promise<UserProfile> => {
           if (typeof target === 'number') return target;
           if (typeof target === 'object') {
             if (typeof target.balance === 'number') return target.balance;
-            if (typeof target.topup_credits === 'number' && target.topup_credits > 0) return target.topup_credits;
+            if (typeof target.remaining === 'number' && target.remaining >= 0) return target.remaining;
+            if (typeof target.plan_credits === 'number' || typeof target.topup_credits === 'number') {
+              const sum = (target.plan_credits || 0) + (target.topup_credits || 0);
+              if (sum > 0) return sum;
+            }
             if (typeof target.total_purchased === 'number' && target.total_purchased > 0) return target.total_purchased;
-            if (typeof target.plan_credits === 'number' && target.plan_credits > 0) return target.plan_credits;
           }
         }
       }
       return null;
     };
 
-    const creditsVal = extractCredits(meData1, meData2, subData, profileData);
+    const creditsVal = extractCredits(meDataStaging, meData1, meData2, profileData, subData);
 
     const mergedProfile: UserProfile = {
       ...profileData,
+      ...meDataStaging,
       ...meData1,
       ...meData2,
-      credits: creditsVal ?? meData1.credits ?? meData2.credits ?? profileData.credits,
+      credits: meDataStaging.credits ?? meData1.credits ?? meData2.credits ?? profileData.credits ?? creditsVal,
     };
 
     if (!profileRes?.ok && !meRes1?.ok && !meRes2?.ok) {

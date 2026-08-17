@@ -1,8 +1,9 @@
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { getSoloCreditFlow } from '@/services/billingService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Href, useRouter } from 'expo-router';
+import { Href, usePathname, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -42,12 +43,13 @@ type UserMenuSheetProps = {
   userName: string;
   userEmail: string;
   userAvatarUri?: string | null;
-  credits?: number;
+  credits?: string | number;
+  isAgency?: boolean;
   actions: MenuAction[];
 };
 
 export default function UserMenuSheet({
-  visible, onClose, userInitials, userName, userEmail, userAvatarUri, credits, actions,
+  visible, onClose, userInitials, userName, userEmail, userAvatarUri, credits, isAgency, actions,
 }: UserMenuSheetProps) {
   const router = useRouter();
   const { colors, theme } = useAppTheme();
@@ -118,19 +120,32 @@ export default function UserMenuSheet({
             <Text style={[sheetStyles.userName, { color: colors.textPrimary }]}>{userName}</Text>
             <Text style={[sheetStyles.userEmail, { color: colors.textSecondary }]}>{userEmail}</Text>
           </View>
-          {/* Online & Credits badge */}
+          {/* Online & Credits/Agency Status badge */}
           <View style={{ alignItems: 'flex-end', gap: 4 }}>
-            {credits !== undefined && (
+            {isAgency ? (
               <Pressable
-                style={sheetStyles.creditsBadge}
+                style={sheetStyles.agencyBadge}
                 onPress={() => {
                   handleClose();
-                  setTimeout(() => router.push('/(main)/billing-usage'), 260);
+                  setTimeout(() => router.push('/(main)/agency/billing-plan'), 260);
                 }}
               >
-                <MaterialCommunityIcons name="lightning-bolt" size={13} color="#7C3AED" />
-                <Text style={sheetStyles.creditsBadgeText}>{credits} Credits</Text>
+                <View style={sheetStyles.agencyBadgeDot} />
+                <Text style={sheetStyles.agencyBadgeText}>AGENCY STATUS: ACTIVE</Text>
               </Pressable>
+            ) : (
+              credits !== undefined && (
+                <Pressable
+                  style={sheetStyles.creditsBadge}
+                  onPress={() => {
+                    handleClose();
+                    setTimeout(() => router.push('/(main)/billing-usage'), 260);
+                  }}
+                >
+                  <MaterialCommunityIcons name="lightning-bolt" size={13} color="#7C3AED" />
+                  <Text style={sheetStyles.creditsBadgeText}>{credits} Credits</Text>
+                </Pressable>
+              )
             )}
             <View style={sheetStyles.onlineBadge}>
               <View style={sheetStyles.onlineDot} />
@@ -322,6 +337,29 @@ function getSheetStyles(colors: any) {
       fontWeight: '800',
       color: '#6D28D9',
     },
+    agencyBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: '#DCFCE7',
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 3.5,
+      borderWidth: 1,
+      borderColor: '#86EFAC',
+    },
+    agencyBadgeDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#16A34A',
+    },
+    agencyBadgeText: {
+      fontSize: 9.5,
+      fontWeight: '800',
+      color: '#15803D',
+      letterSpacing: 0.3,
+    },
     divider: {
       height: 1,
       backgroundColor: '#F1F5F9',
@@ -385,21 +423,39 @@ function MainHeaderComponent({
   const styles = getStyles(colors);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
 
-  const { logout } = useAuth();
+  const { logout, accessToken } = useAuth();
   const { data: profile } = useProfile();
   const [avatarError, setAvatarError] = useState(false);
+  const [liveCredits, setLiveCredits] = useState<number | null>(null);
 
-  const creditsObj = (profile?.credits || (profile as any)?.data?.credits) as any;
+  useEffect(() => {
+    let isMounted = true;
+    getSoloCreditFlow(accessToken).then((flow) => {
+      if (isMounted && flow && typeof flow.remainingCredits === 'number') {
+        setLiveCredits(flow.remainingCredits);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, [accessToken]);
+
+  const creditsObj = (profile?.credits || (profile as any)?.data?.credits || (profile as any)?.user?.credits) as any;
   const creditBalance = useMemo(() => {
-    if (typeof creditsObj === 'number') return creditsObj;
+    if (typeof creditsObj === 'number' && creditsObj >= 0) return creditsObj.toLocaleString();
     if (creditsObj && typeof creditsObj === 'object') {
-      if (typeof creditsObj.balance === 'number') return creditsObj.balance;
-      if (typeof creditsObj.topup_credits === 'number' && creditsObj.topup_credits > 0) return creditsObj.topup_credits;
-      if (typeof creditsObj.total_purchased === 'number' && creditsObj.total_purchased > 0) return creditsObj.total_purchased;
-      if (typeof creditsObj.plan_credits === 'number') return creditsObj.plan_credits;
+      if (typeof creditsObj.balance === 'number' && creditsObj.balance >= 0) return creditsObj.balance.toLocaleString();
+      if (typeof creditsObj.remaining === 'number' && creditsObj.remaining >= 0) return creditsObj.remaining.toLocaleString();
+      if (typeof creditsObj.plan_credits === 'number' || typeof creditsObj.topup_credits === 'number') {
+        const sum = (creditsObj.plan_credits || 0) + (creditsObj.topup_credits || 0);
+        if (sum > 0) return sum.toLocaleString();
+      }
+      if (typeof creditsObj.total_purchased === 'number' && creditsObj.total_purchased > 0) return creditsObj.total_purchased.toLocaleString();
     }
-    return 0;
-  }, [creditsObj]);
+    if (typeof liveCredits === 'number' && liveCredits > 0) return liveCredits.toLocaleString();
+    return '0';
+  }, [creditsObj, liveCredits]);
+
+  const pathname = usePathname();
+  const isAgencyMode = isAgency || (pathname && pathname.includes('/agency')) || (profile as any)?.is_agency || (profile as any)?.role_id === 2;
 
   const userInitials = propUserInitials || (profile ? ((profile.first_name?.[0] || '') + (profile.last_name?.[0] || '')).toUpperCase() : '') || 'P';
   const userName = propUserName || (profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : '') || 'User';
@@ -416,10 +472,15 @@ function MainHeaderComponent({
     setShowSignOutModal(true);
   }, []);
 
+  const confirmSignOut = useCallback(() => {
+    setShowSignOutModal(false);
+    logout();
+  }, [logout]);
+
   const MENU_ACTIONS: MenuAction[] = useMemo(() => [
     {
       id: 'profile',
-      icon: 'account-circle-outline',
+      icon: 'account-outline',
       label: 'My Profile',
       onPress: () => router.push(profileRoute),
     },
@@ -462,10 +523,9 @@ function MainHeaderComponent({
           />
         </Pressable>
 
-        {/* Brand logo centered */}
         {/* Hidden Logo / Center Area */}
         <View style={styles.center}>
-          {!isAgency && (
+          {!isAgencyMode && (
             <View style={styles.logoContainer}>
               <Image
                 source={require('@/assets/images/rem.png')}
@@ -478,15 +538,25 @@ function MainHeaderComponent({
         </View>
 
         <View style={styles.headerRight}>
-          <Pressable
-            style={({ pressed }) => [styles.creditsPill, pressed && { opacity: 0.8 }]}
-            onPress={() => router.push('/(main)/billing-usage')}
-          >
-            <MaterialCommunityIcons name="lightning-bolt" size={14} color="#7C3AED" />
-            <Text style={styles.creditsPillText}>{creditBalance} Credits</Text>
-          </Pressable>
+          {isAgencyMode ? (
+            <Pressable
+              style={({ pressed }) => [styles.agencyPill, pressed && { opacity: 0.8 }]}
+              onPress={() => router.push('/(main)/agency/billing-plan')}
+            >
+              <View style={styles.agencyPillDot} />
+              <Text style={styles.agencyPillText}>AGENCY STATUS: ACTIVE</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [styles.creditsPill, pressed && { opacity: 0.8 }]}
+              onPress={() => router.push('/(main)/billing-usage')}
+            >
+              <MaterialCommunityIcons name="lightning-bolt" size={14} color="#7C3AED" />
+              <Text style={styles.creditsPillText}>{creditBalance} Credits</Text>
+            </Pressable>
+          )}
 
-          {isAgency ? (
+          {isAgencyMode ? (
             <Pressable
               style={styles.agencyAvatarRow}
               onPress={() => setMenuOpen(true)}
@@ -540,6 +610,7 @@ function MainHeaderComponent({
         userEmail={userEmail}
         userAvatarUri={userAvatarUri && !avatarError ? userAvatarUri : undefined}
         credits={creditBalance}
+        isAgency={isAgencyMode}
         actions={MENU_ACTIONS}
       />
 
@@ -650,6 +721,29 @@ function getStyles(colors: any) {
       fontSize: 11.5,
       fontWeight: '800',
       color: '#6D28D9',
+    },
+    agencyPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: '#DCFCE7',
+      borderWidth: 1,
+      borderColor: '#86EFAC',
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 18,
+    },
+    agencyPillDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: '#16A34A',
+    },
+    agencyPillText: {
+      fontSize: 10.5,
+      fontWeight: '800',
+      color: '#15803D',
+      letterSpacing: 0.4,
     },
     avatar: {
       width: 38,

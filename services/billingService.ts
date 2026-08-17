@@ -65,6 +65,30 @@ export interface SoloInvoice {
   pdf: string;
 }
 
+export interface CreditFlowData {
+  totalSpent: number;
+  remainingCredits: number;
+  usedCredits: number;
+  categories?: Array<{
+    name: string;
+    used: number;
+    color: string;
+  }>;
+}
+
+export interface CreditTimelineItem {
+  id: string;
+  title: string;
+  date: string;
+  tag: string;
+  tagType: 'paid' | 'data_fetch' | 'ai_usage' | 'plan_renewal' | 'signup_bonus' | string;
+  amount: string;
+  amountType: 'positive' | 'negative' | 'currency' | 'zero';
+  icon: string;
+  iconBg: string;
+  iconColor: string;
+}
+
 // Fallback values in case the local environment is offline or staging API fails
 export const DEFAULT_SOLO_SUBSCRIPTION: SoloSubscriptionResponse = {
   subscription: {
@@ -192,6 +216,115 @@ export const DEFAULT_SOLO_INVOICES: SoloInvoice[] = [
     desc: "Free trial for 1 × PRO AGENT",
     method: "Credit Card",
     pdf: "https://invoice.stripe.com/i/acct_1TElVV1PXva88JUV/test_YWNjdF8xVEVsVlYxUFh2YTg4SlVWLF9VSGc2YVBBaldsckN5QXJaUHNlUk5Fd1VGa1JCQ2lILDE3MjY0MjU1OQ0200NuDb3Km0?s=ap"
+  }
+];
+
+export const DEFAULT_CREDIT_FLOW: CreditFlowData = {
+  totalSpent: 16,
+  remainingCredits: 2484,
+  usedCredits: 16,
+  categories: [
+    { name: 'Remaining Credits', used: 2484, color: '#00a7b5' },
+    { name: 'Used Credits', used: 16, color: '#0B1E2F' }
+  ]
+};
+
+export const DEFAULT_CREDIT_TIMELINE: CreditTimelineItem[] = [
+  {
+    id: 'tl_1',
+    title: '500 AI Credits',
+    date: 'Aug 14, 2026, 02:52 PM',
+    tag: 'Paid',
+    tagType: 'paid',
+    amount: '$5.00',
+    amountType: 'currency',
+    icon: 'credit-card-outline',
+    iconBg: 'rgba(59, 130, 246, 0.12)',
+    iconColor: '#3B82F6'
+  },
+  {
+    id: 'tl_2',
+    title: 'Hybrid Property Intelligence Data Fetch',
+    date: 'Aug 14, 2026, 02:51 PM',
+    tag: 'DATA FETCH',
+    tagType: 'data_fetch',
+    amount: '-5 Credits',
+    amountType: 'negative',
+    icon: 'chart-line',
+    iconBg: 'rgba(239, 68, 68, 0.12)',
+    iconColor: '#EF4444'
+  },
+  {
+    id: 'tl_3',
+    title: 'Hybrid Property Intelligence Data Fetch',
+    date: 'Aug 14, 2026, 02:49 PM',
+    tag: 'DATA FETCH',
+    tagType: 'data_fetch',
+    amount: '-5 Credits',
+    amountType: 'negative',
+    icon: 'chart-line',
+    iconBg: 'rgba(239, 68, 68, 0.12)',
+    iconColor: '#EF4444'
+  },
+  {
+    id: 'tl_4',
+    title: 'Property MLS Data Fetch',
+    date: 'Aug 14, 2026, 02:48 PM',
+    tag: 'DATA FETCH',
+    tagType: 'data_fetch',
+    amount: '-5 Credits',
+    amountType: 'negative',
+    icon: 'chart-line',
+    iconBg: 'rgba(239, 68, 68, 0.12)',
+    iconColor: '#EF4444'
+  },
+  {
+    id: 'tl_5',
+    title: 'Chat Message Generation',
+    date: 'Aug 14, 2026, 02:47 PM',
+    tag: 'AI USAGE',
+    tagType: 'ai_usage',
+    amount: '-1 Credits',
+    amountType: 'negative',
+    icon: 'chart-line',
+    iconBg: 'rgba(239, 68, 68, 0.12)',
+    iconColor: '#EF4444'
+  },
+  {
+    id: 'tl_6',
+    title: 'Granted 2000 credits from plan PRO AGENT',
+    date: 'Aug 14, 2026, 02:46 PM',
+    tag: 'Plan Renewal',
+    tagType: 'plan_renewal',
+    amount: '+2000 Credits',
+    amountType: 'positive',
+    icon: 'refresh',
+    iconBg: 'rgba(34, 197, 94, 0.12)',
+    iconColor: '#22C55E'
+  },
+  {
+    id: 'tl_7',
+    title: 'Bonus Point (Signup Reward)',
+    date: 'Aug 14, 2026, 02:46 PM',
+    tag: 'Sign Up Bonus',
+    tagType: 'signup_bonus',
+    amount: '+500 Credits',
+    amountType: 'positive',
+    icon: 'ribbon',
+    iconBg: 'rgba(34, 197, 94, 0.12)',
+    iconColor: '#22C55E'
+  },
+  {
+    id: 'tl_8',
+    title: 'Free trial for 1 × PRO AGENT',
+    date: 'Aug 14, 2026, 02:46 PM',
+    tag: 'Paid',
+    tagType: 'paid',
+    amount: '$0.00',
+    amountType: 'zero',
+    icon: 'credit-card-outline',
+    iconBg: 'rgba(59, 130, 246, 0.12)',
+    iconColor: '#3B82F6'
   }
 ];
 
@@ -351,3 +484,70 @@ export const cancelSoloSubscription = async (
     clearTimeout(timeoutId);
   }
 };
+
+export const getSoloCreditFlow = async (accessToken: string | null): Promise<CreditFlowData> => {
+  if (!accessToken) {
+    return DEFAULT_CREDIT_FLOW;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/solo/billing/credits/flow`, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.warn('[BillingService] Failed to fetch credit flow, using fallback data:', error);
+    return DEFAULT_CREDIT_FLOW;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+export const getSoloCreditTimeline = async (accessToken: string | null): Promise<CreditTimelineItem[]> => {
+  if (!accessToken) {
+    return DEFAULT_CREDIT_TIMELINE;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/solo/billing/timeline`, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : data.items || DEFAULT_CREDIT_TIMELINE;
+  } catch (error) {
+    console.warn('[BillingService] Failed to fetch timeline, using fallback data:', error);
+    return DEFAULT_CREDIT_TIMELINE;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+

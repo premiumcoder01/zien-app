@@ -617,7 +617,16 @@ export default function LeadsCaptureScreen() {
                                     } catch (_) {}
 
                                     return (
-                                        <View key={lead.id || idx} style={styles.leadCard}>
+                                        <Pressable 
+                                            key={lead.id || idx} 
+                                            style={styles.leadCard}
+                                            onPress={() => {
+                                                if (lead.id || lead.lead_id) {
+                                                    setSelectedPageForLeads(null);
+                                                    router.push({ pathname: '/(main)/crm/leads/[id]', params: { id: lead.id || lead.lead_id } });
+                                                }
+                                            }}
+                                        >
                                             <View style={styles.leadCardHeader}>
                                                 <View style={styles.leadAvatarBox}>
                                                     <MaterialCommunityIcons name="account" size={18} color="#FFFFFF" />
@@ -657,7 +666,7 @@ export default function LeadsCaptureScreen() {
                                                     ))}
                                                 </View>
                                             )}
-                                        </View>
+                                        </Pressable>
                                     );
                                 })}
                             </ScrollView>
