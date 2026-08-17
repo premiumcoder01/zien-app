@@ -521,24 +521,35 @@ export const checkUserExists = async (payload: CheckExistsRequest): Promise<Chec
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/website/register/check-exists`, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    const urls = [
+      `https://staging.zien.ai/api/website/register/check-exists`,
+      `${API_BASE_URL}/website/register/check-exists`,
+      `https://zien.ai/api/website/register/check-exists`,
+    ];
 
-    const data = await response.json().catch(() => ({}));
+    let lastError: any = null;
+    for (const url of urls) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
 
-    if (!response.ok) {
-      const errorMessage = data?.message || data?.error?.message || data?.data?.message || `Server error: ${response.status} ${response.statusText}`;
-      throw new Error(errorMessage);
+        if (response.ok) {
+          const data = await response.json();
+          return data;
+        }
+      } catch (err) {
+        lastError = err;
+      }
     }
 
-    return data;
+    throw lastError || new Error('Failed to verify user existence');
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Check exists request timed out. Please check your connection and try again.');

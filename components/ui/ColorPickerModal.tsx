@@ -160,7 +160,12 @@ export default function ColorPickerModal({
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <ScrollView
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={styles.scrollContent}
+            style={styles.scrollView}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Color Sphere Preview */}
             <View style={styles.previewContainer}>
               <View style={[styles.colorSphere, { backgroundColor: currentColor }]} />
@@ -311,8 +316,13 @@ const getStyles = (colors: any) =>
       justifyContent: 'center',
       alignItems: 'center',
     },
+    scrollView: {
+      flexShrink: 1,
+      flexGrow: 0,
+    },
     scrollContent: {
       paddingBottom: 16,
+      paddingHorizontal: 4,
     },
     previewContainer: {
       alignItems: 'center',
@@ -388,6 +398,7 @@ const getStyles = (colors: any) =>
     sliderContainer: {
       marginBottom: 16,
       position: 'relative',
+      paddingHorizontal: 6,
     },
     gradientWrapper: {
       height: 40,
@@ -397,8 +408,8 @@ const getStyles = (colors: any) =>
       height: 12,
       borderRadius: 6,
       position: 'absolute',
-      left: 0,
-      right: 0,
+      left: 10,
+      right: 10,
     },
     sliderOver: {
       width: '100%',

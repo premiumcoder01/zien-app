@@ -70,6 +70,7 @@ export default function SoloOnboardingScreen() {
   const [showActivationModal, setShowActivationModal] = useState(false);
 
   const [countryCode, setCountryCode] = useState('+1');
+  const [countryCodeISO, setCountryCodeISO] = useState<any>('US');
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [showWebView, setShowWebView] = useState(false);
@@ -166,12 +167,16 @@ export default function SoloOnboardingScreen() {
         const newErrors = { ...errors };
 
         if (checkResult.email?.exists) {
-          newErrors.email = checkResult.email.message || 'This email is already registered.';
+          newErrors.email = checkResult.email.message || 'Email already registered';
           hasError = true;
+        } else {
+          delete newErrors.email;
         }
         if (checkResult.phone?.exists) {
-          newErrors.phone = checkResult.phone.message || 'This phone number is already registered.';
+          newErrors.phone = checkResult.phone.message || 'Phone already registered';
           hasError = true;
+        } else {
+          delete newErrors.phone;
         }
 
         if (hasError) {
@@ -402,7 +407,7 @@ export default function SoloOnboardingScreen() {
                 <PhoneInput
                   ref={phoneInputRef}
                   defaultValue={formData.phone}
-                  defaultCode="US"
+                  defaultCode={countryCodeISO || 'US'}
                   layout="first"
                   onChangeText={(text) => {
                     // Only allow digits and limit to 15 characters
@@ -411,7 +416,15 @@ export default function SoloOnboardingScreen() {
                   }}
                   onChangeFormattedText={(_text) => {
                     const callingCode = phoneInputRef.current?.getCallingCode();
+                    const iso = phoneInputRef.current?.getCountryCode();
                     if (callingCode) setCountryCode(`+${callingCode}`);
+                    if (iso) setCountryCodeISO(iso);
+                  }}
+                  onChangeCountry={(country) => {
+                    if (country.cca2) setCountryCodeISO(country.cca2);
+                    if (country.callingCode && country.callingCode[0]) {
+                      setCountryCode(`+${country.callingCode[0]}`);
+                    }
                   }}
                   containerStyle={[
                     styles.phoneInputWrapper,
@@ -431,7 +444,7 @@ export default function SoloOnboardingScreen() {
                     withFilter: true,
                     withAlphaFilter: true,
                     renderFlagButton: (props: any) => {
-                      const code = (props.countryCode || 'US').toUpperCase();
+                      const code = (props.countryCode || countryCodeISO || 'US').toUpperCase();
                       const emoji = code.replace(/./g, (c: string) =>
                         String.fromCodePoint(0x1F1A5 + c.charCodeAt(0))
                       );

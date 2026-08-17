@@ -307,6 +307,7 @@ export default function AccessControl() {
     const [editingRole, setEditingRole] = useState<TeamRole | null>(null);
     const [roleName, setRoleName] = useState('');
     const [roleDesc, setRoleDesc] = useState('');
+    const [roleNameError, setRoleNameError] = useState('');
 
     const createRoleMutation = useMutation({
         mutationFn: (data: { name: string; description: string }) =>
@@ -317,6 +318,7 @@ export default function AccessControl() {
             setIsAddRoleOpen(false);
             setRoleName('');
             setRoleDesc('');
+            setRoleNameError('');
         },
         onError: (err: any) => {
             showToast(err?.message || 'Failed to create role', 'error');
@@ -333,6 +335,7 @@ export default function AccessControl() {
             setEditingRole(null);
             setRoleName('');
             setRoleDesc('');
+            setRoleNameError('');
         },
         onError: (err: any) => {
             showToast(err?.message || 'Failed to update role', 'error');
@@ -428,18 +431,20 @@ export default function AccessControl() {
     // Form Submissions
     const handleAddRoleSubmit = () => {
         if (!roleName.trim()) {
-            showToast('Role name is required.', 'error');
+            setRoleNameError('Role name is required.');
             return;
         }
+        setRoleNameError('');
         createRoleMutation.mutate({ name: roleName, description: roleDesc });
     };
 
     const handleEditRoleSubmit = () => {
         if (!editingRole) return;
         if (!roleName.trim()) {
-            showToast('Role name is required.', 'error');
+            setRoleNameError('Role name is required.');
             return;
         }
+        setRoleNameError('');
         updateRoleMutation.mutate({ id: editingRole.id, name: roleName, description: roleDesc });
     };
 
@@ -642,6 +647,7 @@ export default function AccessControl() {
                                 onPress={() => {
                                     setRoleName('');
                                     setRoleDesc('');
+                                    setRoleNameError('');
                                     setIsAddRoleOpen(true);
                                 }}
                                 style={styles.actionBtn}
@@ -674,6 +680,7 @@ export default function AccessControl() {
                                                     setEditingRole(role);
                                                     setRoleName(role.name);
                                                     setRoleDesc(role.description);
+                                                    setRoleNameError('');
                                                     setIsEditRoleOpen(true);
                                                 }}
                                                 style={styles.editIconBtn}
@@ -932,12 +939,16 @@ export default function AccessControl() {
                                     Role Name <Text style={{ color: '#EF4444' }}>*</Text>
                                 </Text>
                                 <TextInput
-                                    style={styles.textInput}
+                                    style={[styles.textInput, roleNameError ? { borderColor: '#EF4444' } : {}]}
                                     placeholder="e.g. Sales Agent"
                                     placeholderTextColor="#94A3B8"
                                     value={roleName}
-                                    onChangeText={setRoleName}
+                                    onChangeText={(text) => {
+                                        setRoleName(text);
+                                        if (roleNameError) setRoleNameError('');
+                                    }}
                                 />
+                                {roleNameError ? <Text style={styles.errorText}>{roleNameError}</Text> : null}
                             </View>
 
                             <View style={styles.inputGroup}>
@@ -1005,12 +1016,16 @@ export default function AccessControl() {
                                     Role name <Text style={{ color: '#EF4444' }}>*</Text>
                                 </Text>
                                 <TextInput
-                                    style={styles.textInput}
+                                    style={[styles.textInput, roleNameError ? { borderColor: '#EF4444' } : {}]}
                                     placeholder="e.g. Sales Agent"
                                     placeholderTextColor="#94A3B8"
                                     value={roleName}
-                                    onChangeText={setRoleName}
+                                    onChangeText={(text) => {
+                                        setRoleName(text);
+                                        if (roleNameError) setRoleNameError('');
+                                    }}
                                 />
+                                {roleNameError ? <Text style={styles.errorText}>{roleNameError}</Text> : null}
                             </View>
 
                             <View style={styles.inputGroup}>

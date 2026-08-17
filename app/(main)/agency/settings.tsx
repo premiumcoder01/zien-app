@@ -36,6 +36,7 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import PhoneInput from 'react-native-phone-number-input';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
 // ─────────────────────────────────────────────
@@ -72,7 +73,7 @@ const InputField = ({
 
     return (
         <View style={sf.inputGroup}>
-            <Text style={sf.inputLabel}>
+            <Text style={sf.inputLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                 {label}
                 {required && <Text style={{ color: '#EF4444' }}> *</Text>}
             </Text>
@@ -164,8 +165,20 @@ const SectionHeader = ({ icon, title, subtitle, rightSlot }: any) => {
 // ─────────────────────────────────────────────
 // MY PROFILE TAB
 // ─────────────────────────────────────────────
-const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
-    const { colors } = useAppTheme();
+const getCountryISO = (code?: string) => {
+    if (!code) return 'IN';
+    const clean = code.replace(/[^\d]/g, '');
+    if (clean === '1') return 'US';
+    if (clean === '91') return 'IN';
+    if (clean === '44') return 'GB';
+    if (clean === '971') return 'AE';
+    if (clean === '61') return 'AU';
+    return 'IN';
+};
+
+function MyProfileTab({ profile, onSave, isSaving, accessToken }: { profile: any; onSave: (data: any, silent?: boolean) => void; isSaving: boolean; accessToken: string | null }) {
+    const { colors, theme } = useAppTheme();
+    const insets = useSafeAreaInsets();
     const sf = getStyles(colors);
     const [form, setForm] = useState({
         first_name: '',
@@ -176,17 +189,40 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
         website: '',
         address: '',
     });
+    const [countryCode, setCountryCode] = useState('+91');
+    const [countryCodeISO, setCountryCodeISO] = useState<any>('IN');
+    const phoneInputRef = useRef<PhoneInput>(null);
+
     const [localImageUri, setLocalImageUri] = useState<string | null>(null);
+    const [isImageRemoved, setIsImageRemoved] = useState(false);
     const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
     const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
     useEffect(() => {
         if (profile) {
+            setIsImageRemoved(false);
+            setLocalImageUri(null);
+            let rawPhone = profile.phone || '';
+            let rawCC = profile.country_code || (profile as any)?.countryCode || '+91';
+
+            let cleanPhone = rawPhone.replace(/[^\d]/g, '');
+            let ccDigits = rawCC.replace(/[^\d]/g, '');
+
+            if (ccDigits && cleanPhone.startsWith(ccDigits)) {
+                cleanPhone = cleanPhone.slice(ccDigits.length);
+            }
+
+            const formattedCC = rawCC.startsWith('+') ? rawCC : `+${rawCC}`;
+            setCountryCode(formattedCC);
+            setCountryCodeISO(getCountryISO(formattedCC));
+
+            const displayPhone = rawPhone.startsWith('+') ? rawPhone : `${formattedCC} ${cleanPhone}`;
+
             setForm({
                 first_name: profile.first_name || '',
                 last_name: profile.last_name || '',
                 email: profile.email || '',
-                phone: profile.phone || '',
+                phone: displayPhone,
                 description: profile.description || '',
                 website: profile.website || '',
                 address: profile.address || '',
@@ -198,7 +234,12 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
         ? `${profile.first_name?.[0] || ''}${profile.last_name?.[0] || ''}`.toUpperCase()
         : '';
 
-    const displayImageUri = localImageUri || profile?.image || null;
+    const displayImageUri = isImageRemoved ? null : (localImageUri || profile?.image || (profile as any)?.image_url || (profile as any)?.avatar || (profile as any)?.photo || null);
+
+    const handleRemovePhoto = () => {
+        setIsImageRemoved(true);
+        setLocalImageUri(null);
+    };
 
     const handlePhotoSelect = async (source: 'gallery' | 'camera') => {
         setPhotoPickerVisible(false);
@@ -240,6 +281,7 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
 
     const uploadPhoto = async (uri: string) => {
         setLocalImageUri(uri);
+        setIsImageRemoved(false);
         if (!accessToken) return;
         setIsUploadingPhoto(true);
         try {
@@ -268,7 +310,16 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
                     <View style={sf.avatarCol}>
                         <View style={sf.avatarWrap}>
                             {displayImageUri ? (
-                                <Image source={{ uri: displayImageUri }} style={sf.avatarImg} />
+                                <>
+                                    <Image source={{ uri: displayImageUri }} style={sf.avatarImg} />
+                                    <TouchableOpacity
+                                        style={sf.avatarDeleteBtn}
+                                        activeOpacity={0.8}
+                                        onPress={handleRemovePhoto}
+                                    >
+                                        <MaterialCommunityIcons name="trash-can-outline" size={14} color="#fff" />
+                                    </TouchableOpacity>
+                                </>
                             ) : (
                                 <View style={sf.avatarPlaceholder}>
                                     <Text style={sf.avatarInitials}>{initials}</Text>
@@ -288,7 +339,7 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
                             </TouchableOpacity>
                         </View>
                         <Text style={sf.avatarName}>{profile?.first_name} {profile?.last_name}</Text>
-                        <Text style={sf.avatarEmail}>{profile?.email?.toUpperCase()}</Text>
+                        <Text style={sf.avatarEmail}>{profile?.email}</Text>
 
                         {/* Quick stats */}
                         <View style={sf.quickStats}>
@@ -325,15 +376,66 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
                             editable={false}
                         />
 
-                        <InputField
-                            label="Phone Number"
-                            value={form.phone}
-                            onChangeText={(t: string) => setForm({ ...form, phone: t })}
-                            placeholder="+1 (000) 000-0000"
-                            icon="phone-outline"
-                            keyboardType="phone-pad"
-                            editable={false}
-                        />
+                        <View style={{ gap: 6, marginBottom: 4 }}>
+                            <Text style={sf.inputLabel}>Phone Number</Text>
+                            <PhoneInput
+                                ref={phoneInputRef}
+                                defaultValue={form.phone}
+                                defaultCode={countryCodeISO || 'IN'}
+                                layout="first"
+                                onChangeText={(text) => {
+                                    const cleaned = text.replace(/[^0-9]/g, '').slice(0, 15);
+                                    setForm({ ...form, phone: cleaned });
+                                }}
+                                onChangeFormattedText={(_text) => {
+                                    const callingCode = phoneInputRef.current?.getCallingCode();
+                                    const iso = phoneInputRef.current?.getCountryCode();
+                                    if (callingCode) setCountryCode(`+${callingCode}`);
+                                    if (iso) setCountryCodeISO(iso);
+                                }}
+                                onChangeCountry={(country) => {
+                                    if (country.cca2) setCountryCodeISO(country.cca2);
+                                    if (country.callingCode && country.callingCode[0]) {
+                                        setCountryCode(`+${country.callingCode[0]}`);
+                                    }
+                                }}
+                                containerStyle={sf.phoneContainer}
+                                textContainerStyle={sf.phoneTextContainer}
+                                textInputStyle={sf.phoneTextInput}
+                                codeTextStyle={{ display: 'none' }}
+                                flagButtonStyle={sf.phoneFlagButton}
+                                placeholder="Phone Number"
+                                withDarkTheme={theme === 'dark'}
+                                textInputProps={{
+                                    placeholderTextColor: colors.textMuted,
+                                    keyboardType: 'phone-pad',
+                                    maxLength: 15,
+                                    editable: false,
+                                }}
+                                countryPickerProps={{
+                                    withFilter: true,
+                                    withAlphaFilter: true,
+                                    renderFlagButton: (props: any) => {
+                                        const code = (props.countryCode || countryCodeISO || 'IN').toUpperCase();
+                                        const emoji = code.replace(/./g, (c: string) =>
+                                            String.fromCodePoint(0x1F1A5 + c.charCodeAt(0))
+                                        );
+                                        return <Text style={{ fontSize: 18, lineHeight: 22 }}>{emoji}</Text>;
+                                    },
+                                    theme: theme === 'dark' ? {
+                                        backgroundColor: '#000000',
+                                        onBackgroundTextColor: '#FFFFFF',
+                                        fontSize: 16,
+                                        filterPlaceholderTextColor: '#94A3B8',
+                                    } : {
+                                        backgroundColor: '#FFFFFF',
+                                        onBackgroundTextColor: '#0F172A',
+                                        fontSize: 16,
+                                        filterPlaceholderTextColor: '#64748B',
+                                    },
+                                }}
+                            />
+                        </View>
 
                         <View style={sf.divider} />
 
@@ -376,7 +478,11 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
                         <View style={{ marginTop: 22, alignSelf: 'flex-end' }}>
                             <SaveButton
                                 label="Save Profile Details"
-                                onPress={() => onSave(form)}
+                                onPress={() => onSave({
+                                    ...form,
+                                    country_code: countryCode,
+                                    image: isImageRemoved ? null : (localImageUri || profile?.image || null),
+                                })}
                                 loading={isSaving}
                             />
                         </View>
@@ -392,7 +498,7 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
                 onRequestClose={() => setPhotoPickerVisible(false)}
             >
                 <Pressable style={sf.pickerOverlay} onPress={() => setPhotoPickerVisible(false)}>
-                    <View style={sf.pickerSheet}>
+                    <View style={[sf.pickerSheet, { paddingBottom: Math.max(36, insets.bottom + 24) }]}>
                         <Text style={sf.pickerTitle}>Update Profile Photo</Text>
                         <Text style={sf.pickerSub}>Choose a source</Text>
 
@@ -411,6 +517,23 @@ const MyProfileTab = ({ profile, onSave, isSaving, accessToken }: any) => {
                             <Text style={sf.pickerBtnText}>Choose from Gallery</Text>
                             <MaterialCommunityIcons name="chevron-right" size={20} color="#94A3B8" />
                         </TouchableOpacity>
+
+                        {!!displayImageUri && (
+                            <TouchableOpacity
+                                style={[sf.pickerBtn, { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }]}
+                                activeOpacity={0.8}
+                                onPress={() => {
+                                    setPhotoPickerVisible(false);
+                                    handleRemovePhoto();
+                                }}
+                            >
+                                <View style={[sf.pickerBtnIcon, { backgroundColor: '#FEE2E2' }]}>
+                                    <MaterialCommunityIcons name="trash-can-outline" size={22} color="#EF4444" />
+                                </View>
+                                <Text style={[sf.pickerBtnText, { color: '#EF4444' }]}>Remove Photo</Text>
+                                <MaterialCommunityIcons name="chevron-right" size={20} color="#FCA5A5" />
+                            </TouchableOpacity>
+                        )}
 
                         <TouchableOpacity style={[sf.pickerBtn, sf.pickerCancelBtn]} activeOpacity={0.8} onPress={() => setPhotoPickerVisible(false)}>
                             <Text style={sf.pickerCancelText}>Cancel</Text>
@@ -589,40 +712,6 @@ const BrandingTab = ({ branding, onSave, isSaving, accessToken }: any) => {
                             </View>
                         </View>
 
-                        <InputField
-                            label="Support Email"
-                            value={form.support_email}
-                            onChangeText={(t: string) => setForm({ ...form, support_email: t })}
-                            placeholder="hello@agency.com"
-                            icon="email-outline"
-                            keyboardType="email-address"
-                        />
-
-                        <InputField
-                            label="Public Phone"
-                            value={form.public_phone}
-                            onChangeText={(t: string) => setForm({ ...form, public_phone: t })}
-                            placeholder="+1 310 902 4432"
-                            icon="phone-outline"
-                            keyboardType="phone-pad"
-                        />
-
-                        <InputField
-                            label="Address"
-                            value={form.address}
-                            onChangeText={(t: string) => setForm({ ...form, address: t })}
-                            placeholder="City, State, Country"
-                            icon="map-marker-outline"
-                        />
-
-                        <InputField
-                            label="Website"
-                            value={form.website}
-                            onChangeText={(t: string) => setForm({ ...form, website: t })}
-                            placeholder="https://yourwebsite.com"
-                            icon="web"
-                        />
-
                         {/* Save Changes Button */}
                         <View style={{ marginTop: 10, alignSelf: 'flex-end' }}>
                             <SaveButton
@@ -732,7 +821,7 @@ const SecurityTab = ({
                         </View>
                         <View style={{ flex: 1 }}>
                             <InputField
-                                label="Confirm New Password"
+                                label="Confirm Password"
                                 value={form.confirm}
                                 onChangeText={(t: string) => setForm({ ...form, confirm: t })}
                                 placeholder="••••••••"
@@ -989,11 +1078,16 @@ export default function AgencySettings() {
             backToMainRoute="/(main)/dashboard"
             isAgency={true}
         >
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            >
                 <ScrollView
                     style={sf.scroll}
-                    contentContainerStyle={[sf.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+                    contentContainerStyle={[sf.scrollContent, { paddingBottom: insets.bottom + 160 }]}
                     showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                 >
                     {/* ── Page Header ── */}
                     <View style={sf.pageHeader}>
@@ -1148,6 +1242,13 @@ const getStyles = (colors: any) => StyleSheet.create({
         backgroundColor: '#F97316', alignItems: 'center', justifyContent: 'center',
         borderWidth: 2, borderColor: colors.cardBackground,
     },
+    avatarDeleteBtn: {
+        position: 'absolute', top: -4, right: -4,
+        width: 28, height: 28, borderRadius: 14,
+        backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center',
+        borderWidth: 2, borderColor: colors.cardBackground,
+        zIndex: 10,
+    },
     avatarName: { fontSize: 16, fontWeight: '900', color: colors.textPrimary, marginBottom: 2 },
     avatarEmail: { fontSize: 10, color: '#F97316', fontWeight: '700', letterSpacing: 0.3, marginBottom: 14 },
     quickStats: {
@@ -1169,7 +1270,7 @@ const getStyles = (colors: any) => StyleSheet.create({
 
     // Input
     inputGroup: { gap: 6 },
-    inputLabel: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+    inputLabel: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, minHeight: 18, lineHeight: 18 },
     inputWrap: {
         height: 46, borderRadius: 10, borderWidth: 1.5,
         paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -1177,8 +1278,43 @@ const getStyles = (colors: any) => StyleSheet.create({
     textInput: { flex: 1, fontSize: 13, fontWeight: '500', height: '100%' },
     textAreaWrap: {
         minHeight: 90, borderRadius: 10, borderWidth: 1.5,
-        paddingHorizontal: 12, paddingVertical: 10,
-        flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+        paddingHorizontal: 12, paddingVertical: 10, alignItems: 'flex-start',
+    },
+    phoneContainer: {
+        width: '100%',
+        height: 48,
+        borderWidth: 1.5,
+        borderColor: colors.inputBorder,
+        borderRadius: 10,
+        backgroundColor: colors.inputBackground,
+        overflow: 'hidden',
+    },
+    phoneTextContainer: {
+        backgroundColor: 'transparent',
+        paddingVertical: 0,
+        paddingHorizontal: 0,
+    },
+    phoneTextInput: {
+        fontSize: 13,
+        color: colors.textPrimary,
+        backgroundColor: 'transparent',
+        marginLeft: 8,
+        fontWeight: '500',
+    },
+    phoneCodeText: {
+        fontSize: 13,
+        color: colors.textPrimary,
+        paddingHorizontal: 8,
+        fontWeight: '600',
+    },
+    phoneFlagButton: {
+        width: 58,
+        height: 48,
+        backgroundColor: 'transparent',
+        borderRightWidth: 1,
+        borderRightColor: colors.cardBorder,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     textArea: { flex: 1, fontSize: 13, fontWeight: '500', minHeight: 70 },
     eyeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },

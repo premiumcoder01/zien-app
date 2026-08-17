@@ -5,7 +5,7 @@ import OutlineButton from '@/components/ui/OutlineButton';
 import PasswordInput from '@/components/ui/PasswordInput';
 import StepIndicator from '@/components/ui/StepIndicator';
 import { Addon, completeCheckout, fetchTeamPlans, Plan, registerTeamCheckout, TeamCheckoutPayload, uploadTeamLogo } from '@/services/plans';
-import { registerMobileIos, RegisterMobileIosRequest } from '@/services/authService';
+import { checkUserExists, registerMobileIos, RegisterMobileIosRequest } from '@/services/authService';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -69,6 +69,7 @@ export default function TeamOnboardingScreen() {
   const [showActivationModal, setShowActivationModal] = useState(false);
 
   const [countryCode, setCountryCode] = useState('+1');
+  const [countryCodeISO, setCountryCodeISO] = useState<any>('US');
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [showWebView, setShowWebView] = useState(false);
@@ -156,8 +157,49 @@ export default function TeamOnboardingScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const goNext = () => {
+  const [isCheckingExists, setIsCheckingExists] = useState(false);
+
+  const goNext = async () => {
     if (!validateStep()) return;
+
+    if (currentStep === 1) {
+      setIsCheckingExists(true);
+      try {
+        const checkResult = await checkUserExists({
+          email: formData.email,
+          country_code: countryCode,
+          phone: formData.phone,
+        });
+
+        let hasError = false;
+        const newErrors = { ...errors };
+
+        if (checkResult.email?.exists) {
+          newErrors.email = checkResult.email.message || 'Email already registered';
+          hasError = true;
+        } else {
+          delete newErrors.email;
+        }
+
+        if (checkResult.phone?.exists) {
+          newErrors.phone = checkResult.phone.message || 'Phone already registered';
+          hasError = true;
+        } else {
+          delete newErrors.phone;
+        }
+
+        if (hasError) {
+          setErrors(newErrors);
+          setIsCheckingExists(false);
+          return;
+        }
+      } catch (error: any) {
+        setErrors(prev => ({ ...prev, _form: error.message || 'Failed to verify email/phone. Please try again.' }));
+        setIsCheckingExists(false);
+        return;
+      }
+      setIsCheckingExists(false);
+    }
 
     if (Platform.OS === 'ios' && currentStep === 2) {
       const payload: RegisterMobileIosRequest = {
@@ -431,7 +473,7 @@ export default function TeamOnboardingScreen() {
                 <PhoneInput
                   ref={phoneInputRef}
                   defaultValue={formData.phone}
-                  defaultCode="US"
+                  defaultCode={countryCodeISO || 'US'}
                   layout="first"
                   onChangeText={(text) => {
                     // Only allow digits and limit to 15 characters
@@ -440,7 +482,15 @@ export default function TeamOnboardingScreen() {
                   }}
                   onChangeFormattedText={(_text) => {
                     const callingCode = phoneInputRef.current?.getCallingCode();
+                    const iso = phoneInputRef.current?.getCountryCode();
                     if (callingCode) setCountryCode(`+${callingCode}`);
+                    if (iso) setCountryCodeISO(iso);
+                  }}
+                  onChangeCountry={(country) => {
+                    if (country.cca2) setCountryCodeISO(country.cca2);
+                    if (country.callingCode && country.callingCode[0]) {
+                      setCountryCode(`+${country.callingCode[0]}`);
+                    }
                   }}
                   containerStyle={[
                     styles.phoneInputWrapper,
@@ -460,7 +510,7 @@ export default function TeamOnboardingScreen() {
                     withFilter: true,
                     withAlphaFilter: true,
                     renderFlagButton: (props: any) => {
-                      const code = (props.countryCode || 'US').toUpperCase();
+                      const code = (props.countryCode || countryCodeISO || 'US').toUpperCase();
                       const emoji = code.replace(/./g, (c: string) =>
                         String.fromCodePoint(0x1F1A5 + c.charCodeAt(0))
                       );
@@ -513,7 +563,7 @@ export default function TeamOnboardingScreen() {
               />
             </View>
 
-            <GradientButton title="Continue" style={styles.primaryButton} onPress={goNext} />
+            <GradientButton title="Continue" style={styles.primaryButton} onPress={goNext} loading={isCheckingExists} disabled={isCheckingExists} />
             {errors._form && (
               <Text style={[styles.errorTextSmall, { textAlign: 'center', marginTop: 12 }]}>
                 {errors._form}
@@ -2014,7 +2064,6 @@ const getStyles = (colors: any, insets: any) => StyleSheet.create({
     textAlign: 'center',
   },
   supportLink: {
-    color: colors.accent,
     color: colors.accent,
     fontWeight: '700',
   },
