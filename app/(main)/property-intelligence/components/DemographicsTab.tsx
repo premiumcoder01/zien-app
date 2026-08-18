@@ -52,10 +52,6 @@ export const DemographicsTab: React.FC<DemographicsTabProps> = ({ property, apiD
                     <Text style={styles.statValue}>{medianAge} yrs</Text>
                 </View>
 
-                <View style={styles.statBox}>
-                    <Text style={styles.statLabel}>OWNER OCCUPIED</Text>
-                    <Text style={styles.statValue}>{ownerOccupiedPct}%</Text>
-                </View>
             </View>
         </View>
     );

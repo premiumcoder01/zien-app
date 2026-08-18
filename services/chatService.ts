@@ -38,6 +38,14 @@ export interface SendMessageResponse {
 // API Functions
 // ──────────────────────────────────────────────────────
 
+const getHeaders = (accessToken: string) => ({
+  Accept: 'application/json',
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${accessToken}`,
+  'token': accessToken,
+  'Cookie': `website_access_token=${accessToken}; access_token=${accessToken}; token=${accessToken}`
+});
+
 /**
  * Fetch all chat conversations for the authenticated user.
  * GET /api/solo/chat/conversations
@@ -47,24 +55,43 @@ export const getConversations = async (accessToken: string): Promise<Conversatio
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/solo/chat/conversations`, {
+    let url = 'https://staging.zien.ai/api/solo/chat/conversations';
+    console.log('=== [GET CONVERSATIONS REQUEST] ===');
+    console.log('URL:', url);
+
+    let response = await fetch(url, {
       method: 'GET',
       signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
+      headers: getHeaders(accessToken),
     });
 
-    const data = await response.json().catch(() => ({}));
+    console.log('GET CONVERSATIONS STATUS:', response.status);
 
     if (!response.ok) {
-      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+      url = `${API_BASE_URL}/solo/chat/conversations`;
+      console.log('=== [GET CONVERSATIONS FALLBACK REQUEST] ===');
+      console.log('URL:', url);
+      response = await fetch(url, {
+        method: 'GET',
+        headers: getHeaders(accessToken),
+      });
+      console.log('FALLBACK STATUS:', response.status);
     }
 
-    return data;
+    const data = await response.json().catch(() => ([]));
+    console.log('=== [GET CONVERSATIONS RESPONSE] ===');
+    console.log('DATA:', JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      throw new Error(data?.message || `Server error: ${response.status}`);
+    }
+
+    if (Array.isArray(data)) {
+      return data;
+    }
+    return data?.conversations || data?.data || [];
   } catch (error: unknown) {
+    console.error('=== [GET CONVERSATIONS ERROR] ===', error);
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Conversations request timed out. Please check your connection and try again.');
     }
@@ -86,27 +113,40 @@ export const getConversation = async (
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/solo/chat/conversations/${conversationId}`,
-      {
-        method: 'GET',
-        signal: controller.signal,
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      }
-    );
+    let url = `https://staging.zien.ai/api/solo/chat/conversations/${conversationId}`;
+    console.log('=== [GET CONVERSATION DETAIL REQUEST] ===');
+    console.log('URL:', url);
 
-    const data = await response.json().catch(() => ({}));
+    let response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: getHeaders(accessToken),
+    });
+
+    console.log('GET CONVERSATION DETAIL STATUS:', response.status);
 
     if (!response.ok) {
-      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+      url = `${API_BASE_URL}/solo/chat/conversations/${conversationId}`;
+      console.log('=== [GET CONVERSATION DETAIL FALLBACK] ===');
+      console.log('URL:', url);
+      response = await fetch(url, {
+        method: 'GET',
+        headers: getHeaders(accessToken),
+      });
+      console.log('FALLBACK STATUS:', response.status);
+    }
+
+    const data = await response.json().catch(() => ({}));
+    console.log('=== [GET CONVERSATION DETAIL RESPONSE] ===');
+    console.log('DATA:', JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status}`);
     }
 
     return data;
   } catch (error: unknown) {
+    console.error('=== [GET CONVERSATION DETAIL ERROR] ===', error);
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Conversation request timed out. Please check your connection and try again.');
     }
@@ -128,25 +168,43 @@ export const createConversation = async (
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/solo/chat/conversations`, {
+    let url = 'https://staging.zien.ai/api/solo/chat/conversations';
+    console.log('=== [CREATE CONVERSATION REQUEST] ===');
+    console.log('URL:', url);
+    console.log('BODY:', JSON.stringify({ title }));
+
+    let response = await fetch(url, {
       method: 'POST',
       signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
+      headers: getHeaders(accessToken),
       body: JSON.stringify({ title }),
     });
 
-    const data = await response.json().catch(() => ({}));
+    console.log('CREATE CONVERSATION STATUS:', response.status);
 
     if (!response.ok) {
-      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+      url = `${API_BASE_URL}/solo/chat/conversations`;
+      console.log('=== [CREATE CONVERSATION FALLBACK] ===');
+      console.log('URL:', url);
+      response = await fetch(url, {
+        method: 'POST',
+        headers: getHeaders(accessToken),
+        body: JSON.stringify({ title }),
+      });
+      console.log('FALLBACK STATUS:', response.status);
+    }
+
+    const data = await response.json().catch(() => ({}));
+    console.log('=== [CREATE CONVERSATION RESPONSE] ===');
+    console.log('DATA:', JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status}`);
     }
 
     return data;
   } catch (error: unknown) {
+    console.error('=== [CREATE CONVERSATION ERROR] ===', error);
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Create conversation timed out. Please check your connection and try again.');
     }
@@ -166,32 +224,46 @@ export const sendMessage = async (
   content: string
 ): Promise<SendMessageResponse> => {
   const controller = new AbortController();
-  // AI responses may take longer, so extend the timeout
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/solo/chat/conversations/${conversationId}/messages`,
-      {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ content }),
-      }
-    );
+    let url = `https://staging.zien.ai/api/solo/chat/conversations/${conversationId}/messages`;
+    console.log('=== [SEND MESSAGE REQUEST] ===');
+    console.log('URL:', url);
+    console.log('BODY:', JSON.stringify({ content }));
 
-    const data = await response.json().catch(() => ({}));
+    let response = await fetch(url, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: getHeaders(accessToken),
+      body: JSON.stringify({ content }),
+    });
+
+    console.log('SEND MESSAGE STATUS:', response.status);
 
     if (!response.ok) {
-      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+      url = `${API_BASE_URL}/solo/chat/conversations/${conversationId}/messages`;
+      console.log('=== [SEND MESSAGE FALLBACK] ===');
+      console.log('URL:', url);
+      response = await fetch(url, {
+        method: 'POST',
+        headers: getHeaders(accessToken),
+        body: JSON.stringify({ content }),
+      });
+      console.log('FALLBACK STATUS:', response.status);
+    }
+
+    const data = await response.json().catch(() => ({}));
+    console.log('=== [SEND MESSAGE RESPONSE] ===');
+    console.log('DATA:', JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      throw new Error(data.message || `Server error: ${response.status}`);
     }
 
     return data;
   } catch (error: unknown) {
+    console.error('=== [SEND MESSAGE ERROR] ===', error);
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Message request timed out. The AI may be taking longer than expected.');
     }
@@ -213,24 +285,35 @@ export const deleteConversation = async (
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/solo/chat/conversations/${conversationId}`,
-      {
+    let url = `https://staging.zien.ai/api/solo/chat/conversations/${conversationId}`;
+    console.log('=== [DELETE CONVERSATION REQUEST] ===');
+    console.log('URL:', url);
+
+    let response = await fetch(url, {
+      method: 'DELETE',
+      signal: controller.signal,
+      headers: getHeaders(accessToken),
+    });
+
+    console.log('DELETE CONVERSATION STATUS:', response.status);
+
+    if (!response.ok) {
+      url = `${API_BASE_URL}/solo/chat/conversations/${conversationId}`;
+      console.log('=== [DELETE CONVERSATION FALLBACK] ===');
+      console.log('URL:', url);
+      response = await fetch(url, {
         method: 'DELETE',
-        signal: controller.signal,
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      }
-    );
+        headers: getHeaders(accessToken),
+      });
+      console.log('FALLBACK STATUS:', response.status);
+    }
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+      throw new Error(data.message || `Server error: ${response.status}`);
     }
   } catch (error: unknown) {
+    console.error('=== [DELETE CONVERSATION ERROR] ===', error);
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Delete request timed out. Please check your connection and try again.');
     }

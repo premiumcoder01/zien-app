@@ -633,7 +633,7 @@ export default function AccessControl() {
                             styles.subTabText,
                             activeTab === 'menus' ? styles.subTabTextActive : { color: colors.textSecondary }
                         ]}>
-                            Menu Management
+                            Menu Structure
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -819,39 +819,13 @@ export default function AccessControl() {
                     <View style={[styles.mainCard, { borderColor: colors.cardBorder }]}>
                         <View style={styles.cardHeaderRow}>
                             <View style={{ flex: 1 }}>
-                                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Menu Management</Text>
+                                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Menu Structure</Text>
                                 <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
                                     Define the navigation hierarchy for the agency dashboard.
                                 </Text>
                             </View>
 
                         </View>
-                        <TouchableOpacity
-                            onPress={() => {
-                                setMenuName('');
-                                setMenuSlug('');
-                                setMenuPath('');
-                                setMenuIcon('circle-outline');
-                                setMenuOrder('0');
-                                setMenuParentId('');
-                                setNameError('');
-                                setSlugError('');
-                                setPathError('');
-                                setIsAddParentDropdownOpen(false);
-                                setIsAddMenuOpen(true);
-                            }}
-                            style={[
-                                styles.actionBtn,
-                                {
-                                    justifyContent: 'center',
-                                    marginVertical: 16,
-                                    paddingVertical: 12
-                                }
-                            ]}
-                        >
-                            <MaterialCommunityIcons name="plus" size={16} color="#fff" />
-                            <Text style={styles.actionBtnText}>Add Menu</Text>
-                        </TouchableOpacity>
 
                         {loadingMenus ? (
                             <ActivityIndicator size="large" color={colors.accentTeal} style={{ marginVertical: 40 }} />

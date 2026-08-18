@@ -2,6 +2,7 @@ import { BillingCard, BillingScreenHeader, PlanModal, type BillingTabKey } from 
 import { ExternalLink } from '@/components/external-link';
 import { Theme } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useProfile } from '@/hooks/useProfile';
 import { useAppTheme } from '@/context/ThemeContext';
 import { 
   getSoloInvoices, 
@@ -48,6 +49,7 @@ export default function BillingUsageScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { accessToken } = useAuth();
+  const { data: profile } = useProfile();
 
   const [activeTab, setActiveTab] = useState<BillingTabKey>('overview');
   const scrollRef = useRef<ScrollView>(null);
@@ -59,6 +61,38 @@ export default function BillingUsageScreen() {
   const [invoicesData, setInvoicesData] = useState<SoloInvoice[]>([]);
   const [creditFlowData, setCreditFlowData] = useState<CreditFlowData | null>(null);
   const [timelineData, setTimelineData] = useState<CreditTimelineItem[]>([]);
+
+  // Compute effective credit stats from profile or creditFlowData
+  const effectiveCreditData = useMemo(() => {
+    const cObj = (profile?.credits || (profile as any)?.data?.credits || (profile as any)?.user?.credits) as any;
+    let balance: number | null = null;
+    let used: number | null = null;
+
+    if (typeof cObj === 'number') {
+      balance = cObj;
+    } else if (cObj && typeof cObj === 'object') {
+      if (typeof cObj.balance === 'number') {
+        balance = cObj.balance;
+      } else if (typeof cObj.remaining === 'number') {
+        balance = cObj.remaining;
+      } else if (typeof cObj.plan_credits === 'number' || typeof cObj.topup_credits === 'number') {
+        balance = (cObj.plan_credits || 0) + (cObj.topup_credits || 0);
+      }
+      if (typeof cObj.total_used === 'number') {
+        used = cObj.total_used;
+      }
+    }
+
+    const remainingCredits = balance ?? creditFlowData?.remainingCredits ?? 0;
+    const usedCredits = used ?? creditFlowData?.usedCredits ?? 0;
+    const totalSpent = used ?? creditFlowData?.totalSpent ?? 0;
+
+    return {
+      remainingCredits,
+      usedCredits,
+      totalSpent,
+    };
+  }, [profile, creditFlowData]);
 
   // Features lists show all / collapsible state
   const [showAllFeatures, setShowAllFeatures] = useState(false);
@@ -715,9 +749,9 @@ export default function BillingUsageScreen() {
           <View style={styles.dashedChartContainer}>
             <View style={styles.creditFlowContainer}>
               {(() => {
-                const totalSpent = creditFlowData?.totalSpent ?? 16;
-                const remaining = creditFlowData?.remainingCredits ?? 2484;
-                const used = creditFlowData?.usedCredits ?? 16;
+                const totalSpent = effectiveCreditData.totalSpent;
+                const remaining = effectiveCreditData.remainingCredits;
+                const used = effectiveCreditData.usedCredits;
                 const sum = remaining + used;
 
                 const cfRadius = 48;
@@ -771,12 +805,12 @@ export default function BillingUsageScreen() {
                     <View style={styles.creditFlowBottomLegendRow}>
                       <View style={styles.legendRow}>
                         <View style={[styles.legendBadgeSquare, { backgroundColor: '#00a7b5' }]} />
-                        <Text style={styles.legendLabelText}>Remaining Credits</Text>
+                        <Text style={styles.legendLabelText}>Remaining Credits ({remaining})</Text>
                       </View>
 
                       <View style={styles.legendRow}>
                         <View style={[styles.legendBadgeSquare, { backgroundColor: isDark ? '#475569' : '#0B1E2F' }]} />
-                        <Text style={styles.legendLabelText}>Used Credits</Text>
+                        <Text style={styles.legendLabelText}>Used Credits ({used})</Text>
                       </View>
                     </View>
                   </>
@@ -801,7 +835,7 @@ export default function BillingUsageScreen() {
       default:
         return renderOverview();
     }
-  }, [activeTab, subscriptionData, invoicesData, creditFlowData, timelineData, showAllFeatures, colors, isDark]);
+  }, [activeTab, subscriptionData, invoicesData, creditFlowData, timelineData, effectiveCreditData, showAllFeatures, colors, isDark]);
 
   return (
     <>
@@ -814,7 +848,7 @@ export default function BillingUsageScreen() {
         <BillingScreenHeader 
           activeTab={activeTab} 
           onTabChange={goToTab} 
-          credits={creditFlowData?.remainingCredits ?? 2484}
+          credits={effectiveCreditData.remainingCredits}
         />
 
         {loading ? (

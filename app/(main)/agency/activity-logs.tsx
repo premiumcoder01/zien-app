@@ -1,7 +1,7 @@
 import { DashboardLayout } from '@/components/main';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getTeamLogs, getTeamProfile, TeamLogEntry, TeamLogsResponse } from '@/services/dashboardService';
+import { getTeamLogs, TeamLogEntry, TeamLogsResponse } from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import React, { useRef, useState } from 'react';
@@ -144,6 +144,8 @@ export default function ActivityLogs() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSeverity, setSelectedSeverity] = useState<'All' | 'Critical' | 'Warning' | 'Info'>('All');
     const [isSeverityDropdownOpen, setIsSeverityDropdownOpen] = useState(false);
+    const [selectedMember, setSelectedMember] = useState<string>('All');
+    const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
 
     // Toast State
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -166,57 +168,59 @@ export default function ActivityLogs() {
         });
     };
 
-    // 1. Fetch Profile to get companyId
-    const { data: profile, isLoading: loadingProfile } = useQuery({
-        queryKey: ['teamProfile'],
-        queryFn: () => getTeamProfile(accessToken!),
+    // Always use company_id=1 — same as web (staging.zien.ai/api/teams/logs?company_id=1)
+    const COMPANY_ID = 1;
+
+    // Fetch Logs with fixed company_id=1
+    const { data: logsData, isLoading: loadingLogs, refetch: refetchLogs } = useQuery<TeamLogsResponse>({
+        queryKey: ['teamLogs', COMPANY_ID],
+        queryFn: async () => {
+            const result = await getTeamLogs(accessToken!, COMPANY_ID);
+            console.log('=== [RAW API RESPONSE] ===');
+            console.log(JSON.stringify(result, null, 2));
+            return result;
+        },
         enabled: !!accessToken,
-    });
-    const companyId = profile?.company_id;
-
-    // 2. Fetch Logs based on companyId
-    const { data: logsData, isLoading: loadingLogs } = useQuery<TeamLogsResponse>({
-        queryKey: ['teamLogs', companyId],
-        queryFn: () => getTeamLogs(accessToken!, companyId),
-        enabled: !!accessToken,
+        staleTime: 0,
+        gcTime: 0,
     });
 
-    const isPageLoading = loadingProfile || loadingLogs;
+    const isPageLoading = loadingLogs;
 
-    // Safely extract payload (support top-level or data wrapper)
-    const payload: any = (logsData as any)?.data && ((logsData as any).data.summary || (logsData as any).data.logs)
-        ? (logsData as any).data
-        : logsData;
+    // API returns: { summary: {...}, logs: [...] }
+    // Direct extraction — no complex nesting needed
+    const anyLogsData = logsData as any;
+    const summaryData: any =
+        anyLogsData?.summary ??
+        anyLogsData?.data?.summary ??
+        null;
 
-    const summaryData = payload?.summary || (logsData as any)?.summary;
+    const rawLogs: TeamLogEntry[] =
+        Array.isArray(anyLogsData?.logs) ? anyLogsData.logs :
+        Array.isArray(anyLogsData?.data?.logs) ? anyLogsData.data.logs :
+        Array.isArray(anyLogsData?.data) ? anyLogsData.data :
+        [];
 
-    const rawLogs: TeamLogEntry[] = Array.isArray(payload?.logs)
-        ? payload.logs
-        : Array.isArray(payload?.data)
-        ? payload.data
-        : Array.isArray(logsData?.logs)
-        ? logsData.logs
-        : Array.isArray(logsData?.data)
-        ? (logsData.data as any)
-        : Array.isArray(logsData)
-        ? (logsData as any)
-        : [];
-
-    // Parse summary values directly from API response with fallback
+    // Summary values — ONLY from API summary object, NO fallback calculations
     const summary = {
-        total_events: summaryData?.total_events !== undefined ? Number(summaryData.total_events) : rawLogs.length,
-        critical_events: summaryData?.critical_events !== undefined ? Number(summaryData.critical_events) : rawLogs.filter(l => (l.severity || '').toLowerCase() === 'critical').length,
-        warning_events: summaryData?.warning_events !== undefined ? Number(summaryData.warning_events) : rawLogs.filter(l => (l.severity || '').toLowerCase() === 'warning').length,
-        info_events: summaryData?.info_events !== undefined ? Number(summaryData.info_events) : rawLogs.filter(l => (l.severity || '').toLowerCase() === 'info').length,
-        auth_events: summaryData?.auth_events !== undefined ? Number(summaryData.auth_events) : rawLogs.filter(l =>
-            (l.action || '').toLowerCase().includes('auth') ||
-            (l.action || '').toLowerCase().includes('login') ||
-            (l.action || '').toLowerCase().includes('password')
-        ).length,
-        affected_users: summaryData?.affected_users !== undefined ? Number(summaryData.affected_users) : new Set(rawLogs.map(l => l.user_id).filter(Boolean)).size,
+        total_events:    summaryData ? Number(summaryData.total_events ?? 0)    : 0,
+        critical_events: summaryData ? Number(summaryData.critical_events ?? 0) : 0,
+        warning_events:  summaryData ? Number(summaryData.warning_events ?? 0)  : 0,
+        info_events:     summaryData ? Number(summaryData.info_events ?? 0)     : 0,
+        auth_events:     summaryData ? Number(summaryData.auth_events ?? 0)     : 0,
+        affected_users:  summaryData ? Number(summaryData.affected_users ?? 0)  : 0,
     };
 
-    // Filter Logs locally on the client-side
+    console.log('=== [ACTIVITY LOGS DEBUG] ===');
+    console.log('summaryData from API:', JSON.stringify(summaryData));
+    console.log('parsed summary:', JSON.stringify(summary));
+    console.log('rawLogs count:', rawLogs.length);
+
+    // Unique team members list from logs for filter dropdown
+    const teamMembers: string[] = Array.from(
+        new Set(rawLogs.map(l => l.user_name).filter(Boolean))
+    ) as string[];
+
     const filteredLogs = rawLogs.filter(log => {
         const matchesSearch =
             (log.action || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -225,8 +229,10 @@ export default function ActivityLogs() {
             (log.ip || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             `LOG-${log.id}`.toLowerCase().includes(searchQuery.toLowerCase());
 
-        if (selectedSeverity === 'All') return matchesSearch;
-        return matchesSearch && (log.severity || '').toLowerCase() === selectedSeverity.toLowerCase();
+        const matchesSeverity = selectedSeverity === 'All' || (log.severity || '').toLowerCase() === selectedSeverity.toLowerCase();
+        const matchesMember = selectedMember === 'All' || (log.user_name || '') === selectedMember;
+
+        return matchesSearch && matchesSeverity && matchesMember;
     });
 
     // CSV Exporter Action
@@ -311,23 +317,12 @@ export default function ActivityLogs() {
                     </View>
                 ) : (
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-                        {/* --- STATS CARDS GRID ROW (Swipable ScrollView) --- */}
-                        <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={styles.statsScroll} contentContainerStyle={{ gap: 12 }}>
-                            {/* Card 1: Total Events */}
+                        {/* --- STATS CARDS 2x2 GRID (matching web) --- */}
+                        <View style={styles.statsGrid}>
+                            {/* Card 1: Critical Events */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
                                 <View style={[styles.statIconBox, { backgroundColor: '#F8FAFC' }]}>
-                                    <MaterialCommunityIcons name="format-list-bulleted" size={20} color="#0F172A" />
-                                </View>
-                                <View style={styles.statInfo}>
-                                    <Text style={styles.statValue}>{summary.total_events}</Text>
-                                    <Text style={styles.statLabel}>TOTAL EVENTS</Text>
-                                </View>
-                            </View>
-
-                            {/* Card 2: Critical Events */}
-                            <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
-                                <View style={[styles.statIconBox, { backgroundColor: '#FEF2F2' }]}>
-                                    <MaterialCommunityIcons name="alert-circle" size={20} color="#EF4444" />
+                                    <MaterialCommunityIcons name="alert-outline" size={18} color="#0F172A" />
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.critical_events}</Text>
@@ -335,10 +330,10 @@ export default function ActivityLogs() {
                                 </View>
                             </View>
 
-                            {/* Card 3: Warnings */}
+                            {/* Card 2: Warnings */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
-                                <View style={[styles.statIconBox, { backgroundColor: '#FFF7ED' }]}>
-                                    <MaterialCommunityIcons name="shield-alert" size={20} color="#F97316" />
+                                <View style={[styles.statIconBox, { backgroundColor: '#F8FAFC' }]}>
+                                    <MaterialCommunityIcons name="shield-outline" size={18} color="#0F172A" />
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.warning_events}</Text>
@@ -346,21 +341,10 @@ export default function ActivityLogs() {
                                 </View>
                             </View>
 
-                            {/* Card 4: Info Events */}
+                            {/* Card 3: Secure Auth Events */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
-                                <View style={[styles.statIconBox, { backgroundColor: '#EFF6FF' }]}>
-                                    <MaterialCommunityIcons name="information-outline" size={20} color="#3B82F6" />
-                                </View>
-                                <View style={styles.statInfo}>
-                                    <Text style={styles.statValue}>{summary.info_events}</Text>
-                                    <Text style={styles.statLabel}>INFO EVENTS</Text>
-                                </View>
-                            </View>
-
-                            {/* Card 5: Secure Auth */}
-                            <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
-                                <View style={[styles.statIconBox, { backgroundColor: '#F0F9FF' }]}>
-                                    <MaterialCommunityIcons name="fingerprint" size={20} color={colors.accentTeal} />
+                                <View style={[styles.statIconBox, { backgroundColor: '#F8FAFC' }]}>
+                                    <MaterialCommunityIcons name="fingerprint" size={18} color="#0F172A" />
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.auth_events}</Text>
@@ -368,36 +352,40 @@ export default function ActivityLogs() {
                                 </View>
                             </View>
 
-                            {/* Card 6: Affected Users */}
+                            {/* Card 4: Active Team Members */}
                             <View style={[styles.statCard, { borderColor: colors.cardBorder }]}>
-                                <View style={[styles.statIconBox, { backgroundColor: colors.surfaceSoft }]}>
-                                    <MaterialCommunityIcons name="account-group-outline" size={20} color="#475569" />
+                                <View style={[styles.statIconBox, { backgroundColor: '#F8FAFC' }]}>
+                                    <MaterialCommunityIcons name="database-outline" size={18} color="#0F172A" />
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.affected_users}</Text>
-                                    <Text style={styles.statLabel}>AFFECTED USERS</Text>
+                                    <Text style={styles.statLabel}>ACTIVE TEAM MEMBERS</Text>
                                 </View>
                             </View>
-                        </ScrollView>
+                        </View>
 
                         {/* --- RESPONSIVE CONTROLS BLOCK --- */}
                         <View style={[styles.filterBar, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-                            <View style={{ flexDirection: 'row', gap: 10, width: '100%', zIndex: 50 }}>
-                                {/* Search Bar */}
-                                <View style={[styles.searchBox, { backgroundColor: colors.surfaceSoft, borderColor: colors.cardBorder, flex: 1.2 }]}>
-                                    <MaterialCommunityIcons name="magnify" size={20} color="#64748B" />
-                                    <TextInput
-                                        placeholder="Search action, target, ip..."
-                                        placeholderTextColor="#94A3B8"
-                                        style={[styles.searchInput, { color: colors.textPrimary }]}
-                                        value={searchQuery}
-                                        onChangeText={setSearchQuery}
-                                    />
-                                </View>
+                            {/* Row 1: Search Bar — full width */}
+                            <View style={[styles.searchBox, { backgroundColor: colors.surfaceSoft, borderColor: colors.cardBorder, width: '100%' }]}>
+                                <MaterialCommunityIcons name="magnify" size={20} color="#64748B" />
+                                <TextInput
+                                    placeholder="Search action, target, ip..."
+                                    placeholderTextColor="#94A3B8"
+                                    style={[styles.searchInput, { color: colors.textPrimary }]}
+                                    value={searchQuery}
+                                    onChangeText={setSearchQuery}
+                                />
+                            </View>
 
+                            {/* Row 2: Dropdowns — half half, with overlays */}
+                            <View style={{ flexDirection: 'row', gap: 10, width: '100%', zIndex: 50 }}>
                                 {/* Severity Selector dropdown */}
                                 <TouchableOpacity
-                                    onPress={() => setIsSeverityDropdownOpen(!isSeverityDropdownOpen)}
+                                    onPress={() => {
+                                        setIsSeverityDropdownOpen(!isSeverityDropdownOpen);
+                                        setIsMemberDropdownOpen(false);
+                                    }}
                                     style={[
                                         styles.filterBtn,
                                         {
@@ -417,7 +405,33 @@ export default function ActivityLogs() {
                                     />
                                 </TouchableOpacity>
 
-                                {/* --- CHARCOAL DROPDOWN OVERLAY (perfect mockup replica) --- */}
+                                {/* All Team Members dropdown button */}
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setIsMemberDropdownOpen(!isMemberDropdownOpen);
+                                        setIsSeverityDropdownOpen(false);
+                                    }}
+                                    style={[
+                                        styles.filterBtn,
+                                        {
+                                            backgroundColor: colors.surfaceSoft,
+                                            borderColor: isMemberDropdownOpen ? colors.accentTeal : colors.cardBorder,
+                                            flex: 1
+                                        }
+                                    ]}
+                                >
+                                    <Text style={[styles.filterBtnText, { color: colors.textPrimary }]} numberOfLines={1}>
+                                        {selectedMember === 'All' ? 'All Members' : selectedMember}
+                                    </Text>
+                                    <MaterialCommunityIcons
+                                        name={isMemberDropdownOpen ? "chevron-up" : "chevron-down"}
+                                        size={18}
+                                        color="#64748B"
+                                    />
+                                </TouchableOpacity>
+
+
+                                {/* --- SEVERITY DROPDOWN OVERLAY --- */}
                                 {isSeverityDropdownOpen && (
                                     <View style={styles.dropdownOverlay}>
                                         <TouchableOpacity
@@ -487,6 +501,50 @@ export default function ActivityLogs() {
                                                 <Text style={styles.dropdownOptionText}>Info</Text>
                                             </View>
                                         </TouchableOpacity>
+                                    </View>
+                                )}
+
+                                {/* --- TEAM MEMBERS DROPDOWN OVERLAY --- */}
+                                {isMemberDropdownOpen && (
+                                    <View style={[styles.dropdownOverlay, { right: 0, left: 'auto' }]}>
+                                        {/* All Team Members option */}
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setSelectedMember('All');
+                                                setIsMemberDropdownOpen(false);
+                                            }}
+                                            style={styles.dropdownOption}
+                                        >
+                                            <View style={styles.dropdownOptionContent}>
+                                                {selectedMember === 'All' ? (
+                                                    <MaterialCommunityIcons name="check" size={14} color="#38BDF8" style={{ marginRight: 6 }} />
+                                                ) : (
+                                                    <View style={{ width: 20 }} />
+                                                )}
+                                                <Text style={styles.dropdownOptionText}>All Team Members</Text>
+                                            </View>
+                                        </TouchableOpacity>
+
+                                        {/* Dynamic unique members from logs */}
+                                        {teamMembers.map((member) => (
+                                            <TouchableOpacity
+                                                key={member}
+                                                onPress={() => {
+                                                    setSelectedMember(member);
+                                                    setIsMemberDropdownOpen(false);
+                                                }}
+                                                style={styles.dropdownOption}
+                                            >
+                                                <View style={styles.dropdownOptionContent}>
+                                                    {selectedMember === member ? (
+                                                        <MaterialCommunityIcons name="check" size={14} color="#38BDF8" style={{ marginRight: 6 }} />
+                                                    ) : (
+                                                        <View style={{ width: 20 }} />
+                                                    )}
+                                                    <Text style={styles.dropdownOptionText}>{member}</Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        ))}
                                     </View>
                                 )}
                             </View>
@@ -564,16 +622,23 @@ const getStyles = (colors: any) => StyleSheet.create({
     statsScroll: {
         marginBottom: 20,
     },
+    statsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 4,
+    },
     statCard: {
-        width: 220,
+        flex: 1,
+        minWidth: '45%',
         backgroundColor: colors.cardBackground,
         borderRadius: 16,
         borderWidth: 1,
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
         paddingVertical: 14,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 10,
         shadowColor: colors.cardShadowColor || '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.02,

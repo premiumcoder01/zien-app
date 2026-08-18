@@ -392,7 +392,10 @@ export const updateEmployee = async (accessToken: string, employeeId: number, da
     },
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error('Failed to update employee');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.message || errorData?.error || 'Failed to update employee');
+  }
   const text = await response.text();
   return text ? JSON.parse(text) : { success: true };
 };
@@ -406,7 +409,10 @@ export const createEmployee = async (accessToken: string, data: any): Promise<an
     },
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error('Failed to create employee');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.message || errorData?.error || 'Failed to create employee');
+  }
   return response.json();
 };
 
@@ -530,15 +536,41 @@ export interface TeamLogsResponse {
 }
 
 export const getTeamLogs = async (accessToken: string, companyId?: number): Promise<TeamLogsResponse> => {
-  const url = companyId ? `${API_BASE_URL}/teams/logs?company_id=${companyId}` : `${API_BASE_URL}/teams/logs`;
-  const response = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json',
-    },
-  });
-  if (!response.ok) throw new Error('Failed to fetch activity logs');
-  return response.json();
+  const compIdParam = companyId ? `company_id=${companyId}` : 'company_id=1';
+  let url = `https://staging.zien.ai/api/teams/logs?${compIdParam}`;
+  console.log('=== [GET TEAM LOGS REQUEST] ===');
+  console.log('URL:', url);
+
+  const headers = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`,
+    'token': accessToken,
+    'Cookie': `website_access_token=${accessToken}; access_token=${accessToken}; token=${accessToken}`
+  };
+
+  try {
+    let response = await fetch(url, { method: 'GET', headers });
+    console.log('GET TEAM LOGS STATUS:', response.status);
+
+    if (!response.ok) {
+      url = `${API_BASE_URL}/teams/logs?${compIdParam}`;
+      console.log('=== [GET TEAM LOGS FALLBACK] ===');
+      console.log('URL:', url);
+      response = await fetch(url, { method: 'GET', headers });
+      console.log('FALLBACK STATUS:', response.status);
+    }
+
+    const data = await response.json().catch(() => ({}));
+    console.log('=== [GET TEAM LOGS RESPONSE DATA] ===');
+    console.log(JSON.stringify(data, null, 2));
+
+    if (!response.ok) throw new Error(data?.message || 'Failed to fetch activity logs');
+    return data;
+  } catch (error) {
+    console.error('=== [GET TEAM LOGS ERROR] ===', error);
+    throw error;
+  }
 };
 
 export interface TeamBrandingSettings {
@@ -625,8 +657,50 @@ export const getMyMenus = async (accessToken: string): Promise<TeamMenu[]> => {
   const response = await fetch(`${API_BASE_URL}/teams/my-menus`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
-  if (!response.ok) throw new Error('Failed to fetch user menus');
+  if (!response.ok) throw new Error('Failed to fetch my-menus');
   return response.json();
 };
 
+export const createSupportTicket = async (
+  accessToken: string,
+  payload: { category: string; priority: string; subject: string; description: string }
+): Promise<{ message: string; ticketId: number }> => {
+  const targetUrl = 'https://staging.zien.ai/api/support-ticket';
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`,
+    'token': accessToken,
+    'Cookie': `website_access_token=${accessToken}; access_token=${accessToken}; token=${accessToken}; auth_token=${accessToken}`
+  };
 
+  console.log('=== [SUPPORT TICKET REQUEST] ===');
+  console.log('URL:', targetUrl);
+  console.log('PAYLOAD:', JSON.stringify(payload, null, 2));
+
+  let response = await fetch(targetUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok && (response.status === 404 || response.status === 401)) {
+    const fallbackUrl = `${API_BASE_URL}/teams/support-ticket`;
+    console.log('=== [SUPPORT TICKET FALLBACK REQUEST] ===');
+    console.log('URL:', fallbackUrl);
+    response = await fetch(fallbackUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+  }
+
+  const data = await response.json().catch(() => null);
+  console.log('=== [SUPPORT TICKET RESPONSE] ===');
+  console.log('FINAL STATUS:', response.status);
+  console.log('RESPONSE:', JSON.stringify(data, null, 2));
+
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || 'Failed to submit support ticket');
+  }
+  return data;
+};

@@ -109,7 +109,9 @@ function NavDrawerComponent({
           <Pressable
             style={({ pressed }) => [
               styles.closeBtn,
-              customBackground ? { backgroundColor: 'rgba(255, 255, 255, 0.1)', borderColor: 'rgba(255, 255, 255, 0.15)' } : {},
+              (customBackground === '#FFFFFF' || customBackground === '#fff' || customBackground?.toLowerCase() === '#ffffff')
+                ? { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }
+                : (customBackground ? { backgroundColor: 'rgba(255, 255, 255, 0.12)', borderColor: 'rgba(255, 255, 255, 0.2)' } : {}),
               pressed && { opacity: 0.7 }
             ]}
             onPress={onClose}
@@ -117,13 +119,13 @@ function NavDrawerComponent({
             <MaterialCommunityIcons
               name="close"
               size={18}
-              color={customTextColor || (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary)}
+              color={(customBackground === '#FFFFFF' || customBackground === '#fff' || customBackground?.toLowerCase() === '#ffffff') ? '#64748B' : (customTextColor || (customBackground ? '#FFFFFF' : colors.textSecondary))}
             />
           </Pressable>
         </View>
 
         {/* Divider */}
-        <View style={[styles.headerDivider, customBackground ? { backgroundColor: 'rgba(255, 255, 255, 0.15)' } : {}]} />
+        <View style={[styles.headerDivider, (customBackground === '#FFFFFF' || customBackground === '#fff' || customBackground?.toLowerCase() === '#ffffff') ? { backgroundColor: '#E2E8F0' } : (customBackground ? { backgroundColor: 'rgba(255, 255, 255, 0.15)' } : {})]} />
 
         {/* Nav Items */}
         <ScrollView
@@ -142,22 +144,24 @@ function NavDrawerComponent({
                 (itemRoute.includes('(main)') && currentRoute === itemRoute.replace('/(main)', '')) ||
                 (currentRoute === '/dashboard' && itemRoute.includes('dashboard'));
 
-              const activeColor = customTextColor || (theme === 'dark' ? '#FFFFFF' : '#00a7b5');
-              const inactiveColor = customTextColor ? getAlphaColor(customTextColor, 0.7) : (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary);
+              const isWhiteBg = customBackground === '#FFFFFF' || customBackground === '#fff' || customBackground?.toLowerCase() === '#ffffff' || (!customBackground && theme === 'light');
+              const activeColor = isWhiteBg ? '#FFFFFF' : (customTextColor || (theme === 'dark' ? '#FFFFFF' : '#00a7b5'));
+              const inactiveColor = isWhiteBg ? '#475569' : (customTextColor ? getAlphaColor(customTextColor, 0.7) : (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary));
 
               return (
                 <Pressable
                   key={item.label}
                   style={({ pressed }) => [
                     styles.item,
-                    isActive && [styles.itemActive, customTextColor ? { backgroundColor: getAlphaColor(customTextColor, theme === 'dark' ? 0.18 : 0.10) } : {}],
+                    isWhiteBg && { marginHorizontal: 12, borderRadius: 10, paddingHorizontal: 14, marginVertical: 2 },
+                    isActive && (isWhiteBg ? { backgroundColor: '#14532D' } : [styles.itemActive, customTextColor ? { backgroundColor: getAlphaColor(customTextColor, theme === 'dark' ? 0.18 : 0.10) } : {}]),
                     pressed && !isActive && styles.itemPressed,
                     item.marginTop ? { marginTop: item.marginTop } : {},
                   ]}
                   onPress={() => handlePress(item.route)}
                   disabled={!item.route}
                 >
-                  {isActive && <View style={[styles.activeIndicator, customTextColor ? { backgroundColor: customTextColor } : {}]} />}
+                  {isActive && !isWhiteBg && <View style={[styles.activeIndicator, customTextColor ? { backgroundColor: customTextColor } : {}]} />}
 
                   <View style={styles.iconWrap}>
                     <MaterialCommunityIcons

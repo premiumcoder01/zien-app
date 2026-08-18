@@ -837,10 +837,10 @@ export default function TeamManagement() {
     const inactiveCount = employees.length - activeCount;
 
     const stats = [
-        { icon: 'account-group', value: `${employees.length} / ${maxMembers}`, label: 'TEAM CAPACITY', color: colors.accentTeal || '#0a2341' },
-        { icon: 'account-check', value: activeCount.toString(), label: 'ACTIVE AGENTS', color: '#10B981' },
-        { icon: 'account-off', value: inactiveCount.toString(), label: 'INACTIVE AGENTS', color: '#F97316' },
-        { icon: 'shield-check', value: (roles?.length || 0).toString(), label: 'ROLES DEFINED', color: '#8B5CF6' },
+        { icon: 'account-group', value: `${employees.length} / ${maxMembers}`, label: 'Team Capacity', color: colors.accentTeal || '#0a2341' },
+        { icon: 'account-check', value: activeCount.toString(), label: 'Active Agents', color: '#10B981' },
+        { icon: 'account-off', value: inactiveCount.toString(), label: 'Inactive Agents', color: '#F97316' },
+        { icon: 'shield-check', value: (roles?.length || 0).toString(), label: 'Roles Defined', color: '#8B5CF6' },
     ];
 
     const updateStatusMutation = useMutation({
@@ -874,14 +874,14 @@ export default function TeamManagement() {
     });
 
     const createEmployeeMutation = useMutation({
-        mutationFn: (data: any) => createEmployee(accessToken!, { ...data, company_id: companyId }),
+        mutationFn: (data: any) => createEmployee(accessToken!, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['teamEmployees', companyId] });
             setModalVisible(false);
-            Alert.alert("Success", "Agent created successfully");
+            Alert.alert("Success", "Team member added successfully!");
         },
-        onError: (err) => {
-            Alert.alert("Error", err.message || "Failed to create agent");
+        onError: (err: any) => {
+            Alert.alert("Error", err.message || "Failed to create team member");
         }
     });
 
@@ -939,16 +939,20 @@ export default function TeamManagement() {
 
     const handleSaveAgent = (formData: any) => {
         if (!companyId) return;
+        const { confirm_password, ...payload } = formData;
+        const cleanPayload = {
+            ...payload,
+            company_id: Number(companyId),
+            role_id: Number(formData.role_id),
+        };
+
         if (editingAgent) {
             updateEmployeeMutation.mutate({
                 employeeId: editingAgent.id,
-                payload: {
-                    ...formData,
-                    company_id: companyId,
-                }
+                payload: cleanPayload
             });
         } else {
-            createEmployeeMutation.mutate(formData);
+            createEmployeeMutation.mutate(cleanPayload);
         }
     };
 
@@ -1442,10 +1446,9 @@ const getStyles = (colors: any) => StyleSheet.create({
         fontWeight: '900',
     },
     statLabel: {
-        fontSize: 7,
+        fontSize: 9,
         fontWeight: '700',
-        opacity: 0.6,
-        letterSpacing: 0.8,
+        opacity: 0.7,
         marginTop: 2,
     },
     searchBox: {

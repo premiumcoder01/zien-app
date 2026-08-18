@@ -77,7 +77,7 @@ export function DashboardLayout({
 
   const customLogoNode = useMemo(() => {
     if (!isAgency) return customLogo;
-    const txtColor = brandingData?.text_color || '#FFFFFF';
+    const txtColor = '#0F172A';
     if (brandingData?.logo_url) {
       return (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -90,7 +90,7 @@ export function DashboardLayout({
             <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '800', color: txtColor }}>
               {brandingData.legal_name || 'Agency'}
             </Text>
-            <Text style={{ fontSize: 9, fontWeight: '700', color: txtColor + 'B3', letterSpacing: 0.5 }}>
+            <Text style={{ fontSize: 9, fontWeight: '700', color: '#64748B', letterSpacing: 0.5 }}>
               AGENCY CONTROL
             </Text>
           </View>
@@ -106,9 +106,9 @@ export function DashboardLayout({
         />
         <View style={{ flexShrink: 1 }}>
           <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '800', color: txtColor }}>
-            {brandingData?.legal_name || 'maxx'}
+            {brandingData?.legal_name || 'Isynbus Team'}
           </Text>
-          <Text style={{ fontSize: 9, fontWeight: '700', color: txtColor + 'B3', letterSpacing: 0.5 }}>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: '#64748B', letterSpacing: 0.5 }}>
             AGENCY CONTROL
           </Text>
         </View>
@@ -116,8 +116,8 @@ export function DashboardLayout({
     );
   }, [isAgency, brandingData, customLogo]);
 
-  const drawerBg = isAgency ? (brandingData?.theme_color || undefined) : customBackground;
-  const drawerTextColor = isAgency ? (brandingData?.text_color || undefined) : undefined;
+  const drawerBg = isAgency ? '#FFFFFF' : customBackground;
+  const drawerTextColor = isAgency ? '#0F172A' : undefined;
 
   const openMenu = useMemo(
     () => () => {

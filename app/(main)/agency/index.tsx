@@ -55,7 +55,7 @@ export const AgencyLogo = () => (
     </View>
 );
 
-export const AGENCY_BG = '#0D1B2A';
+export const AGENCY_BG = '#FFFFFF';
 
 const LucideIcon = ({ name, size, color }: { name: string, size: number, color: string }) => {
     switch (name.toLowerCase()) {

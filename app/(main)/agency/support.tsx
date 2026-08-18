@@ -1,6 +1,7 @@
 import { DashboardLayout } from '@/components/main';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import { createSupportTicket } from '@/services/dashboardService';
 import {
     useConversations,
     useLoadConversation,
@@ -10,11 +11,13 @@ import {
 } from '@/hooks/useChat';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Clipboard from 'expo-clipboard';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
+    Linking,
     Modal,
     Platform,
     Pressable,
@@ -41,14 +44,17 @@ const SUPPORT_LINES = [
     { title: 'Enterprise Partnerships', desc: 'Custom brokerage architecture and deployment.', email: 'sales@zien.ai', icon: 'handshake-outline', action: 'Reach Sales' },
 ];
 
-const CustomPicker = ({ label, value, options, onSelect, icon }: any) => {
+const CustomPicker = ({ label, value, options, onSelect, icon, required = false }: any) => {
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
     const [visible, setVisible] = useState(false);
 
     return (
         <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{label}</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                {label}
+                {required && <Text style={{ color: '#EF4444' }}> *</Text>}
+            </Text>
             <TouchableOpacity
                 onPress={() => setVisible(true)}
                 style={[styles.pickerBtn, { backgroundColor: colors.surfaceSoft, borderColor: colors.cardBorder }]}
@@ -111,6 +117,7 @@ interface ChatMessage {
     id: string;
     text: string;
     isUser: boolean;
+    timestamp?: string;
 }
 
 const VirtualAssistant = () => {
@@ -133,16 +140,26 @@ const VirtualAssistant = () => {
 
     const chatScrollRef = useRef<ScrollView>(null);
 
+    // Auto-load latest conversation if available and no active chat is selected yet
+    useEffect(() => {
+        if (conversations && conversations.length > 0 && !activeConversationId && messages.length === 0) {
+            loadConversationMessages(conversations[0].id);
+        }
+    }, [conversations]);
+
     const handleSend = async () => {
         if (!inputText.trim()) return;
         const text = inputText.trim();
         setInputText('');
+
+        const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
         // 1. Add user message locally
         const userMsg: ChatMessage = {
             id: `user-${Date.now()}`,
             text,
             isUser: true,
+            timestamp: timeNow,
         };
         setMessages(prev => [...prev, userMsg]);
         setIsAiTyping(true);
@@ -166,6 +183,7 @@ const VirtualAssistant = () => {
                 id: `ai-${Date.now()}`,
                 text: res.aiMessage.content,
                 isUser: false,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
             };
             setMessages(prev => [...prev, aiMsg]);
         } catch (error: any) {
@@ -173,6 +191,7 @@ const VirtualAssistant = () => {
                 id: `err-${Date.now()}`,
                 text: error?.message || 'Failed to send message. Please try again.',
                 isUser: false,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
             };
             setMessages(prev => [...prev, errMsg]);
         } finally {
@@ -191,6 +210,9 @@ const VirtualAssistant = () => {
                 id: `loaded-${conv.id}-${idx}`,
                 text: msg.content,
                 isUser: msg.role === 'user',
+                timestamp: msg.created_at
+                    ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+                    : undefined
             }));
             setMessages(loadedMessages);
             setIsAiTyping(false);
@@ -247,7 +269,10 @@ const VirtualAssistant = () => {
                 <TouchableOpacity
                     style={[styles.historyBtn, { borderColor: colors.cardBorder, backgroundColor: colors.surfaceSoft }]}
                     activeOpacity={0.8}
-                    onPress={() => setIsHistoryVisible(true)}
+                    onPress={() => {
+                        refetchConversations();
+                        setIsHistoryVisible(true);
+                    }}
                 >
                     <MaterialCommunityIcons name="message-text-outline" size={16} color={colors.textPrimary} />
                     <Text style={styles.historyBtnText}>History</Text>
@@ -256,7 +281,7 @@ const VirtualAssistant = () => {
 
             {/* Chat Container */}
             <View style={[styles.chatContainer, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, height: 420, justifyContent: 'flex-start', alignItems: 'stretch', padding: 0, overflow: 'hidden' }]}>
-                {messages.length === 0 ? (
+                {messages.length === 0 && !isAiTyping ? (
                     <View style={[styles.emptyChat, { flex: 1, justifyContent: 'center' }]}>
                         <View style={[styles.chatIconWrap, { backgroundColor: '#F0FDFA' }]}>
                             <MaterialCommunityIcons name="robot-outline" size={32} color={colors.accentTeal} />
@@ -285,8 +310,8 @@ const VirtualAssistant = () => {
                                     style={[
                                         styles.msgBubble,
                                         msg.isUser
-                                            ? { backgroundColor: colors.accentTeal, borderBottomRightRadius: 4 }
-                                            : { backgroundColor: colors.surfaceSoft, borderBottomLeftRadius: 4 }
+                                            ? { backgroundColor: '#14532D', borderBottomRightRadius: 4, borderRadius: 14 }
+                                            : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderBottomLeftRadius: 4, borderRadius: 14 }
                                     ]}
                                 >
                                     <Text
@@ -297,12 +322,25 @@ const VirtualAssistant = () => {
                                     >
                                         {msg.text}
                                     </Text>
+                                    {msg.timestamp && (
+                                        <Text
+                                            style={{
+                                                fontSize: 10,
+                                                color: msg.isUser ? 'rgba(255, 255, 255, 0.7)' : '#94A3B8',
+                                                marginTop: 4,
+                                                alignSelf: msg.isUser ? 'flex-end' : 'flex-start',
+                                                fontWeight: '500'
+                                            }}
+                                        >
+                                            {msg.timestamp}
+                                        </Text>
+                                    )}
                                 </View>
                             </View>
                         ))}
                         {isAiTyping && (
                             <View style={styles.msgRow}>
-                                <View style={[styles.msgBubble, { backgroundColor: colors.surfaceSoft, borderBottomLeftRadius: 4, paddingVertical: 10, paddingHorizontal: 16 }]}>
+                                <View style={[styles.msgBubble, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderBottomLeftRadius: 4, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 16 }]}>
                                     <ActivityIndicator size="small" color={colors.accentTeal} />
                                 </View>
                             </View>
@@ -422,15 +460,58 @@ const VirtualAssistant = () => {
 const SubmittedTicket = () => {
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
+    const { accessToken } = useAuth();
     const [form, setForm] = useState({
-        category: 'Technical Issue',
-        priority: 'Low - General Inquiry',
+        category: 'Billing Inquiry',
+        priority: 'Medium - Need Assistance',
         subject: '',
         description: ''
     });
 
     const [isSubjectFocused, setIsSubjectFocused] = useState(false);
     const [isDescFocused, setIsDescFocused] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async () => {
+        if (!form.category) {
+            Alert.alert('Validation Error', 'Please select an issue category.');
+            return;
+        }
+        if (!form.priority) {
+            Alert.alert('Validation Error', 'Please select a priority level.');
+            return;
+        }
+        if (!form.subject.trim()) {
+            Alert.alert('Validation Error', 'Please enter a subject.');
+            return;
+        }
+        if (!form.description.trim()) {
+            Alert.alert('Validation Error', 'Please enter a detailed description.');
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            const res = await createSupportTicket(accessToken!, {
+                category: form.category,
+                priority: form.priority,
+                subject: form.subject.trim(),
+                description: form.description.trim()
+            });
+
+            Alert.alert('Success', res.message || 'Support ticket submitted successfully!');
+            setForm({
+                category: 'Billing Inquiry',
+                priority: 'Medium - Need Assistance',
+                subject: '',
+                description: ''
+            });
+        } catch (error: any) {
+            Alert.alert('Error', error?.message || 'Failed to submit support ticket');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     return (
         <View style={styles.tabContent}>
@@ -441,8 +522,9 @@ const SubmittedTicket = () => {
                     <View style={{ flex: 1 }}>
                         <CustomPicker
                             label="Issue Category"
+                            required
                             value={form.category}
-                            options={['Technical Issue', 'Billing Inquiry', 'Account Security', 'Feature Request']}
+                            options={['Technical Issue', 'Billing Inquiry', 'Agent Seat Management', 'Account Security', 'Feature Request']}
                             onSelect={(v: string) => setForm({ ...form, category: v })}
                             icon="tag-outline"
                         />
@@ -450,17 +532,20 @@ const SubmittedTicket = () => {
                     <View style={{ flex: 1 }}>
                         <CustomPicker
                             label="Priority Level"
+                            required
                             value={form.priority}
-                            options={['Low - General Inquiry', 'Medium - Need Assistance', 'High - Critical Bug', 'Urgent - System Outage']}
+                            options={['Low - General Inquiry', 'Medium - Need Assistance', 'Medium – Minor Bug', 'High - Critical Bug', 'Urgent - System Outage']}
                             onSelect={(v: string) => setForm({ ...form, priority: v })}
                             icon="alert-circle-outline"
                         />
                     </View>
                 </View>
 
-                {/* Subject Input Field with left icon and active focus transitions */}
+                {/* Subject Input Field */}
                 <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Subject</Text>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                        Subject<Text style={{ color: '#EF4444' }}> *</Text>
+                    </Text>
                     <View style={[
                         styles.inputContainerRow,
                         { backgroundColor: colors.surfaceSoft, borderColor: isSubjectFocused ? colors.accentTeal : '#E2E8F0' }
@@ -482,9 +567,11 @@ const SubmittedTicket = () => {
                     </View>
                 </View>
 
-                {/* Description Input Field with left icon and active focus transitions */}
+                {/* Description Input Field */}
                 <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Detailed Description</Text>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                        Detailed Description<Text style={{ color: '#EF4444' }}> *</Text>
+                    </Text>
                     <View style={[
                         styles.textAreaContainerRow,
                         { backgroundColor: colors.surfaceSoft, borderColor: isDescFocused ? colors.accentTeal : '#E2E8F0' }
@@ -509,14 +596,25 @@ const SubmittedTicket = () => {
                     </View>
                 </View>
 
-                {/* Submit button styled as a gorgeous orange gradient block */}
-                <TouchableOpacity style={styles.submitBtnWrapper} activeOpacity={0.9}>
+                {/* Submit button */}
+                <TouchableOpacity
+                    style={[styles.submitBtnWrapper, isSubmitting && { opacity: 0.7 }]}
+                    activeOpacity={0.9}
+                    onPress={handleSubmit}
+                    disabled={isSubmitting}
+                >
                     <LinearGradient
                         colors={['#F97316', '#EA580C']}
                         style={styles.submitBtnGradient}
                     >
-                        <MaterialCommunityIcons name="plus-circle-outline" size={18} color="#fff" />
-                        <Text style={styles.submitBtnText}>Create Support Ticket</Text>
+                        {isSubmitting ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                            <>
+                                <MaterialCommunityIcons name="plus-circle-outline" size={18} color="#fff" />
+                                <Text style={styles.submitBtnText}>Create Support Ticket</Text>
+                            </>
+                        )}
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
@@ -527,6 +625,40 @@ const SubmittedTicket = () => {
 const EmailSupport = () => {
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
+
+    const handleOpenMail = async (email: string) => {
+        const mailUrl = `mailto:${email}`;
+        const webMailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}`;
+
+        try {
+            const canOpenMailto = await Linking.canOpenURL(mailUrl);
+            if (canOpenMailto) {
+                await Linking.openURL(mailUrl);
+            } else {
+                await Linking.openURL(webMailUrl);
+            }
+        } catch {
+            try {
+                await Linking.openURL(webMailUrl);
+            } catch {
+                Alert.alert(
+                    'Contact Support',
+                    `Support Email: ${email}`,
+                    [
+                        {
+                            text: 'Copy Email',
+                            onPress: async () => {
+                                await Clipboard.setStringAsync(email);
+                                Alert.alert('Copied', `${email} copied to clipboard!`);
+                            }
+                        },
+                        { text: 'OK', style: 'cancel' }
+                    ]
+                );
+            }
+        }
+    };
+
     return (
         <View style={styles.tabContent}>
             <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>Direct Support Lines</Text>
@@ -550,12 +682,15 @@ const EmailSupport = () => {
                             <View style={{ flex: 1 }}>
                                 <Text style={[styles.lineTitle, { color: colors.textPrimary }]}>{line.title}</Text>
                                 <Text style={[styles.lineDesc, { color: colors.textSecondary }]}>{line.desc}</Text>
-                                <Text style={[styles.lineEmail, { color: '#F97316' }]}>{line.email}</Text>
+                                <TouchableOpacity activeOpacity={0.7} onPress={() => handleOpenMail(line.email)}>
+                                    <Text style={[styles.lineEmail, { color: '#F97316' }]}>{line.email}</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
                         <TouchableOpacity
                             style={[styles.actionBtn, { borderColor: colors.cardBorder, backgroundColor: colors.surfaceSoft }]}
                             activeOpacity={0.8}
+                            onPress={() => handleOpenMail(line.email)}
                         >
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                 <Text style={[styles.actionBtnText, { color: colors.textPrimary }]}>{line.action}</Text>
@@ -1118,12 +1253,12 @@ const getStyles = (colors: any) => StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 20,
         borderBottomWidth: 1,
-        borderBottomColor: '#F8FAFC',
+        borderBottomColor: colors.divider,
     },
     historyItemTitle: {
-        fontSize: 12,
-        fontWeight: '800',
-        color: '#1E293B',
+        fontSize: 13,
+        fontWeight: '700',
+        color: colors.textPrimary,
     },
     historyItemTime: {
         fontSize: 10,

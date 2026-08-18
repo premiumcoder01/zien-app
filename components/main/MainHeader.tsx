@@ -423,7 +423,7 @@ function MainHeaderComponent({
   const styles = getStyles(colors);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
 
-  const { logout, accessToken } = useAuth();
+  const { logout, accessToken, userRole } = useAuth();
   const { data: profile } = useProfile();
   const [avatarError, setAvatarError] = useState(false);
   const [liveCredits, setLiveCredits] = useState<number | null>(null);
@@ -455,7 +455,45 @@ function MainHeaderComponent({
   }, [creditsObj, liveCredits]);
 
   const pathname = usePathname();
-  const isAgencyMode = isAgency || (pathname && pathname.includes('/agency')) || (profile as any)?.is_agency || (profile as any)?.role_id === 2;
+  const isAgencyMode = useMemo(() => {
+    // 1. Check userRole from AuthContext
+    if (userRole === 'agency_user' || userRole === 'agency' || userRole === 'agency_admin' || userRole === 'team') {
+      return true;
+    }
+
+    // 2. Check profile object role or is_agency flag
+    const p = profile as any;
+    if (p) {
+      if (p.is_agency === true || p.is_agency === 1 || p.is_agency === 'true') {
+        return true;
+      }
+      if (p.role === 'agency_user' || p.role === 'agency' || p.role === 'agency_admin' || p.role === 'team') {
+        return true;
+      }
+      if (p.user_type === 'agency' || p.user_type === 'agency_user') {
+        return true;
+      }
+      // Explicit non-agency role check on profile
+      if (
+        p.role === 'agent' ||
+        p.role === 'solo' ||
+        p.role === 'solo_agent' ||
+        p.role === 'agent_user' ||
+        p.user_type === 'agent' ||
+        p.user_type === 'solo'
+      ) {
+        return false;
+      }
+    }
+
+    // 3. Explicit non-agency role check on userRole
+    if (userRole === 'agent' || userRole === 'solo' || userRole === 'solo_agent' || userRole === 'agent_user') {
+      return false;
+    }
+
+    // 4. Fallback to explicit prop passed from parent
+    return isAgency;
+  }, [userRole, profile, isAgency]);
 
   const userInitials = propUserInitials || (profile ? ((profile.first_name?.[0] || '') + (profile.last_name?.[0] || '')).toUpperCase() : '') || 'P';
   const userName = propUserName || (profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : '') || 'User';

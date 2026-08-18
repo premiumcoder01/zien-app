@@ -485,6 +485,8 @@ export const cancelSoloSubscription = async (
   }
 };
 
+import { getProfile } from './authService';
+
 export const getSoloCreditFlow = async (accessToken: string | null): Promise<CreditFlowData> => {
   if (!accessToken) {
     return DEFAULT_CREDIT_FLOW;
@@ -494,24 +496,69 @@ export const getSoloCreditFlow = async (accessToken: string | null): Promise<Cre
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/solo/billing/credits/flow`, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
+    const [flowRes, profileRes] = await Promise.allSettled([
+      fetch(`${API_BASE_URL}/solo/billing/credits/flow`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }),
+      getProfile(accessToken),
+    ]);
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
+    let remainingCredits = 0;
+    let usedCredits = 0;
+    let totalSpent = 0;
+    let hasProfileData = false;
+
+    if (profileRes.status === 'fulfilled' && profileRes.value) {
+      const p = profileRes.value as any;
+      const c = p.credits || p.data?.credits || p.user?.credits;
+      if (c) {
+        hasProfileData = true;
+        if (typeof c === 'number') {
+          remainingCredits = c;
+        } else if (typeof c === 'object') {
+          if (typeof c.balance === 'number') {
+            remainingCredits = c.balance;
+          } else if (typeof c.remaining === 'number') {
+            remainingCredits = c.remaining;
+          } else if (typeof c.plan_credits === 'number' || typeof c.topup_credits === 'number') {
+            remainingCredits = (c.plan_credits || 0) + (c.topup_credits || 0);
+          }
+          if (typeof c.total_used === 'number') {
+            usedCredits = c.total_used;
+            totalSpent = c.total_used;
+          }
+        }
+      }
     }
 
-    const data = await response.json();
-    return data;
+    if (flowRes.status === 'fulfilled' && flowRes.value && flowRes.value.ok) {
+      const flowData = await flowRes.value.json().catch(() => null);
+      if (flowData && (typeof flowData.remainingCredits === 'number' || typeof flowData.totalSpent === 'number')) {
+        return flowData;
+      }
+    }
+
+    if (hasProfileData) {
+      return {
+        totalSpent,
+        remainingCredits,
+        usedCredits,
+        categories: [
+          { name: 'Remaining Credits', used: remainingCredits, color: '#00a7b5' },
+          { name: 'Used Credits', used: usedCredits, color: '#0B1E2F' },
+        ],
+      };
+    }
+
+    return DEFAULT_CREDIT_FLOW;
   } catch (error) {
-    console.warn('[BillingService] Failed to fetch credit flow, using fallback data:', error);
+    console.warn('[BillingService] Failed to fetch credit flow:', error);
     return DEFAULT_CREDIT_FLOW;
   } finally {
     clearTimeout(timeoutId);
@@ -526,23 +573,113 @@ export const getSoloCreditTimeline = async (accessToken: string | null): Promise
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/solo/billing/timeline`, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`,
+    'Cookie': `website_access_token=${accessToken}; access_token=${accessToken}`,
+  };
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
+  const urls = [
+    `${API_BASE_URL}/solo/credits/history?limit=100&offset=0`,
+    `https://staging.zien.ai/api/solo/credits/history?limit=100&offset=0`,
+    `${API_BASE_URL}/solo/billing/timeline`,
+  ];
+
+  try {
+    for (const url of urls) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          signal: controller.signal,
+          headers,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          let rawRows: any[] = [];
+          if (Array.isArray(data)) {
+            rawRows = data;
+          } else if (Array.isArray(data.history?.rows)) {
+            rawRows = data.history.rows;
+          } else if (Array.isArray(data.rows)) {
+            rawRows = data.rows;
+          } else if (Array.isArray(data.items)) {
+            rawRows = data.items;
+          } else if (Array.isArray(data.history)) {
+            rawRows = data.history;
+          }
+
+          if (rawRows.length > 0) {
+            const mapped = rawRows.map((item: any, idx: number) => {
+              if (item.amountType && item.title) return item;
+
+              const amtNum = typeof item.amount === 'number' ? item.amount : (parseFloat(item.amount) || 0);
+              const isPositive = amtNum > 0;
+              const isNegative = amtNum < 0;
+
+              const actionType = item.action_type || item.tagType || 'TRANSACTION';
+              const formattedTag = actionType.replace(/_/g, ' ').toUpperCase();
+
+              let iconName = 'refresh';
+              let iconBg = 'rgba(59, 130, 246, 0.12)';
+              let iconColor = '#3B82F6';
+
+              if (isNegative) {
+                iconName = 'trending-up';
+                iconBg = 'rgba(239, 68, 68, 0.12)';
+                iconColor = '#EF4444';
+              } else if (actionType.toLowerCase().includes('bonus') || actionType.toLowerCase().includes('sign_up')) {
+                iconName = 'seal';
+                iconBg = 'rgba(34, 197, 94, 0.12)';
+                iconColor = '#22C55E';
+              } else if (isPositive) {
+                iconName = 'credit-card-outline';
+                iconBg = 'rgba(34, 197, 94, 0.12)';
+                iconColor = '#22C55E';
+              }
+
+              let formattedDate = item.created_at || item.date || '';
+              if (formattedDate) {
+                try {
+                  const dObj = new Date(formattedDate);
+                  if (!isNaN(dObj.getTime())) {
+                    formattedDate = dObj.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    }) + ', ' + dObj.toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    });
+                  }
+                } catch (_e) {}
+              }
+
+              return {
+                id: item.id || `hist_${idx}`,
+                title: item.description || item.title || item.action_type || 'Credit Transaction',
+                date: formattedDate || 'N/A',
+                tag: formattedTag,
+                tagType: actionType,
+                amount: `${isPositive ? '+' : ''}${amtNum} Credits`,
+                amountType: isPositive ? 'positive' : (isNegative ? 'negative' : 'zero'),
+                icon: iconName,
+                iconBg,
+                iconColor,
+              } as CreditTimelineItem;
+            });
+
+            return mapped;
+          }
+        }
+      } catch (err) {
+        console.warn(`[BillingService] Failed to fetch timeline from ${url}:`, err);
+      }
     }
 
-    const data = await response.json();
-    return Array.isArray(data) ? data : data.items || DEFAULT_CREDIT_TIMELINE;
+    return DEFAULT_CREDIT_TIMELINE;
   } catch (error) {
     console.warn('[BillingService] Failed to fetch timeline, using fallback data:', error);
     return DEFAULT_CREDIT_TIMELINE;

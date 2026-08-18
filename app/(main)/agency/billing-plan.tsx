@@ -10,6 +10,7 @@ import React from 'react';
 import {
     ActivityIndicator,
     Linking,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
