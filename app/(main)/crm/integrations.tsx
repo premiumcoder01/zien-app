@@ -1,14 +1,20 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getCRMMeta } from '@/services/crmService';
+import { DEFAULT_CRM_GROUPS, DEFAULT_CRM_TAGS, getCRMGroups, getCRMMeta, getCRMTags } from '@/services/crmService';
 import {
   disconnectHubSpot,
   getHubSpotAuthUrl,
   getHubSpotStatus,
+  getPipedriveAuthUrl,
+  getPipedriveStatus,
+  getZohoAuthUrl,
+  getZohoStatus,
   HubSpotStatusResponse,
   triggerHubSpotSync,
-  updateHubSpotSettings
+  triggerIntegrationSync,
+  updateHubSpotSettings,
+  updateIntegrationSettings
 } from '@/services/hubspotService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -49,7 +55,36 @@ interface Integration {
 }
 
 const INITIAL_INTEGRATIONS: Integration[] = [
-  { id: 'hubspot', name: 'Hubspot', category: 'CRM', desc: 'Automatically push leads and track marketing activity in HubSpot.', status: 'AVAILABLE', icon: 'database-outline', buttonLabel: 'Connect Now', gradient: ['#FF7A59', '#FF5C35'] },
+  {
+    id: 'hubspot',
+    name: 'HubSpot',
+    category: 'CRM',
+    desc: 'Automatically push leads and track marketing activity in HubSpot.',
+    status: 'AVAILABLE',
+    icon: 'hubspot',
+    buttonLabel: 'Connect Now',
+    gradient: ['#FF7A59', '#FF5C35'],
+  },
+  {
+    id: 'zoho',
+    name: 'Zoho CRM',
+    category: 'CRM',
+    desc: 'Automatically sync contacts, deals, and tasks with Zoho CRM.',
+    status: 'AVAILABLE',
+    icon: 'view-grid-outline',
+    buttonLabel: 'Connect Now',
+    gradient: ['#E53935', '#FB8C00'],
+  },
+  {
+    id: 'pipedrive',
+    name: 'Pipedrive',
+    category: 'CRM',
+    desc: 'Automatically sync contacts, deals, and tasks with Pipedrive.',
+    status: 'AVAILABLE',
+    icon: 'play-circle-outline',
+    buttonLabel: 'Connect Now',
+    gradient: ['#00B660', '#008544'],
+  },
 ];
 
 export default function IntegrationsScreen() {
@@ -69,12 +104,19 @@ export default function IntegrationsScreen() {
   const [comingSoonModalVisible, setComingSoonModalVisible] = useState(false);
   const [comingSoonIntegration, setComingSoonIntegration] = useState<Integration | null>(null);
 
-  // ── HubSpot-specific state ──
+  // ── Integration loading states ──
   const [hubspotLoading, setHubspotLoading] = useState(false);
-  const [hubspotStatus, setHubspotStatus] = useState<HubSpotStatusResponse | null>(null);
+  const [zohoLoading, setZohoLoading] = useState(false);
+  const [pipedriveLoading, setPipedriveLoading] = useState(false);
+  const [hubspotStatus, setHubspotStatus] = useState<any>(null);
+  const [zohoStatus, setZohoStatus] = useState<any>(null);
+  const [pipedriveStatus, setPipedriveStatus] = useState<any>(null);
   const [hubspotModalVisible, setHubspotModalVisible] = useState(false);
+  const [managingIntegration, setManagingIntegration] = useState<Integration | null>(null);
   const [hubspotAuthUrl, setHubspotAuthUrl] = useState<string | null>(null);
   const [showHubspotWebView, setShowHubspotWebView] = useState(false);
+  const [oauthModalTitle, setOauthModalTitle] = useState('Connect Integration');
+  const [oauthIntegrationName, setOauthIntegrationName] = useState('Integration');
   const [syncPush, setSyncPush] = useState(false);
   const [syncPull, setSyncPull] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -83,8 +125,8 @@ export default function IntegrationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   // ── CRM Meta for default group/tag pickers ──
-  const [groups, setGroups] = useState<{ id: number; name: string }[]>([]);
-  const [tags, setTags] = useState<{ id: number; name: string; tag_color: string }[]>([]);
+  const [groups, setGroups] = useState<{ id: number; name: string }[]>(DEFAULT_CRM_GROUPS);
+  const [tags, setTags] = useState<{ id: number; name: string; tag_color: string }[]>(DEFAULT_CRM_TAGS);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [selectedTagId, setSelectedTagId] = useState<number | null>(null);
   const [groupPickerOpen, setGroupPickerOpen] = useState(false);
@@ -93,38 +135,76 @@ export default function IntegrationsScreen() {
   const connectedCount = integrations.filter(i => i.status === 'CONNECTED').length;
   const availableCount = integrations.filter(i => i.status === 'AVAILABLE').length;
 
-  // ── Fetch HubSpot status on mount ──
+  // ── Fetch Integrations status on mount / refresh ──
   const fetchHubSpotStatus = useCallback(async () => {
     if (!accessToken) return;
     try {
-      const status = await getHubSpotStatus(accessToken);
-      setHubspotStatus(status);
-      setSyncPush(status.sync_push);
-      setSyncPull(status.sync_pull);
-      setSelectedGroupId(status.settings?.default_group_id ?? null);
-      setSelectedTagId(status.settings?.default_tag_id ?? null);
+      const [hubspotRes, zohoRes, pipedriveRes] = await Promise.allSettled([
+        getHubSpotStatus(accessToken),
+        getZohoStatus(accessToken),
+        getPipedriveStatus(accessToken),
+      ]);
 
-      // Update HubSpot card status in list
-      if (status.connected) {
-        setIntegrations(prev => prev.map(i =>
-          i.id === 'hubspot'
-            ? { ...i, status: 'CONNECTED' as const, buttonLabel: 'Manage' }
-            : i
-        ));
+      const hubspotData = hubspotRes.status === 'fulfilled' ? hubspotRes.value : null;
+      const zohoData = zohoRes.status === 'fulfilled' ? zohoRes.value : null;
+      const pipedriveData = pipedriveRes.status === 'fulfilled' ? pipedriveRes.value : null;
+
+      if (hubspotData) {
+        setHubspotStatus(hubspotData);
       }
+      if (zohoData) {
+        setZohoStatus(zohoData);
+      }
+      if (pipedriveData) {
+        setPipedriveStatus(pipedriveData);
+      }
+
+      setIntegrations(prev => prev.map(i => {
+        if (i.id === 'hubspot' && hubspotData) {
+          return {
+            ...i,
+            status: hubspotData.connected ? ('CONNECTED' as const) : ('AVAILABLE' as const),
+            buttonLabel: hubspotData.connected ? 'Manage' : 'Connect Now',
+          };
+        }
+        if (i.id === 'zoho' && zohoData) {
+          return {
+            ...i,
+            status: zohoData.connected ? ('CONNECTED' as const) : ('AVAILABLE' as const),
+            buttonLabel: zohoData.connected ? 'Manage' : 'Connect Now',
+          };
+        }
+        if (i.id === 'pipedrive' && pipedriveData) {
+          return {
+            ...i,
+            status: pipedriveData.connected ? ('CONNECTED' as const) : ('AVAILABLE' as const),
+            buttonLabel: pipedriveData.connected ? 'Manage' : 'Connect Now',
+          };
+        }
+        return i;
+      }));
     } catch {
-      // Silently fail — card stays as AVAILABLE
+      // Silently fail — cards stay in current status
     }
   }, [accessToken]);
 
   const fetchMeta = useCallback(async () => {
     if (!accessToken) return;
     try {
-      const meta = await getCRMMeta(accessToken);
-      setGroups(meta.groups || []);
-      setTags(meta.tags || []);
-    } catch {
-      // Silently fail
+      console.log('🔍 [fetchMeta] Loading groups & tags from /solo/crm/groups and /solo/crm/tags...');
+      const [groupsData, tagsData] = await Promise.all([
+        getCRMGroups(accessToken),
+        getCRMTags(accessToken),
+      ]);
+      console.log('🔍 [fetchMeta] Loaded groups:', groupsData?.length, 'tags:', tagsData?.length);
+      if (Array.isArray(groupsData)) {
+        setGroups(groupsData);
+      }
+      if (Array.isArray(tagsData)) {
+        setTags(tagsData);
+      }
+    } catch (err: any) {
+      console.warn('⚠️ [fetchMeta] Error loading meta:', err?.message);
     }
   }, [accessToken]);
 
@@ -206,19 +286,31 @@ export default function IntegrationsScreen() {
     };
   }, [fetchHubSpotStatus]);
 
-  // ── WebView navigation handler for HubSpot OAuth ──
+  // ── WebView navigation handler for OAuth ──
   const handleWebViewNavigationStateChange = useCallback((navState: any) => {
     const url: string = navState.url || '';
-    console.log('🌐 [HubSpot WebView Nav]:', url);
+    console.log('🌐 [OAuth WebView Nav]:', url);
 
-    const isHubspotAuthPage = url.includes('hubspot.com');
-    const isBackendCallback = url.includes('/hubspot/callback') || url.includes('staging-api.zien.ai') || url.includes('api.zien.ai');
+    const isAuthPage =
+      url.includes('hubspot.com') ||
+      url.includes('zoho.com') ||
+      url.includes('zoho.in') ||
+      url.includes('zoho.eu') ||
+      url.includes('pipedrive.com');
+
+    const isBackendCallback =
+      url.includes('/callback') ||
+      url.includes('/hubspot/callback') ||
+      url.includes('/zoho/callback') ||
+      url.includes('/pipedrive/callback') ||
+      url.includes('staging-api.zien.ai') ||
+      url.includes('api.zien.ai');
 
     // Only intercept and close AFTER the backend callback has executed and redirected to frontend/success/login
-    if (!isHubspotAuthPage && !isBackendCallback) {
+    if (!isAuthPage && !isBackendCallback) {
       if (
         url.includes('success') ||
-        url.includes('hubspot_connected') ||
+        url.includes('connected') ||
         url.includes('staging.zien.ai') ||
         url.includes('zien.ai')
       ) {
@@ -226,30 +318,42 @@ export default function IntegrationsScreen() {
         setHubspotAuthUrl(null);
         fetchHubSpotStatus();
         if (url.includes('error=')) {
-          Alert.alert('Integration Failed', 'Failed to connect HubSpot. Please try again.');
+          Alert.alert('Integration Failed', `Failed to connect ${oauthIntegrationName}. Please try again.`);
         } else {
-          Alert.alert('Integration Successful', 'Your HubSpot account has been successfully connected!');
+          Alert.alert('Integration Successful', `Your ${oauthIntegrationName} account has been successfully connected!`);
         }
       }
     }
-  }, [fetchHubSpotStatus]);
+  }, [fetchHubSpotStatus, oauthIntegrationName]);
 
   const handleShouldStartLoadWithRequest = useCallback((request: any) => {
     const url: string = request.url || '';
-    console.log('🌐 [HubSpot WebView ShouldStart]:', url);
+    console.log('🌐 [OAuth WebView ShouldStart]:', url);
 
-    const isHubspotAuthPage = url.includes('hubspot.com');
-    const isBackendCallback = url.includes('/hubspot/callback') || url.includes('staging-api.zien.ai') || url.includes('api.zien.ai');
+    const isAuthPage =
+      url.includes('hubspot.com') ||
+      url.includes('zoho.com') ||
+      url.includes('zoho.in') ||
+      url.includes('zoho.eu') ||
+      url.includes('pipedrive.com');
 
-    // Allow HubSpot Auth pages AND backend callback API request to load!
-    if (isHubspotAuthPage || isBackendCallback) {
+    const isBackendCallback =
+      url.includes('/callback') ||
+      url.includes('/hubspot/callback') ||
+      url.includes('/zoho/callback') ||
+      url.includes('/pipedrive/callback') ||
+      url.includes('staging-api.zien.ai') ||
+      url.includes('api.zien.ai');
+
+    // Allow OAuth provider pages AND backend callback API request to load!
+    if (isAuthPage || isBackendCallback) {
       return true;
     }
 
     // Intercept when backend finishes processing code and redirects to frontend domain
     if (
       url.includes('success') ||
-      url.includes('hubspot_connected') ||
+      url.includes('connected') ||
       url.includes('staging.zien.ai') ||
       url.includes('zien.ai')
     ) {
@@ -257,14 +361,14 @@ export default function IntegrationsScreen() {
       setHubspotAuthUrl(null);
       fetchHubSpotStatus();
       if (url.includes('error=')) {
-        Alert.alert('Integration Failed', 'Failed to connect HubSpot. Please try again.');
+        Alert.alert('Integration Failed', `Failed to connect ${oauthIntegrationName}. Please try again.`);
       } else {
-        Alert.alert('Integration Successful', 'Your HubSpot account has been successfully connected!');
+        Alert.alert('Integration Successful', `Your ${oauthIntegrationName} account has been successfully connected!`);
       }
       return false; // Prevent loading Zien web login page inside WebView
     }
     return true;
-  }, [fetchHubSpotStatus]);
+  }, [fetchHubSpotStatus, oauthIntegrationName]);
 
   // ── HubSpot OAuth Connect ──
   const handleHubSpotConnect = async () => {
@@ -277,6 +381,8 @@ export default function IntegrationsScreen() {
       console.log('🚀 [HubSpot Connect] Received Auth URL:', res.url);
 
       if (res.url) {
+        setOauthModalTitle('Connect HubSpot');
+        setOauthIntegrationName('HubSpot');
         setHubspotAuthUrl(res.url);
         setShowHubspotWebView(true);
       }
@@ -288,13 +394,20 @@ export default function IntegrationsScreen() {
     }
   };
 
-  // ── HubSpot Manual Sync ──
-  const handleHubSpotSync = async () => {
+  // ── Manual Sync (HubSpot / Zoho CRM / Pipedrive) ──
+  const handleSync = async () => {
     if (!accessToken) return;
     setSyncing(true);
+    const provider = managingIntegration?.id || 'hubspot';
+    const providerName = managingIntegration?.name || 'CRM';
     try {
-      const res = await triggerHubSpotSync(accessToken);
-      Alert.alert('Sync Complete', `Successfully synced ${res.count} contact(s) from HubSpot.`);
+      if (provider === 'hubspot') {
+        const res = await triggerHubSpotSync(accessToken);
+        Alert.alert('Sync Complete', `Successfully synced ${res.count || 0} contact(s) from ${providerName}.`);
+      } else {
+        await triggerIntegrationSync(provider, accessToken);
+        Alert.alert('Sync Complete', `Successfully triggered synchronization with ${providerName}.`);
+      }
     } catch (err: any) {
       Alert.alert('Sync Failed', err.message || 'Failed to sync contacts.');
     } finally {
@@ -302,13 +415,14 @@ export default function IntegrationsScreen() {
     }
   };
 
-  // ── HubSpot Toggle Push Sync (Immediate Save) ──
+  // ── Toggle Push Sync (Immediate Save) ──
   const handleTogglePush = async (newValue: boolean) => {
     if (!accessToken) return;
     const prevValue = syncPush;
     setSyncPush(newValue);
+    const provider = managingIntegration?.id || 'hubspot';
     try {
-      await updateHubSpotSettings(accessToken, {
+      await updateIntegrationSettings(provider, accessToken, {
         sync_push: newValue,
         sync_pull: syncPull,
         settings: {
@@ -323,13 +437,14 @@ export default function IntegrationsScreen() {
     }
   };
 
-  // ── HubSpot Toggle Pull Sync (Immediate Save) ──
+  // ── Toggle Pull Sync (Immediate Save) ──
   const handleTogglePull = async (newValue: boolean) => {
     if (!accessToken) return;
     const prevValue = syncPull;
     setSyncPull(newValue);
+    const provider = managingIntegration?.id || 'hubspot';
     try {
-      await updateHubSpotSettings(accessToken, {
+      await updateIntegrationSettings(provider, accessToken, {
         sync_push: syncPush,
         sync_pull: newValue,
         settings: {
@@ -344,44 +459,66 @@ export default function IntegrationsScreen() {
     }
   };
 
-  // ── HubSpot Select Group (Immediate Save) ──
+  // ── Select Group (Immediate Save via POST /settings) ──
   const handleSelectGroup = async (groupId: number | null) => {
     if (!accessToken) return;
     const prevGroupId = selectedGroupId;
     setSelectedGroupId(groupId);
     setGroupPickerOpen(false);
+    const provider = managingIntegration?.id || 'hubspot';
     try {
-      await updateHubSpotSettings(accessToken, {
+      console.log(`📡 [handleSelectGroup] Calling POST /solo/crm/integrations/${provider}/settings with default_group_id:`, groupId);
+      const res = await updateIntegrationSettings(provider, accessToken, {
         sync_push: syncPush,
         sync_pull: syncPull,
         settings: {
           default_group_id: groupId,
-          default_tag_id: selectedTagId,
+          ...(selectedTagId ? { default_tag_id: selectedTagId } : {}),
         },
       });
-      await fetchHubSpotStatus();
+      if (res?.settings?.default_group_id !== undefined) {
+        setSelectedGroupId(res.settings.default_group_id);
+      }
+      if (provider === 'zoho') {
+        setZohoStatus((prev: any) => ({ ...(prev || {}), settings: { ...(prev?.settings || {}), default_group_id: groupId } }));
+      } else if (provider === 'hubspot') {
+        setHubspotStatus((prev: any) => ({ ...(prev || {}), settings: { ...(prev?.settings || {}), default_group_id: groupId } }));
+      } else if (provider === 'pipedrive') {
+        setPipedriveStatus((prev: any) => ({ ...(prev || {}), settings: { ...(prev?.settings || {}), default_group_id: groupId } }));
+      }
     } catch (err: any) {
       setSelectedGroupId(prevGroupId);
       Alert.alert('Error', err.message || 'Failed to update default group.');
     }
   };
 
-  // ── HubSpot Select Tag (Immediate Save) ──
+  // ── Select Tag (Immediate Save via POST /settings) ──
   const handleSelectTag = async (tagId: number | null) => {
     if (!accessToken) return;
     const prevTagId = selectedTagId;
     setSelectedTagId(tagId);
     setTagPickerOpen(false);
+    const provider = managingIntegration?.id || 'hubspot';
     try {
-      await updateHubSpotSettings(accessToken, {
+      console.log(`📡 [handleSelectTag] Calling POST /solo/crm/integrations/${provider}/settings with default_tag_id:`, tagId);
+      const res = await updateIntegrationSettings(provider, accessToken, {
         sync_push: syncPush,
         sync_pull: syncPull,
         settings: {
-          default_group_id: selectedGroupId,
+          ...(selectedGroupId ? { default_group_id: selectedGroupId } : {}),
           default_tag_id: tagId,
         },
       });
-      await fetchHubSpotStatus();
+      if (res?.settings?.default_tag_id !== undefined) {
+        setSelectedTagId(res.settings.default_tag_id);
+      }
+      if (provider === 'zoho') {
+        setZohoStatus((prev: any) => ({ ...(prev || {}), settings: { ...(prev?.settings || {}), default_tag_id: tagId } }));
+      } else if (provider === 'hubspot') {
+        setHubspotStatus((prev: any) => ({ ...(prev || {}), settings: { ...(prev?.settings || {}), default_tag_id: tagId } }));
+      } else if (provider === 'pipedrive') {
+        setPipedriveStatus((prev: any) => ({ ...(prev || {}), settings: { ...(prev?.settings || {}), default_tag_id: tagId } }));
+      }
     } catch (err: any) {
       setSelectedTagId(prevTagId);
       Alert.alert('Error', err.message || 'Failed to update default tag.');
@@ -426,14 +563,71 @@ export default function IntegrationsScreen() {
     );
   };
 
+  // ── Zoho CRM OAuth Connect ──
+  const handleZohoConnect = async () => {
+    if (!accessToken) return;
+    setZohoLoading(true);
+    try {
+      console.log('🚀 [Zoho Connect] Initiating OAuth URL request...');
+      const res = await getZohoAuthUrl(accessToken);
+      console.log('🚀 [Zoho Connect] Received Auth URL:', res.url);
+
+      if (res.url) {
+        setOauthModalTitle('Connect Zoho CRM');
+        setOauthIntegrationName('Zoho CRM');
+        setHubspotAuthUrl(res.url);
+        setShowHubspotWebView(true);
+      }
+    } catch (err: any) {
+      console.warn('⚠️ [Zoho Connect] Error initiating OAuth:', err?.message);
+      Alert.alert('Connection Error', err.message || 'Failed to initiate Zoho CRM OAuth.');
+    } finally {
+      setZohoLoading(false);
+    }
+  };
+
+  // ── Pipedrive OAuth Connect ──
+  const handlePipedriveConnect = async () => {
+    if (!accessToken) return;
+    setPipedriveLoading(true);
+    try {
+      console.log('🚀 [Pipedrive Connect] Initiating OAuth URL request...');
+      const res = await getPipedriveAuthUrl(accessToken);
+      console.log('🚀 [Pipedrive Connect] Received Auth URL:', res.url);
+
+      if (res.url) {
+        setOauthModalTitle('Connect Pipedrive');
+        setOauthIntegrationName('Pipedrive');
+        setHubspotAuthUrl(res.url);
+        setShowHubspotWebView(true);
+      }
+    } catch (err: any) {
+      console.warn('⚠️ [Pipedrive Connect] Error initiating OAuth:', err?.message);
+      Alert.alert('Connection Error', err.message || 'Failed to initiate Pipedrive OAuth.');
+    } finally {
+      setPipedriveLoading(false);
+    }
+  };
+
   // ── Card press handler ──
   const handleCardAction = (int: Integration) => {
-    if (int.id === 'hubspot') {
-      if (int.status === 'CONNECTED' || hubspotStatus?.connected) {
-        setHubspotModalVisible(true);
-      } else {
-        handleHubSpotConnect();
+    if (int.status === 'CONNECTED') {
+      setManagingIntegration(int);
+      const activeStatus = int.id === 'zoho' ? zohoStatus : int.id === 'pipedrive' ? pipedriveStatus : hubspotStatus;
+      if (activeStatus) {
+        setSyncPush(activeStatus.sync_push ?? false);
+        setSyncPull(activeStatus.sync_pull ?? false);
+        setSelectedGroupId(activeStatus.settings?.default_group_id ?? null);
+        setSelectedTagId(activeStatus.settings?.default_tag_id ?? null);
       }
+      setHubspotModalVisible(true);
+      fetchMeta();
+    } else if (int.id === 'hubspot') {
+      handleHubSpotConnect();
+    } else if (int.id === 'zoho') {
+      handleZohoConnect();
+    } else if (int.id === 'pipedrive') {
+      handlePipedriveConnect();
     } else {
       // All other integrations → Coming Soon modal
       setComingSoonIntegration(int);
@@ -476,7 +670,10 @@ export default function IntegrationsScreen() {
         <View style={styles.cardsGrid}>
           {integrations.map((int) => {
             const isConnected = int.status === 'CONNECTED';
-            const isHubSpotConnecting = int.id === 'hubspot' && hubspotLoading;
+            const isConnecting =
+              (int.id === 'hubspot' && hubspotLoading) ||
+              (int.id === 'zoho' && zohoLoading) ||
+              (int.id === 'pipedrive' && pipedriveLoading);
 
             return (
               <View
@@ -533,6 +730,17 @@ export default function IntegrationsScreen() {
                       onPress={() => {
                         if (int.id === 'hubspot') {
                           handleHubSpotDisconnect();
+                        } else {
+                          Alert.alert('Disconnect', `Are you sure you want to disconnect ${int.name}?`, [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Disconnect',
+                              style: 'destructive',
+                              onPress: () => {
+                                setIntegrations(prev => prev.map(item => item.id === int.id ? { ...item, status: 'AVAILABLE', buttonLabel: 'Connect Now' } : item));
+                              }
+                            }
+                          ]);
                         }
                       }}
                       style={({ pressed }) => [
@@ -545,12 +753,12 @@ export default function IntegrationsScreen() {
                 ) : (
                   <Pressable
                     onPress={() => handleCardAction(int)}
-                    disabled={isHubSpotConnecting}
+                    disabled={isConnecting}
                     style={({ pressed }) => [
                       styles.intActionBtn,
                       pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
                     ]}>
-                    {isHubSpotConnecting ? (
+                    {isConnecting ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
                       <Text style={styles.intActionBtnText}>{int.buttonLabel}</Text>
@@ -601,7 +809,7 @@ export default function IntegrationsScreen() {
           <Pressable style={styles.hs2Card} onPress={(e) => e.stopPropagation()}>
             {/* Header */}
             <View style={styles.hs2Header}>
-              <Text style={styles.hs2Title}>Manage HubSpot</Text>
+              <Text style={styles.hs2Title}>Manage {managingIntegration?.name || 'HubSpot'}</Text>
               <Pressable
                 style={({ pressed }) => [styles.hs2CloseBtn, pressed && { opacity: 0.7 }]}
                 onPress={() => setHubspotModalVisible(false)}
@@ -645,9 +853,9 @@ export default function IntegrationsScreen() {
                   {groupPickerOpen && (
                     <View style={styles.hs2PickerListInline}>
                       <ScrollView nestedScrollEnabled={true}>
-                        {groups.map(g => (
+                        {groups.map((g, idx) => (
                           <Pressable
-                            key={g.id}
+                            key={`group-${g.id || idx}`}
                             style={[styles.hs2PickerItemInline, selectedGroupId === g.id && styles.hs2PickerItemActive]}
                             onPress={() => handleSelectGroup(g.id)}
                           >
@@ -686,9 +894,9 @@ export default function IntegrationsScreen() {
                   {tagPickerOpen && (
                     <View style={styles.hs2PickerListInline}>
                       <ScrollView nestedScrollEnabled={true}>
-                        {tags.map(t => (
+                        {tags.map((t, idx) => (
                           <Pressable
-                            key={t.id}
+                            key={`tag-${t.id || idx}`}
                             style={[styles.hs2PickerItemInline, selectedTagId === t.id && styles.hs2PickerItemActive]}
                             onPress={() => handleSelectTag(t.id)}
                           >
@@ -732,7 +940,7 @@ export default function IntegrationsScreen() {
                       styles.hs2ForceSyncBtn,
                       pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
                     ]}
-                    onPress={handleHubSpotSync}
+                    onPress={handleSync}
                     disabled={syncing}
                   >
                     {syncing ? (
@@ -977,7 +1185,7 @@ export default function IntegrationsScreen() {
       <Modal visible={showHubspotWebView} animationType="slide" transparent={false} onRequestClose={() => setShowHubspotWebView(false)}>
         <View style={{ flex: 1, backgroundColor: colors.cardBackground, paddingTop: insets.top }}>
           <View style={styles.webViewHeader}>
-            <Text style={styles.webViewTitle}>Connect HubSpot</Text>
+            <Text style={styles.webViewTitle}>{oauthModalTitle}</Text>
             <Pressable
               onPress={() => {
                 setShowHubspotWebView(false);

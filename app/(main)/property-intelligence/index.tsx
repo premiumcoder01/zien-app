@@ -193,7 +193,8 @@ export default function PropertySearchScreen() {
                 }, json.data);
             } else {
                 console.warn('[PropertyIntelligence] ❌ No data in response:', json);
-                setSearchError('Property not found. Please try a different address.');
+                const errMsg = json?.error || json?.message || (res.status === 402 ? 'Insufficient AI Credits.' : 'Property not found. Please try a different address.');
+                setSearchError(errMsg);
                 setIsSearching(false);
             }
         } catch (e) {
@@ -226,7 +227,7 @@ export default function PropertySearchScreen() {
                     'Authorization': `Bearer ${accessToken}`,
                 },
             });
-            const json = await res.json();
+            const json = await res.json().catch(() => ({}));
 
             console.log('[PropertyIntelligence] ✅ API RESPONSE STATUS:', res.status);
             console.log('[PropertyIntelligence] 📦 RESPONSE DATA:', JSON.stringify(json, null, 2));
@@ -243,7 +244,11 @@ export default function PropertySearchScreen() {
                     appreciation: '+N/A',
                     image: photos[0] || 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&q=80&w=800',
                 }, json.data);
-            } else if (fallbackData) {
+            } else if (res.status === 402 || json?.error || (json?.message && json.message.toLowerCase().includes('credit'))) {
+                console.warn('[PropertyIntelligence] ❌ Insufficient credits or error:', json);
+                const errMsg = json?.error || json?.message || 'Insufficient AI Credits.';
+                setSearchError(errMsg);
+            } else if (fallbackData && res.ok) {
                 console.log('[PropertyIntelligence] Using fallback property data');
                 handleSelectProperty({
                     id: fallbackData.ListingKey || 'property',
@@ -254,7 +259,8 @@ export default function PropertySearchScreen() {
                 }, fallbackData);
             } else {
                 console.warn('[PropertyIntelligence] ❌ No data in response:', json);
-                setSearchError('Property not found for this address.');
+                const errMsg = json?.error || json?.message || (res.status === 402 ? 'Insufficient AI Credits.' : 'Property not found for this address.');
+                setSearchError(errMsg);
             }
         } catch (e) {
             console.error('[PropertyIntelligence] 💥 NETWORK ERROR:', e);
@@ -323,7 +329,10 @@ export default function PropertySearchScreen() {
                             placeholder="Enter US property address..."
                             placeholderTextColor="#94A3B8"
                             value={searchQuery}
-                            onChangeText={setSearchQuery}
+                            onChangeText={(text) => {
+                                setSearchQuery(text);
+                                if (searchError) setSearchError(null);
+                            }}
                             onSubmitEditing={handleSearch}
                             returnKeyType="search"
                         />
@@ -656,12 +665,7 @@ function getStyles(colors: any) {
             alignItems: 'center',
             gap: 6,
             marginTop: 8,
-            backgroundColor: 'rgba(239, 68, 68, 0.12)',
-            borderWidth: 1,
-            borderColor: 'rgba(239, 68, 68, 0.25)',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 8,
+            paddingHorizontal: 4,
         },
         errorText: {
             color: '#EF4444',

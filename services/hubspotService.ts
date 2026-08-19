@@ -1,10 +1,15 @@
-const CRM_API_BASE_URL = 'https://staging-api.zien.ai/api';
+const CRM_API_BASE_URL = 'https://staging.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 // ── Types ──────────────────────────────────────────────────────────
 
 export interface HubSpotAuthResponse {
     url: string;
+}
+
+export interface GenericIntegrationStatusResponse {
+    connected: boolean;
+    [key: string]: any;
 }
 
 export interface HubSpotStatusResponse {
@@ -115,18 +120,57 @@ export const triggerHubSpotSync = async (accessToken: string): Promise<HubSpotSy
     }
 };
 
+export interface IntegrationSettingsPayload {
+    sync_push?: boolean;
+    sync_pull?: boolean;
+    settings?: {
+        default_group_id?: number | null;
+        default_tag_id?: number | null;
+        [key: string]: any;
+    };
+}
+
+/**
+ * POST /solo/crm/integrations/:provider/settings
+ * Updates integration sync settings (push/pull toggles, default group/tag).
+ */
+export const updateIntegrationSettings = async (
+    provider: string,
+    accessToken: string,
+    payload: IntegrationSettingsPayload
+): Promise<any> => {
+    const { timeoutId, options } = createFetchOptions(accessToken, 'POST', payload);
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/${provider}/settings`, options);
+        return handleResponse<any>(response, timeoutId);
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+/**
+ * POST /solo/crm/integrations/:provider/sync
+ * Triggers a manual sync for the given provider.
+ */
+export const triggerIntegrationSync = async (
+    provider: string,
+    accessToken: string
+): Promise<any> => {
+    const { timeoutId, options } = createFetchOptions(accessToken, 'POST');
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/${provider}/sync`, options);
+        return handleResponse<any>(response, timeoutId);
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
 /**
  * POST /integrations/hubspot/settings
  * Updates HubSpot sync settings (push/pull toggles, default group/tag).
  */
 export const updateHubSpotSettings = async (accessToken: string, payload: HubSpotSettingsPayload): Promise<HubSpotSettingsPayload> => {
-    const { timeoutId, options } = createFetchOptions(accessToken, 'POST', payload);
-    try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/hubspot/settings`, options);
-        return handleResponse<HubSpotSettingsPayload>(response, timeoutId);
-    } catch (error) {
-        return handleError(error);
-    }
+    return updateIntegrationSettings('hubspot', accessToken, payload);
 };
 
 /**
@@ -138,6 +182,62 @@ export const disconnectHubSpot = async (accessToken: string): Promise<HubSpotDis
     try {
         const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/hubspot`, options);
         return handleResponse<HubSpotDisconnectResponse>(response, timeoutId);
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+/**
+ * GET /integrations/zoho/status
+ * Checks the current Zoho CRM connection status.
+ */
+export const getZohoStatus = async (accessToken: string): Promise<GenericIntegrationStatusResponse> => {
+    const { timeoutId, options } = createFetchOptions(accessToken);
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/zoho/status`, options);
+        return handleResponse<GenericIntegrationStatusResponse>(response, timeoutId);
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+/**
+ * GET /integrations/pipedrive/status
+ * Checks the current Pipedrive connection status.
+ */
+export const getPipedriveStatus = async (accessToken: string): Promise<GenericIntegrationStatusResponse> => {
+    const { timeoutId, options } = createFetchOptions(accessToken);
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/pipedrive/status`, options);
+        return handleResponse<GenericIntegrationStatusResponse>(response, timeoutId);
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+/**
+ * GET /integrations/zoho/auth
+ * Returns OAuth authorization URL for Zoho CRM.
+ */
+export const getZohoAuthUrl = async (accessToken: string): Promise<{ url: string }> => {
+    const { timeoutId, options } = createFetchOptions(accessToken);
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/zoho/auth`, options);
+        return handleResponse<{ url: string }>(response, timeoutId);
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+/**
+ * GET /integrations/pipedrive/auth
+ * Returns OAuth authorization URL for Pipedrive.
+ */
+export const getPipedriveAuthUrl = async (accessToken: string): Promise<{ url: string }> => {
+    const { timeoutId, options } = createFetchOptions(accessToken);
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/pipedrive/auth`, options);
+        return handleResponse<{ url: string }>(response, timeoutId);
     } catch (error) {
         return handleError(error);
     }

@@ -422,6 +422,7 @@ export default function CRMCampaignsScreen() {
   const [aiSegment, setAiSegment] = useState('All Contacts');
   const [aiTemplateId, setAiTemplateId] = useState<string | null>(null);
   const [aiDescription, setAiDescription] = useState('');
+  const [aiError, setAiError] = useState<string | null>(null);
   const [aiSegmentDropdown, setAiSegmentDropdown] = useState(false);
   const [aiTemplateDropdown, setAiTemplateDropdown] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -429,14 +430,16 @@ export default function CRMCampaignsScreen() {
   useEffect(() => {
     if (params.openAiModal === 'true' && params.aiPrompt) {
       setAiDescription(params.aiPrompt);
+      setAiError(null);
       setAiCampaignVisible(true);
       router.setParams({ openAiModal: undefined, aiPrompt: undefined });
     }
   }, [params.openAiModal, params.aiPrompt]);
 
   const handleGenerateAICampaign = async () => {
+    setAiError(null);
     if (!aiDescription.trim()) {
-      Alert.alert("Required", "Please describe your campaign objective.");
+      setAiError("Please describe your campaign objective.");
       return;
     }
 
@@ -520,8 +523,9 @@ Based on this, generate a JSON object with exactly the following fields:
       setAiTemplateId(null);
       setAiDescription('');
       setAiSegment('All Contacts');
+      setAiError(null);
     } catch (error: any) {
-      Alert.alert("Generation Failed", error.message || "Could not generate AI campaign.");
+      setAiError(error.message || "Insufficient AI Credits.");
     } finally {
       setIsGeneratingAI(false);
     }
@@ -1590,6 +1594,7 @@ Based on this, generate a JSON object with exactly the following fields:
                 setAiTemplateId(null);
                 setAiDescription('');
                 setAiSegment('All Contacts');
+                setAiError(null);
               }}
               hitSlop={12}
               style={{
@@ -1826,7 +1831,7 @@ Based on this, generate a JSON object with exactly the following fields:
             </View>
 
             {/* Campaign Objective */}
-            <View style={{ marginBottom: 32 }}>
+            <View style={{ marginBottom: aiError ? 20 : 32 }}>
               <Text style={{
                 fontSize: 11,
                 fontWeight: '800',
@@ -1838,7 +1843,7 @@ Based on this, generate a JSON object with exactly the following fields:
                 style={{
                   backgroundColor: '#FFFFFF',
                   borderWidth: 1.5,
-                  borderColor: '#E2E8F0',
+                  borderColor: aiError ? '#FCA5A5' : '#E2E8F0',
                   borderRadius: 14,
                   padding: 16,
                   minHeight: 140,
@@ -1850,9 +1855,26 @@ Based on this, generate a JSON object with exactly the following fields:
                 placeholder="Describe the campaign you want to generate. e.g., 'Re-engage buyers who looked at luxury condos in West Hollywood last month with a price drop alert.'"
                 placeholderTextColor="#94A3B8"
                 value={aiDescription}
-                onChangeText={setAiDescription}
+                onChangeText={(text) => {
+                  setAiDescription(text);
+                  if (aiError) setAiError(null);
+                }}
                 textAlignVertical="top"
               />
+
+              {!!aiError && (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  marginTop: 8,
+                  paddingHorizontal: 2,
+                }}>
+                  <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#EF4444" style={{ marginRight: 6 }} />
+                  <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '600', flex: 1, lineHeight: 18 }}>
+                    {aiError}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Footer Buttons */}
@@ -1873,6 +1895,7 @@ Based on this, generate a JSON object with exactly the following fields:
                   setAiTemplateId(null);
                   setAiDescription('');
                   setAiSegment('All Contacts');
+                  setAiError(null);
                 }}
                 disabled={isGeneratingAI}
               >

@@ -55,6 +55,7 @@ export default function CRM_AutomationsScreen() {
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
   const [aiAssistantVisible, setAiAssistantVisible] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [ruleIdentity, setRuleIdentity] = useState('');
   const [aiPrompt, setAiPrompt] = useState('');
   const [targetSegment, setTargetSegment] = useState('All Leads');
@@ -338,20 +339,30 @@ export default function CRM_AutomationsScreen() {
   };
 
   const handleGenerate = async () => {
-    if (!ruleIdentity.trim()) {
-      Alert.alert('Error', 'Please provide a rule identity (name)');
-      return;
-    }
+    setAiError(null);
     if (!aiPrompt.trim()) {
-      Alert.alert('Error', 'Please provide prompt/instructions');
+      setAiError('Please enter what Zien should do.');
       return;
     }
 
     setIsGenerating(true);
     try {
-      const systemInstruction = `You are an expert CRM Automation Architect. \nThe user wants to create an automation rule named "${ruleIdentity}" targeting "${targetSegment}".\nTheir instruction is: "${aiPrompt}".\n\nValid Triggers: 'New Lead Captured', 'Status Changed', 'Inactivity Threshold Met', 'Score > 80', 'Deal Stage Updated'.\nValid Actions: 'Send Follow-up SMS', 'Send Email from Template', 'Send WhatsApp from Template', 'Update Lead Score', 'Assign Agent Task'.\nValid Executions: 'Immediate', 'Wait 1 Hour', 'Wait 24 Hours', 'Wait 3 Days'.\n\nBased on the prompt, generate a JSON object with EXACTLY the following fields:\n1. "name": A catchy name for this rule (max 40 chars).\n2. "trigger": One of the valid triggers that best fits.\n3. "action": One of the valid actions that best fits.\n4. "target": The exact string "${targetSegment}".\n5. "execution": One of the valid execution times.\n6. "reasoning": A 1-2 sentence explanation of why this automation logic is effective.`;
+      const systemInstruction = `You are an expert CRM Automation Architect. 
+The user wants to create an automation rule from this prompt: "${aiPrompt.trim()}".
 
-      const response = await generateCRMAutomationWithAI(accessToken!, aiPrompt, systemInstruction);
+Valid Triggers: 'New Lead Captured', 'Status Changed', 'Inactivity Threshold Met', 'Score > 80', 'Deal Stage Updated'.
+Valid Actions: 'Send Follow-up SMS', 'Send Email from Template', 'Send WhatsApp from Template', 'Update Lead Score', 'Assign Agent Task'.
+Valid Executions: 'Immediate', 'Wait 1 Hour', 'Wait 24 Hours', 'Wait 3 Days'.
+
+Based on the prompt, generate a JSON object with EXACTLY the following fields:
+1. "name": A catchy name for this rule (max 40 chars).
+2. "trigger": One of the valid triggers that best fits.
+3. "action": One of the valid actions that best fits.
+4. "target": Target audience (default 'All Leads').
+5. "execution": One of the valid execution times.
+6. "reasoning": A 1-2 sentence explanation of why this automation logic is effective.`;
+
+      const response = await generateCRMAutomationWithAI(accessToken!, aiPrompt.trim(), systemInstruction);
 
       let cleanResult = response.result.trim();
       if (cleanResult.startsWith('```')) {
@@ -362,7 +373,7 @@ export default function CRM_AutomationsScreen() {
 
       const parsed = JSON.parse(cleanResult);
 
-      setProposedName(parsed.name || ruleIdentity);
+      setProposedName(parsed.name || 'AI Generated Rule');
       setProposedTrigger(parsed.trigger || 'New Lead Captured');
       setProposedAction(parsed.action || 'Send Follow-up SMS');
       setProposedReasoning(parsed.reasoning || '');
@@ -374,8 +385,9 @@ export default function CRM_AutomationsScreen() {
 
       setAiAssistantVisible(false);
       setFlowModalVisible(true);
+      setAiError(null);
     } catch (error: any) {
-      Alert.alert('AI Generation Error', error.message || 'Failed to generate automation rule');
+      setAiError(error.message || 'Insufficient AI Credits.');
     } finally {
       setIsGenerating(false);
     }
@@ -600,7 +612,7 @@ export default function CRM_AutomationsScreen() {
               style={styles.floatingAiGradient}
             >
               <MaterialCommunityIcons name="creation" size={18} color="#FFFFFF" />
-              <Text style={styles.floatingAiText}>AI Rule</Text>
+              <Text style={styles.floatingAiText}>AI Automation</Text>
             </LinearGradient>
           </Pressable>
 
@@ -680,163 +692,98 @@ export default function CRM_AutomationsScreen() {
         </View>
       </ScrollView>
 
-      {/* Zien Assistant Modal - Full Page */}
+      {/* AI Automation Modal - Web Design Identical */}
       <Modal
         visible={aiAssistantVisible}
-        transparent={false}
-        animationType="slide"
-        onRequestClose={() => setAiAssistantVisible(false)}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setAiAssistantVisible(false);
+          setAiError(null);
+        }}
       >
-        <LinearGradient
-          colors={colors.backgroundGradient as any}
-          start={{ x: 0.1, y: 0 }}
-          end={{ x: 0.9, y: 1 }}
-          style={[styles.fullModalContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.aiModalBackdrop}
         >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1 }}
-          >
-            <View style={styles.assistantModalContent}>
-              <View style={styles.assistantHeader}>
-                <View style={{ flex: 1, marginRight: 16 }}>
-                  <Text style={styles.assistantTitle}>Zien Assistant</Text>
-                  <Text style={styles.assistantSubtitle}>Define your business objective via neural core.</Text>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              setAiAssistantVisible(false);
+              setAiError(null);
+            }}
+          />
+          <View style={styles.aiWebModalCard}>
+            {/* Header */}
+            <View style={styles.aiWebModalHeader}>
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.aiWebModalTitle}>AI automation</Text>
+                  <MaterialCommunityIcons name="information-outline" size={17} color="#94A3B8" />
                 </View>
-                <Pressable
-                  style={styles.closeBtnSmall}
-                  onPress={() => setAiAssistantVisible(false)}
-                >
-                  <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-                </Pressable>
+                <Text style={styles.aiWebModalSubtitle}>Define your business objective via neural core.</Text>
               </View>
-
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                bounces={true}
-                contentContainerStyle={{ paddingBottom: 40 }}
-                style={{ flex: 1 }}
+              <Pressable
+                style={styles.aiWebCloseBtn}
+                onPress={() => {
+                  setAiAssistantVisible(false);
+                  setAiError(null);
+                }}
+                hitSlop={10}
               >
-                <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>Rule Identity <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      style={styles.fieldInput}
-                      placeholder="e.g. VIP Concierge Follow-up"
-                      placeholderTextColor="#94A3B8"
-                      value={ruleIdentity}
-                      onChangeText={setRuleIdentity}
-                    />
-                  </View>
-                </View>
+                <MaterialCommunityIcons name="close" size={20} color="#475569" />
+              </Pressable>
+            </View>
 
-                <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>Target Segment</Text>
-                  <Pressable
-                    style={styles.segmentPickerTrigger}
-                    onPress={() => { setSegmentPickerVisible(true); setAssistantSegmentSearch(''); }}
-                  >
-                    <Text style={styles.segmentValue}>{targetSegment}</Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={20}
-                      color={colors.textPrimary}
-                    />
-                  </Pressable>
-                </View>
+            {/* Input Section */}
+            <View style={{ marginTop: 20 }}>
+              <Text style={styles.aiWebInputLabel}>WHAT SHOULD ZIEN DO?</Text>
+              <TextInput
+                style={[
+                  styles.aiWebTextarea,
+                  aiError ? { borderColor: '#FCA5A5' } : null
+                ]}
+                placeholder="e.g. When a new lead is captured, wait 1 hour and send them an SMS..."
+                placeholderTextColor="#94A3B8"
+                multiline
+                value={aiPrompt}
+                onChangeText={(text) => {
+                  setAiPrompt(text);
+                  if (aiError) setAiError(null);
+                }}
+                textAlignVertical="top"
+              />
 
-                <View style={styles.assistantField}>
-                  <Text style={styles.fieldLabel}>Prompt / Instructions <Text style={{ color: '#EF4444' }}>*</Text></Text>
-                  <View style={styles.textareaContainer}>
-                    <TextInput
-                      style={styles.textarea}
-                      placeholder="e.g. Send a personalized SMS to new leads within 5 minutes, wait 2 days, and if they don't respond, send an email template."
-                      placeholderTextColor="#94A3B8"
-                      multiline
-                      numberOfLines={4}
-                      value={aiPrompt}
-                      onChangeText={setAiPrompt}
-                    />
-                  </View>
-                </View>
-              </ScrollView>
-
-              {/* Bottom Footer - Fixed */}
-              <View style={styles.modalFooter}>
-                <Pressable
-                  style={[
-                    styles.generateBtn,
-                    { opacity: (isGenerating || !ruleIdentity.trim() || !aiPrompt.trim()) ? 0.5 : 1 }
-                  ]}
-                  onPress={handleGenerate}
-                  disabled={isGenerating || !ruleIdentity.trim() || !aiPrompt.trim()}
-                >
-                  <LinearGradient
-                    colors={['#475569', '#1E293B']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 0, y: 1 }}
-                    style={styles.generateBtnGradient}
-                  >
-                    {isGenerating ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.generateBtnText}>Generate</Text>
-                    )}
-                  </LinearGradient>
-                </Pressable>
-              </View>
-
-              {/* Segment Picker Overlay for Zien Assistant */}
-              {segmentPickerVisible && (
-                <View style={styles.pickerOverlayAbsolute}>
-                  <Pressable style={StyleSheet.absoluteFill} onPress={() => setSegmentPickerVisible(false)} />
-
-                  <View style={styles.selectionModalContainer}>
-                    <View style={styles.selectionModalHeader}>
-                      <Text style={styles.selectionModalTitle}>Select Target Segment</Text>
-                      <Pressable onPress={() => setSegmentPickerVisible(false)}>
-                        <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
-                      </Pressable>
-                    </View>
-                    <View style={styles.pickerSearchBoxSmall}>
-                      <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-                      <TextInput
-                        style={styles.pickerSearchInputSmall}
-                        placeholder="Search segment..."
-                        placeholderTextColor={colors.textMuted}
-                        value={assistantSegmentSearch}
-                        onChangeText={setAssistantSegmentSearch}
-                      />
-                    </View>
-                    <ScrollView style={styles.selectionModalList} keyboardShouldPersistTaps="handled">
-                      {SEGMENTS.filter(opt => opt.toLowerCase().includes(assistantSegmentSearch.toLowerCase())).map(segment => {
-                        const isActive = targetSegment === segment;
-                        return (
-                          <Pressable
-                            key={segment}
-                            style={[styles.selectionModalItem, isActive && styles.selectionModalItemActive]}
-                            onPress={() => {
-                              setTargetSegment(segment);
-                              setSegmentPickerVisible(false);
-                              setAssistantSegmentSearch('');
-                            }}
-                          >
-                            <Text style={[styles.selectionModalItemText, isActive && styles.selectionModalItemTextActive]}>
-                              {segment}
-                            </Text>
-                            {isActive && (
-                              <MaterialCommunityIcons name="check-circle" size={22} color={colors.accent} />
-                            )}
-                          </Pressable>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
+              {/* Inline Error */}
+              {!!aiError && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 2 }}>
+                  <MaterialCommunityIcons name="alert-circle-outline" size={15} color="#EF4444" style={{ marginRight: 6 }} />
+                  <Text style={{ color: '#EF4444', fontSize: 12.5, fontWeight: '600', flex: 1, lineHeight: 17 }}>
+                    {aiError}
+                  </Text>
                 </View>
               )}
             </View>
-          </KeyboardAvoidingView>
-        </LinearGradient>
+
+            {/* Footer / Generate Button */}
+            <View style={styles.aiWebFooter}>
+              <Pressable
+                style={[
+                  styles.aiWebGenerateBtn,
+                  (isGenerating || !aiPrompt.trim()) && { opacity: 0.6 }
+                ]}
+                onPress={handleGenerate}
+                disabled={isGenerating || !aiPrompt.trim()}
+              >
+                {isGenerating ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.aiWebGenerateBtnText}>Generate</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Create Rules Modal - Full Page */}
@@ -1941,6 +1888,89 @@ function getStyles(colors: any, theme?: string) {
       fontSize: 12,
       color: '#FFFFFF',
       fontWeight: '500',
+    },
+    aiModalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(15, 23, 42, 0.65)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+    },
+    aiWebModalCard: {
+      width: '100%',
+      maxWidth: 440,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 24,
+      padding: 24,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 16 },
+      shadowOpacity: 0.18,
+      shadowRadius: 24,
+      elevation: 12,
+    },
+    aiWebModalHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+    },
+    aiWebModalTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: '#0F172A',
+      letterSpacing: -0.2,
+    },
+    aiWebModalSubtitle: {
+      fontSize: 12.5,
+      color: '#64748B',
+      marginTop: 4,
+      lineHeight: 17,
+      fontWeight: '500',
+    },
+    aiWebCloseBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: '#F1F5F9',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    aiWebInputLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#0F172A',
+      letterSpacing: 0.8,
+      marginBottom: 10,
+    },
+    aiWebTextarea: {
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1.5,
+      borderColor: '#E2E8F0',
+      borderRadius: 16,
+      padding: 16,
+      minHeight: 140,
+      fontSize: 13.5,
+      color: '#0F172A',
+      lineHeight: 20,
+    },
+    aiWebFooter: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      marginTop: 20,
+    },
+    aiWebGenerateBtn: {
+      backgroundColor: '#334155',
+      borderRadius: 10,
+      paddingVertical: 12,
+      paddingHorizontal: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 110,
+    },
+    aiWebGenerateBtnText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '700',
+      letterSpacing: 0.2,
     },
     fullModalContainer: {
       flex: 1,

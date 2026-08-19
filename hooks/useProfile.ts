@@ -11,7 +11,12 @@ export function useProfile() {
 
   return useQuery<UserProfile, Error>({
     queryKey: ['userProfile', accessToken],
-    queryFn: () => getProfile(accessToken!),
+    queryFn: async () => {
+      console.log('🔍 [useProfile] Querying profile with token:', accessToken ? `${accessToken.substring(0, 10)}...` : 'NONE');
+      const res = await getProfile(accessToken!);
+      console.log('✅ [useProfile] Query finished successfully');
+      return res;
+    },
     enabled: !!accessToken,
     staleTime: 10 * 1000, // 10 seconds
     refetchOnMount: true,

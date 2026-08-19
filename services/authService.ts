@@ -206,6 +206,10 @@ export const resetPassword = async (payload: ResetPasswordRequest): Promise<Rese
 export const getProfile = async (accessToken: string): Promise<UserProfile> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const url = `https://staging.zien.ai/api/website/auth/me`;
+
+  console.log('🚀 [API REQ] GET Profile URL:', url);
+  console.log('🔑 [API REQ] Token:', accessToken ? `${accessToken.substring(0, 10)}...` : 'NONE');
 
   try {
     const headers: Record<string, string> = {
@@ -215,69 +219,29 @@ export const getProfile = async (accessToken: string): Promise<UserProfile> => {
       'Cookie': `website_access_token=${accessToken}; access_token=${accessToken}`,
     };
 
-    const [profileRes, meResStaging, meRes1, meRes2, subRes] = await Promise.all([
-      fetch(`${API_BASE_URL}/teams/settings/profile`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
-      fetch(`https://staging.zien.ai/api/website/auth/me`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
-      fetch(`${API_BASE_URL}/website/auth/me`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
-      fetch(`https://zien.ai/api/website/auth/me`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
-      fetch(`${API_BASE_URL}/solo/billing/subscription`, { method: 'GET', signal: controller.signal, headers }).catch(() => null),
-    ]);
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+      headers,
+    });
 
-    let profileData: any = {};
-    if (profileRes && profileRes.ok) profileData = await profileRes.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({}));
+    console.log(`📥 [API RES] GET staging /website/auth/me [Status ${response.status}]:`, JSON.stringify(data, null, 2));
 
-    let meDataStaging: any = {};
-    if (meResStaging && meResStaging.ok) meDataStaging = await meResStaging.json().catch(() => ({}));
-
-    let meData1: any = {};
-    if (meRes1 && meRes1.ok) meData1 = await meRes1.json().catch(() => ({}));
-
-    let meData2: any = {};
-    if (meRes2 && meRes2.ok) meData2 = await meRes2.json().catch(() => ({}));
-
-    let subData: any = {};
-    if (subRes && subRes.ok) subData = await subRes.json().catch(() => ({}));
-
-    const extractCredits = (...objs: any[]) => {
-      for (const obj of objs) {
-        if (!obj) continue;
-        const target = obj.credits || obj.data?.credits || obj.user?.credits || (obj.balance !== undefined ? obj : null);
-        if (target) {
-          if (typeof target === 'number') return target;
-          if (typeof target === 'object') {
-            if (typeof target.balance === 'number') return target.balance;
-            if (typeof target.remaining === 'number' && target.remaining >= 0) return target.remaining;
-            if (typeof target.plan_credits === 'number' || typeof target.topup_credits === 'number') {
-              const sum = (target.plan_credits || 0) + (target.topup_credits || 0);
-              if (sum > 0) return sum;
-            }
-            if (typeof target.total_purchased === 'number' && target.total_purchased > 0) return target.total_purchased;
-          }
-        }
-      }
-      return null;
-    };
-
-    const creditsVal = extractCredits(meDataStaging, meData1, meData2, profileData, subData);
-
-    const mergedProfile: UserProfile = {
-      ...profileData,
-      ...meDataStaging,
-      ...meData1,
-      ...meData2,
-      credits: meDataStaging.credits ?? meData1.credits ?? meData2.credits ?? profileData.credits ?? creditsVal,
-    };
-
-    if (!profileRes?.ok && !meRes1?.ok && !meRes2?.ok) {
-      const errorMsg = profileData.message || meData1.message || meData2.message || `Server error fetching profile`;
+    if (!response.ok) {
+      const errorMsg = data.message || `Server error fetching profile (${response.status})`;
+      console.error('❌ [API ERROR] Failed to fetch profile:', errorMsg);
       throw new Error(errorMsg);
     }
 
-    return mergedProfile;
+    console.log('✅ [API PROFILE DATA]:', JSON.stringify(data, null, 2));
+    return data as UserProfile;
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [API TIMEOUT] Profile request timed out');
       throw new Error('Profile request timed out. Please check your connection and try again.');
     }
+    console.error('❌ [API ERROR] getProfile error:', error);
     throw error;
   } finally {
     clearTimeout(timeoutId);
@@ -302,9 +266,13 @@ export const updateProfile = async (
 ): Promise<UserProfile> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const url = `${API_BASE_URL}/teams/settings/profile`;
+
+  console.log('🚀 [API REQ] PATCH updateProfile URL:', url);
+  console.log('📦 [API REQ] Payload:', JSON.stringify(payload, null, 2));
 
   try {
-    const response = await fetch(`${API_BASE_URL}/teams/settings/profile`, {
+    const response = await fetch(url, {
       method: 'PATCH',
       signal: controller.signal,
       headers: {
@@ -316,16 +284,22 @@ export const updateProfile = async (
     });
 
     const data = await response.json().catch(() => ({}));
+    console.log(`📥 [API RES] PATCH updateProfile [Status ${response.status}]:`, JSON.stringify(data, null, 2));
 
     if (!response.ok) {
-      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+      const errMsg = data.message || `Server error: ${response.status} ${response.statusText}`;
+      console.error('❌ [API ERROR] updateProfile failed:', errMsg);
+      throw new Error(errMsg);
     }
 
+    console.log('✅ [API SUCCESS] updateProfile response data:', JSON.stringify(data, null, 2));
     return data;
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [API TIMEOUT] Update profile request timed out');
       throw new Error('Update profile request timed out. Please check your connection and try again.');
     }
+    console.error('❌ [API ERROR] updateProfile catch error:', error);
     throw error;
   } finally {
     clearTimeout(timeoutId);
@@ -574,9 +548,13 @@ export interface VerifyOtpRequest {
 export const sendOtp = async (accessToken: string, payload: SendOtpRequest): Promise<any> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const url = `${API_BASE_URL}/teams/settings/send-otp`;
+
+  console.log('🚀 [API REQ] POST sendOtp URL:', url);
+  console.log('📦 [API REQ] Payload:', JSON.stringify(payload, null, 2));
 
   try {
-    const response = await fetch(`${API_BASE_URL}/teams/settings/send-otp`, {
+    const response = await fetch(url, {
       method: 'POST',
       signal: controller.signal,
       headers: {
@@ -588,16 +566,22 @@ export const sendOtp = async (accessToken: string, payload: SendOtpRequest): Pro
     });
 
     const data = await response.json().catch(() => ({}));
+    console.log(`📥 [API RES] POST sendOtp [Status ${response.status}]:`, JSON.stringify(data, null, 2));
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to send OTP');
+      const errMsg = data.message || 'Failed to send OTP';
+      console.error('❌ [API ERROR] sendOtp failed:', errMsg);
+      throw new Error(errMsg);
     }
 
+    console.log('✅ [API SUCCESS] sendOtp response data:', JSON.stringify(data, null, 2));
     return data;
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [API TIMEOUT] Send OTP request timed out');
       throw new Error('Send OTP request timed out. Please check your connection and try again.');
     }
+    console.error('❌ [API ERROR] sendOtp catch error:', error);
     throw error;
   } finally {
     clearTimeout(timeoutId);
@@ -607,9 +591,13 @@ export const sendOtp = async (accessToken: string, payload: SendOtpRequest): Pro
 export const verifyOtp = async (accessToken: string, payload: VerifyOtpRequest): Promise<any> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const url = `${API_BASE_URL}/teams/settings/verify-otp`;
+
+  console.log('🚀 [API REQ] POST verifyOtp URL:', url);
+  console.log('📦 [API REQ] Payload:', JSON.stringify(payload, null, 2));
 
   try {
-    const response = await fetch(`${API_BASE_URL}/teams/settings/verify-otp`, {
+    const response = await fetch(url, {
       method: 'POST',
       signal: controller.signal,
       headers: {
@@ -621,16 +609,22 @@ export const verifyOtp = async (accessToken: string, payload: VerifyOtpRequest):
     });
 
     const data = await response.json().catch(() => ({}));
+    console.log(`📥 [API RES] POST verifyOtp [Status ${response.status}]:`, JSON.stringify(data, null, 2));
 
     if (!response.ok) {
-      throw new Error(data.message || 'Incorrect OTP.');
+      const errMsg = data.message || 'Incorrect OTP.';
+      console.error('❌ [API ERROR] verifyOtp failed:', errMsg);
+      throw new Error(errMsg);
     }
 
+    console.log('✅ [API SUCCESS] verifyOtp response data:', JSON.stringify(data, null, 2));
     return data;
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ [API TIMEOUT] Verify OTP request timed out');
       throw new Error('Verify OTP request timed out. Please check your connection and try again.');
     }
+    console.error('❌ [API ERROR] verifyOtp catch error:', error);
     throw error;
   } finally {
     clearTimeout(timeoutId);

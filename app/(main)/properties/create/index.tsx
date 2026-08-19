@@ -145,18 +145,20 @@ function StepAddress({
         </View>
 
         {!!searchError && (
-          <View style={[styles.errorBox, { marginTop: 14, marginBottom: 14 }]}>
-            <MaterialCommunityIcons name="alert-circle-outline" size={18} color="#EF4444" style={{ marginRight: 8, marginTop: 1 }} />
-            <Text style={[styles.errorText, { color: '#EF4444', fontSize: 13, lineHeight: 18, fontWeight: '500', flex: 1 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: -16, marginBottom: 18, paddingHorizontal: 6 }}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={15} color="#EF4444" style={{ marginRight: 6 }} />
+            <Text style={{ color: '#EF4444', fontSize: 12.5, lineHeight: 17, fontWeight: '600', flex: 1 }}>
               {searchError}
             </Text>
           </View>
         )}
 
         {errorMsg && (
-          <View style={styles.errorBox}>
-            <MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.danger} style={{ marginRight: 6 }} />
-            <Text style={styles.errorText}>{errorMsg}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: -16, marginBottom: 18, paddingHorizontal: 6 }}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={15} color={colors.danger || '#EF4444'} style={{ marginRight: 6 }} />
+            <Text style={{ color: colors.danger || '#EF4444', fontSize: 12.5, lineHeight: 17, fontWeight: '600', flex: 1 }}>
+              {errorMsg}
+            </Text>
           </View>
         )}
 

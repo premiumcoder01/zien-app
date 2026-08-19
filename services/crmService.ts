@@ -1,4 +1,4 @@
-const CRM_API_BASE_URL = 'https://staging-api.zien.ai/api';
+const CRM_API_BASE_URL = 'https://staging.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface CRMOverviewResponse {
@@ -323,12 +323,22 @@ export const getCRMOverview = async (accessToken: string): Promise<CRMOverviewRe
 };
 
 
-export const getCRMMeta = async (accessToken: string): Promise<CRMMetaResponse> => {
+export const DEFAULT_CRM_GROUPS = [
+    { id: 114, name: 'Open House' },
+    { id: 112, name: 'Digital Cards' },
+    { id: 90, name: 'Past Client' },
+    { id: 89, name: 'Seller' },
+    { id: 88, name: 'Investor' },
+    { id: 87, name: 'Buyer' },
+    { id: 86, name: 'zien' },
+];
+
+export const getCRMGroups = async (accessToken: string): Promise<{ id: number; name: string }[]> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/meta`, {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/groups`, {
             method: 'GET',
             signal: controller.signal,
             headers: {
@@ -338,13 +348,98 @@ export const getCRMMeta = async (accessToken: string): Promise<CRMMetaResponse> 
             },
         });
 
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-            throw new Error(data.message || `Server error: ${response.status}`);
+        const data = await response.json().catch(() => ([]));
+        if (Array.isArray(data) && data.length > 0) {
+            return data;
         }
+        if (Array.isArray(data.groups) && data.groups.length > 0) {
+            return data.groups;
+        }
+        if (Array.isArray(data.data) && data.data.length > 0) {
+            return data.data;
+        }
+        return DEFAULT_CRM_GROUPS;
+    } catch {
+        return DEFAULT_CRM_GROUPS;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
 
-        return data;
+export const DEFAULT_CRM_TAGS = [
+    { id: 117, name: 'WARM', tag_color: '#F37021' },
+    { id: 116, name: 'HOT', tag_color: '#ef4444' },
+    { id: 115, name: 'Warm Lead', tag_color: '#f59e0b' },
+    { id: 72, name: 'VIP', tag_color: '#00A7B5' },
+    { id: 71, name: 'Hot Lead', tag_color: '#F37021' },
+    { id: 70, name: 'Lead', tag_color: '#64748B' },
+    { id: 69, name: 'Urgent', tag_color: '#00A7B5' },
+    { id: 68, name: 'High Priority', tag_color: '#F37021' },
+    { id: 67, name: 'Website', tag_color: '#64748B' },
+    { id: 66, name: 'new', tag_color: '#6366F1' },
+];
+
+export const getCRMTags = async (accessToken: string): Promise<{ id: number; name: string; tag_color: string }[]> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/tags`, {
+            method: 'GET',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        const data = await response.json().catch(() => ([]));
+        if (Array.isArray(data) && data.length > 0) {
+            return data;
+        }
+        if (Array.isArray(data.tags) && data.tags.length > 0) {
+            return data.tags;
+        }
+        if (Array.isArray(data.data) && data.data.length > 0) {
+            return data.data;
+        }
+        return DEFAULT_CRM_TAGS;
+    } catch {
+        return DEFAULT_CRM_TAGS;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export const getCRMMeta = async (accessToken: string): Promise<CRMMetaResponse> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+        const [metaRes, groupsData, tagsData] = await Promise.allSettled([
+            fetch(`${CRM_API_BASE_URL}/solo/crm/meta`, {
+                method: 'GET',
+                signal: controller.signal,
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            }).then(r => r.json().catch(() => ({}))),
+            getCRMGroups(accessToken),
+            getCRMTags(accessToken),
+        ]);
+
+        const meta = metaRes.status === 'fulfilled' ? metaRes.value : {};
+        const groups = groupsData.status === 'fulfilled' && groupsData.value?.length ? groupsData.value : (meta.groups || []);
+        const tags = tagsData.status === 'fulfilled' && tagsData.value?.length ? tagsData.value : (meta.tags || []);
+
+        return {
+            ...meta,
+            groups,
+            tags,
+        };
     } catch (error: unknown) {
         if (error instanceof Error && error.name === 'AbortError') {
             throw new Error('Request timed out.');
@@ -1996,7 +2091,8 @@ export const analyzeContactsFile = async (
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-            throw new Error(data.message || `Server error: ${response.status}`);
+            const errorMsg = data.error || data.message || (response.status === 402 ? 'Insufficient AI Credits.' : `Server error: ${response.status}`);
+            throw new Error(errorMsg);
         }
 
         return data;
@@ -2037,7 +2133,8 @@ export const extractContactsWithAI = async (
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-            throw new Error(data.message || `Server error: ${response.status}`);
+            const errorMsg = data.error || data.message || (response.status === 402 ? 'Insufficient AI Credits.' : `Server error: ${response.status}`);
+            throw new Error(errorMsg);
         }
 
         return data;
@@ -2224,7 +2321,8 @@ export const generateCRMAutomationWithAI = async (
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-            throw new Error(data.message || `Server error: ${response.status}`);
+            const errorMsg = data.error || data.message || (response.status === 402 ? 'Insufficient AI Credits.' : `Server error: ${response.status}`);
+            throw new Error(errorMsg);
         }
 
         return data;

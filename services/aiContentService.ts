@@ -213,7 +213,8 @@ export const generateAiText = async (
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+      const errorMsg = data.error || data.message || (response.status === 402 ? 'Insufficient AI Credits.' : `Server error: ${response.status} ${response.statusText}`);
+      throw new Error(errorMsg);
     }
 
     return data;
@@ -255,7 +256,8 @@ export const generateAiImage = async (
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
+      const errorMsg = data.error || data.message || (response.status === 402 ? 'Insufficient AI Credits.' : `Server error: ${response.status} ${response.statusText}`);
+      throw new Error(errorMsg);
     }
 
     return data;

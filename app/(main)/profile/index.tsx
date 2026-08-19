@@ -322,6 +322,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (profile) {
+      console.log('📱 [Profile Screen] Loaded profile data from cache/API:', JSON.stringify(profile, null, 2));
       setFirstName(profile.first_name || '');
       setLastName(profile.last_name || '');
       setProfessionalEmail(profile.email || '');
@@ -396,9 +397,12 @@ export default function ProfileScreen() {
   ], [isEmailVerified, isPhoneVerified]);
 
   const saveMutation = useMutation({
-    mutationFn: (payload: Parameters<typeof updateProfile>[1]) =>
-      updateProfile(accessToken!, payload),
+    mutationFn: (payload: Parameters<typeof updateProfile>[1]) => {
+      console.log('📱 [Profile Screen] Initiating save mutation with payload:', JSON.stringify(payload, null, 2));
+      return updateProfile(accessToken!, payload);
+    },
     onSuccess: (data) => {
+      console.log('📱 [Profile Screen] Save mutation success data:', JSON.stringify(data, null, 2));
       if (data) {
         queryClient.setQueryData(['userProfile', accessToken], data);
       }
@@ -407,12 +411,13 @@ export default function ProfileScreen() {
       Alert.alert('Success', 'Profile updated successfully.');
     },
     onError: (error: Error) => {
+      console.error('📱 [Profile Screen] Save mutation error:', error);
       Alert.alert('Error', error.message || 'Failed to update profile.');
     },
   });
 
   const handleSave = useCallback(() => {
-    saveMutation.mutate({
+    const payload = {
       first_name: firstName,
       last_name: lastName,
       phone: mobilePhone.replace(/[^\d]/g, ''),
@@ -420,7 +425,9 @@ export default function ProfileScreen() {
       license_number: licenseNumber,
       address: primaryMarket,
       image: avatarUri,
-    });
+    };
+    console.log('📱 [Profile Screen] Save Changes button pressed with payload:', JSON.stringify(payload, null, 2));
+    saveMutation.mutate(payload);
   }, [firstName, lastName, mobilePhone, countryCallingCode, licenseNumber, primaryMarket, avatarUri, saveMutation]);
 
   const pickImage = useCallback(async (): Promise<string | null> => {
