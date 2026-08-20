@@ -117,11 +117,15 @@ export default function UserMenuSheet({
             </LinearGradient>
           )}
           <View style={sheetStyles.userInfo}>
-            <Text style={[sheetStyles.userName, { color: colors.textPrimary }]}>{userName}</Text>
-            <Text style={[sheetStyles.userEmail, { color: colors.textSecondary }]}>{userEmail}</Text>
+            <Text style={[sheetStyles.userName, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
+              {userName}
+            </Text>
+            <Text style={[sheetStyles.userEmail, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
+              {userEmail}
+            </Text>
           </View>
           {/* Online & Credits/Agency Status badge */}
-          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <View style={sheetStyles.userBadgesCol}>
             {isAgency ? (
               <Pressable
                 style={sheetStyles.agencyBadge}
@@ -131,7 +135,7 @@ export default function UserMenuSheet({
                 }}
               >
                 <View style={sheetStyles.agencyBadgeDot} />
-                <Text style={sheetStyles.agencyBadgeText}>AGENCY STATUS: ACTIVE</Text>
+                <Text style={sheetStyles.agencyBadgeText}>ACTIVE</Text>
               </Pressable>
             ) : (
               credits !== undefined && (
@@ -286,18 +290,26 @@ function getSheetStyles(colors: any) {
     },
     userInfo: {
       flex: 1,
+      minWidth: 0,
+      justifyContent: 'center',
+      paddingRight: 6,
     },
     userName: {
-      fontSize: 16,
+      fontSize: 15.5,
       fontWeight: '800',
       color: colors.textPrimary,
       letterSpacing: 0.1,
     },
     userEmail: {
-      fontSize: 13,
+      fontSize: 12.5,
       color: colors.textSecondary,
       fontWeight: '500',
       marginTop: 2,
+    },
+    userBadgesCol: {
+      alignItems: 'flex-end',
+      gap: 4,
+      flexShrink: 0,
     },
     onlineBadge: {
       flexDirection: 'row',

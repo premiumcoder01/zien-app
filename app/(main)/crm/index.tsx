@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -94,14 +95,18 @@ export default function CRMScreen() {
     refetch,
     isRefetching: refreshing
   } = useQuery({
-    queryKey: ['crm-overview'],
-    queryFn: () => getCRMOverview(accessToken!),
-    enabled: !!accessToken,
+    queryKey: ['crm-overview', accessToken],
+    queryFn: async () => {
+      const token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+      console.log('[CRMScreen] Calling getCRMOverview with token length:', token ? token.length : 0);
+      return getCRMOverview(token);
+    },
   });
 
   // Sync with server whenever screen is focused
   useFocusEffect(
     useCallback(() => {
+      console.log('[CRMScreen] Screen focused -> triggering refetch()');
       refetch();
     }, [refetch])
   );
@@ -369,10 +374,23 @@ export default function CRMScreen() {
         {error && (
           <View style={styles.errorContainer}>
             <MaterialCommunityIcons name="alert-circle-outline" size={24} color="#EF4444" />
-            <Text style={styles.errorText}>{error}</Text>
-            <Pressable style={styles.retryBtn} onPress={() => refetch()}>
-              <Text style={styles.retryText}>Retry</Text>
-            </Pressable>
+            <Text style={styles.errorText}>
+              {error.includes('Unauthorized') || error.includes('401')
+                ? 'Session expired. Please log in again to load CRM data.'
+                : error}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable style={styles.retryBtn} onPress={() => refetch()}>
+                <Text style={styles.retryText}>Retry</Text>
+              </Pressable>
+              {(error.includes('Unauthorized') || error.includes('401')) && (
+                <Pressable
+                  style={[styles.retryBtn, { backgroundColor: '#0A2341' }]}
+                  onPress={() => router.replace('/login' as any)}>
+                  <Text style={[styles.retryText, { color: '#FFFFFF' }]}>Log In</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         )}
         {/* Action buttons */}

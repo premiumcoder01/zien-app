@@ -24,13 +24,12 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  View,
+  View
 } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 
@@ -684,7 +683,7 @@ export default function DashboardScreen() {
             <View style={{ marginTop: 4 }}>
               {(dashboardData?.latestUpdates || []).slice(0, 2).map((u: any, i: number) => (
                 <UpdateRow
-                  key={u.title || i}
+                  key={`update-${u.id || u.title || 'item'}-${i}`}
                   icon={u.icon || 'bell-outline'}
                   title={u.title}
                   description={u.description}

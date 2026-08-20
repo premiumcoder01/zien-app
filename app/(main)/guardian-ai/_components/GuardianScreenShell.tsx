@@ -1,3 +1,4 @@
+import { useAppTheme } from '@/context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -5,12 +6,12 @@ import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GuardianNav, GuardianTabId } from './GuardianNav';
-import { useAppTheme } from '@/context/ThemeContext';
 
 type GuardianScreenShellProps = {
   title: string;
   subtitle?: string;
   showBack?: boolean;
+  showVerifiedBadge?: boolean;
   children: ReactNode;
   showNav?: boolean;
   activeTab?: GuardianTabId;
@@ -21,15 +22,16 @@ export function GuardianScreenShell({
   title,
   subtitle,
   showBack = true,
+  showVerifiedBadge = true,
   children,
-  showNav = true,
+  showNav = false,
   activeTab,
   onTabChange,
 }: GuardianScreenShellProps) {
   const { colors, theme } = useAppTheme();
   const isDark = theme === 'dark';
   const styles = getStyles(colors);
-  
+
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -47,7 +49,17 @@ export function GuardianScreenShell({
             </Pressable>
           )}
           <View style={[styles.headerText, !showBack && styles.headerTextFull]}>
-            <Text style={styles.title}>{title}</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>{title}</Text>
+              {showVerifiedBadge && (
+                <MaterialCommunityIcons
+                  name="shield-check"
+                  size={20}
+                  color="#00A896"
+                  style={styles.titleBadge}
+                />
+              )}
+            </View>
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </View>
         </View>
@@ -78,7 +90,9 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   headerText: { flex: 1 },
   headerTextFull: { marginLeft: 0 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   title: { fontSize: 20, fontWeight: '900', color: colors.textPrimary },
+  titleBadge: { marginLeft: 6 },
   subtitle: { fontSize: 12.5, color: colors.textSecondary, marginTop: 4, fontWeight: '700' },
   contentWrap: {
     flex: 1,

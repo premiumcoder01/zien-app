@@ -1,7 +1,7 @@
 {
   "name": "zien",
   "main": "expo-router/entry",
-  "version": "5.3.0",
+  "version": "5.4.0",
   "scripts": {
     "start": "expo start",
     "clean": "expo start -c",
@@ -45,6 +45,7 @@
     "expo": "~54.0.33",
     "expo-apple-authentication": "~7.1.0",
     "expo-auth-session": "~7.0.10",
+    "expo-av": "^16.0.8",
     "expo-build-properties": "~1.0.10",
     "expo-calendar": "~15.0.8",
     "expo-clipboard": "~8.0.8",

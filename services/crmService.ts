@@ -1,29 +1,31 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const CRM_API_BASE_URL = 'https://staging.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface CRMOverviewResponse {
     stats: {
-        totalContacts: {
+        totalContacts?: {
             value: string;
             change: string;
         };
-        totalLeads: {
+        totalLeads?: {
             value: string;
             change: string;
         };
-        pendingFollowUps: {
+        pendingFollowUps?: {
             value: string;
             change: string;
         };
-        activeDeals: {
+        activeDeals?: {
             value: string;
             change: string;
         };
-        hotLeads: {
+        hotLeads?: {
             value: string;
             change: string;
         };
-        avgHeatIndex: {
+        avgHeatIndex?: {
             value: string;
             change: string;
         };
@@ -37,9 +39,9 @@ export interface CRMOverviewResponse {
     sourceAttribution: Array<{
         source: string;
         leads: number;
-        conversion: string;
-        roi: string;
-        color: string;
+        conversion?: string;
+        roi?: string;
+        color?: string;
     }>;
     leadVelocity: number[];
     conversionRoi: {
@@ -49,7 +51,7 @@ export interface CRMOverviewResponse {
         closedWonCount: number;
         estimatedAdCost: number;
         netROI: number;
-        funnel: Array<{ level: string; count: number }>;
+        funnel: Array<{ level: string; count: string | number }>;
     };
     heatIndex: {
         cold: number;
@@ -145,6 +147,7 @@ export interface CRMLead {
     utm_campaign?: string | null;
     utm_term?: string | null;
     utm_content?: string | null;
+    events?: Array<any>;
     group: {
         id: number;
         name: string;
@@ -290,22 +293,52 @@ export interface CRMAutomation {
 
 
 
-export const getCRMOverview = async (accessToken: string): Promise<CRMOverviewResponse> => {
+export const getCRMAuthHeaders = (token?: string): Record<string, string> => {
+    let cleanToken = token || '';
+    if (cleanToken.startsWith('Bearer ')) {
+        cleanToken = cleanToken.slice(7).trim();
+    }
+    const headers: Record<string, string> = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+    };
+    if (cleanToken) {
+        headers['Authorization'] = `Bearer ${cleanToken}`;
+        headers['Cookie'] = `website_access_token=${cleanToken}; access_token=${cleanToken}; token=${cleanToken}; auth_token=${cleanToken}`;
+    }
+    return headers;
+};
+
+export const getCRMOverview = async (accessToken?: string): Promise<CRMOverviewResponse> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+    if (token.startsWith('Bearer ')) {
+        token = token.slice(7).trim();
+    }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const targetUrl = `${CRM_API_BASE_URL}/solo/crm/dashboard/overview`;
+    const headers = getCRMAuthHeaders(token);
+
+    console.log('====================================');
+    console.log('📡 [CRM Overview API] Request URL:', targetUrl);
+    console.log('📡 [CRM Overview API] Method: GET');
+    console.log('📡 [CRM Overview API] Token Present?:', !!token, token ? `(Length: ${token.length})` : '(EMPTY TOKEN)');
+    console.log('📡 [CRM Overview API] Headers:', headers);
+    console.log('====================================');
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/dashboard/overview`, {
+        const response = await fetch(targetUrl, {
             method: 'GET',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers,
         });
 
         const data = await response.json().catch(() => ({}));
+
+        console.log('====================================');
+        console.log('📥 [CRM Overview API] Response Status:', response.status, response.statusText);
+        console.log('📥 [CRM Overview API] Response Body:', JSON.stringify(data, null, 2));
+        console.log('====================================');
 
         if (!response.ok) {
             throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
@@ -313,6 +346,7 @@ export const getCRMOverview = async (accessToken: string): Promise<CRMOverviewRe
 
         return data;
     } catch (error: unknown) {
+        console.log('❌ [CRM Overview API] Error:', error);
         if (error instanceof Error && error.name === 'AbortError') {
             throw new Error('Request timed out. Please check your connection and try again.');
         }
@@ -845,6 +879,275 @@ export const getCRMLeads = async (accessToken: string): Promise<CRMLead[]> => {
         });
 
         const data = await response.json().catch(() => ([]));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return Array.isArray(data) ? data : (data?.data || data?.leads || []);
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export interface VerifyIdentityResponse {
+    status?: string;
+    score?: number;
+    carrier?: string;
+    lineType?: string;
+    nameMatch?: string;
+    message?: string;
+}
+
+export interface SafetyLogItem {
+    id: string;
+    clientName: string;
+    duration: string;
+    date: string;
+    status: string;
+    action: string;
+    agentName: string;
+    severity: string;
+}
+
+export interface SafetyContactItem {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    relationship: string;
+}
+
+export const getSafetyLogs = async (accessToken: string): Promise<SafetyLogItem[]> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/safety/logs`, {
+            method: 'GET',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        const data = await response.json().catch(() => ([]));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return Array.isArray(data) ? data : (data?.data || data?.logs || []);
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export const getSafetyContacts = async (accessToken: string): Promise<SafetyContactItem[]> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/safety/contacts`, {
+            method: 'GET',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        const data = await response.json().catch(() => ([]));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return Array.isArray(data) ? data : (data?.data || data?.contacts || []);
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export const createSafetyContact = async (
+    accessToken: string,
+    payload: { name: string; email?: string; phone: string; relationship: string } | { contacts: SafetyContactItem[] }
+): Promise<any> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/safety/contacts`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export const updateSafetyContacts = async (
+    accessToken: string,
+    contacts: SafetyContactItem[]
+): Promise<any> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/safety/contacts`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ contacts }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export const deleteSafetyContact = async (accessToken: string, contactId: string): Promise<any> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/safety/contacts/${contactId}`, {
+            method: 'DELETE',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export const triggerSafetyAlert = async (
+    accessToken: string,
+    clientName: string = 'Unknown Client'
+): Promise<{
+    success: boolean;
+    logId: string;
+    dispatched?: string[];
+    simulated?: string[];
+}> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/safety/trigger-alert`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ clientName }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message || `Server error: ${response.status}`);
+        }
+
+        return data;
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error('Request timed out.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+export const verifyCRMLeadIdentity = async (accessToken: string, leadId: string): Promise<VerifyIdentityResponse> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+    try {
+        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads/${leadId}/verify-identity`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
             throw new Error(data.message || `Server error: ${response.status}`);
