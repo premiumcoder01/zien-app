@@ -19,8 +19,8 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -125,38 +125,62 @@ export default function CRM_AutomationsScreen() {
     refetch,
     isRefetching
   } = useQuery({
-    queryKey: ['crm-automations'],
+    queryKey: ['crm-automations', accessToken],
     queryFn: () => getCRMAutomations(accessToken!),
     enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
   });
 
   // Fetch Leads
   const { data: crmLeads = [], refetch: refetchLeads } = useQuery({
-    queryKey: ['crm-leads'],
+    queryKey: ['crm-leads', accessToken],
     queryFn: () => getCRMLeads(accessToken!),
     enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   // Fetch Follow-Ups (Completed only, matching the exact API web layout uses)
   const { data: followUps = [], refetch: refetchFollowUps } = useQuery({
-    queryKey: ['crm-followups-completed'],
+    queryKey: ['crm-followups-completed', accessToken],
     queryFn: () => getCRMFollowUps(accessToken!, 'Completed'),
     enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   // Fetch Contacts
   const { data: crmContacts = [], refetch: refetchContacts } = useQuery({
-    queryKey: ['crm-contacts'],
+    queryKey: ['crm-contacts', accessToken],
     queryFn: () => getCRMContacts(accessToken!),
     enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   // Fetch Overview Stats
   const { data: crmOverview, refetch: refetchOverview } = useQuery({
-    queryKey: ['crm-overview'],
+    queryKey: ['crm-overview', accessToken],
     queryFn: () => getCRMOverview(accessToken!),
     enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (accessToken) {
+        refetch();
+        refetchLeads();
+        refetchFollowUps();
+        refetchContacts();
+        refetchOverview();
+      }
+    }, [accessToken, refetch, refetchLeads, refetchFollowUps, refetchContacts, refetchOverview])
+  );
 
   const handleRefresh = async () => {
     setManualRefreshing(true);
@@ -172,16 +196,20 @@ export default function CRM_AutomationsScreen() {
 
   // Fetch Meta (Groups/Tags)
   const { data: metaData } = useQuery({
-    queryKey: ['crm-meta'],
+    queryKey: ['crm-meta', accessToken],
     queryFn: () => getCRMMeta(accessToken!),
     enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   // Fetch Templates
   const { data: templates = [] } = useQuery({
-    queryKey: ['crm-templates'],
+    queryKey: ['crm-templates', accessToken],
     queryFn: () => getCRMTemplates(accessToken!),
     enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);

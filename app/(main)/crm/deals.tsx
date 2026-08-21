@@ -5,7 +5,7 @@ import { CRMContact, CRMDeal, CRMPipeline, CRMStage, addCRMDeal, addCRMPipelineS
 import { getProperties } from '@/services/propertyService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -48,10 +48,14 @@ export default function DealsScreen() {
   const scrollRef = useRef<ScrollView>(null);
 
   // TanStack Query for dynamic data
-  const { data: pipelines = [], isLoading: isLoadingPipelines } = useQuery({
+  const { data: pipelines = [], isLoading: isLoadingPipelines, refetch: refetchPipelines } = useQuery({
     queryKey: ['crmPipelines', accessToken],
     queryFn: () => getCRMPipelines(accessToken!),
     enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
   });
 
   // Set default active pipeline when data loads and sync it
@@ -74,12 +78,24 @@ export default function DealsScreen() {
     enabled: !!accessToken,
   });
 
-
-  const { data: deals = [], isLoading: isLoadingDeals } = useQuery({
+  const { data: deals = [], isLoading: isLoadingDeals, refetch: refetchDeals } = useQuery({
     queryKey: ['crmDeals', activePipeline?.id, accessToken],
     queryFn: () => getCRMDeals(accessToken!, activePipeline!.id),
     enabled: !!accessToken && !!activePipeline?.id,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (accessToken) {
+        refetchPipelines();
+        refetchDeals();
+      }
+    }, [accessToken, refetchPipelines, refetchDeals])
+  );
 
   // Calculate deals per stage
   const dealsByStage = useMemo(() => {

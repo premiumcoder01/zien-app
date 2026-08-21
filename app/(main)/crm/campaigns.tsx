@@ -6,7 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -46,10 +46,22 @@ export default function CRMCampaignsScreen() {
   const { accessToken } = useAuth();
 
   const { data: campaignList, isLoading, refetch } = useQuery({
-    queryKey: ['campaigns'],
+    queryKey: ['campaigns', accessToken],
     queryFn: () => getCRMCampaigns(accessToken || ''),
-    enabled: !!accessToken
+    enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (accessToken) {
+        refetch();
+      }
+    }, [accessToken, refetch])
+  );
 
   const { data: templateList } = useQuery({
     queryKey: ['crmTemplates'],
@@ -2105,7 +2117,7 @@ Based on this, generate a JSON object with exactly the following fields:
                     </Text>
                   </View>
                   <View style={styles.intelMetricBarBg}>
-                    <View style={[styles.intelMetricBarFill, { width: campaignRoi?.delivery_success_rate ? `${campaignRoi.delivery_success_rate}%` : '100%', backgroundColor: colors.accentTeal }]} />
+                    <View style={[styles.intelMetricBarFill, { width: `${campaignRoi?.delivery_success_rate ?? 100}%` as any, backgroundColor: colors.accentTeal }]} />
                   </View>
                   <Text style={styles.intelMetricSubtext}>No messages sent yet.</Text>
                 </View>

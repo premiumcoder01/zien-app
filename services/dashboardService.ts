@@ -67,9 +67,16 @@ export interface AgencyUsageDetail {
 
 export interface AgencyDashboardStatsResponse {
   stats: AgencyStat[];
-  activity: any[];
+  activity: Array<{
+    event: string;
+    agent?: string;
+    time: string;
+    color?: string;
+  }>;
   usage: {
     overallPercentage: number;
+    totalCredits?: number;
+    usedCredits?: number;
     details: AgencyUsageDetail[];
   };
 }

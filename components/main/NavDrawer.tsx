@@ -36,6 +36,7 @@ type NavDrawerProps = {
   customTextColor?: string;
   backToMainRoute?: Href;
   isLoading?: boolean;
+  isAgency?: boolean;
 };
 
 const getAlphaColor = (color: string, opacity: number) => {
@@ -67,12 +68,14 @@ function NavDrawerComponent({
   customTextColor,
   backToMainRoute,
   isLoading,
+  isAgency,
 }: NavDrawerProps) {
   const { colors, theme } = useAppTheme();
   const styles = getStyles(colors, theme);
   const router = useRouter();
   const segments = useSegments();
-  const { logout } = useAuth();
+  const { logout, userRole } = useAuth();
+  const isAgencyUser = isAgency ?? (userRole === 'agency_user' || userRole === 'agency');
   const currentRoute = segments.length > 0 ? '/' + segments.join('/') : '/dashboard';
 
   if (!visible) return null;
@@ -144,30 +147,65 @@ function NavDrawerComponent({
                 (itemRoute.includes('(main)') && currentRoute === itemRoute.replace('/(main)', '')) ||
                 (currentRoute === '/dashboard' && itemRoute.includes('dashboard'));
 
-              const isWhiteBg = customBackground === '#FFFFFF' || customBackground === '#fff' || customBackground?.toLowerCase() === '#ffffff' || (!customBackground && theme === 'light');
-              const activeColor = isWhiteBg ? '#FFFFFF' : (customTextColor || (theme === 'dark' ? '#FFFFFF' : '#00a7b5'));
-              const inactiveColor = isWhiteBg ? '#475569' : (customTextColor ? getAlphaColor(customTextColor, 0.7) : (customBackground ? 'rgba(255,255,255,0.7)' : colors.textSecondary));
+              let activeBg = isAgencyUser
+                ? '#14532D' // Agency green
+                : (theme === 'dark' ? 'rgba(0, 167, 181, 0.18)' : '#EBF8F9'); // Web-matching soft cyan
+
+              let activeLeftBorderColor = isAgencyUser
+                ? 'transparent'
+                : (theme === 'dark' ? '#00e5ff' : '#00a7b5');
+
+              let activeBorderColor = isAgencyUser
+                ? 'transparent'
+                : (theme === 'dark' ? 'rgba(0, 167, 181, 0.3)' : '#D5F3F6');
+
+              let activeTextColor = isAgencyUser
+                ? '#FFFFFF'
+                : (theme === 'dark' ? '#00e5ff' : '#0F172A');
+
+              let activeIconColor = isAgencyUser
+                ? '#FFFFFF'
+                : (theme === 'dark' ? '#00e5ff' : '#00a7b5');
+
+              let inactiveTextColor = isAgencyUser
+                ? '#475569'
+                : (customTextColor ? getAlphaColor(customTextColor, 0.8) : (customBackground ? 'rgba(255,255,255,0.7)' : (theme === 'dark' ? colors.textSecondary : '#334155')));
+
+              let inactiveIconColor = isAgencyUser
+                ? '#64748B'
+                : (customTextColor ? getAlphaColor(customTextColor, 0.7) : (customBackground ? 'rgba(255,255,255,0.7)' : (theme === 'dark' ? colors.textSecondary : '#64748B')));
 
               return (
                 <Pressable
                   key={item.label}
                   style={({ pressed }) => [
                     styles.item,
-                    isWhiteBg && { marginHorizontal: 12, borderRadius: 10, paddingHorizontal: 14, marginVertical: 2 },
-                    isActive && (isWhiteBg ? { backgroundColor: '#14532D' } : [styles.itemActive, customTextColor ? { backgroundColor: getAlphaColor(customTextColor, theme === 'dark' ? 0.18 : 0.10) } : {}]),
+                    {
+                      marginHorizontal: 12,
+                      paddingHorizontal: 14,
+                      marginVertical: 2,
+                      borderRadius: isAgencyUser ? 10 : 8,
+                      borderTopLeftRadius: isAgencyUser ? 10 : 4,
+                      borderBottomLeftRadius: isAgencyUser ? 10 : 4,
+                      borderTopRightRadius: isAgencyUser ? 10 : 8,
+                      borderBottomRightRadius: isAgencyUser ? 10 : 8,
+                      borderWidth: isActive && !isAgencyUser ? 1 : 0,
+                      borderColor: isActive && !isAgencyUser ? activeBorderColor : 'transparent',
+                      borderLeftWidth: isActive && !isAgencyUser ? 3.5 : 0,
+                      borderLeftColor: isActive && !isAgencyUser ? activeLeftBorderColor : 'transparent',
+                      backgroundColor: isActive ? activeBg : 'transparent',
+                    },
                     pressed && !isActive && styles.itemPressed,
                     item.marginTop ? { marginTop: item.marginTop } : {},
                   ]}
                   onPress={() => handlePress(item.route)}
                   disabled={!item.route}
                 >
-                  {isActive && !isWhiteBg && <View style={[styles.activeIndicator, customTextColor ? { backgroundColor: customTextColor } : {}]} />}
-
                   <View style={styles.iconWrap}>
                     <MaterialCommunityIcons
                       name={item.icon as any}
                       size={20}
-                      color={isActive ? activeColor : inactiveColor}
+                      color={isActive ? activeIconColor : inactiveIconColor}
                     />
                   </View>
 
@@ -176,7 +214,7 @@ function NavDrawerComponent({
                       styles.itemText,
                       isActive ? styles.itemTextActive : {},
                       !item.route ? styles.itemTextDisabled : {},
-                      { color: isActive ? activeColor : inactiveColor },
+                      { color: isActive ? activeTextColor : inactiveTextColor },
                     ]}
                   >
                     {item.label}
@@ -186,8 +224,6 @@ function NavDrawerComponent({
             })
           )}
         </ScrollView>
-
-
 
       </Animated.View>
     </View>
@@ -207,7 +243,7 @@ function getStyles(colors: any, theme?: string) {
       left: 0,
       top: 0,
       bottom: 0,
-      backgroundColor: colors.cardBackground,
+      backgroundColor: theme === 'dark' ? colors.cardBackground : '#FFFFFF',
       shadowColor: '#000',
       shadowOpacity: 0.1,
       shadowRadius: 20,
@@ -260,7 +296,7 @@ function getStyles(colors: any, theme?: string) {
       backgroundColor: theme === 'dark' ? 'rgba(0, 167, 181, 0.18)' : 'rgba(0, 167, 181, 0.10)',
     },
     itemPressed: {
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: theme === 'dark' ? colors.surfaceSoft : '#F8FAFC',
     },
     activeIndicator: {
       position: 'absolute',
@@ -282,8 +318,8 @@ function getStyles(colors: any, theme?: string) {
       color: colors.textSecondary,
     },
     itemTextActive: {
-      color: theme === 'dark' ? '#FFFFFF' : '#0a2341',
-      fontWeight: '700',
+      color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+      fontWeight: '600',
     },
     itemTextDisabled: {
       color: colors.inputPlaceholder,

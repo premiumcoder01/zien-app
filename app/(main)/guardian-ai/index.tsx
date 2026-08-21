@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { createVideoPlayer } from 'expo-video';
+import { Audio } from 'expo-av';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import {
@@ -1196,36 +1196,42 @@ export default function GuardianAiOverviewScreen() {
   const [triggeringAlert, setTriggeringAlert] = useState(false);
   const [panicModeActive, setPanicModeActive] = useState(false);
   const hapticIntervalRef = useRef<any>(null);
-  const soundPlayerRef = useRef<any>(null);
+  const soundObjectRef = useRef<Audio.Sound | null>(null);
 
-  const playSirenSound = () => {
+  const playSirenSound = async () => {
     try {
-      if (soundPlayerRef.current) {
+      if (soundObjectRef.current) {
         try {
-          soundPlayerRef.current.pause();
-          soundPlayerRef.current.release();
+          await soundObjectRef.current.stopAsync();
+          await soundObjectRef.current.unloadAsync();
         } catch {}
+        soundObjectRef.current = null;
       }
 
-      const player = createVideoPlayer(
-        'https://actions.google.com/sounds/v1/emergency/emergency_siren_short_burst.ogg'
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: true,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        require('@/assets/sounds/emergency_alarm.wav'),
+        { shouldPlay: true, isLooping: true, volume: 1.0 }
       );
-      player.loop = true;
-      player.volume = 1.0;
-      player.play();
-      soundPlayerRef.current = player;
+      soundObjectRef.current = sound;
+      await sound.playAsync();
     } catch (error) {
-      console.log('Error playing siren sound:', error);
+      console.log('Error playing emergency alarm sound:', error);
     }
   };
 
-  const stopSirenSound = () => {
-    if (soundPlayerRef.current) {
+  const stopSirenSound = async () => {
+    if (soundObjectRef.current) {
       try {
-        soundPlayerRef.current.pause();
-        soundPlayerRef.current.release();
+        await soundObjectRef.current.stopAsync();
+        await soundObjectRef.current.unloadAsync();
       } catch {}
-      soundPlayerRef.current = null;
+      soundObjectRef.current = null;
     }
   };
 
@@ -1340,11 +1346,6 @@ export default function GuardianAiOverviewScreen() {
   useEffect(() => {
     if (!guardianTimerActive) setGuardianSecondsLeft(selectedMinutes * 60);
   }, [selectedMinutes, guardianTimerActive]);
-
-  const toggleGuardianChat = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setGuardianChatOpen((prev) => !prev);
-  };
 
   // FCRA Consent Modal State
   const [consentModalLead, setConsentModalLead] = useState<DirectoryLead | null>(null);
@@ -2606,10 +2607,10 @@ export default function GuardianAiOverviewScreen() {
                               style={[
                                 styles.severityDotText,
                                 row.severity === 'CRITICAL'
-                                  ? styles.severityTextCritical
+                                  ? styles.severityDotTextCritical
                                   : row.severity === 'WARNING'
-                                  ? styles.severityTextWarning
-                                  : styles.severityTextLow,
+                                  ? styles.severityDotTextWarning
+                                  : styles.severityDotTextLow,
                               ]}>
                               {row.severity}
                             </Text>
@@ -3056,7 +3057,7 @@ export default function GuardianAiOverviewScreen() {
                   <Text style={styles.protocolBullet}>• 🔊</Text>
                   <Text style={styles.protocolItemText}>
                     <Text style={styles.protocolBold}>Audio Alarm: </Text>
-                    🚨 Siren active (Playing wail sound)
+                    🚨 Emergency alarm active (Playing siren sound)
                   </Text>
                 </View>
               </View>

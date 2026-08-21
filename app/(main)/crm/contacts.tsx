@@ -7,9 +7,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -70,8 +70,8 @@ export default function ContactsScreen() {
   const [selectedTag, setSelectedTag] = useState('All tags');
 
   // API Contacts - Server-side Filtering
-  const { data: serverContacts, isLoading: isLoadingContacts } = useQuery({
-    queryKey: ['crm-contacts', debouncedSearch, selectedGroup, selectedStatus, selectedTag],
+  const { data: serverContacts, isLoading: isLoadingContacts, refetch: refetchContacts } = useQuery({
+    queryKey: ['crm-contacts', accessToken, debouncedSearch, selectedGroup, selectedStatus, selectedTag],
     queryFn: () => {
       const filters: any = {};
       if (debouncedSearch) filters.q = debouncedSearch;
@@ -93,7 +93,19 @@ export default function ContactsScreen() {
       return getCRMContacts(accessToken!, filters);
     },
     enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (accessToken) {
+        refetchContacts();
+      }
+    }, [accessToken, refetchContacts])
+  );
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedContact, setSelectedContact] = useState<CRMContact | null>(null);

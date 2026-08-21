@@ -6,7 +6,7 @@ import { formatStatValue } from '@/utils/number-format';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Href, useRouter } from 'expo-router';
+import { Href, useFocusEffect, useRouter } from 'expo-router';
 import {
     Activity,
     ChevronRight,
@@ -70,93 +70,84 @@ const LucideIcon = ({ name, size, color }: { name: string, size: number, color: 
     }
 };
 
-const formatRelativeTime = (dateString: string) => {
-    if (!dateString) return 'Just now';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diffInSeconds < 60) return 'Just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
-
-const getEventIcon = (event: string) => {
-    const e = event?.toLowerCase() || '';
-    if (e.includes('member')) return 'UserPlus';
-    if (e.includes('role')) return 'ShieldCheck';
-    if (e.includes('settings')) return 'Settings';
-    return 'Activity';
+const formatActivityTime = (dateString: string) => {
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return dateString;
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    } catch {
+        return dateString;
+    }
 };
 
 const StatCard = ({ stat, index }: { stat: AgencyStat, index: number }) => {
     const { colors } = useAppTheme();
 
-    // Choose a gradient based on index for variety
-    const gradients = [
-        [colors.accentTeal || '#0a2341', '#065F6B'],
-        ['#F37021', '#C2410C'],
-        ['#6366F1', '#4338CA'],
-        ['#10B981', '#047857']
-    ];
-    const currentGradient = gradients[index % gradients.length];
+    const getBadgeStyle = (grow: string) => {
+        const g = grow?.toLowerCase() || '';
+        if (g.startsWith('+') || g === 'active') {
+            return { bg: '#ECFDF5', text: '#10B981', border: '#A7F3D0' };
+        }
+        if (g === 'available') {
+            return { bg: '#EEF2FF', text: '#4F46E5', border: '#C7D2FE' };
+        }
+        if (g === 'trialing') {
+            return { bg: '#F5F3FF', text: '#7C3AED', border: '#DDD6FE' };
+        }
+        return { bg: '#F1F5F9', text: '#64748B', border: '#E2E8F0' };
+    };
+
+    const badgeStyle = getBadgeStyle(stat.grow);
+    const iconColors = ['#0EA5E9', '#F97316', '#6366F1', '#10B981'];
+    const cardColor = iconColors[index % iconColors.length];
 
     return (
         <View style={[styles.statPanel, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
             <View style={styles.statHeader}>
-                <LinearGradient
-                    colors={[currentGradient[0] + '20', currentGradient[0] + '10']}
-                    style={styles.statIconBox}
-                >
-                    <LucideIcon name={stat.icon} size={20} color={currentGradient[0]} />
-                </LinearGradient>
+                <View style={[styles.statIconBox, { backgroundColor: cardColor + '18' }]}>
+                    <LucideIcon name={stat.icon} size={20} color={cardColor} />
+                </View>
 
-                {stat.grow && (
-                    <View style={[styles.growBadge, { backgroundColor: stat.grow.startsWith('+') ? '#10B98115' : '#6366F115' }]}>
-                        <Text style={[styles.growText, { color: stat.grow.startsWith('+') ? '#10B981' : '#6366F1' }]}>
+                {stat.grow ? (
+                    <View style={[styles.growBadge, { backgroundColor: badgeStyle.bg, borderColor: badgeStyle.border, borderWidth: 1 }]}>
+                        <Text style={[styles.growText, { color: badgeStyle.text }]}>
                             {stat.grow}
                         </Text>
                     </View>
-                )}
+                ) : null}
             </View>
 
             <View style={styles.statContent}>
                 <Text style={[styles.statValue, { color: colors.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
-                    {formatStatValue(stat.value, false)}
+                    {stat.value}
                 </Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{stat.label}</Text>
             </View>
 
-            <View style={[styles.statDecorative, { backgroundColor: currentGradient[0], opacity: 0.05 }]} />
+            <View style={[styles.statDecorative, { backgroundColor: cardColor, opacity: 0.04 }]} />
         </View>
     );
 };
 
 const ActivityItem = ({ item }: { item: any }) => {
     const { colors } = useAppTheme();
-    const iconName = getEventIcon(item.event);
+    const dotColor = item.color || '#94a3b8';
 
     return (
         <View style={styles.activityRow}>
-            <View style={[styles.activityIconBox, { backgroundColor: colors.surfaceSoft }]}>
-                <LucideIcon name={iconName} size={16} color={colors.accentTeal} />
-            </View>
+            <View style={[styles.activityDot, { backgroundColor: dotColor }]} />
             <View style={styles.activityMain}>
                 <Text style={[styles.activityTitle, { color: colors.textPrimary }]} numberOfLines={1}>
                     {item.event || 'New Activity'}
                 </Text>
-                <View style={styles.activityMeta}>
-                    <Text style={[styles.activitySubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
-                        by {item.agent || 'System'}
-                    </Text>
-                </View>
+                <Text style={[styles.activitySubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {item.agent || 'System'}
+                </Text>
             </View>
             <View style={styles.timeWrapper}>
                 <Text style={[styles.activityTime, { color: colors.textMuted }]}>
-                    {formatRelativeTime(item.time)}
+                    {formatActivityTime(item.time)}
                 </Text>
             </View>
         </View>
@@ -176,7 +167,7 @@ const UsageBar = ({ detail }: { detail: AgencyUsageDetail }) => {
                     colors={[detail.color, detail.color + 'CC']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={[styles.usageBarFill, { width: `${detail.value}%` }]}
+                    style={[styles.usageBarFill, { width: `${Math.max(detail.value, 2)}%` }]}
                 />
             </View>
         </View>
@@ -189,10 +180,22 @@ export default function AgencyDashboard() {
     const router = useRouter();
 
     const { data, isLoading, error, refetch, isFetching } = useQuery({
-        queryKey: ['agencyDashboardStats'],
+        queryKey: ['agencyDashboardStats', accessToken],
         queryFn: () => getAgencyDashboardStats(accessToken!),
         enabled: !!accessToken,
+        staleTime: 0,
+        gcTime: 0,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: 'always',
     });
+
+    useFocusEffect(
+        React.useCallback(() => {
+            if (accessToken) {
+                refetch();
+            }
+        }, [accessToken, refetch])
+    );
 
     const [refreshing, setRefreshing] = React.useState(false);
 
@@ -237,7 +240,7 @@ export default function AgencyDashboard() {
                         </View>
                         <Text style={[styles.errorTitle, { color: colors.textPrimary }]}>Connection Error</Text>
                         <Text style={[styles.errorSubtitle, { color: colors.textSecondary }]}>
-                            We're having trouble connecting to the server (503 Service Unavailable). Please check your connection or try again.
+                            We're having trouble connecting to the server. Please check your connection or try again.
                         </Text>
                         <TouchableOpacity 
                             onPress={() => refetch()} 
@@ -262,7 +265,7 @@ export default function AgencyDashboard() {
 
     const stats = data?.stats || [];
     const activity = data?.activity || [];
-    const usage = data?.usage || { overallPercentage: 0, details: [] };
+    const usage = data?.usage || { overallPercentage: 0, totalCredits: 0, usedCredits: 0, details: [] };
 
     return (
         <DashboardLayout
@@ -308,7 +311,7 @@ export default function AgencyDashboard() {
                         <View style={styles.cardHeader}>
                             <View style={styles.cardTitleRow}>
                                 <TrendingUp size={20} color={colors.accentTeal} />
-                                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Recent Activity</Text>
+                                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>My & Team Activity</Text>
                             </View>
                             <TouchableOpacity
                                 style={styles.viewAllRow}
@@ -337,25 +340,23 @@ export default function AgencyDashboard() {
                         <View style={styles.cardHeader}>
                             <View style={styles.cardTitleRow}>
                                 <Activity size={20} color={colors.accentTeal} />
-                                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Package Usage</Text>
+                                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>My Package Usage</Text>
                             </View>
                         </View>
 
                         <View style={styles.usageCenterArea}>
-                            <View style={[styles.usageRing, { borderColor: colors.surfaceSoft }]}>
-                                <LinearGradient
-                                    colors={[colors.accentTeal, colors.accentTeal + '60']}
-                                    style={styles.usageRingFill}
-                                />
+                            <View style={[styles.usageRing, { borderColor: '#E2E8F0', backgroundColor: '#F8FAFC' }]}>
                                 <View style={[styles.usageCircleInner, { backgroundColor: colors.cardBackground }]}>
-                                    <Text style={[styles.usagePct, { color: colors.textPrimary }]}>{usage.overallPercentage}%</Text>
-                                    <Text style={[styles.usageLabel, { color: colors.textSecondary }]}>CAPACITY</Text>
+                                    <Text style={[styles.usagePct, { color: colors.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
+                                        {usage.usedCredits ?? 0}/{usage.totalCredits ?? 0}
+                                    </Text>
+                                    <Text style={[styles.usageLabel, { color: colors.textSecondary }]}>CREDITS USED</Text>
                                 </View>
                             </View>
                         </View>
 
                         <View style={styles.usageBarsArea}>
-                            {usage.details.map((detail, index) => (
+                            {usage.details?.map((detail, index) => (
                                 <UsageBar key={index} detail={detail} />
                             ))}
                         </View>
@@ -502,17 +503,16 @@ const styles = StyleSheet.create({
     activityList: {
         gap: 20,
     },
+    activityDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginTop: 2,
+    },
     activityRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 14,
-    },
-    activityIconBox: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
+        gap: 12,
     },
     activityMain: {
         flex: 1,
@@ -524,10 +524,7 @@ const styles = StyleSheet.create({
     activitySubtitle: {
         fontSize: 12,
         fontWeight: '500',
-    },
-    activityMeta: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        color: '#64748B',
         marginTop: 2,
     },
     timeWrapper: {
@@ -535,8 +532,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     activityTime: {
-        fontSize: 11,
-        fontWeight: '500',
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#64748B',
     },
     emptyActivity: {
         paddingVertical: 20,
@@ -560,15 +558,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         position: 'relative',
     },
-    usageRingFill: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        borderRadius: 80,
-        opacity: 0.1,
-    },
     usageCircleInner: {
         width: 130,
         height: 130,
@@ -576,21 +565,23 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         shadowColor: '#000',
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.04,
         shadowRadius: 10,
         elevation: 2,
     },
     usagePct: {
-        fontSize: 34,
+        fontSize: 22,
         fontWeight: '900',
-        letterSpacing: -1,
+        letterSpacing: -0.5,
+        textAlign: 'center',
     },
     usageLabel: {
-        fontSize: 11,
-        fontWeight: '900',
-        letterSpacing: 1.5,
-        marginTop: -2,
-        opacity: 0.6,
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 1.2,
+        marginTop: 2,
+        opacity: 0.7,
+        textAlign: 'center',
     },
     usageBarsArea: {
         marginTop: 24,

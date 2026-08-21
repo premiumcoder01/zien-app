@@ -187,6 +187,7 @@ export function DashboardLayout({
         customTextColor={drawerTextColor}
         backToMainRoute={backToMainRoute}
         isLoading={!isAgency && isMenusLoading}
+        isAgency={isAgency}
       />
     </View>
   );

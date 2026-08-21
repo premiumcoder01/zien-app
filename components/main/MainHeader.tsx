@@ -594,7 +594,9 @@ function MainHeaderComponent({
               onPress={() => router.push('/(main)/agency/billing-plan')}
             >
               <View style={styles.agencyPillDot} />
-              <Text style={styles.agencyPillText}>AGENCY STATUS: ACTIVE</Text>
+              <Text style={styles.agencyPillText} numberOfLines={1}>
+                AGENCY STATUS: ACTIVE{creditBalance && creditBalance !== '0' ? ` | CREDITS: ${creditBalance}` : ''}
+              </Text>
             </Pressable>
           ) : (
             <Pressable

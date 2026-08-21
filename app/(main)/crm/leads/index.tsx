@@ -6,9 +6,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { Href, useFocusEffect, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import PhoneInput from "react-native-phone-number-input";
@@ -211,8 +211,21 @@ export default function LeadsScreen() {
   const [leadsList, setLeadsList] = useState<CRMLead[]>([]);
   const { data: serverLeads, isLoading: isLoadingLeads, refetch: refetchLeads } = useQuery({
     queryKey: ['crm-leads', accessToken],
-    queryFn: () => getCRMLeads(accessToken!)
+    queryFn: () => getCRMLeads(accessToken!),
+    enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (accessToken) {
+        refetchLeads();
+      }
+    }, [accessToken, refetchLeads])
+  );
 
 
 

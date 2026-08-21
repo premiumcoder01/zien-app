@@ -851,6 +851,7 @@ export default function TeamManagement() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['teamEmployees', companyId] });
+            queryClient.invalidateQueries({ queryKey: ['agencyDashboardStats'] });
         },
         onError: (err) => {
             Alert.alert("Error", err.message || "Failed to update status");
@@ -865,6 +866,7 @@ export default function TeamManagement() {
             updateEmployee(accessToken!, data.employeeId, data.payload),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['teamEmployees', companyId] });
+            queryClient.invalidateQueries({ queryKey: ['agencyDashboardStats'] });
             setModalVisible(false);
             Alert.alert("Success", "Agent updated successfully");
         },
@@ -877,6 +879,7 @@ export default function TeamManagement() {
         mutationFn: (data: any) => createEmployee(accessToken!, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['teamEmployees', companyId] });
+            queryClient.invalidateQueries({ queryKey: ['agencyDashboardStats'] });
             setModalVisible(false);
             Alert.alert("Success", "Team member added successfully!");
         },
@@ -889,6 +892,7 @@ export default function TeamManagement() {
         mutationFn: (employeeId: number) => deleteEmployee(accessToken!, employeeId, companyId!),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['teamEmployees', companyId] });
+            queryClient.invalidateQueries({ queryKey: ['agencyDashboardStats'] });
             setAgentToDelete(null);
             Alert.alert("Success", "Agent removed successfully");
         },

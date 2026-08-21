@@ -16,8 +16,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -203,14 +203,26 @@ export default function FollowUpsScreen() {
 
   // API Follow-Ups
   const { data: followUpsData, isLoading: isLoadingTasks, refetch: refetchTasks } = useQuery({
-    queryKey: ['crm-follow-ups'],
+    queryKey: ['crm-follow-ups', accessToken],
     queryFn: () => getCRMFollowUps(accessToken!),
     enabled: !!accessToken,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (accessToken) {
+        refetchTasks();
+      }
+    }, [accessToken, refetchTasks])
+  );
 
   // API Contacts for Selection
   const { data: contactsData } = useQuery({
-    queryKey: ['crm-contacts'],
+    queryKey: ['crm-contacts', accessToken],
     queryFn: () => getCRMContacts(accessToken!),
     enabled: !!accessToken,
   });

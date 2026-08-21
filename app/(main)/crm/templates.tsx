@@ -6,7 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, useEffect } from 'react';
 import {
     ActivityIndicator,
@@ -188,10 +188,22 @@ export default function CRM_TemplatesScreen() {
     const { accessToken } = useAuth();
 
     const { data: templateList, isLoading, refetch } = useQuery({
-        queryKey: ['crmTemplates'],
+        queryKey: ['crmTemplates', accessToken],
         queryFn: () => getCRMTemplates(accessToken || ''),
         enabled: !!accessToken,
+        staleTime: 0,
+        gcTime: 0,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: 'always',
     });
+
+    useFocusEffect(
+        useCallback(() => {
+            if (accessToken) {
+                refetch();
+            }
+        }, [accessToken, refetch])
+    );
 
     const [refreshing, setRefreshing] = useState(false);
     const onRefresh = useCallback(async () => {
