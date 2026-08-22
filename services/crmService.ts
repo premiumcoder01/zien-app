@@ -367,20 +367,27 @@ export const DEFAULT_CRM_GROUPS = [
     { id: 86, name: 'zien' },
 ];
 
-export const getCRMGroups = async (accessToken: string): Promise<{ id: number; name: string }[]> => {
+export const getCRMGroups = async (accessToken?: string): Promise<{ id: number; name: string }[]> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/groups`, {
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/groups`, {
             method: 'GET',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers: getCRMAuthHeaders(token),
         });
+
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/groups`, {
+                    method: 'GET',
+                    headers: getCRMAuthHeaders(token),
+                });
+                if (fallbackRes.ok) response = fallbackRes;
+            } catch {}
+        }
 
         const data = await response.json().catch(() => ([]));
         if (Array.isArray(data) && data.length > 0) {
@@ -413,20 +420,27 @@ export const DEFAULT_CRM_TAGS = [
     { id: 66, name: 'new', tag_color: '#6366F1' },
 ];
 
-export const getCRMTags = async (accessToken: string): Promise<{ id: number; name: string; tag_color: string }[]> => {
+export const getCRMTags = async (accessToken?: string): Promise<{ id: number; name: string; tag_color: string }[]> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/tags`, {
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/tags`, {
             method: 'GET',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers: getCRMAuthHeaders(token),
         });
+
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/tags`, {
+                    method: 'GET',
+                    headers: getCRMAuthHeaders(token),
+                });
+                if (fallbackRes.ok) response = fallbackRes;
+            } catch {}
+        }
 
         const data = await response.json().catch(() => ([]));
         if (Array.isArray(data) && data.length > 0) {
@@ -446,23 +460,29 @@ export const getCRMTags = async (accessToken: string): Promise<{ id: number; nam
     }
 };
 
-export const getCRMMeta = async (accessToken: string): Promise<CRMMetaResponse> => {
+export const getCRMMeta = async (accessToken?: string): Promise<CRMMetaResponse> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
+        const headers = getCRMAuthHeaders(token);
         const [metaRes, groupsData, tagsData] = await Promise.allSettled([
             fetch(`${CRM_API_BASE_URL}/solo/crm/meta`, {
                 method: 'GET',
                 signal: controller.signal,
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`,
-                },
-            }).then(r => r.json().catch(() => ({}))),
-            getCRMGroups(accessToken),
-            getCRMTags(accessToken),
+                headers,
+            }).then(async r => {
+                if (!r.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+                    try {
+                        const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/meta`, { headers });
+                        if (fb.ok) return await fb.json();
+                    } catch {}
+                }
+                return await r.json().catch(() => ({}));
+            }),
+            getCRMGroups(token),
+            getCRMTags(token),
         ]);
 
         const meta = metaRes.status === 'fulfilled' ? metaRes.value : {};
@@ -485,6 +505,7 @@ export const getCRMMeta = async (accessToken: string): Promise<CRMMetaResponse> 
 };
 
 export const deleteCRMGroup = async (accessToken: string, groupId: number): Promise<void> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -492,11 +513,7 @@ export const deleteCRMGroup = async (accessToken: string, groupId: number): Prom
         const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/groups/${groupId}`, {
             method: 'DELETE',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers: getCRMAuthHeaders(token),
         });
 
         if (!response.ok) {
@@ -514,6 +531,7 @@ export const deleteCRMGroup = async (accessToken: string, groupId: number): Prom
 };
 
 export const deleteCRMTag = async (accessToken: string, tagId: number): Promise<void> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -521,11 +539,7 @@ export const deleteCRMTag = async (accessToken: string, tagId: number): Promise<
         const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/tags/${tagId}`, {
             method: 'DELETE',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers: getCRMAuthHeaders(token),
         });
 
         if (!response.ok) {
@@ -543,20 +557,29 @@ export const deleteCRMTag = async (accessToken: string, tagId: number): Promise<
 };
 
 export const addCRMGroup = async (accessToken: string, name: string): Promise<any> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/groups`, {
+        const headers = getCRMAuthHeaders(token);
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/groups`, {
             method: 'POST',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers,
             body: JSON.stringify({ name }),
         });
+
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/groups`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ name }),
+                });
+                if (fb.ok) response = fb;
+            } catch {}
+        }
 
         const data = await response.json().catch(() => ({}));
 
@@ -576,20 +599,29 @@ export const addCRMGroup = async (accessToken: string, name: string): Promise<an
 };
 
 export const addCRMTag = async (accessToken: string, name: string, color: string): Promise<any> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/tags`, {
+        const headers = getCRMAuthHeaders(token);
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/tags`, {
             method: 'POST',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers,
             body: JSON.stringify({ name, tag_color: color }),
         });
+
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/tags`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ name, tag_color: color }),
+                });
+                if (fb.ok) response = fb;
+            } catch {}
+        }
 
         const data = await response.json().catch(() => ({}));
 
@@ -880,20 +912,18 @@ export const appendCRMEvent = async (accessToken: string, contactId: string, tit
     }
 };
 
-export const getCRMLeads = async (accessToken: string): Promise<CRMLead[]> => {
-    if (!accessToken) return [];
+export const getCRMLeads = async (accessToken?: string): Promise<CRMLead[]> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+    if (!token) return [];
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
+        const headers = getCRMAuthHeaders(token);
         let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads`, {
             method: 'GET',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers,
         });
 
         // Fallback to staging-api if primary staging proxy returns error
@@ -901,11 +931,7 @@ export const getCRMLeads = async (accessToken: string): Promise<CRMLead[]> => {
             try {
                 const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads`, {
                     method: 'GET',
-                    headers: {
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`,
-                    },
+                    headers,
                 });
                 if (fallbackRes.ok) {
                     response = fallbackRes;
@@ -1199,20 +1225,28 @@ export const verifyCRMLeadIdentity = async (accessToken: string, leadId: string)
     }
 };
 
-export const getCRMLeadDetail = async (accessToken: string, leadId: string): Promise<CRMLead & any> => {
+export const getCRMLeadDetail = async (accessToken?: string, leadId?: string): Promise<CRMLead & any> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads/${leadId}`, {
+        const headers = getCRMAuthHeaders(token);
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads/${leadId}`, {
             method: 'GET',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers,
         });
+
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads/${leadId}`, {
+                    method: 'GET',
+                    headers,
+                });
+                if (fb.ok) response = fb;
+            } catch {}
+        }
 
         const data = await response.json().catch(() => ({}));
 
@@ -1232,19 +1266,27 @@ export const getCRMLeadDetail = async (accessToken: string, leadId: string): Pro
 };
 
 export const deleteCRMLead = async (accessToken: string, leadId: string): Promise<void> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads/${leadId}`, {
+        const headers = getCRMAuthHeaders(token);
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads/${leadId}`, {
             method: 'DELETE',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers,
         });
+
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads/${leadId}`, {
+                    method: 'DELETE',
+                    headers,
+                });
+                if (fb.ok) response = fb;
+            } catch {}
+        }
 
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
@@ -1261,26 +1303,38 @@ export const deleteCRMLead = async (accessToken: string, leadId: string): Promis
 };
 
 
-export const addCRMLead = async (accessToken: string, payload: any): Promise<void> => {
+export const addCRMLead = async (accessToken: string, payload: any): Promise<any> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads`, {
+        const headers = getCRMAuthHeaders(token);
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads`, {
             method: 'POST',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers,
             body: JSON.stringify(payload),
         });
 
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(payload),
+                });
+                if (fb.ok) response = fb;
+            } catch {}
+        }
+
+        const data = await response.json().catch(() => ({}));
+
         if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
             throw new Error(data.message || `Server error: ${response.status}`);
         }
+
+        return data;
     } catch (error: unknown) {
         if (error instanceof Error && error.name === 'AbortError') {
             throw new Error('Request timed out.');
@@ -1291,26 +1345,38 @@ export const addCRMLead = async (accessToken: string, payload: any): Promise<voi
     }
 };
 
-export const updateCRMLead = async (accessToken: string, leadId: string, payload: any): Promise<void> => {
+export const updateCRMLead = async (accessToken: string, leadId: string, payload: any): Promise<any> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads/${leadId}`, {
+        const headers = getCRMAuthHeaders(token);
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads/${leadId}`, {
             method: 'PATCH',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers,
             body: JSON.stringify(payload),
         });
 
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads/${leadId}`, {
+                    method: 'PATCH',
+                    headers,
+                    body: JSON.stringify(payload),
+                });
+                if (fb.ok) response = fb;
+            } catch {}
+        }
+
+        const data = await response.json().catch(() => ({}));
+
         if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
             throw new Error(data.message || `Server error: ${response.status}`);
         }
+
+        return data;
     } catch (error: unknown) {
         if (error instanceof Error && error.name === 'AbortError') {
             throw new Error('Request timed out.');
@@ -1321,25 +1387,36 @@ export const updateCRMLead = async (accessToken: string, leadId: string, payload
     }
 };
 
-export const convertCRMLead = async (accessToken: string, leadId: string): Promise<void> => {
+export const convertCRMLead = async (accessToken: string, leadId: string): Promise<any> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads/${leadId}/convert`, {
+        const headers = getCRMAuthHeaders(token);
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/leads/${leadId}/convert`, {
             method: 'POST',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers,
         });
 
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads/${leadId}/convert`, {
+                    method: 'POST',
+                    headers,
+                });
+                if (fb.ok) response = fb;
+            } catch {}
+        }
+
+        const data = await response.json().catch(() => ({}));
+
         if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
             throw new Error(data.message || `Server error: ${response.status}`);
         }
+
+        return data;
     } catch (error: unknown) {
         if (error instanceof Error && error.name === 'AbortError') {
             throw new Error('Request timed out.');

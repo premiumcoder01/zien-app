@@ -18,7 +18,6 @@ import {
     Dimensions,
     FlatList,
     Keyboard,
-    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -28,6 +27,7 @@ import {
     TextInput,
     View,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height } = Dimensions.get('window');
@@ -496,7 +496,7 @@ export default function ChatModalScreen() {
             {/* ── Body ── */}
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior="padding"
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
             >
                 <View style={styles.body}>
@@ -640,7 +640,7 @@ export default function ChatModalScreen() {
             <Modal visible={showHistoryModal} transparent animationType="fade">
                 <KeyboardAvoidingView
                     style={{ flex: 1 }}
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    behavior="padding"
                 >
                     <View style={[styles.historyOverlay, { paddingTop: inset.top }]} >
                         <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowHistoryModal(false)} />

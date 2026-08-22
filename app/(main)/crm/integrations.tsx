@@ -17,6 +17,7 @@ import {
   updateIntegrationSettings
 } from '@/services/hubspotService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { dismissBrowser, openAuthSessionAsync, openBrowserAsync } from 'expo-web-browser';
@@ -93,6 +94,7 @@ export default function IntegrationsScreen() {
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ success?: string; error?: string }>();
 
   // ── Integrations list state ──
@@ -403,9 +405,19 @@ export default function IntegrationsScreen() {
     try {
       if (provider === 'hubspot') {
         const res = await triggerHubSpotSync(accessToken);
+        queryClient.invalidateQueries({ queryKey: ['contacts'] });
+        queryClient.invalidateQueries({ queryKey: ['crmContacts'] });
+        queryClient.invalidateQueries({ queryKey: ['leads'] });
+        queryClient.invalidateQueries({ queryKey: ['crmLeads'] });
+        queryClient.invalidateQueries({ queryKey: ['crm-overview'] });
         Alert.alert('Sync Complete', `Successfully synced ${res.count || 0} contact(s) from ${providerName}.`);
       } else {
         await triggerIntegrationSync(provider, accessToken);
+        queryClient.invalidateQueries({ queryKey: ['contacts'] });
+        queryClient.invalidateQueries({ queryKey: ['crmContacts'] });
+        queryClient.invalidateQueries({ queryKey: ['leads'] });
+        queryClient.invalidateQueries({ queryKey: ['crmLeads'] });
+        queryClient.invalidateQueries({ queryKey: ['crm-overview'] });
         Alert.alert('Sync Complete', `Successfully triggered synchronization with ${providerName}.`);
       }
     } catch (err: any) {
@@ -422,15 +434,27 @@ export default function IntegrationsScreen() {
     setSyncPush(newValue);
     const provider = managingIntegration?.id || 'hubspot';
     try {
-      await updateIntegrationSettings(provider, accessToken, {
+      const payload: any = {
         sync_push: newValue,
         sync_pull: syncPull,
-        settings: {
-          default_group_id: selectedGroupId,
-          default_tag_id: selectedTagId,
-        },
-      });
-      await fetchHubSpotStatus();
+      };
+      if (selectedGroupId || selectedTagId) {
+        payload.settings = {
+          ...(selectedGroupId ? { default_group_id: selectedGroupId } : {}),
+          ...(selectedTagId ? { default_tag_id: selectedTagId } : {}),
+        };
+      }
+      const res = await updateIntegrationSettings(provider, accessToken, payload);
+      if (res?.sync_push !== undefined) {
+        setSyncPush(res.sync_push);
+      }
+      if (provider === 'hubspot') {
+        setHubspotStatus((prev: any) => ({ ...(prev || {}), sync_push: newValue }));
+      } else if (provider === 'zoho') {
+        setZohoStatus((prev: any) => ({ ...(prev || {}), sync_push: newValue }));
+      } else if (provider === 'pipedrive') {
+        setPipedriveStatus((prev: any) => ({ ...(prev || {}), sync_push: newValue }));
+      }
     } catch (err: any) {
       setSyncPush(prevValue);
       Alert.alert('Error', err.message || 'Failed to update push settings.');
@@ -444,15 +468,27 @@ export default function IntegrationsScreen() {
     setSyncPull(newValue);
     const provider = managingIntegration?.id || 'hubspot';
     try {
-      await updateIntegrationSettings(provider, accessToken, {
+      const payload: any = {
         sync_push: syncPush,
         sync_pull: newValue,
-        settings: {
-          default_group_id: selectedGroupId,
-          default_tag_id: selectedTagId,
-        },
-      });
-      await fetchHubSpotStatus();
+      };
+      if (selectedGroupId || selectedTagId) {
+        payload.settings = {
+          ...(selectedGroupId ? { default_group_id: selectedGroupId } : {}),
+          ...(selectedTagId ? { default_tag_id: selectedTagId } : {}),
+        };
+      }
+      const res = await updateIntegrationSettings(provider, accessToken, payload);
+      if (res?.sync_pull !== undefined) {
+        setSyncPull(res.sync_pull);
+      }
+      if (provider === 'hubspot') {
+        setHubspotStatus((prev: any) => ({ ...(prev || {}), sync_pull: newValue }));
+      } else if (provider === 'zoho') {
+        setZohoStatus((prev: any) => ({ ...(prev || {}), sync_pull: newValue }));
+      } else if (provider === 'pipedrive') {
+        setPipedriveStatus((prev: any) => ({ ...(prev || {}), sync_pull: newValue }));
+      }
     } catch (err: any) {
       setSyncPull(prevValue);
       Alert.alert('Error', err.message || 'Failed to update pull settings.');
@@ -829,7 +865,7 @@ export default function IntegrationsScreen() {
                   <View style={styles.hs2SectionTitleGroup}>
                     <Text style={styles.hs2SectionTitleText}>Lead Routing (Defaults)</Text>
                     <Text style={styles.hs2SectionSubtitleText}>
-                      When a new contact is pulled from HubSpot, where should Zien save them?
+                      When a new contact is pulled from {managingIntegration?.id === 'zoho' ? 'Zoho' : (managingIntegration?.name || 'HubSpot')}, where should Zien save them?
                     </Text>
                   </View>
                 </View>
@@ -964,7 +1000,7 @@ export default function IntegrationsScreen() {
                   <View style={styles.hs2SectionTitleGroup}>
                     <Text style={styles.hs2SectionTitleText}>Sync Direction Settings</Text>
                     <Text style={styles.hs2SectionSubtitleText}>
-                      Control how data flows between Zien and HubSpot automatically.
+                      Control how data flows between Zien and {managingIntegration?.id === 'zoho' ? 'Zoho' : (managingIntegration?.name || 'HubSpot')} automatically.
                     </Text>
                   </View>
                 </View>
@@ -972,8 +1008,8 @@ export default function IntegrationsScreen() {
                 {/* Push Switch Item */}
                 <View style={styles.hs2SwitchRowCard}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.hs2SwitchTitle}>Push to HubSpot</Text>
-                    <Text style={styles.hs2SwitchSub}>Zien changes will update HubSpot</Text>
+                    <Text style={styles.hs2SwitchTitle}>Push to {managingIntegration?.id === 'zoho' ? 'Zoho' : (managingIntegration?.name || 'HubSpot')}</Text>
+                    <Text style={styles.hs2SwitchSub}>Zien changes will update {managingIntegration?.id === 'zoho' ? 'Zoho' : (managingIntegration?.name || 'HubSpot')}</Text>
                   </View>
                   <Switch
                     value={syncPush}
@@ -986,8 +1022,8 @@ export default function IntegrationsScreen() {
                 {/* Pull Switch Item */}
                 <View style={styles.hs2SwitchRowCard}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.hs2SwitchTitle}>Pull from HubSpot</Text>
-                    <Text style={styles.hs2SwitchSub}>HubSpot changes will update Zien</Text>
+                    <Text style={styles.hs2SwitchTitle}>Pull from {managingIntegration?.id === 'zoho' ? 'Zoho' : (managingIntegration?.name || 'HubSpot')}</Text>
+                    <Text style={styles.hs2SwitchSub}>{managingIntegration?.id === 'zoho' ? 'Zoho' : (managingIntegration?.name || 'HubSpot')} changes will update Zien</Text>
                   </View>
                   <Switch
                     value={syncPull}

@@ -146,7 +146,6 @@ export default function PropertyIntelligenceLayout() {
                     <SafeAreaView edges={['bottom']} style={styles.drawerSafe}>
                         {/* Navigation Section */}
                         <View style={styles.drawerSection}>
-                            <Text style={styles.drawerSectionLabel}>NAVIGATION</Text>
                             {NAV_ITEMS.map((item) => {
                                 const isActive = currentTabId === item.id;
                                 return (

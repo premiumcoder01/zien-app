@@ -1,7 +1,36 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import { registerDeviceToken } from './authService';
+
+const NOTIFICATIONS_API_BASE_URL = 'https://staging.zien.ai/api';
+
+export interface NotificationData {
+  name?: string;
+  email?: string;
+  phone?: string;
+  budget?: string;
+  timeline?: string;
+  pre_approved?: string;
+  interest_signal?: string;
+  working_with_agent?: string;
+  [key: string]: any;
+}
+
+export interface ApiNotification {
+  id: number;
+  user_id: number;
+  notification_type: string;
+  title: string;
+  message: string;
+  data?: NotificationData | null;
+  is_read: boolean;
+  read_at?: string | null;
+  status?: number;
+  created_at: string;
+  updated_at: string;
+}
 
 let notificationsInitialized = false;
 let listenerSubscription: any = null;
@@ -230,5 +259,115 @@ export function setupNotificationListeners(): () => void {
   } catch (e) {
     console.log('[NotificationService] setupNotificationListeners error:', e);
     return () => {};
+  }
+}
+
+/**
+ * Fetch notifications from GET /solo/notifications
+ */
+export async function getNotifications(accessToken?: string): Promise<ApiNotification[]> {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  if (token.startsWith('Bearer ')) {
+    token = token.slice(7).trim();
+  }
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    headers['Cookie'] = `website_access_token=${token}; access_token=${token}; token=${token}; auth_token=${token}`;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    let response = await fetch(`${NOTIFICATIONS_API_BASE_URL}/solo/notifications`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    });
+
+    if (!response.ok && NOTIFICATIONS_API_BASE_URL.includes('staging.zien.ai')) {
+      try {
+        const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/notifications`, {
+          method: 'GET',
+          headers,
+        });
+        if (fallbackRes.ok) response = fallbackRes;
+      } catch {}
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (data && Array.isArray(data.data)) {
+      return data.data;
+    }
+    if (Array.isArray(data)) {
+      return data;
+    }
+    return [];
+  } catch (err) {
+    console.warn('[NotificationService] getNotifications error:', err);
+    return [];
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Mark a single notification as read
+ */
+export async function markNotificationAsRead(notificationId: number | string, accessToken?: string): Promise<boolean> {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  if (token.startsWith('Bearer ')) {
+    token = token.slice(7).trim();
+  }
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    headers['Cookie'] = `website_access_token=${token}; access_token=${token}; token=${token}; auth_token=${token}`;
+  }
+
+  try {
+    const response = await fetch(`${NOTIFICATIONS_API_BASE_URL}/solo/notifications/${notificationId}/read`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ is_read: true }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark all notifications as read
+ */
+export async function markAllNotificationsAsRead(accessToken?: string): Promise<boolean> {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  if (token.startsWith('Bearer ')) {
+    token = token.slice(7).trim();
+  }
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    headers['Cookie'] = `website_access_token=${token}; access_token=${token}; token=${token}; auth_token=${token}`;
+  }
+
+  try {
+    const response = await fetch(`${NOTIFICATIONS_API_BASE_URL}/solo/notifications/read-all`, {
+      method: 'POST',
+      headers,
+    });
+    return response.ok;
+  } catch {
+    return false;
   }
 }

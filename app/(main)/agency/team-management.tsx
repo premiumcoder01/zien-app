@@ -20,7 +20,6 @@ import {
     ActivityIndicator,
     Alert,
     Dimensions,
-    KeyboardAvoidingView,
     Modal,
     Platform,
     RefreshControl,
@@ -32,7 +31,9 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import PhoneInput from 'react-native-phone-number-input';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
 const { width } = Dimensions.get('window');
@@ -153,6 +154,7 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const phoneInputRef = useRef<PhoneInput>(null);
+    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         if (visible) {
@@ -248,19 +250,19 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
             <View style={{ flex: 1, backgroundColor: colors.cardBackground }}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
                     <View style={{ flex: 1 }}>
                         {/* Header */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 24, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                                <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}>
-                                    <MaterialCommunityIcons name="arrow-left" size={24} color={colors.textPrimary} />
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, paddingTop: Math.max(insets.top, 16) + 12, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.cardBackground }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                                <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSoft }}>
+                                    <MaterialCommunityIcons name="arrow-left" size={22} color={colors.textPrimary} />
                                 </TouchableOpacity>
                                 <View>
                                     <Text style={{ fontSize: 18, fontWeight: '900', color: colors.textPrimary }}>
                                         {isEdit ? "Edit Team Member" : "Add New Team Member"}
                                     </Text>
-                                    <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 2 }}>
+                                    <Text style={{ fontSize: 12.5, color: colors.textSecondary, marginTop: 2 }}>
                                         {isEdit ? "Update professional details" : "Register a new agency agent"}
                                     </Text>
                                 </View>
@@ -436,9 +438,9 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                         </ScrollView>
 
                         {/* Footer */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 24, borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.cardBackground, paddingBottom: Platform.OS === 'ios' ? 20 : 24 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.cardBackground, paddingBottom: Math.max(insets.bottom, 16) + 12 }}>
                             <TouchableOpacity
-                                style={{ flex: 1, height: 48, borderRadius: 12, backgroundColor: '#0D1B2A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', opacity: isSaving ? 0.7 : 1 }}
+                                style={{ flex: 1, height: 50, borderRadius: 14, backgroundColor: '#0D1B2A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', opacity: isSaving ? 0.7 : 1 }}
                                 onPress={handleSubmit}
                                 disabled={isSaving}
                             >
@@ -790,10 +792,12 @@ const AgentCard = ({ agent, onDelete, onEdit, onView, onChangePassword, onToggle
 };
 
 export default function TeamManagement() {
-    const { colors } = useAppTheme();
+    const router = useRouter();
+    const { colors, theme } = useAppTheme();
     const styles = getStyles(colors);
     const { accessToken } = useAuth();
     const queryClient = useQueryClient();
+    const insets = useSafeAreaInsets();
     const [selectedTab, setSelectedTab] = useState('All Agents');
     const [modalVisible, setModalVisible] = useState(false);
     const [editingAgent, setEditingAgent] = useState<Employee | null>(null);
@@ -1186,11 +1190,21 @@ export default function TeamManagement() {
                     </View>
                 </Modal>
 
-                <View style={{ height: 100 }} />
+                <View style={{ height: Math.max(insets.bottom, 16) + 80 }} />
             </ScrollView>
 
             {/* Floating Action Button */}
-            <TouchableOpacity style={[styles.fab, { backgroundColor: '#0D1B2A' }]} onPress={handleOpenAdd}>
+            <TouchableOpacity
+                style={[
+                    styles.fab,
+                    {
+                        backgroundColor: '#0D1B2A',
+                        bottom: Math.max(insets.bottom, 16) + 16,
+                    },
+                ]}
+                onPress={handleOpenAdd}
+                activeOpacity={0.85}
+            >
                 <MaterialCommunityIcons name="plus" size={28} color="#fff" />
             </TouchableOpacity>
         </DashboardLayout>

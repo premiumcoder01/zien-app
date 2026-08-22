@@ -4,9 +4,12 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { getTeamLogs, TeamLogEntry, TeamLogsResponse } from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import React, { useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     Platform,
     ScrollView,
@@ -146,6 +149,7 @@ export default function ActivityLogs() {
     const [isSeverityDropdownOpen, setIsSeverityDropdownOpen] = useState(false);
     const [selectedMember, setSelectedMember] = useState<string>('All');
     const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     // Toast State
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -235,30 +239,77 @@ export default function ActivityLogs() {
         return matchesSearch && matchesSeverity && matchesMember;
     });
 
-    // CSV Exporter Action
-    const handleCSVExport = () => {
+    // CSV Exporter Action with real FileSystem download & native Sharing
+    const handleCSVExport = async () => {
         if (!filteredLogs || filteredLogs.length === 0) {
             showToast('error', 'No logs available to export!');
             return;
         }
+        setIsExporting(true);
         try {
             const headers = ['LOG ID', 'ACTION', 'USER', 'TARGET', 'SEVERITY', 'TIMESTAMP', 'IP'];
             const rows = filteredLogs.map(log => [
                 `LOG-${log.id}`,
-                `"${log.action.replace(/"/g, '""')}"`,
+                `"${(log.action || '').replace(/"/g, '""')}"`,
                 `"${(log.user_name || '').replace(/"/g, '""')}"`,
                 `"${(log.target || '').replace(/"/g, '""')}"`,
-                log.severity,
-                formatLogTimestamp(log.timestamp),
-                log.ip || '-'
+                `"${(log.severity || '').replace(/"/g, '""')}"`,
+                `"${formatLogTimestamp(log.timestamp).replace(/"/g, '""')}"`,
+                `"${(log.ip || '-').replace(/"/g, '""')}"`
             ]);
             const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-            console.log('CSV Export Compiled:\n', csvContent);
-            // Show custom Notch-safe animated success toaster banner
-            showToast('success', `Exported ${filteredLogs.length} logs to CSV successfully!`);
+            const dateStr = new Date().toISOString().split('T')[0];
+            const fileName = `Audit_Logs_${dateStr}_${Date.now()}.csv`;
+            const cacheUri = `${FileSystem.cacheDirectory}${fileName}`;
+            const docUri = `${FileSystem.documentDirectory}${fileName}`;
+
+            await FileSystem.writeAsStringAsync(cacheUri, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
+
+            if (Platform.OS === 'android') {
+                try {
+                    const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+                    if (permissions.granted) {
+                        const safUri = await FileSystem.StorageAccessFramework.createFileAsync(
+                            permissions.directoryUri,
+                            fileName,
+                            'text/csv'
+                        );
+                        await FileSystem.writeAsStringAsync(safUri, csvContent, {
+                            encoding: FileSystem.EncodingType.UTF8,
+                        });
+                        showToast('success', `"${fileName}" saved to your folder!`);
+                        return;
+                    }
+                } catch (safError) {
+                    console.warn('StorageAccessFramework fallback to share:', safError);
+                }
+
+                if (await Sharing.isAvailableAsync()) {
+                    await Sharing.shareAsync(cacheUri, {
+                        mimeType: 'text/csv',
+                        dialogTitle: 'Export Audit Logs',
+                        UTI: 'public.comma-separated-values-text',
+                    });
+                    showToast('success', `Exported ${filteredLogs.length} logs successfully!`);
+                } else {
+                    Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+                }
+            } else {
+                await FileSystem.writeAsStringAsync(docUri, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
+                if (await Sharing.isAvailableAsync()) {
+                    await Sharing.shareAsync(docUri, {
+                        mimeType: 'text/csv',
+                        dialogTitle: 'Export Audit Logs',
+                        UTI: 'public.comma-separated-values-text',
+                    });
+                }
+                showToast('success', `Exported ${filteredLogs.length} logs successfully!`);
+            }
         } catch (err) {
             console.error('CSV Export Error:', err);
-            showToast('error', 'Failed to compile CSV logs');
+            showToast('error', 'Failed to export CSV logs');
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -552,10 +603,17 @@ export default function ActivityLogs() {
                             {/* Export CSV Button (full width bottom) */}
                             <TouchableOpacity
                                 onPress={handleCSVExport}
-                                style={[styles.exportBtn, { backgroundColor: '#0F172A' }]}
+                                disabled={isExporting}
+                                style={[styles.exportBtn, { backgroundColor: '#0F172A', opacity: isExporting ? 0.7 : 1 }]}
                             >
-                                <MaterialCommunityIcons name="cloud-download-outline" size={18} color="#FFFFFF" />
-                                <Text style={styles.exportBtnText}>Export Audit CSV</Text>
+                                {isExporting ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <MaterialCommunityIcons name="cloud-download-outline" size={18} color="#FFFFFF" />
+                                )}
+                                <Text style={styles.exportBtnText}>
+                                    {isExporting ? 'Exporting CSV...' : 'Export Audit CSV'}
+                                </Text>
                             </TouchableOpacity>
                         </View>
 

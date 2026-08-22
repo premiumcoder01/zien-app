@@ -492,9 +492,6 @@ export default function PropertySearchScreen() {
                                 >
                                     <View style={styles.imageContainer}>
                                         <Image source={{ uri: mediaUrl }} style={styles.propertyImage} />
-                                        <View style={styles.appreciationBadge}>
-                                            <Text style={styles.appreciationText}>{propType}</Text>
-                                        </View>
                                     </View>
                                     <View style={styles.propertyDetails}>
                                         <Text style={styles.propertyType}>{propType}</Text>

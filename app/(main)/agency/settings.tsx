@@ -252,9 +252,9 @@ function MyProfileTab({ profile, onSave, isSaving, accessToken }: { profile: any
                 }
                 const result = await ImagePicker.launchImageLibraryAsync({
                     mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                    allowsEditing: true,
+                    allowsEditing: Platform.OS === 'ios',
                     aspect: [1, 1],
-                    quality: 0.5,
+                    quality: 0.7,
                 });
                 if (!result.canceled && result.assets[0]) {
                     await uploadPhoto(result.assets[0].uri);
@@ -266,9 +266,9 @@ function MyProfileTab({ profile, onSave, isSaving, accessToken }: { profile: any
                     return;
                 }
                 const result = await ImagePicker.launchCameraAsync({
-                    allowsEditing: true,
+                    allowsEditing: Platform.OS === 'ios',
                     aspect: [1, 1],
-                    quality: 0.5,
+                    quality: 0.7,
                 });
                 if (!result.canceled && result.assets[0]) {
                     await uploadPhoto(result.assets[0].uri);
@@ -591,7 +591,7 @@ const BrandingTab = ({ branding, onSave, isSaving, accessToken }: any) => {
             }
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
+                allowsEditing: Platform.OS === 'ios',
                 quality: 0.8,
             });
             if (!result.canceled && result.assets[0]) {

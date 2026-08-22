@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { addCRMGroup, addCRMLead, addCRMTag, convertCRMLead, CRMLead, deleteCRMLead, getCRMLeads, getCRMMeta, updateCRMLead } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,6 +16,126 @@ import PhoneInput from "react-native-phone-number-input";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AILeadImportModal } from '../components/modals/AILeadImportModal';
 import { ManageMetaModal } from '../components/modals/ManageMetaModal';
+
+const COUNTRY_CODE_TO_ISO: Record<string, string> = {
+  '+1': 'US',
+  '1': 'US',
+  '+7': 'RU',
+  '7': 'RU',
+  '+20': 'EG',
+  '20': 'EG',
+  '+27': 'ZA',
+  '27': 'ZA',
+  '+30': 'GR',
+  '+31': 'NL',
+  '+32': 'BE',
+  '+33': 'FR',
+  '+34': 'ES',
+  '+36': 'HU',
+  '+39': 'IT',
+  '+40': 'RO',
+  '+41': 'CH',
+  '+43': 'AT',
+  '+44': 'GB',
+  '44': 'GB',
+  '+45': 'DK',
+  '+46': 'SE',
+  '+47': 'NO',
+  '+48': 'PL',
+  '+49': 'DE',
+  '+51': 'PE',
+  '+52': 'MX',
+  '+53': 'CU',
+  '+54': 'AR',
+  '+55': 'BR',
+  '+56': 'CL',
+  '+57': 'CO',
+  '+58': 'VE',
+  '+60': 'MY',
+  '+61': 'AU',
+  '61': 'AU',
+  '+62': 'ID',
+  '+63': 'PH',
+  '+64': 'NZ',
+  '+65': 'SG',
+  '+66': 'TH',
+  '+81': 'JP',
+  '+82': 'KR',
+  '+84': 'VN',
+  '+86': 'CN',
+  '+90': 'TR',
+  '+91': 'IN',
+  '91': 'IN',
+  '+92': 'PK',
+  '+93': 'AF',
+  '+94': 'LK',
+  '+95': 'MM',
+  '+98': 'IR',
+  '+212': 'MA',
+  '+213': 'DZ',
+  '+216': 'TN',
+  '+218': 'LY',
+  '+220': 'GM',
+  '+221': 'SN',
+  '+225': 'CI',
+  '+234': 'NG',
+  '+254': 'KE',
+  '+255': 'TZ',
+  '+256': 'UG',
+  '+260': 'ZM',
+  '+263': 'ZW',
+  '+351': 'PT',
+  '+353': 'IE',
+  '+355': 'AL',
+  '+358': 'FI',
+  '+359': 'BG',
+  '+372': 'EE',
+  '+373': 'MD',
+  '+374': 'AM',
+  '+375': 'BY',
+  '+380': 'UA',
+  '+381': 'RS',
+  '+385': 'HR',
+  '+386': 'SI',
+  '+387': 'BA',
+  '+420': 'CZ',
+  '+421': 'SK',
+  '+502': 'GT',
+  '+503': 'SV',
+  '+504': 'HN',
+  '+505': 'NI',
+  '+506': 'CR',
+  '+507': 'PA',
+  '+591': 'BO',
+  '+593': 'EC',
+  '+595': 'PY',
+  '+598': 'UY',
+  '+852': 'HK',
+  '+886': 'TW',
+  '+961': 'LB',
+  '+962': 'JO',
+  '+963': 'SY',
+  '+964': 'IQ',
+  '+965': 'KW',
+  '+966': 'SA',
+  '+968': 'OM',
+  '+971': 'AE',
+  '971': 'AE',
+  '+972': 'IL',
+  '+973': 'BH',
+  '+974': 'QA',
+  '+977': 'NP',
+};
+
+const getIsoCode = (code: string | null | undefined): string => {
+  if (!code) return 'US';
+  const clean = String(code).trim();
+  if (COUNTRY_CODE_TO_ISO[clean]) return COUNTRY_CODE_TO_ISO[clean];
+  const withPlus = clean.startsWith('+') ? clean : `+${clean}`;
+  if (COUNTRY_CODE_TO_ISO[withPlus]) return COUNTRY_CODE_TO_ISO[withPlus];
+  if (clean.length === 2) return clean.toUpperCase();
+  return 'US';
+};
 
 
 function LeadCard({ lead, onDeletePress, onConvertPress, onToggleArchive, onEditPress, isArchiving, isConverting, isSelectMode, isSelected, onToggleSelect }: {
@@ -329,8 +450,21 @@ export default function LeadsScreen() {
       setFirstName(leadToEdit.first_name || '');
       setLastName(leadToEdit.last_name || '');
       setEmail(leadToEdit.email || '');
-      setPhone(leadToEdit.phone || '');
-      setFormattedPhone(leadToEdit.phone || '');
+
+      // Clean phone number from leading country code prefix if duplicated
+      let rawPhone = leadToEdit.phone || '';
+      const rawCountryCode = leadToEdit.country_code || '+1';
+      const callingDigits = String(rawCountryCode).replace(/[^0-9]/g, '');
+      if (callingDigits && rawPhone.startsWith(callingDigits)) {
+        rawPhone = rawPhone.slice(callingDigits.length);
+      }
+      setPhone(rawPhone);
+      setFormattedPhone(rawPhone);
+
+      // Detect ISO country code (e.g. +91 -> 'IN', +1 -> 'US')
+      const iso = getIsoCode(leadToEdit.country_code);
+      setCountryCode(iso);
+
       setEditGroup(leadToEdit.group?.name || 'Buyer');
       setEditTag(leadToEdit.tag?.name || 'Lead');
       setEditSource(leadToEdit.source || 'Manual Entry');
@@ -338,6 +472,8 @@ export default function LeadsScreen() {
       setEditColor(leadToEdit.tag?.tag_color || '#0a2341');
       setSelectedGroupId(leadToEdit.group_id);
       setSelectedTagId(leadToEdit.tag_id);
+    } else {
+      setCountryCode('US');
     }
   }, [leadToEdit]);
 
@@ -480,7 +616,11 @@ export default function LeadsScreen() {
   };
 
   const handleSaveLead = async () => {
-    if (!accessToken) return;
+    const activeToken = accessToken || (await AsyncStorage.getItem('access_token'));
+    if (!activeToken) {
+      Alert.alert('Unauthorized', 'Please log in again to continue.');
+      return;
+    }
     const newErrors: Record<string, string> = {};
     if (!firstName.trim()) newErrors.firstName = 'First Name is required.';
     if (!lastName.trim()) newErrors.lastName = 'Last Name is required.';
@@ -507,31 +647,46 @@ export default function LeadsScreen() {
       const isCustomGroup = editGroup === 'Custom Group...';
       const isCustomTag = editTag === 'Custom Tag...';
 
-      if (isCustomGroup && customGroup) {
-        const newGroup = await addCRMGroup(accessToken, customGroup);
-        finalGroupId = newGroup.id;
+      if (isCustomGroup && customGroup.trim()) {
+        const newGroup = await addCRMGroup(activeToken, customGroup.trim());
+        finalGroupId = newGroup?.id || finalGroupId;
       }
 
-      if (isCustomTag && customTag) {
-        const newTag = await addCRMTag(accessToken, customTag, editColor);
-        finalTagId = newTag.id;
+      if (isCustomTag && customTag.trim()) {
+        const newTag = await addCRMTag(activeToken, customTag.trim(), editColor);
+        finalTagId = newTag?.id || finalTagId;
+      }
+
+      let callingCode = phoneInput.current?.getCallingCode();
+      if (!callingCode) {
+        callingCode = countryCode === 'IN' ? '91' : '1';
+      }
+      const formattedCountryCode = callingCode.startsWith('+') ? callingCode : `+${callingCode}`;
+
+      let cleanPhone = (phone || '').trim();
+      const rawCallingDigits = callingCode.replace(/[^0-9]/g, '');
+      if (rawCallingDigits && cleanPhone.startsWith(rawCallingDigits)) {
+        cleanPhone = cleanPhone.slice(rawCallingDigits.length);
       }
 
       const payload: any = {
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone: phone,
-        country_code: countryCode,
-        source: editSource,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim(),
+        phone: cleanPhone,
+        country_code: formattedCountryCode,
+        source: editSource === 'Manual Entry' ? 'Manual' : editSource,
         status: editStatus === 'Active' ? '1' : '0',
+        score: 75,
         group_id: finalGroupId,
         tag_id: finalTagId,
-        custom_group: isCustomGroup ? customGroup : undefined,
-        custom_tag: isCustomTag ? customTag : undefined,
-        tag_color: isCustomTag ? editColor : undefined,
-        score: 75,
+        custom_group: isCustomGroup ? (customGroup.trim() || '') : '',
+        custom_tag: isCustomTag ? (customTag.trim() || '') : '',
+        tag_color: (isCustomTag ? editColor : '') || '#6366F1',
         lead_date_label: 'Today',
+        auto_merge: true,
+        utm_source: 'google',
+        utm_medium: 'organic',
       };
 
       if (!payload.group_id && !isCustomGroup) {
@@ -545,19 +700,15 @@ export default function LeadsScreen() {
         return;
       }
 
-      if (isCustomGroup) payload.custom_group = customGroup;
-      if (isCustomTag) {
-        payload.custom_tag = customTag;
-        payload.tag_color = editColor;
-      }
-
       if (leadToEdit) {
-        await updateCRMLead(accessToken, leadToEdit.id, payload);
+        await updateCRMLead(activeToken, leadToEdit.id, payload);
       } else {
-        await addCRMLead(accessToken, payload);
+        await addCRMLead(activeToken, payload);
       }
 
       await refetchLeads();
+      queryClient.invalidateQueries({ queryKey: ['crmMeta'] });
+      queryClient.invalidateQueries({ queryKey: ['crm-overview'] });
       setIsEditModalVisible(false);
       setLeadToEdit(null);
       Alert.alert('Success', `Lead ${leadToEdit ? 'updated' : 'added'} successfully.`);
@@ -984,11 +1135,12 @@ export default function LeadsScreen() {
                   <View style={styles.convertCol}>
                     <Text style={styles.convertLabel}>Phone</Text>
                     <PhoneInput
+                      key={`phone_${leadToEdit?.id || 'new'}_${countryCode}`}
                       ref={phoneInput}
                       defaultValue={phone}
                       defaultCode={countryCode as any}
                       layout="second"
-                      disabled={!!leadToEdit}
+                      disabled={false}
                       containerStyle={[
                         styles.phoneInputWrapper,
                         errors.phone && styles.inputError,

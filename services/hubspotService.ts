@@ -107,13 +107,32 @@ export const getHubSpotStatus = async (accessToken: string): Promise<HubSpotStat
 };
 
 /**
- * POST /integrations/hubspot/sync
+ * POST /solo/crm/integrations/hubspot/sync
  * Triggers a manual sync of contacts from HubSpot.
  */
 export const triggerHubSpotSync = async (accessToken: string): Promise<HubSpotSyncResponse> => {
-    const { timeoutId, options } = createFetchOptions(accessToken, 'POST');
+    if (!accessToken) return { success: false, count: 0 };
+    const { timeoutId, options } = createFetchOptions(accessToken, 'POST', {});
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/hubspot/sync`, options);
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/hubspot/sync`, options);
+
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/integrations/hubspot/sync`, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                    },
+                    body: JSON.stringify({}),
+                });
+                if (fallbackRes.ok) {
+                    response = fallbackRes;
+                }
+            } catch {}
+        }
+
         return handleResponse<HubSpotSyncResponse>(response, timeoutId);
     } catch (error) {
         return handleError(error);
@@ -139,9 +158,28 @@ export const updateIntegrationSettings = async (
     accessToken: string,
     payload: IntegrationSettingsPayload
 ): Promise<any> => {
+    if (!accessToken) return null;
     const { timeoutId, options } = createFetchOptions(accessToken, 'POST', payload);
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/${provider}/settings`, options);
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/${provider}/settings`, options);
+
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/integrations/${provider}/settings`, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                    },
+                    body: JSON.stringify(payload),
+                });
+                if (fallbackRes.ok) {
+                    response = fallbackRes;
+                }
+            } catch {}
+        }
+
         return handleResponse<any>(response, timeoutId);
     } catch (error) {
         return handleError(error);
@@ -156,9 +194,28 @@ export const triggerIntegrationSync = async (
     provider: string,
     accessToken: string
 ): Promise<any> => {
-    const { timeoutId, options } = createFetchOptions(accessToken, 'POST');
+    if (!accessToken) return null;
+    const { timeoutId, options } = createFetchOptions(accessToken, 'POST', {});
     try {
-        const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/${provider}/sync`, options);
+        let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/integrations/${provider}/sync`, options);
+
+        if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
+            try {
+                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/integrations/${provider}/sync`, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                    },
+                    body: JSON.stringify({}),
+                });
+                if (fallbackRes.ok) {
+                    response = fallbackRes;
+                }
+            } catch {}
+        }
+
         return handleResponse<any>(response, timeoutId);
     } catch (error) {
         return handleError(error);

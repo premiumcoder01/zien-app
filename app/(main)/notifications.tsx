@@ -1,155 +1,176 @@
-import { PageHeader } from '@/components/ui';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
+import {
+  ApiNotification,
+  getNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+} from '@/services/notificationService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { memo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { memo, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// ─────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────
-type NotificationItem = {
-  id: string;
-  icon: string;
-  iconColor: string;
-  iconBg: string;
-  title: string;
-  body: string;
-  time: string;
-  actionLabel?: string;
-  actionRoute?: string;
-  unread?: boolean;
-};
+const { width } = Dimensions.get('window');
 
 // ─────────────────────────────────────────────────────
-// Data
+// Helpers
 // ─────────────────────────────────────────────────────
-const NOTIFICATIONS_BY_SECTION: { section: string; items: NotificationItem[] }[] = [
-  {
-    section: 'TODAY',
-    items: [
-      {
-        id: '1',
-        icon: 'home-city-outline',
+function formatTimestamp(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+  } catch {
+    return isoString;
+  }
+}
+
+function getNotificationConfig(type: string) {
+  switch (type) {
+    case 'hot_lead_alert':
+      return {
+        icon: 'fire' as const,
+        iconColor: '#EF4444',
+        bgColor: '#FEF2F2',
+        borderColor: '#FEE2E2',
+        label: 'Hot Lead',
+      };
+    case 'checkin_alert':
+      return {
+        icon: 'account-check-outline' as const,
+        iconColor: '#4F46E5',
+        bgColor: '#EEF2FF',
+        borderColor: '#E0E7FF',
+        label: 'Visitor Check-in',
+      };
+    case 'valuation_alert':
+    case 'ai_valuation':
+      return {
+        icon: 'home-city-outline' as const,
         iconColor: '#0a2341',
-        iconBg: '#0a234118',
-        title: 'AI Valuation Completed',
-        body: 'Valuation report for 124 Ocean Drive is ready. 15% increase in estimated value.',
-        time: '2 hours ago',
-        actionLabel: 'View Report',
-        actionRoute: '/(main)/properties',
-        unread: true,
-      },
-      {
-        id: '2',
-        icon: 'email-outline',
+        bgColor: 'rgba(10,35,65,0.08)',
+        borderColor: 'rgba(10,35,65,0.15)',
+        label: 'Valuation',
+      };
+    case 'campaign_alert':
+    case 'campaign':
+      return {
+        icon: 'email-outline' as const,
         iconColor: '#EA580C',
-        iconBg: '#EA580C18',
-        title: 'Campaign Sent',
-        body: 'Monthly Market Update campaign deployed to 450 contacts. Open rates trending at 32%.',
-        time: '4 hours ago',
-        actionLabel: 'View Analytics',
-        actionRoute: '/(main)/crm/campaigns',
-        unread: true,
-      },
-    ],
-  },
-  {
-    section: 'YESTERDAY',
-    items: [
-      {
-        id: '4',
-        icon: 'shield-check-outline',
+        bgColor: '#FFF7ED',
+        borderColor: '#FFEDD5',
+        label: 'Campaign',
+      };
+    case 'guardian_alert':
+    case 'guardian_ai':
+      return {
+        icon: 'shield-check-outline' as const,
         iconColor: '#16A34A',
-        iconBg: '#16A34A18',
-        title: 'Guardian AI Activated',
-        body: 'Safety monitoring was active for your showing at 88 Summit Ave.',
-        time: 'Yesterday at 4:30 PM',
-        actionLabel: 'View Log',
-        actionRoute: '/(main)/guardian-ai?tab=logs-reports',
-      },
-      {
-        id: '5',
-        icon: 'account-group-outline',
-        iconColor: '#0a2341',
-        iconBg: '#0a234118',
-        title: 'New Leads Acquired',
-        body: '3 new leads were captured via your Digital Card NFC tap.',
-        time: 'Yesterday at 2:15 PM',
-        actionLabel: 'Go to CRM',
-        actionRoute: '/(main)/crm',
-      },
-    ],
-  },
-  {
-    section: 'EARLIER',
-    items: [
-      {
-        id: '6',
-        icon: 'home-city-outline',
-        iconColor: '#0a2341',
-        iconBg: '#0a234118',
-        title: 'Property Status Changed',
-        body: '45 Lakeview Dr has been moved from Active to Pending based on MLS data sync.',
-        time: 'Feb 3, 2026',
-      },
-    ],
-  },
-];
-
-
+        bgColor: '#F0FDF4',
+        borderColor: '#DCFCE7',
+        label: 'Guardian Safety',
+      };
+    default:
+      return {
+        icon: 'bell-outline' as const,
+        iconColor: '#06B6D4',
+        bgColor: '#ECFEFF',
+        borderColor: '#CFFAFE',
+        label: 'Alert',
+      };
+  }
+}
 
 // ─────────────────────────────────────────────────────
-// NotificationCard Component
+// Notification Card Component
 // ─────────────────────────────────────────────────────
-type NotificationCardProps = NotificationItem & {
+interface NotificationCardProps {
+  item: ApiNotification;
   onPress: () => void;
-  onActionPress: () => void;
-};
+}
 
-const NotificationCard = memo(({
-  id, icon, iconColor, iconBg, title, body, time, actionLabel, unread,
-  onPress, onActionPress,
-}: NotificationCardProps) => {
+const NotificationCard = memo(({ item, onPress }: NotificationCardProps) => {
   const { colors } = useAppTheme();
   const styles = getCardStyles(colors);
+  const config = getNotificationConfig(item.notification_type);
+  const formattedDate = formatTimestamp(item.created_at);
+  const isUnread = !item.is_read;
 
   return (
     <Pressable
       style={({ pressed }) => [
         styles.card,
-        unread && styles.cardUnread,
+        isUnread && styles.cardUnread,
         pressed && styles.cardPressed,
       ]}
       onPress={onPress}
     >
-      {/* Icon */}
-      <View style={[styles.iconWrap, { backgroundColor: unread ? `${iconColor}22` : colors.surfaceIcon }]}>
-        <MaterialCommunityIcons name={icon as any} size={20} color={iconColor} />
+      {/* Left Icon Badge */}
+      <View
+        style={[
+          styles.iconWrap,
+          {
+            backgroundColor: config.bgColor,
+            borderColor: config.borderColor,
+          },
+        ]}
+      >
+        <MaterialCommunityIcons name={config.icon} size={22} color={config.iconColor} />
       </View>
 
-      {/* Content */}
-      <View style={styles.content}>
-        <View style={styles.topRow}>
-          <Text style={[styles.title, unread && styles.titleUnread]}>
-            {title}
+      {/* Main Content */}
+      <View style={styles.contentWrap}>
+        <View style={styles.headerRow}>
+          <Text style={[styles.title, isUnread && styles.titleUnread]} numberOfLines={2}>
+            {item.title}
           </Text>
-          <Text style={styles.time}>{time}</Text>
         </View>
-        <Text style={styles.body}>{body}</Text>
 
-        {actionLabel && (
-          <Pressable
-            style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
-            onPress={(e) => { e.stopPropagation(); onActionPress(); }}
-          >
-            <Text style={[styles.actionText, { color: iconColor }]}>{actionLabel}</Text>
-            <MaterialCommunityIcons name="arrow-right" size={13} color={iconColor} />
-          </Pressable>
-        )}
+        <Text style={styles.message} numberOfLines={3}>
+          {item.message}
+        </Text>
+
+        <View style={styles.footerRow}>
+          <Text style={styles.timestamp}>{formattedDate}</Text>
+          {item.data && (
+            <View style={styles.viewDetailsChip}>
+              <Text style={styles.viewDetailsText}>View Details</Text>
+              <MaterialCommunityIcons name="chevron-right" size={12} color="#64748B" />
+            </View>
+          )}
+        </View>
       </View>
+
+      {/* Right Unread Glowing Dot */}
+      {isUnread && (
+        <View style={styles.unreadDotContainer}>
+          <View style={styles.unreadDot} />
+        </View>
+      )}
     </Pressable>
   );
 });
@@ -159,117 +180,211 @@ function getCardStyles(colors: any) {
     card: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      backgroundColor: colors.cardBackground,
-      borderRadius: 20,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 16,
       padding: 14,
       marginBottom: 10,
       borderWidth: 1,
-      borderColor: colors.cardBorder,
-      shadowColor: colors.cardShadowColor,
-      shadowOpacity: 0.06,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 6 },
+      borderColor: '#E2E8F0',
+      shadowColor: '#0F172A',
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
       elevation: 2,
       position: 'relative',
-      overflow: 'hidden',
-      gap: 12,
     },
     cardUnread: {
-      backgroundColor: colors.surfaceSoft,
-      borderColor: colors.accentTeal,
-      borderWidth: 1,
+      backgroundColor: '#FFFFFF',
+      borderColor: '#CBD5E1',
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
     },
     cardPressed: {
-      opacity: 0.85,
+      opacity: 0.88,
       transform: [{ scale: 0.99 }],
-    },
-    unreadBar: {
-      position: 'absolute',
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: 3,
-      borderTopLeftRadius: 20,
-      borderBottomLeftRadius: 20,
     },
     iconWrap: {
       width: 44,
       height: 44,
-      borderRadius: 15,
+      borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
+      borderWidth: 1,
+      marginRight: 12,
       flexShrink: 0,
-      marginLeft: 4,
+      marginTop: 2,
     },
-    content: {
+    contentWrap: {
       flex: 1,
-      gap: 4,
+      paddingRight: 10,
     },
-    topRow: {
+    headerRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
       justifyContent: 'space-between',
-      gap: 8,
+      marginBottom: 4,
     },
     title: {
-      flex: 1,
-      fontSize: 14,
+      fontSize: 14.5,
       fontWeight: '700',
-      color: colors.textPrimary,
-      lineHeight: 19,
+      color: '#0F172A',
+      lineHeight: 20,
+      flex: 1,
     },
     titleUnread: {
       fontWeight: '800',
+      color: '#020617',
     },
-    time: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: colors.inputPlaceholder,
-      flexShrink: 0,
-      marginTop: 1,
-    },
-    body: {
+    message: {
       fontSize: 13,
-      color: colors.textSecondary,
-      lineHeight: 19,
-      fontWeight: '400',
+      color: '#475569',
+      lineHeight: 18.5,
+      marginBottom: 6,
     },
-    actionBtn: {
+    footerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
-      marginTop: 6,
-      alignSelf: 'flex-start',
-      paddingVertical: 5,
-      paddingHorizontal: 10,
+      justifyContent: 'space-between',
+      marginTop: 2,
+    },
+    timestamp: {
+      fontSize: 11.5,
+      fontWeight: '500',
+      color: '#94A3B8',
+    },
+    viewDetailsChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+      backgroundColor: '#F1F5F9',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
       borderRadius: 999,
-      backgroundColor: `${colors.accentTeal}12`,
     },
-    actionText: {
-      fontSize: 12.5,
-      fontWeight: '800',
+    viewDetailsText: {
+      fontSize: 10.5,
+      fontWeight: '600',
+      color: '#475569',
     },
-    dot: {
+    unreadDotContainer: {
       position: 'absolute',
-      top: 14,
+      top: 18,
       right: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    unreadDot: {
       width: 8,
       height: 8,
       borderRadius: 4,
-      borderWidth: 1.5,
-      borderColor: '#fff',
+      backgroundColor: '#EA580C',
+      shadowColor: '#EA580C',
+      shadowOpacity: 0.5,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 0 },
     },
   });
 }
 
 // ─────────────────────────────────────────────────────
-// Screen
+// Main Notifications Screen
 // ─────────────────────────────────────────────────────
 export default function NotificationsScreen() {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'hot' | 'checkin'>('all');
+  const [selectedNotification, setSelectedNotification] = useState<ApiNotification | null>(null);
+
+  // ── 1. Fetch Notifications ──
+  const {
+    data: notifications = [],
+    isLoading,
+    isRefetching,
+    refetch,
+  } = useQuery({
+    queryKey: ['notifications', accessToken],
+    queryFn: () => getNotifications(accessToken || ''),
+    enabled: true,
+  });
+
+  // ── 2. Mark Single Read Mutation ──
+  const markReadMutation = useMutation({
+    mutationFn: (id: number) => markNotificationAsRead(id, accessToken || ''),
+    onSuccess: (_, id) => {
+      queryClient.setQueryData(['notifications', accessToken], (old: ApiNotification[] = []) =>
+        old.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+      );
+    },
+  });
+
+  // ── 3. Mark All Read Mutation ──
+  const markAllReadMutation = useMutation({
+    mutationFn: () => markAllNotificationsAsRead(accessToken || ''),
+    onSuccess: () => {
+      queryClient.setQueryData(['notifications', accessToken], (old: ApiNotification[] = []) =>
+        old.map((n) => ({ ...n, is_read: true }))
+      );
+      Alert.alert('Done', 'All notifications marked as read.');
+    },
+  });
+
+  // ── Filter Counts ──
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.is_read).length,
+    [notifications]
+  );
+  const hotLeadsCount = useMemo(
+    () => notifications.filter((n) => n.notification_type === 'hot_lead_alert').length,
+    [notifications]
+  );
+  const checkinsCount = useMemo(
+    () => notifications.filter((n) => n.notification_type === 'checkin_alert').length,
+    [notifications]
+  );
+
+  // ── Filtered List ──
+  const filteredNotifications = useMemo(() => {
+    switch (activeFilter) {
+      case 'unread':
+        return notifications.filter((n) => !n.is_read);
+      case 'hot':
+        return notifications.filter((n) => n.notification_type === 'hot_lead_alert');
+      case 'checkin':
+        return notifications.filter((n) => n.notification_type === 'checkin_alert');
+      default:
+        return notifications;
+    }
+  }, [notifications, activeFilter]);
+
+  // ── Handle Card Click ──
+  const handleNotificationPress = (item: ApiNotification) => {
+    if (!item.is_read) {
+      markReadMutation.mutate(item.id);
+    }
+    setSelectedNotification(item);
+  };
+
+  // ── Quick Communication Handlers ──
+  const handleCall = (phone?: string) => {
+    if (!phone) return;
+    Linking.openURL(`tel:${phone}`);
+  };
+
+  const handleWhatsApp = (phone?: string) => {
+    if (!phone) return;
+    const clean = phone.replace(/[^0-9]/g, '');
+    Linking.openURL(`https://wa.me/${clean}`);
+  };
+
+  const handleEmail = (email?: string) => {
+    if (!email) return;
+    Linking.openURL(`mailto:${email}`);
+  };
 
   return (
     <LinearGradient
@@ -278,79 +393,480 @@ export default function NotificationsScreen() {
       end={{ x: 0.9, y: 1 }}
       style={[styles.background, { paddingTop: insets.top }]}
     >
-      {/* ── Page Header ── */}
+      {/* Header */}
       <PageHeader
         title="Notifications"
         subtitle="Stay updated with your latest intelligence feed."
-
         onBack={() => router.back()}
+        rightAction={
+          unreadCount > 0 ? (
+            <Pressable
+              style={({ pressed }) => [styles.markAllBtn, pressed && { opacity: 0.7 }]}
+              onPress={() => markAllReadMutation.mutate()}
+              disabled={markAllReadMutation.isPending}
+            >
+              <MaterialCommunityIcons name="check-all" size={16} color="#0a2341" />
+              <Text style={styles.markAllText}>Mark all read</Text>
+            </Pressable>
+          ) : undefined
+        }
       />
 
-      {/* ── List ── */}
+      {/* Filter Tabs / Chips */}
+      <View style={styles.filterScrollWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterContainer}
+        >
+          <Pressable
+            style={[styles.filterChip, activeFilter === 'all' && styles.filterChipActive]}
+            onPress={() => setActiveFilter('all')}
+          >
+            <Text
+              style={[styles.filterChipText, activeFilter === 'all' && styles.filterChipTextActive]}
+            >
+              All ({notifications.length})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.filterChip, activeFilter === 'unread' && styles.filterChipActive]}
+            onPress={() => setActiveFilter('unread')}
+          >
+            {unreadCount > 0 && <View style={styles.chipUnreadDot} />}
+            <Text
+              style={[styles.filterChipText, activeFilter === 'unread' && styles.filterChipTextActive]}
+            >
+              Unread ({unreadCount})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.filterChip, activeFilter === 'hot' && styles.filterChipActive]}
+            onPress={() => setActiveFilter('hot')}
+          >
+            <Text
+              style={[styles.filterChipText, activeFilter === 'hot' && styles.filterChipTextActive]}
+            >
+              🔥 Hot Leads ({hotLeadsCount})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.filterChip, activeFilter === 'checkin' && styles.filterChipActive]}
+            onPress={() => setActiveFilter('checkin')}
+          >
+            <Text
+              style={[styles.filterChipText, activeFilter === 'checkin' && styles.filterChipTextActive]}
+            >
+              📍 Check-ins ({checkinsCount})
+            </Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+
+      {/* Notification Cards List */}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 32 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor="#0a2341"
+            colors={['#0a2341']}
+          />
+        }
       >
-        {NOTIFICATIONS_BY_SECTION.map(({ section, items }) => (
-          <View key={section} style={styles.section}>
-            {/* Section label */}
-            <View style={styles.sectionRow}>
-              <View style={styles.sectionLine} />
-              <Text style={styles.sectionTitle}>{section}</Text>
-              <View style={styles.sectionLine} />
-            </View>
-
-            {/* Cards */}
-            {items.map((item) => (
-              <NotificationCard
-                key={item.id}
-                {...item}
-                onPress={() => item.actionRoute && router.push(item.actionRoute as any)}
-                onActionPress={() => item.actionRoute && router.push(item.actionRoute as any)}
-              />
-            ))}
+        {isLoading && !isRefetching ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#0a2341" />
+            <Text style={styles.loadingText}>Loading notifications...</Text>
           </View>
-        ))}
+        ) : filteredNotifications.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+              <MaterialCommunityIcons name="bell-sleep-outline" size={36} color="#94A3B8" />
+            </View>
+            <Text style={styles.emptyTitle}>No notifications found</Text>
+            <Text style={styles.emptySubtitle}>
+              {activeFilter === 'unread'
+                ? 'You have caught up with all your unread alerts!'
+                : 'Stay tuned for real-time open house check-ins and hot leads.'}
+            </Text>
+          </View>
+        ) : (
+          filteredNotifications.map((item) => (
+            <NotificationCard
+              key={`notif-${item.id}`}
+              item={item}
+              onPress={() => handleNotificationPress(item)}
+            />
+          ))
+        )}
       </ScrollView>
+
+      {/* ───────────────────────────────────────────────────── */}
+      {/* Detail Modal for Notification & Lead Info            */}
+      {/* ───────────────────────────────────────────────────── */}
+      <Modal
+        visible={!!selectedNotification}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedNotification(null)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setSelectedNotification(null)}
+        >
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            {selectedNotification && (
+              <>
+                {/* Modal Header matching Web UI */}
+                <View style={styles.modalHeader}>
+                  <View
+                    style={[
+                      styles.modalHeaderIconBadge,
+                      {
+                        backgroundColor: getNotificationConfig(
+                          selectedNotification.notification_type
+                        ).bgColor,
+                        borderColor: getNotificationConfig(
+                          selectedNotification.notification_type
+                        ).borderColor,
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={getNotificationConfig(selectedNotification.notification_type).icon}
+                      size={24}
+                      color={
+                        getNotificationConfig(selectedNotification.notification_type).iconColor
+                      }
+                    />
+                  </View>
+                  <Text style={styles.modalTitle} numberOfLines={2}>
+                    {selectedNotification.title}
+                  </Text>
+                  <Pressable
+                    style={styles.modalCloseBtn}
+                    onPress={() => setSelectedNotification(null)}
+                    hitSlop={8}
+                  >
+                    <MaterialCommunityIcons name="close" size={18} color="#64748B" />
+                  </Pressable>
+                </View>
+
+                {/* Modal Scroll Content */}
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  style={{ maxHeight: 500 }}
+                  contentContainerStyle={{ paddingBottom: 10 }}
+                >
+                  <Text style={styles.modalMessage}>{selectedNotification.message}</Text>
+
+                  {/* Visitor Contact & Attributes list matching Web UI */}
+                  {selectedNotification.data ? (
+                    <View style={styles.webLeadDetailsBox}>
+                      {selectedNotification.data.name ? (
+                        <View style={styles.webFieldGroup}>
+                          <Text style={styles.webFieldLabel}>VISITOR NAME</Text>
+                          <Text style={styles.webFieldValue}>{selectedNotification.data.name}</Text>
+                        </View>
+                      ) : null}
+
+                      {selectedNotification.data.email ? (
+                        <View style={styles.webFieldGroup}>
+                          <Text style={styles.webFieldLabel}>EMAIL</Text>
+                          <Text style={styles.webFieldValue}>{selectedNotification.data.email}</Text>
+                        </View>
+                      ) : null}
+
+                      {selectedNotification.data.phone ? (
+                        <View style={styles.webFieldGroup}>
+                          <Text style={styles.webFieldLabel}>PHONE</Text>
+                          <Text style={styles.webFieldValue}>{selectedNotification.data.phone}</Text>
+                        </View>
+                      ) : null}
+
+                      {selectedNotification.data.timeline ? (
+                        <View style={styles.webFieldGroup}>
+                          <Text style={styles.webFieldLabel}>TIMELINE</Text>
+                          <Text style={styles.webFieldValue}>{selectedNotification.data.timeline}</Text>
+                        </View>
+                      ) : null}
+
+                      {selectedNotification.data.budget ? (
+                        <View style={styles.webFieldGroup}>
+                          <Text style={styles.webFieldLabel}>BUDGET</Text>
+                          <Text style={styles.webFieldValue}>{selectedNotification.data.budget}</Text>
+                        </View>
+                      ) : null}
+
+                      {selectedNotification.data.pre_approved ? (
+                        <View style={styles.webFieldGroup}>
+                          <Text style={styles.webFieldLabel}>PRE-APPROVED</Text>
+                          <Text style={styles.webFieldValue}>{selectedNotification.data.pre_approved}</Text>
+                        </View>
+                      ) : null}
+
+                      {selectedNotification.data.interest_signal ? (
+                        <View style={styles.webFieldGroup}>
+                          <Text style={styles.webFieldLabel}>INTEREST SIGNAL</Text>
+                          <Text style={[styles.webFieldValue, { color: '#EA580C' }]}>
+                            {selectedNotification.data.interest_signal}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      {selectedNotification.data.working_with_agent ? (
+                        <View style={styles.webFieldGroup}>
+                          <Text style={styles.webFieldLabel}>WORKING WITH AGENT?</Text>
+                          <Text style={styles.webFieldValue}>
+                            {selectedNotification.data.working_with_agent}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </ScrollView>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </LinearGradient>
   );
 }
 
 // ─────────────────────────────────────────────────────
-// Screen-level styles
+// Styles
 // ─────────────────────────────────────────────────────
 function getStyles(colors: any) {
   return StyleSheet.create({
     background: {
       flex: 1,
     },
+    markAllBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(10,35,65,0.08)',
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+    },
+    markAllText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#0a2341',
+    },
+    filterScrollWrapper: {
+      paddingBottom: 8,
+    },
+    filterContainer: {
+      paddingHorizontal: 16,
+      gap: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    filterChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: '#FFFFFF',
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+    },
+    filterChipActive: {
+      backgroundColor: '#0a2341',
+      borderColor: '#0a2341',
+    },
+    filterChipText: {
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: '#475569',
+    },
+    filterChipTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    chipUnreadDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#EA580C',
+    },
     scroll: {
       flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 18,
-      paddingTop: 4,
+      paddingHorizontal: 16,
+      paddingTop: 8,
     },
-    section: {
-      marginBottom: 24,
+    loadingContainer: {
+      paddingTop: 80,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
     },
-    sectionRow: {
+    loadingText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#64748B',
+    },
+    emptyContainer: {
+      paddingTop: 90,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 32,
+    },
+    emptyIconCircle: {
+      width: 70,
+      height: 70,
+      borderRadius: 35,
+      backgroundColor: '#F1F5F9',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 16,
+    },
+    emptyTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#0F172A',
+      marginBottom: 6,
+    },
+    emptySubtitle: {
+      fontSize: 13,
+      color: '#64748B',
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+
+    // Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 16,
+    },
+    modalCard: {
+      width: '100%',
+      maxWidth: 420,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 24,
+      padding: 22,
+      shadowColor: '#000',
+      shadowOpacity: 0.25,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 12,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      marginBottom: 14,
+    },
+    modalHeaderIconBadge: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    modalTitle: {
+      flex: 1,
+      fontSize: 15.5,
+      fontWeight: '800',
+      color: '#0F172A',
+      lineHeight: 21,
+      marginTop: 2,
+    },
+    modalCloseBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: '#F1F5F9',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+      marginTop: 2,
+    },
+    modalMessage: {
+      fontSize: 13.5,
+      color: '#334155',
+      lineHeight: 20,
+      marginBottom: 16,
+    },
+    webLeadDetailsBox: {
+      backgroundColor: '#F8FAFC',
+      borderRadius: 18,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      gap: 12,
+      marginBottom: 14,
+    },
+    webFieldGroup: {
+      gap: 2,
+    },
+    webFieldLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#64748B',
+      letterSpacing: 0.6,
+    },
+    webFieldValue: {
+      fontSize: 14.5,
+      fontWeight: '700',
+      color: '#0F172A',
+    },
+    quickActionRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 6,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderColor: '#E2E8F0',
+    },
+    quickBtn: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      marginBottom: 12,
+      justifyContent: 'center',
+      gap: 5,
+      paddingVertical: 8,
+      borderRadius: 8,
     },
-    sectionLine: {
-      flex: 1,
-      height: 1,
-      backgroundColor: colors.divider,
+    quickBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
     },
-    sectionTitle: {
-      fontSize: 10.5,
-      fontWeight: '800',
-      letterSpacing: 1.4,
-      color: colors.inputPlaceholder,
+    modalBottomActionRow: {
+      paddingTop: 4,
+    },
+    modalCrmBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: '#0a2341',
+      paddingVertical: 13,
+      borderRadius: 12,
+    },
+    modalCrmBtnText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#FFFFFF',
     },
   });
 }
