@@ -24,6 +24,7 @@ import {
     Platform,
     RefreshControl,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Switch,
     Text,
@@ -355,6 +356,24 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                                     countryPickerProps={{
                                         withFilter: true,
                                         withAlphaFilter: true,
+                                        closeButtonStyle: {
+                                            marginTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 0,
+                                            paddingLeft: 6,
+                                        },
+                                        filterProps: {
+                                            placeholder: 'Enter country name',
+                                            style: {
+                                                marginTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 0,
+                                                height: 48,
+                                                width: '75%',
+                                                fontSize: 15,
+                                                color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                                                paddingLeft: 8,
+                                            },
+                                        },
+                                        flatListProps: {
+                                            contentContainerStyle: { paddingBottom: 40 },
+                                        },
                                         renderFlagButton: (props: any) => {
                                             const code = (props.countryCode || 'US').toUpperCase();
                                             const emoji = code.replace(/./g, (c: string) =>
@@ -438,7 +457,17 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
                         </ScrollView>
 
                         {/* Footer */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.divider, backgroundColor: colors.cardBackground, paddingBottom: Math.max(insets.bottom, 16) + 12 }}>
+                        <View style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            paddingHorizontal: 20,
+                            paddingTop: 16,
+                            borderTopWidth: 1,
+                            borderTopColor: colors.divider,
+                            backgroundColor: colors.cardBackground,
+                            paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 24) + 20 : Math.max(insets.bottom, 16) + 12
+                        }}>
                             <TouchableOpacity
                                 style={{ flex: 1, height: 50, borderRadius: 14, backgroundColor: '#0D1B2A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', opacity: isSaving ? 0.7 : 1 }}
                                 onPress={handleSubmit}
@@ -1190,7 +1219,7 @@ export default function TeamManagement() {
                     </View>
                 </Modal>
 
-                <View style={{ height: Math.max(insets.bottom, 16) + 80 }} />
+                <View style={{ height: Platform.OS === 'android' ? Math.max(insets.bottom, 36) + 80 : Math.max(insets.bottom, 16) + 80 }} />
             </ScrollView>
 
             {/* Floating Action Button */}
@@ -1199,7 +1228,7 @@ export default function TeamManagement() {
                     styles.fab,
                     {
                         backgroundColor: '#0D1B2A',
-                        bottom: Math.max(insets.bottom, 16) + 16,
+                        bottom: Platform.OS === 'android' ? Math.max(insets.bottom, 36) + 24 : Math.max(insets.bottom, 16) + 20,
                     },
                 ]}
                 onPress={handleOpenAdd}

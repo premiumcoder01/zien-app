@@ -153,6 +153,7 @@ export interface SubscriptionAddon {
     stripe_product_id: string;
     available_for_names: string[];
   };
+  status?: string;
   quantity: number;
 }
 
@@ -390,6 +391,35 @@ export const getWebsitePlans = async (): Promise<WebsitePlansResponse> => {
   return response.json();
 };
 
+export interface TeamInvoice {
+  id: string | number;
+  date?: string;
+  created_at?: string;
+  amount: string | number;
+  currency?: string;
+  status: string;
+  invoice_url?: string;
+  pdf_url?: string;
+}
+
+export const getTeamInvoices = async (accessToken: string): Promise<TeamInvoice[]> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/teams/billing/invoices`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      const soloRes = await fetch(`${API_BASE_URL}/solo/billing/invoices`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      if (soloRes.ok) return soloRes.json();
+      return [];
+    }
+    return response.json();
+  } catch (error) {
+    return [];
+  }
+};
+
 export const updateEmployee = async (accessToken: string, employeeId: number, data: any): Promise<any> => {
   const response = await fetch(`${API_BASE_URL}/teams/employees/${employeeId}`, {
     method: 'PUT',
@@ -543,7 +573,7 @@ export interface TeamLogsResponse {
 }
 
 export const getTeamLogs = async (accessToken: string, companyId?: number): Promise<TeamLogsResponse> => {
-  const compIdParam = companyId ? `company_id=${companyId}` : 'company_id=1';
+  const compIdParam = companyId ? `company_id=${companyId}` : 'company_id=26';
   let url = `https://staging.zien.ai/api/teams/logs?${compIdParam}`;
   console.log('=== [GET TEAM LOGS REQUEST] ===');
   console.log('URL:', url);

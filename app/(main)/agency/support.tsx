@@ -113,6 +113,25 @@ const CustomPicker = ({ label, value, options, onSelect, icon, required = false 
     );
 };
 
+const formatChatMessageTime = (dateInput?: Date | string | null) => {
+    try {
+        if (!dateInput) return undefined;
+        const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+        if (isNaN(d.getTime())) return typeof dateInput === 'string' ? dateInput : undefined;
+
+        const pad = (num: number) => num.toString().padStart(2, '0');
+        const day = pad(d.getDate());
+        const month = pad(d.getMonth() + 1);
+        const year = d.getFullYear();
+        const hours = pad(d.getHours());
+        const minutes = pad(d.getMinutes());
+
+        return `${day}/${month}/${year}, ${hours}:${minutes}`;
+    } catch {
+        return undefined;
+    }
+};
+
 interface ChatMessage {
     id: string;
     text: string;
@@ -152,7 +171,7 @@ const VirtualAssistant = () => {
         const text = inputText.trim();
         setInputText('');
 
-        const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const timeNow = formatChatMessageTime(new Date());
 
         // 1. Add user message locally
         const userMsg: ChatMessage = {
@@ -183,7 +202,7 @@ const VirtualAssistant = () => {
                 id: `ai-${Date.now()}`,
                 text: res.aiMessage.content,
                 isUser: false,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+                timestamp: formatChatMessageTime(new Date()),
             };
             setMessages(prev => [...prev, aiMsg]);
         } catch (error: any) {
@@ -191,7 +210,7 @@ const VirtualAssistant = () => {
                 id: `err-${Date.now()}`,
                 text: error?.message || 'Failed to send message. Please try again.',
                 isUser: false,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+                timestamp: formatChatMessageTime(new Date()),
             };
             setMessages(prev => [...prev, errMsg]);
         } finally {
@@ -210,9 +229,7 @@ const VirtualAssistant = () => {
                 id: `loaded-${conv.id}-${idx}`,
                 text: msg.content,
                 isUser: msg.role === 'user',
-                timestamp: msg.created_at
-                    ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-                    : undefined
+                timestamp: formatChatMessageTime(msg.created_at)
             }));
             setMessages(loadedMessages);
             setIsAiTyping(false);
@@ -436,7 +453,7 @@ const VirtualAssistant = () => {
                                         <View style={{ flex: 1 }}>
                                             <Text numberOfLines={1} style={styles.historyItemTitle}>{item.title}</Text>
                                             <Text style={styles.historyItemTime}>
-                                                {new Date(item.updated_at).toLocaleDateString()}
+                                                {formatChatMessageTime(item.updated_at) || new Date(item.updated_at).toLocaleDateString()}
                                             </Text>
                                         </View>
                                         <TouchableOpacity 

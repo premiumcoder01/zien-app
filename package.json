@@ -19,7 +19,7 @@
     "release": "yarn ios:release && yarn android:release",
     "ota:prod": "eas update --branch production --message \"OTA production update\"",
     "ota:preview": "eas update --branch preview --message \"OTA preview update\"",
-    "android": "expo run:android",
+    "android": "export PATH=\"$HOME/.nvm/versions/node/v20.19.5/bin:/usr/local/bin:/opt/homebrew/bin:$PATH\" && expo run:android",
     "ios": "expo run:ios"
   },
   "dependencies": {

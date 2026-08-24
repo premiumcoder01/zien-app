@@ -28,6 +28,7 @@ import {
     Platform,
     Pressable,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Switch,
     Text,
@@ -415,6 +416,24 @@ function MyProfileTab({ profile, onSave, isSaving, accessToken }: { profile: any
                                 countryPickerProps={{
                                     withFilter: true,
                                     withAlphaFilter: true,
+                                    closeButtonStyle: {
+                                        marginTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 0,
+                                        paddingLeft: 6,
+                                    },
+                                    filterProps: {
+                                        placeholder: 'Enter country name',
+                                        style: {
+                                            marginTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 8 : 0,
+                                            height: 48,
+                                            width: '75%',
+                                            fontSize: 15,
+                                            color: theme === 'dark' ? '#FFFFFF' : '#0F172A',
+                                            paddingLeft: 8,
+                                        },
+                                    },
+                                    flatListProps: {
+                                        contentContainerStyle: { paddingBottom: 40 },
+                                    },
                                     renderFlagButton: (props: any) => {
                                         const code = (props.countryCode || countryCodeISO || 'IN').toUpperCase();
                                         const emoji = code.replace(/./g, (c: string) =>

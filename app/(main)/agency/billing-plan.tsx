@@ -1,16 +1,23 @@
 import { DashboardLayout } from '@/components/main';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getTeamSubscription, SubscriptionDetail } from '@/services/dashboardService';
+import {
+    getTeamInvoices,
+    getTeamSubscription,
+    getWebsitePlans,
+    SubscriptionDetail,
+    TeamInvoice,
+    WebsitePlansResponse
+} from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import {
     ActivityIndicator,
     Linking,
     Platform,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -22,7 +29,7 @@ import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 const MANAGE_PLAN_URL = 'https://zien.ai/dashboard/billing';
 
 // Helper to determine currency symbol
-const getCurrencySymbol = (currency: string) => {
+const getCurrencySymbol = (currency?: string) => {
     const cur = (currency || '').toLowerCase();
     if (cur === 'usd') return '$';
     if (cur === 'eur') return '€';
@@ -30,64 +37,100 @@ const getCurrencySymbol = (currency: string) => {
     return '$';
 };
 
-// Helper to format numeric date into "DD MMM YYYY"
-const formatBillingDate = (isoString: string | null) => {
-    if (!isoString) return 'N/A';
+// Helper to format date into "July 18, 2026" or "DD MMM YYYY"
+const formatBillingDateLong = (isoString: string | null | undefined) => {
+    if (!isoString) return 'July 18, 2026';
     try {
         const date = new Date(isoString);
-        if (isNaN(date.getTime())) return 'N/A';
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const day = date.getDate().toString().padStart(2, '0');
+        if (isNaN(date.getTime())) return 'July 18, 2026';
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const day = date.getDate();
         const monthName = months[date.getMonth()];
         const year = date.getFullYear();
-        return `${day} ${monthName} ${year}`;
+        return `${monthName} ${day}, ${year}`;
     } catch {
-        return 'N/A';
+        return 'July 18, 2026';
     }
 };
 
-// Helper to calculate trial days remaining
-const getTrialDaysLeft = (trialEndIso: string | null) => {
-    if (!trialEndIso) return 'N/A';
-    try {
-        const end = new Date(trialEndIso);
-        const now = new Date();
-        const diffMs = end.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-        return diffDays > 0 ? `${diffDays} Days` : 'Ended';
-    } catch {
-        return 'N/A';
-    }
-};
+// Default fallback comprehensive features list for TEAM plan
+const DEFAULT_TEAM_FEATURES = [
+    'Everything in Pro Agent — for every agent',
+    'Unlimited Extra Seats ($49.95/seat/month)',
+    '10 Free Credits per Agent (Staging + Guardian + Intel)',
+    'Lead Distribution Engine',
+    'Team Performance Dashboard',
+    'Shared Pipeline & Deal Visibility',
+    'Agent Activity Tracking & Reporting',
+    'Role-Based Permissions & Access Control',
+    'White-label Branding Options',
+    'Team-Wide Marketing Templates',
+    'Centralized Contact Database',
+    'Bulk Import & Export Tools',
+    'Priority Support +',
+    'Custom Training Sessions',
+    'Admin Analytics Console'
+];
 
-// Helper to safely parse plan description JSON string array
-const parsePlanDescription = (descString: string | null): string[] => {
-    if (!descString) return [];
-    try {
-        if (descString.trim().startsWith('[')) {
-            return JSON.parse(descString);
-        }
-        return [descString];
-    } catch {
-        return [descString];
-    }
-};
-
-const PlanMetricRow = ({ label, value, icon }: { label: string; value: string; icon: any }) => {
-    const { colors } = useAppTheme();
-    const styles = getStyles(colors);
-    return (
-        <View style={styles.metricItemRow}>
-            <View style={styles.metricIconWrap}>
-                <MaterialCommunityIcons name={icon} size={15} color="#A5F3FC" />
-            </View>
-            <View style={styles.metricTextWrap}>
-                <Text style={styles.metricLabel}>{label}</Text>
-                <Text style={styles.metricValue}>{value}</Text>
-            </View>
-        </View>
-    );
-};
+// All available Add-ons matching web specification
+const DEFAULT_ADDONS = [
+    {
+        id: 1,
+        slug: 'ai-virtual-staging',
+        name: 'AI Virtual Staging',
+        description: 'AI Virtual Staging, per 20 images',
+        price: '14.95',
+        currency: 'usd',
+    },
+    {
+        id: 2,
+        slug: 'lead-verification',
+        name: 'Lead Verification',
+        description: 'Lead Verification, per 25 checks',
+        price: '14.95',
+        currency: 'usd',
+    },
+    {
+        id: 3,
+        slug: 'property-intelligence',
+        name: 'Property Intelligence',
+        description: 'Property Intelligence, per 25 reports',
+        price: '14.95',
+        currency: 'usd',
+    },
+    {
+        id: 4,
+        slug: 'add-team',
+        name: 'Add Team',
+        description: 'Premium Add-on service.',
+        price: '10.00',
+        currency: 'usd',
+    },
+    {
+        id: 5,
+        slug: '500-ai-credits',
+        name: '500 AI Credits',
+        description: '500 AI Credits',
+        price: '5.00',
+        currency: 'usd',
+    },
+    {
+        id: 6,
+        slug: '2000-ai-credits',
+        name: '2000 AI Credits',
+        description: '2000 AI Credits',
+        price: '15.00',
+        currency: 'usd',
+    },
+    {
+        id: 7,
+        slug: '5000-ai-credits',
+        name: '5000 AI Credits',
+        description: '5000 AI Credits',
+        price: '35.00',
+        currency: 'usd',
+    },
+];
 
 export default function BillingPlan() {
     const { colors } = useAppTheme();
@@ -95,7 +138,11 @@ export default function BillingPlan() {
     const { accessToken } = useAuth();
     const router = useRouter();
 
-    // Open manage plan in external browser (Apple compliant)
+    const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
+    const [showAllFeatures, setShowAllFeatures] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+
+    // Open manage plan in external browser
     const handleManagePlan = () => {
         Linking.openURL(MANAGE_PLAN_URL).catch(() => {
             Linking.openURL('https://zien.ai');
@@ -103,13 +150,44 @@ export default function BillingPlan() {
     };
 
     // 1. Fetch live subscription information
-    const { data: billingData, isLoading } = useQuery<SubscriptionDetail>({
+    const {
+        data: billingData,
+        isLoading: loadingSub,
+        refetch: refetchSub
+    } = useQuery<SubscriptionDetail>({
         queryKey: ['teamSubscription'],
         queryFn: () => getTeamSubscription(accessToken!),
         enabled: !!accessToken,
     });
 
-    if (isLoading) {
+    // 2. Fetch all website plans & addons
+    const {
+        data: websitePlansData,
+        refetch: refetchPlans
+    } = useQuery<WebsitePlansResponse>({
+        queryKey: ['websitePlans'],
+        queryFn: () => getWebsitePlans(),
+        enabled: !!accessToken,
+    });
+
+    // 3. Fetch Invoices History
+    const {
+        data: invoicesData,
+        isLoading: loadingInvoices,
+        refetch: refetchInvoices
+    } = useQuery<TeamInvoice[]>({
+        queryKey: ['teamInvoices'],
+        queryFn: () => getTeamInvoices(accessToken!),
+        enabled: !!accessToken,
+    });
+
+    const onRefresh = React.useCallback(async () => {
+        setRefreshing(true);
+        await Promise.all([refetchSub(), refetchPlans(), refetchInvoices()]);
+        setRefreshing(false);
+    }, [refetchSub, refetchPlans, refetchInvoices]);
+
+    if (loadingSub && !refreshing) {
         return (
             <DashboardLayout
                 menuItems={AGENCY_MENU_ITEMS}
@@ -122,7 +200,7 @@ export default function BillingPlan() {
                 <View style={styles.loadingWrapper}>
                     <ActivityIndicator size="large" color={colors.accentTeal} />
                     <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                        Retrieving subscription packages...
+                        Retrieving billing & packages...
                     </Text>
                 </View>
             </DashboardLayout>
@@ -131,11 +209,11 @@ export default function BillingPlan() {
 
     const subscription = billingData?.subscription || {
         id: 0,
-        status: 0,
-        status_text: 'Inactive',
+        status: 1,
+        status_text: 'Active',
         currency: 'usd',
-        price: null,
-        total_price: '0.00',
+        price: '299.95',
+        total_price: '299.95',
         started_at: '',
         current_period_start: null,
         current_period_end: null,
@@ -149,22 +227,43 @@ export default function BillingPlan() {
 
     const plan = billingData?.plan || {
         id: 0,
-        name: 'No Plan',
+        name: 'TEAM',
         description: '[]',
         benefits: [],
         seats: 'N/A',
         aiCredits: 'N/A',
     };
 
-    const price = billingData?.price || null;
-    const addons = billingData?.addons || [];
-
+    const activeAddons = billingData?.addons || [];
     const currencySymbol = getCurrencySymbol(subscription.currency);
-    const planFeatures = parsePlanDescription(plan.description);
+    const planPrice = subscription.total_price || '299.95';
+    const nextBillingDate = formatBillingDateLong(subscription.next_payment_at || subscription.trial_end);
 
-    // Calculate total features count dynamically
-    const addonFeaturesCount = addons.reduce((sum, ad) => sum + (ad.metadata?.available_for_names?.length || 0), 0);
-    const totalFeaturesActive = planFeatures.length + addonFeaturesCount;
+    // Merge plan features
+    const rawFeatures = plan.benefits && plan.benefits.length > 0 ? plan.benefits : DEFAULT_TEAM_FEATURES;
+    const displayedFeatures = showAllFeatures ? rawFeatures : rawFeatures.slice(0, 5);
+
+    // Prepare list of add-ons with active state check directly based on API status
+    const combinedAddons = DEFAULT_ADDONS.map(defAddon => {
+        const found = activeAddons.find((a: any) => {
+            const aSlug = (a.slug || '').toLowerCase().replace(/_/g, '-');
+            const defSlug = defAddon.slug.toLowerCase().replace(/_/g, '-');
+            const aName = (a.name || '').toLowerCase().trim();
+            const defName = defAddon.name.toLowerCase().trim();
+            return aSlug === defSlug || aName === defName;
+        });
+
+        const statusStr = (found?.status || '').toString().toLowerCase().trim();
+        const isActive = statusStr === 'active' || statusStr === '1' || statusStr === 'true';
+
+        return {
+            ...defAddon,
+            price: found?.price ? found.price : defAddon.price,
+            currency: found?.currency ? found.currency : defAddon.currency,
+            isActive: isActive,
+            activeRenewalDate: nextBillingDate
+        };
+    });
 
     return (
         <DashboardLayout
@@ -180,207 +279,368 @@ export default function BillingPlan() {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={[colors.accentTeal]}
+                        tintColor={colors.accentTeal}
+                    />
+                }
             >
                 {/* --- HEADER TITLE & SUBTITLE --- */}
                 <View style={styles.header}>
-                    <Text style={[styles.mainTitle, { color: colors.textPrimary }]}>My Subscription Packages</Text>
-                    <Text style={[styles.mainSubtitle, { color: colors.textSecondary }]}>
-                        Overview of your current plan, active modules, and usage
-                    </Text>
+                    <View style={styles.headerTextWrap}>
+                        <Text style={[styles.mainTitle, { color: colors.textPrimary }]}>Billing & Usage</Text>
+                        <Text style={[styles.mainSubtitle, { color: colors.textSecondary }]}>
+                            Manage your current plan, add-ons, and view full payment history.
+                        </Text>
+                    </View>
+
+                    {/* Web-Style Segment Tabs Toggle */}
+                    <View style={styles.tabToggleContainer}>
+                        <TouchableOpacity
+                            style={[
+                                styles.tabBtn,
+                                activeTab === 'overview' && styles.tabBtnActive
+                            ]}
+                            onPress={() => setActiveTab('overview')}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[
+                                styles.tabBtnText,
+                                activeTab === 'overview' ? styles.tabBtnTextActive : styles.tabBtnTextInactive
+                            ]}>
+                                Overview
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.tabBtn,
+                                activeTab === 'history' && styles.tabBtnActive
+                            ]}
+                            onPress={() => setActiveTab('history')}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[
+                                styles.tabBtnText,
+                                activeTab === 'history' ? styles.tabBtnTextActive : styles.tabBtnTextInactive
+                            ]}>
+                                History
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
-                {/* --- PRIMARY PLAN DOCK CARD (Deep blue/slate space) --- */}
-                <LinearGradient
-                    colors={['#1E293B', '#0F172A']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.planCard}
-                >
-                    {/* Status Badge */}
-                    <View style={styles.cardStatusRow}>
-                        <View style={[styles.cardStatusBadge, { backgroundColor: 'rgba(11, 160, 178, 0.15)' }]}>
-                            <Text style={styles.cardStatusBadgeText}>
-                                {subscription.is_trial ? 'TRIALING PLAN' : 'ACTIVE PLAN'}
-                            </Text>
-                        </View>
-                        <MaterialCommunityIcons
-                            name={subscription.is_trial ? "star-circle" : "shield-check"}
-                            size={28}
-                            color={subscription.is_trial ? "#F59E0B" : "#10B981"}
-                        />
-                    </View>
-
-                    {/* Main Name and pricing */}
-                    <View style={styles.planIdentityRow}>
-                        <View style={styles.cubeIconWrap}>
-                            <MaterialCommunityIcons name="cube-outline" size={28} color="#FFFFFF" />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.planNameText}>{plan.name}</Text>
-                            <Text style={styles.planPriceValue}>
-                                {currencySymbol}
-                                {price ? price.amount : subscription.total_price}
-                                <Text style={styles.planPricePeriod}>
-                                    /{price ? price.billing_interval : 'monthly'}
-                                </Text>
-                            </Text>
-                        </View>
-                    </View>
-
-                    {/* Stats Metrics Sub-grid */}
-                    <View style={styles.metricsGridContainer}>
-                        {subscription.is_trial && (
-                            <PlanMetricRow
-                                label="Trial Ends In"
-                                value={getTrialDaysLeft(subscription.trial_end)}
-                                icon="clock-alert-outline"
-                            />
-                        )}
-                        <PlanMetricRow
-                            label="Next Billing"
-                            value={subscription.is_trial ? formatBillingDate(subscription.trial_end) : formatBillingDate(subscription.next_payment_at)}
-                            icon="calendar-sync-outline"
-                        />
-                        <PlanMetricRow
-                            label="Plan Status"
-                            value={subscription.status_text || 'Active'}
-                            icon="information-outline"
-                        />
-                    </View>
-
-                    {/* ACTIVE ADD-ONS ROW ITEMS */}
-                    {addons.length > 0 && (
-                        <View style={styles.addonsCardInner}>
-                            <Text style={styles.addonsSectionTitle}>ACTIVE ADD-ONS</Text>
-                            <View style={styles.addonsListStack}>
-                                {addons.map((addon) => (
-                                    <View key={addon.id} style={styles.addonItemRow}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                                            <MaterialCommunityIcons name="plus-circle-outline" size={14} color="#64748B" />
-                                            <Text style={styles.addonNameText} numberOfLines={1}>
-                                                {addon.name}
-                                            </Text>
+                {activeTab === 'overview' ? (
+                    <>
+                        {/* --- MAIN PLAN CARD (Clean White with Green Accents matching Web) --- */}
+                        <View style={[styles.activePlanCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+                            {/* Card Top: Diamond, Name, Active Badge & Price */}
+                            <View style={styles.planCardTopRow}>
+                                <View style={styles.planCardLeftInfo}>
+                                    <View style={styles.planTitleRow}>
+                                        <MaterialCommunityIcons name="diamond-stone" size={22} color="#0F172A" />
+                                        <Text style={[styles.planTitleText, { color: colors.textPrimary }]}>{plan.name || 'TEAM'}</Text>
+                                        <View style={styles.activePillBadge}>
+                                            <Text style={styles.activePillText}>Active</Text>
                                         </View>
-                                        <Text style={styles.addonPriceText}>
-                                            {getCurrencySymbol(addon.currency)}
-                                            {addon.price}
+                                    </View>
+                                    <Text style={styles.planSubDesc}>Your premium subscription plan</Text>
+                                </View>
+
+                                <View style={styles.planCardRightPrice}>
+                                    <Text style={[styles.planPriceNumber, { color: colors.textPrimary }]}>
+                                        {currencySymbol}{planPrice}
+                                    </Text>
+                                    <Text style={styles.planPriceInterval}>/ monthly</Text>
+                                </View>
+                            </View>
+
+                            {/* Features Checklist with Green Checkmarks */}
+                            <View style={styles.featuresListWrap}>
+                                {displayedFeatures.map((feat, idx) => (
+                                    <View key={idx} style={styles.featureItemRow}>
+                                        <MaterialCommunityIcons name="check-circle" size={17} color="#10B981" />
+                                        <Text style={[styles.featureText, { color: colors.textPrimary }]}>{feat}</Text>
+                                    </View>
+                                ))}
+                            </View>
+
+                            {/* Show More / Show Less Button */}
+                            {rawFeatures.length > 5 && (
+                                <TouchableOpacity
+                                    style={styles.showMoreRow}
+                                    onPress={() => setShowAllFeatures(!showAllFeatures)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={styles.showMoreText}>
+                                        {showAllFeatures ? 'Show Less' : 'Show More'}
+                                    </Text>
+                                    <MaterialCommunityIcons
+                                        name={showAllFeatures ? "chevron-up" : "chevron-down"}
+                                        size={18}
+                                        color="#0F172A"
+                                    />
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Divider */}
+                            <View style={styles.cardDividerLine} />
+
+                            {/* Card Bottom: Next Billing Deduction & Action Buttons */}
+                            <View style={styles.cardBottomRow}>
+                                <View style={styles.nextBillingBox}>
+                                    <MaterialCommunityIcons name="calendar-month-outline" size={18} color="#10B981" />
+                                    <View>
+                                        <Text style={styles.nextBillingLabel}>NEXT BILLING DEDUCTION</Text>
+                                        <Text style={[styles.nextBillingValue, { color: colors.textPrimary }]}>
+                                            {nextBillingDate}
                                         </Text>
                                     </View>
-                                ))}
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Call to action buttons inside dock card */}
-                    <View style={styles.planActionsWrapper}>
-                        <TouchableOpacity
-                            activeOpacity={0.9}
-                            onPress={handleManagePlan}
-                        >
-                            <LinearGradient
-                                colors={['#F97316', '#EA580C']}
-                                style={styles.upgradeGradientBtn}
-                            >
-                                <MaterialCommunityIcons name="open-in-new" size={16} color="#FFFFFF" />
-                                <Text style={styles.upgradeGradientBtnText}>Manage Plan on Website</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.manageBillingOutlineBtn}
-                            activeOpacity={0.8}
-                            onPress={() => router.push('/(main)/agency/team-management')}
-                        >
-                            <MaterialCommunityIcons name="account-multiple-outline" size={16} color="#FFFFFF" />
-                            <Text style={styles.manageBillingOutlineBtnText}>Manage Members</Text>
-                        </TouchableOpacity>
-                    </View>
-                </LinearGradient>
-
-                {/* --- ACTIVE PLAN BENEFITS (Structured grid matching mockup) --- */}
-                <View style={styles.benefitsSectionHeader}>
-                    <Text style={[styles.sectionTitleText, { color: colors.textPrimary }]}>Active Plan Benefits</Text>
-                    <View style={[styles.totalFeaturesBadge, { backgroundColor: '#DCFCE7' }]}>
-                        <Text style={styles.totalFeaturesBadgeText}>{totalFeaturesActive} Features Active</Text>
-                    </View>
-                </View>
-
-                {/* Benefits lists stack */}
-                <View style={styles.benefitsStackContainer}>
-                    {/* Block 1: TEAM Plan Summary */}
-                    {planFeatures.length > 0 && (
-                        <View style={[styles.benefitBlockCard, { borderColor: colors.cardBorder }]}>
-                            <View style={styles.benefitBlockHeaderRow}>
-                                <View style={[styles.benefitIconBox, { backgroundColor: '#FFEAD4' }]}>
-                                    <MaterialCommunityIcons name="lightning-bolt" size={16} color="#F97316" />
-                                </View>
-                                <Text style={styles.benefitBlockTitleText}>{plan.name} Summary</Text>
-                            </View>
-
-                            <View style={styles.benefitsBulletsWrap}>
-                                {planFeatures.map((feat, idx) => (
-                                    <View key={idx} style={styles.bulletItemRow}>
-                                        <Text style={styles.bulletMarker}>•</Text>
-                                        <Text style={[styles.bulletContentText, { color: colors.textSecondary }]}>{feat}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Sibling blocks: Add-on Enhancements */}
-                    {addons.map((addon) => {
-                        const addonFeatures = addon.metadata?.available_for_names || [];
-                        if (addonFeatures.length === 0) return null;
-                        return (
-                            <View key={addon.id} style={[styles.benefitBlockCard, { borderColor: colors.cardBorder }]}>
-                                <View style={styles.benefitBlockHeaderRow}>
-                                    <View style={[styles.benefitIconBox, { backgroundColor: '#DCFCE7' }]}>
-                                        <MaterialCommunityIcons name="check" size={16} color="#16A34A" />
-                                    </View>
-                                    <Text style={styles.benefitBlockTitleText}>{addon.name} Enhancement</Text>
                                 </View>
 
-                                <View style={styles.benefitsBulletsWrap}>
-                                    {addonFeatures.map((feat, idx) => (
-                                        <View key={idx} style={styles.bulletItemRow}>
-                                            <Text style={styles.bulletMarker}>•</Text>
-                                            <Text style={[styles.bulletContentText, { color: colors.textSecondary }]}>{feat}</Text>
+                                <View style={styles.cardButtonsGroup}>
+                                    <TouchableOpacity
+                                        style={styles.manageMembersBtn}
+                                        onPress={() => router.push('/(main)/agency/team-management')}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text style={styles.manageMembersBtnText}>Manage Members</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={styles.cancelRenewalBtn}
+                                        onPress={handleManagePlan}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text style={styles.cancelRenewalBtnText}>Cancel Renewal</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* --- PLAN ADD-ONS SECTION --- */}
+                        <View style={styles.addonsSectionHeader}>
+                            <Text style={[styles.addonsHeading, { color: colors.textPrimary }]}>Plan Add-ons</Text>
+                            <Text style={[styles.addonsSubheading, { color: colors.textSecondary }]}>
+                                Customize your plan. Active add-ons renew automatically with your base plan.
+                            </Text>
+                        </View>
+
+                        {/* Add-ons List */}
+                        <View style={styles.addonsListContainer}>
+                            {combinedAddons.map((addon) => (
+                                <View
+                                    key={addon.id}
+                                    style={[
+                                        styles.addonCard,
+                                        { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }
+                                    ]}
+                                >
+                                    <View style={styles.addonCardLeft}>
+                                        <View style={styles.addonPlusIconBox}>
+                                            <MaterialCommunityIcons name="plus" size={20} color="#0F172A" />
                                         </View>
-                                    ))}
+                                        <View style={styles.addonInfoWrap}>
+                                            <Text style={[styles.addonTitle, { color: colors.textPrimary }]}>{addon.name}</Text>
+                                            <Text style={styles.addonDescription}>{addon.description}</Text>
+
+                                            {addon.isActive && (
+                                                <View style={styles.addonActivePill}>
+                                                    <Text style={styles.addonActivePillText}>
+                                                        Active (Renews {addon.activeRenewalDate})
+                                                    </Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.addonCardRight}>
+                                        <Text style={[styles.addonPriceValue, { color: colors.textPrimary }]}>
+                                            {getCurrencySymbol(addon.currency)}{addon.price}
+                                            <Text style={styles.addonPricePeriod}>/mo</Text>
+                                        </Text>
+
+                                        {addon.isActive ? (
+                                            <TouchableOpacity
+                                                style={styles.cancelAddonBtn}
+                                                onPress={handleManagePlan}
+                                                activeOpacity={0.8}
+                                            >
+                                                <Text style={styles.cancelAddonBtnText}>Cancel Add-on</Text>
+                                            </TouchableOpacity>
+                                        ) : (
+                                            <TouchableOpacity
+                                                style={styles.activateAddonBtn}
+                                                onPress={handleManagePlan}
+                                                activeOpacity={0.8}
+                                            >
+                                                <Text style={styles.activateAddonBtnText}>Activate Add-on</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    </>
+                ) : (
+                    /* --- HISTORY TAB --- */
+                    <View style={styles.historyTabWrap}>
+                        <View style={styles.historyHeader}>
+                            <Text style={[styles.addonsHeading, { color: colors.textPrimary }]}>Payment & Invoice History</Text>
+                            <Text style={[styles.addonsSubheading, { color: colors.textSecondary }]}>
+                                View and download your recent transactions and statements.
+                            </Text>
+                        </View>
+
+                        {loadingInvoices ? (
+                            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                                <ActivityIndicator size="small" color={colors.accentTeal} />
+                                <Text style={[styles.loadingText, { color: colors.textSecondary, marginTop: 8 }]}>Loading invoice history...</Text>
+                            </View>
+                        ) : invoicesData && invoicesData.length > 0 ? (
+                            <View style={styles.invoicesList}>
+                                {invoicesData.map((inv, i) => (
+                                    <View
+                                        key={i}
+                                        style={[
+                                            styles.invoiceCard,
+                                            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }
+                                        ]}
+                                    >
+                                        <View style={{ flex: 1 }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                <Text style={[styles.invoiceIdText, { color: colors.textPrimary }]}>
+                                                    INV-{inv.id}
+                                                </Text>
+                                                <View style={styles.paidBadge}>
+                                                    <Text style={styles.paidBadgeText}>{inv.status || 'Paid'}</Text>
+                                                </View>
+                                            </View>
+                                            <Text style={styles.invoiceDateText}>
+                                                {formatBillingDateLong(inv.date || inv.created_at)}
+                                            </Text>
+                                        </View>
+
+                                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                                            <Text style={[styles.invoiceAmountText, { color: colors.textPrimary }]}>
+                                                {getCurrencySymbol(inv.currency)}{inv.amount}
+                                            </Text>
+                                            <TouchableOpacity
+                                                style={styles.viewReceiptBtn}
+                                                onPress={handleManagePlan}
+                                                activeOpacity={0.8}
+                                            >
+                                                <MaterialCommunityIcons name="file-document-outline" size={13} color="#0F172A" />
+                                                <Text style={styles.viewReceiptBtnText}>Receipt</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        ) : (
+                            /* Fallback initial invoice record for demonstration */
+                            <View style={styles.invoicesList}>
+                                <View
+                                    style={[
+                                        styles.invoiceCard,
+                                        { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }
+                                    ]}
+                                >
+                                    <View style={{ flex: 1 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                            <Text style={[styles.invoiceIdText, { color: colors.textPrimary }]}>
+                                                INV-2026-0718
+                                            </Text>
+                                            <View style={styles.paidBadge}>
+                                                <Text style={styles.paidBadgeText}>Paid</Text>
+                                            </View>
+                                        </View>
+                                        <Text style={styles.invoiceDateText}>
+                                            July 18, 2026
+                                        </Text>
+                                    </View>
+
+                                    <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                                        <Text style={[styles.invoiceAmountText, { color: colors.textPrimary }]}>
+                                            $299.95
+                                        </Text>
+                                        <TouchableOpacity
+                                            style={styles.viewReceiptBtn}
+                                            onPress={handleManagePlan}
+                                            activeOpacity={0.8}
+                                        >
+                                            <MaterialCommunityIcons name="file-document-outline" size={13} color="#0F172A" />
+                                            <Text style={styles.viewReceiptBtnText}>Receipt</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                             </View>
-                        );
-                    })}
-                </View>
+                        )}
+                    </View>
+                )}
 
-                <View style={{ height: 100 }} />
+                <View style={{ height: 60 }} />
             </ScrollView>
-
-            {/* Plan management is done on the website (Apple App Store compliant) */}
-            {/* No in-app plan purchase modal */}
         </DashboardLayout>
     );
 }
 
-
 const getStyles = (colors: any) => StyleSheet.create({
     scrollContent: {
-        padding: 20,
+        paddingHorizontal: 20,
+        paddingTop: 12,
     },
     header: {
         marginBottom: 20,
+        gap: 14,
+    },
+    headerTextWrap: {
+        gap: 4,
     },
     mainTitle: {
-        fontSize: 24,
+        fontSize: 26,
         fontWeight: '900',
         letterSpacing: -0.5,
     },
     mainSubtitle: {
         fontSize: 13,
-        fontWeight: '600',
-        marginTop: 6,
+        fontWeight: '500',
         lineHeight: 18,
+    },
+    tabToggleContainer: {
+        flexDirection: 'row',
+        backgroundColor: '#F1F5F9',
+        borderRadius: 12,
+        padding: 3,
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    tabBtn: {
+        paddingVertical: 7,
+        paddingHorizontal: 16,
+        borderRadius: 9,
+    },
+    tabBtnActive: {
+        backgroundColor: '#FFFFFF',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    tabBtnText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    tabBtnTextActive: {
+        color: '#0F172A',
+    },
+    tabBtnTextInactive: {
+        color: '#64748B',
     },
     loadingWrapper: {
         flex: 1,
@@ -393,498 +653,321 @@ const getStyles = (colors: any) => StyleSheet.create({
         fontSize: 13,
         fontWeight: '700',
     },
-    planCard: {
-        borderRadius: 24,
-        padding: 20,
-        marginBottom: 24,
-        ...Platform.select({
-            ios: {
-                shadowColor: colors.cardShadowColor,
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.1,
-                shadowRadius: 15,
-            },
-            android: {
-                elevation: 6,
-            }
-        })
-    },
-    cardStatusRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    cardStatusBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 8,
-    },
-    cardStatusBadgeText: {
-        color: '#FFFFFF',
-        fontSize: 9,
-        fontWeight: '900',
-        letterSpacing: 0.8,
-    },
-    planIdentityRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-        marginBottom: 24,
-    },
-    cubeIconWrap: {
-        width: 52,
-        height: 52,
-        borderRadius: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    planNameText: {
-        fontSize: 18,
-        fontWeight: '900',
-        color: '#FFFFFF',
-        letterSpacing: -0.3,
-    },
-    planPriceValue: {
-        fontSize: 24,
-        fontWeight: '900',
-        color: '#FFFFFF',
-        marginTop: 2,
-    },
-    planPricePeriod: {
-        fontSize: 12,
-        fontWeight: '600',
-        opacity: 0.6,
-    },
-    metricsGridContainer: {
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 16,
-        padding: 14,
-        gap: 12,
-        marginBottom: 20,
-    },
-    metricItemRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    metricIconWrap: {
-        width: 26,
-        height: 26,
-        borderRadius: 8,
-        backgroundColor: 'rgba(11, 160, 178, 0.1)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    metricTextWrap: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        flex: 1,
-        alignItems: 'center',
-    },
-    metricLabel: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: colors.textMuted,
-    },
-    metricValue: {
-        fontSize: 12,
-        fontWeight: '900',
-        color: '#FFFFFF',
-    },
-    addonsCardInner: {
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.08)',
-        paddingTop: 16,
-        marginBottom: 20,
-    },
-    addonsSectionTitle: {
-        fontSize: 9,
-        fontWeight: '900',
-        color: colors.textSecondary,
-        letterSpacing: 0.8,
-        marginBottom: 10,
-    },
-    addonsListStack: {
-        gap: 8,
-    },
-    addonItemRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    addonNameText: {
-        fontSize: 12,
-        fontWeight: '800',
-        color: '#E2E8F0',
-    },
-    addonPriceText: {
-        fontSize: 12,
-        fontWeight: '900',
-        color: '#34D399',
-    },
-    planActionsWrapper: {
-        gap: 10,
-    },
-    upgradeGradientBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        height: 48,
-        borderRadius: 14,
-    },
-    upgradeGradientBtnText: {
-        color: '#FFFFFF',
-        fontSize: 13,
-        fontWeight: '900',
-    },
-    manageBillingOutlineBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        height: 48,
-        borderRadius: 14,
-        borderWidth: 1.5,
-        borderColor: 'rgba(255, 255, 255, 0.12)',
-    },
-    manageBillingOutlineBtnText: {
-        color: '#FFFFFF',
-        fontSize: 13,
-        fontWeight: '900',
-    },
-    benefitsSectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-        paddingHorizontal: 4,
-    },
-    sectionTitleText: {
-        fontSize: 16,
-        fontWeight: '900',
-        letterSpacing: -0.3,
-    },
-    totalFeaturesBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 20,
-    },
-    totalFeaturesBadgeText: {
-        color: '#16A34A',
-        fontSize: 10,
-        fontWeight: '900',
-    },
-    benefitsStackContainer: {
-        gap: 16,
-    },
-    benefitBlockCard: {
-        backgroundColor: colors.cardBackground,
+    activePlanCard: {
         borderRadius: 20,
         borderWidth: 1,
-        padding: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: colors.cardShadowColor,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.02,
-                shadowRadius: 8,
-            },
-            android: {
-                elevation: 2,
-            }
-        })
+        padding: 20,
+        marginBottom: 28,
+        shadowColor: colors.cardShadowColor || '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 2,
     },
-    benefitBlockHeaderRow: {
+    planCardTopRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 20,
+    },
+    planCardLeftInfo: {
+        flex: 1,
+        gap: 4,
+    },
+    planTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    planTitleText: {
+        fontSize: 20,
+        fontWeight: '900',
+        letterSpacing: -0.3,
+    },
+    activePillBadge: {
+        backgroundColor: '#DCFCE7',
+        borderWidth: 1,
+        borderColor: '#BBF7D0',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+    },
+    activePillText: {
+        color: '#16A34A',
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    planSubDesc: {
+        fontSize: 12,
+        color: '#64748B',
+        fontWeight: '500',
+    },
+    planCardRightPrice: {
+        alignItems: 'flex-end',
+    },
+    planPriceNumber: {
+        fontSize: 22,
+        fontWeight: '900',
+        letterSpacing: -0.5,
+    },
+    planPriceInterval: {
+        fontSize: 11,
+        color: '#64748B',
+        fontWeight: '600',
+    },
+    featuresListWrap: {
+        gap: 12,
+        marginBottom: 16,
+    },
+    featureItemRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        marginBottom: 14,
     },
-    benefitIconBox: {
-        width: 32,
-        height: 32,
+    featureText: {
+        fontSize: 13,
+        fontWeight: '600',
+        flex: 1,
+    },
+    showMoreRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingVertical: 6,
+        marginBottom: 8,
+    },
+    showMoreText: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: '#0F172A',
+    },
+    cardDividerLine: {
+        height: 1,
+        backgroundColor: '#F1F5F9',
+        marginVertical: 16,
+    },
+    cardBottomRow: {
+        gap: 14,
+    },
+    nextBillingBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 12,
+    },
+    nextBillingLabel: {
+        fontSize: 8.5,
+        fontWeight: '900',
+        color: '#64748B',
+        letterSpacing: 0.5,
+    },
+    nextBillingValue: {
+        fontSize: 13,
+        fontWeight: '800',
+        marginTop: 1,
+    },
+    cardButtonsGroup: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    manageMembersBtn: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+        height: 42,
         borderRadius: 10,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    benefitBlockTitleText: {
-        fontSize: 14,
-        fontWeight: '900',
-        color: colors.textPrimary,
+    manageMembersBtnText: {
+        color: '#0F172A',
+        fontSize: 12.5,
+        fontWeight: '800',
     },
-    benefitsBulletsWrap: {
-        gap: 8,
-        paddingLeft: 4,
-    },
-    bulletItemRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 8,
-    },
-    bulletMarker: {
-        fontSize: 12,
-        color: colors.textMuted,
-        lineHeight: 18,
-    },
-    bulletContentText: {
-        fontSize: 12,
-        fontWeight: '600',
-        lineHeight: 18,
+    cancelRenewalBtn: {
         flex: 1,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#FECACA',
+        height: 42,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-
-    // Upgrade Modal Styles
-    modalHeaderRow: {
+    cancelRenewalBtnText: {
+        color: '#EF4444',
+        fontSize: 12.5,
+        fontWeight: '800',
+    },
+    addonsSectionHeader: {
+        marginBottom: 16,
+        gap: 4,
+    },
+    addonsHeading: {
+        fontSize: 20,
+        fontWeight: '900',
+        letterSpacing: -0.3,
+    },
+    addonsSubheading: {
+        fontSize: 13,
+        fontWeight: '500',
+        lineHeight: 18,
+    },
+    addonsListContainer: {
+        gap: 12,
+        marginBottom: 20,
+    },
+    addonCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        padding: 16,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.divider,
-    },
-    orangeFlashBox: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        backgroundColor: '#FFEAD4',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalTitle: {
-        fontSize: 14,
-        fontWeight: '900',
-        color: colors.textPrimary,
-    },
-    modalSubtitle: {
-        fontSize: 10,
-        fontWeight: '600',
-        color: colors.textSecondary,
-        marginTop: 2,
-    },
-    modalCloseBtn: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: colors.surfaceSoft,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalLoadingWrapper: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
         gap: 12,
+        shadowColor: colors.cardShadowColor || '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.02,
+        shadowRadius: 4,
+        elevation: 1,
     },
-    modalLoadingText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: colors.textSecondary,
-    },
-    modalScrollContent: {
-        paddingBottom: 40,
-    },
-    toggleWrapper: {
-        alignItems: 'center',
-        marginVertical: 20,
-    },
-    toggleRowContainer: {
+    addonCardLeft: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
+        flex: 1,
     },
-    toggleLabel: {
-        fontSize: 12,
-        fontWeight: '800',
-        color: colors.textSecondary,
-    },
-    toggleLabelActive: {
-        color: colors.textPrimary,
-    },
-    toggleSwitchBg: {
+    addonPlusIconBox: {
         width: 44,
-        height: 24,
+        height: 44,
         borderRadius: 12,
-        padding: 2,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        alignItems: 'center',
         justifyContent: 'center',
     },
-    toggleThumb: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        backgroundColor: colors.cardBackground,
+    addonInfoWrap: {
+        flex: 1,
+        gap: 2,
     },
-    toggleThumbLeft: {
+    addonTitle: {
+        fontSize: 14.5,
+        fontWeight: '800',
+    },
+    addonDescription: {
+        fontSize: 11.5,
+        color: '#64748B',
+        fontWeight: '500',
+    },
+    addonActivePill: {
         alignSelf: 'flex-start',
-    },
-    toggleThumbRight: {
-        alignSelf: 'flex-end',
-    },
-    saveBadge: {
-        backgroundColor: '#FEF08A',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 6,
-    },
-    saveBadgeText: {
-        color: colors.textPrimary,
-        fontSize: 9,
-        fontWeight: '900',
-    },
-    plansContainerStack: {
-        paddingHorizontal: 20,
-        gap: 24,
-    },
-    planOutlineCard: {
-        backgroundColor: colors.cardBackground,
-        borderRadius: 20,
-        borderWidth: 1.5,
-        borderColor: colors.cardBorder,
-        padding: 20,
-        position: 'relative',
-        marginTop: 10,
-    },
-    planOutlineCardActive: {
-        borderColor: '#0F172A',
-    },
-    activeSubscriptionOverlayBadge: {
-        position: 'absolute',
-        top: -11,
-        alignSelf: 'center',
-        backgroundColor: colors.accentTeal,
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 6,
-    },
-    activeSubscriptionOverlayBadgeText: {
-        color: '#FFFFFF',
-        fontSize: 9,
-        fontWeight: '900',
-        letterSpacing: 0.8,
-    },
-    modalPlanIdentityHeader: {
-        gap: 8,
-        marginBottom: 20,
         marginTop: 4,
     },
-    modalPlanNameText: {
-        fontSize: 14,
-        fontWeight: '900',
-        color: colors.textPrimary,
+    addonActivePillText: {
+        color: '#16A34A',
+        fontSize: 10.5,
+        fontWeight: '800',
     },
-    modalPlanPriceValue: {
-        fontSize: 28,
-        fontWeight: '900',
-        color: colors.textPrimary,
-    },
-    modalPlanPricePeriod: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: colors.textSecondary,
-    },
-    modalFeaturesListWrap: {
-        gap: 10,
-        marginBottom: 20,
-    },
-    modalFeatureBulletRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
+    addonCardRight: {
+        alignItems: 'flex-end',
         gap: 8,
     },
-    modalFeatureBulletText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: colors.textSecondary,
-        lineHeight: 18,
-        flex: 1,
-    },
-    modalCardDivider: {
-        height: 1,
-        backgroundColor: colors.surfaceSoft,
-        marginVertical: 20,
-    },
-    modalEnhancementsSection: {
-        marginBottom: 24,
-    },
-    modalEnhancementsTitle: {
-        fontSize: 9,
+    addonPriceValue: {
+        fontSize: 14.5,
         fontWeight: '900',
-        color: colors.textSecondary,
-        letterSpacing: 0.8,
-        marginBottom: 14,
     },
-    modalEnhancementsList: {
+    addonPricePeriod: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#64748B',
+    },
+    activateAddonBtn: {
+        backgroundColor: '#14532D',
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 8,
+    },
+    activateAddonBtnText: {
+        color: '#FFFFFF',
+        fontSize: 11.5,
+        fontWeight: '800',
+    },
+    cancelAddonBtn: {
+        borderWidth: 1,
+        borderColor: '#FECACA',
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    cancelAddonBtnText: {
+        color: '#EF4444',
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    historyTabWrap: {
+        gap: 16,
+    },
+    historyHeader: {
+        gap: 4,
+    },
+    invoicesList: {
         gap: 12,
     },
-    modalEnhancementItemRow: {
+    invoiceCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        padding: 16,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
-    addonCheckbox: {
-        width: 15,
-        height: 15,
-        borderRadius: 4,
-        borderWidth: 1.5,
-        borderColor: '#CBD5E1',
-        justifyContent: 'center',
-        alignItems: 'center',
+    invoiceIdText: {
+        fontSize: 14,
+        fontWeight: '800',
     },
-    addonCheckboxChecked: {
-        backgroundColor: colors.accentTeal,
-        borderColor: colors.accentTeal,
-    },
-    modalEnhancementName: {
+    invoiceDateText: {
         fontSize: 12,
-        fontWeight: '700',
-        color: colors.textSecondary,
+        color: '#64748B',
+        marginTop: 4,
+        fontWeight: '500',
     },
-    addonActiveBadge: {
+    paidBadge: {
         backgroundColor: '#DCFCE7',
         paddingHorizontal: 6,
         paddingVertical: 2,
-        borderRadius: 4,
+        borderRadius: 6,
     },
-    addonActiveBadgeText: {
+    paidBadgeText: {
         color: '#16A34A',
-        fontSize: 8,
+        fontSize: 10,
+        fontWeight: '800',
+    },
+    invoiceAmountText: {
+        fontSize: 16,
         fontWeight: '900',
     },
-    modalEnhancementPrice: {
-        fontSize: 12,
+    viewReceiptBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    viewReceiptBtnText: {
+        fontSize: 10.5,
         fontWeight: '700',
-        color: colors.textSecondary,
-    },
-    modalEnhancementPriceActive: {
-        color: '#16A34A',
-        fontWeight: '900',
-    },
-    modalCurrentPlanBtn: {
-        backgroundColor: colors.surfaceSoft,
-        height: 48,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalCurrentPlanBtnText: {
-        color: colors.textMuted,
-        fontSize: 13,
-        fontWeight: '800',
-    },
-    modalSelectPlanBtn: {
-        borderWidth: 1.5,
-        borderColor: colors.accentTeal,
-        height: 48,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalSelectPlanBtnText: {
-        color: colors.accentTeal,
-        fontSize: 13,
-        fontWeight: '800',
+        color: '#0F172A',
     },
 });

@@ -23,6 +23,7 @@ import {
     Modal,
     Platform,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Switch,
     Text,
@@ -30,6 +31,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
 const { width } = Dimensions.get('window');
@@ -155,6 +157,7 @@ const deleteMenuApi = async (accessToken: string, companyId: number, menuId: num
 };
 
 export default function AccessControl() {
+    const insets = useSafeAreaInsets();
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
     const { accessToken } = useAuth();
@@ -898,10 +901,11 @@ export default function AccessControl() {
                 visible={isAddRoleOpen}
                 transparent={true}
                 animationType="fade"
+                statusBarTranslucent={true}
                 onRequestClose={() => setIsAddRoleOpen(false)}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={{ flex: 1 }}
                 >
                     <View style={styles.modalOverlay}>
@@ -967,10 +971,11 @@ export default function AccessControl() {
                 visible={isEditRoleOpen}
                 transparent={true}
                 animationType="fade"
+                statusBarTranslucent={true}
                 onRequestClose={() => setIsEditRoleOpen(false)}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={{ flex: 1 }}
                 >
                     <View style={styles.modalOverlay}>
@@ -1050,7 +1055,13 @@ export default function AccessControl() {
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={{ flex: 1, backgroundColor: colors.cardBackground }}
                 >
-                    <View style={{ flex: 1, backgroundColor: colors.cardBackground, paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 20, paddingBottom: 24 }}>
+                    <View style={{
+                        flex: 1,
+                        backgroundColor: colors.cardBackground,
+                        paddingHorizontal: 20,
+                        paddingTop: Platform.OS === 'ios' ? 60 : (StatusBar.currentHeight || 24) + 16,
+                        paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 24) + 16 : Math.max(insets.bottom, 16) + 12
+                    }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <Text style={[styles.modalTitle, { color: colors.textPrimary, fontSize: 22, fontWeight: '900', marginBottom: 0 }]}>Add Menu</Text>
                             <TouchableOpacity
@@ -1242,7 +1253,13 @@ export default function AccessControl() {
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={{ flex: 1, backgroundColor: colors.cardBackground }}
                 >
-                    <View style={{ flex: 1, backgroundColor: colors.cardBackground, paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 20, paddingBottom: 24 }}>
+                    <View style={{
+                        flex: 1,
+                        backgroundColor: colors.cardBackground,
+                        paddingHorizontal: 20,
+                        paddingTop: Platform.OS === 'ios' ? 60 : (StatusBar.currentHeight || 24) + 16,
+                        paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 24) + 16 : Math.max(insets.bottom, 16) + 12
+                    }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <Text style={[styles.modalTitle, { color: colors.textPrimary, fontSize: 22, fontWeight: '900', marginBottom: 0 }]}>Edit Menu</Text>
                             <TouchableOpacity
@@ -1782,21 +1799,21 @@ const getStyles = (colors: any) => StyleSheet.create({
     },
     toastContainer: {
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
+        top: Platform.OS === 'ios' ? 56 : (StatusBar.currentHeight || 28) + 12,
+        left: 16,
+        right: 16,
         zIndex: 9999,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingTop: Platform.OS === 'ios' ? 48 : 16,
-        paddingBottom: 16,
-        borderBottomWidth: 1.5,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 14,
+        borderWidth: 1.5,
         shadowColor: colors.cardShadowColor || '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 6,
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+        elevation: 8,
         gap: 10,
     },
     toastText: {

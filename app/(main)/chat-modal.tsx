@@ -108,6 +108,21 @@ function getRelativeTime(dateStr: string): string {
     return date.toLocaleDateString();
 }
 
+function cleanVoiceTranscript(text: string): string {
+    if (!text) return '';
+    let cleaned = text.trim();
+    // Normalize phonetic variations of brand name "Zien" (e.g. Jean, Zeon, Zein, Jeen -> Zien)
+    cleaned = cleaned
+        .replace(/\b(jean|zeon|zein|jeen|zian|xian|zean|zion)\s*ai\b/gi, 'Zien AI')
+        .replace(/\b(jean|zeon|zein|jeen|zian|xian|zean|zion)\s*intelligence\b/gi, 'Zien Intelligence')
+        .replace(/\bwhat\s+is\s+(jean|zeon|zein|jeen|zian|xian|zean|zion)\b/gi, 'what is Zien')
+        .replace(/\bwho\s+is\s+(jean|zeon|zein|jeen|zian|xian|zean|zion)\b/gi, 'who is Zien')
+        .replace(/\btell\s+me\s+about\s+(jean|zeon|zein|jeen|zian|xian|zean|zion)\b/gi, 'tell me about Zien')
+        .replace(/\babout\s+(jean|zeon|zein|jeen|zian|xian|zean|zion)\b/gi, 'about Zien')
+        .replace(/\b(jean|zeon|zein|jeen|zian|xian|zean)\b/gi, 'Zien');
+    return cleaned;
+}
+
 // ──────────────────────────────────────────────────────
 // Main Screen
 // ──────────────────────────────────────────────────────
@@ -187,53 +202,78 @@ export default function ChatModalScreen() {
         pulseAnim.setValue(1);
     }, [pulseAnim]);
 
+    const latestTranscriptRef = useRef('');
+    const hasSubmittedVoiceRef = useRef(false);
+
     // Speech Recognition hooks
     useSpeechRecognitionEvent('start', () => {
         setIsListening(true);
         startPulse();
     });
+
     useSpeechRecognitionEvent('end', () => {
         setIsListening(false);
         stopPulse();
-    });
-    useSpeechRecognitionEvent('result', (event) => {
-        const transcript = event.results.map((r) => r.transcript).join(' ').trim();
-        if (transcript) {
-            setVoiceText(transcript);
+        // If final event didn't trigger submission yet but speech was recognized, auto submit to AI
+        if (latestTranscriptRef.current.trim() && !hasSubmittedVoiceRef.current) {
+            hasSubmittedVoiceRef.current = true;
+            const textToSend = latestTranscriptRef.current.trim();
+            setTimeout(() => {
+                cancelVoice();
+                handleSubmit(textToSend);
+            }, 400);
         }
     });
+
+    useSpeechRecognitionEvent('result', (event) => {
+        // Use the top primary hypothesis only (do not join all alternatives which duplicates formatted/raw text)
+        const primary = event.results[0]?.transcript || '';
+        const transcript = cleanVoiceTranscript(primary);
+
+        if (transcript) {
+            setVoiceText(transcript);
+            latestTranscriptRef.current = transcript;
+        }
+
+        // Google Assistant style: When speech ends and isFinal is true, automatically submit to Zien AI
+        if (event.isFinal && transcript && !hasSubmittedVoiceRef.current) {
+            hasSubmittedVoiceRef.current = true;
+            setTimeout(() => {
+                const textToSend = latestTranscriptRef.current.trim();
+                if (textToSend) {
+                    cancelVoice();
+                    handleSubmit(textToSend);
+                }
+            }, 400);
+        }
+    });
+
     useSpeechRecognitionEvent('error', (event) => {
         console.log('Speech recognition error:', event.error, event.message);
         setIsListening(false);
         setIsRecordingMode(false);
         stopPulse();
 
-        // If the speech recognition session was aborted (which happens when abort() is called manually on send or cancel),
-        // we do not show any error alert.
         if (event.error === 'aborted') {
-            if (isRecordingRef.current) {
-                Alert.alert(
-                    'Speech Recognition Interrupted',
-                    'The speech recognition session was aborted by the system. If you are running on an iOS Simulator, please note that Apple Siri dictation services are often unavailable or restricted. Please test on a physical iOS/Android device.'
-                );
-            }
             return;
         }
 
         let friendlyMessage = event.message;
         if (event.error === 'service-not-allowed') {
-            friendlyMessage = 'Speech recognition service is not allowed or not installed on this device. Please check your system settings or test on a physical iOS/Android device.';
+            friendlyMessage = 'Speech recognition service is not available on this device. If you are on an emulator, please test on a physical device.';
         } else if (event.error === 'network') {
             friendlyMessage = 'Network error during speech recognition. Please verify your internet connection.';
         } else if (event.error === 'not-allowed') {
             friendlyMessage = 'Microphone or Speech Recognition permission was denied. Please enable them in your device settings.';
         }
 
-        Alert.alert('Voice Recognition Error', friendlyMessage || `An error occurred: ${event.error}`);
+        Alert.alert('Voice Recognition', friendlyMessage || `Speech error: ${event.error}`);
     });
 
     const startVoice = useCallback(async () => {
         setVoiceText('');
+        latestTranscriptRef.current = '';
+        hasSubmittedVoiceRef.current = false;
         setIsRecordingMode(true);
 
         const isAvailable = typeof ExpoSpeechRecognitionModule.isRecognitionAvailable === 'function'
@@ -243,7 +283,7 @@ export default function ChatModalScreen() {
         if (!isAvailable) {
             Alert.alert(
                 'Speech Recognition Unavailable',
-                'Speech recognition is not available on this device. If you are running on an emulator or simulator, please test on a physical device.'
+                'Speech recognition is not available on this device/emulator. Please test on a physical Android or iOS device.'
             );
             setIsRecordingMode(false);
             return;
@@ -251,42 +291,54 @@ export default function ChatModalScreen() {
 
         const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
         if (!result.granted) {
-            console.warn('Speech recognition permissions not granted');
+            Alert.alert('Permission Required', 'Microphone and speech recognition permissions are required to use voice search.');
             setIsRecordingMode(false);
             return;
         }
-        ExpoSpeechRecognitionModule.start({
-            lang: speechLang,
-            interimResults: true,
-            continuous: false,
-            iosCategory: {
-                category: AVAudioSessionCategory.playAndRecord,
-                mode: AVAudioSessionMode.default,
-                categoryOptions: [
-                    AVAudioSessionCategoryOptions.defaultToSpeaker,
-                    AVAudioSessionCategoryOptions.allowBluetooth,
-                ],
-            },
-        });
+
+        try {
+            ExpoSpeechRecognitionModule.start({
+                lang: speechLang,
+                interimResults: true,
+                continuous: false,
+                addsPunctuation: true,
+                contextualStrings: ['Zien', 'Zien AI', 'Zien Intelligence', 'CRM', 'listing', 'leads', 'properties', 'agents'],
+                androidIntentOptions: {
+                    EXTRA_LANGUAGE_MODEL: "free_form",
+                    EXTRA_BIASING_STRINGS: ['Zien', 'Zien AI', 'Zien Intelligence'],
+                } as any,
+                iosCategory: {
+                    category: AVAudioSessionCategory.playAndRecord,
+                    mode: AVAudioSessionMode.default,
+                    categoryOptions: [
+                        AVAudioSessionCategoryOptions.defaultToSpeaker,
+                        AVAudioSessionCategoryOptions.allowBluetooth,
+                    ],
+                },
+            });
+        } catch (e: any) {
+            console.warn('Failed to start speech recognition:', e);
+            setIsRecordingMode(false);
+        }
     }, [speechLang]);
 
     const cancelVoice = useCallback(() => {
-        ExpoSpeechRecognitionModule.abort();
+        try {
+            ExpoSpeechRecognitionModule.abort();
+        } catch {}
         stopPulse();
         setIsListening(false);
         setIsRecordingMode(false);
         setVoiceText('');
+        latestTranscriptRef.current = '';
     }, [stopPulse]);
 
     const sendVoice = useCallback(() => {
-        const text = voiceText.trim();
-        ExpoSpeechRecognitionModule.abort();
-        stopPulse();
-        setIsListening(false);
-        setIsRecordingMode(false);
-        setVoiceText('');
+        const text = (voiceText || latestTranscriptRef.current).trim();
+        hasSubmittedVoiceRef.current = true;
+        cancelVoice();
         if (text) handleSubmit(text);
-    }, [voiceText, stopPulse]);
+    }, [voiceText, cancelVoice]);
 
 
 

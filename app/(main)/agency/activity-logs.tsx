@@ -1,7 +1,7 @@
 import { DashboardLayout } from '@/components/main';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { getTeamLogs, TeamLogEntry, TeamLogsResponse } from '@/services/dashboardService';
+import { getTeamEmployees, getTeamLogs, getTeamProfile, TeamLogEntry, TeamLogsResponse } from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -12,6 +12,7 @@ import {
     Alert,
     Animated,
     Platform,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -21,29 +22,22 @@ import {
 } from 'react-native';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
-// Date Formatter: converts ISO timestamp into premium "DD MMM YYYY, hh:mm:ss AM/PM"
+// Date Formatter: converts ISO timestamp into exact web format "DD/MM/YYYY, HH:mm:ss"
 const formatLogTimestamp = (isoString: string) => {
     try {
         const date = new Date(isoString);
         if (isNaN(date.getTime())) return isoString;
 
         const pad = (num: number) => num.toString().padStart(2, '0');
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
         const day = pad(date.getDate());
-        const monthName = months[date.getMonth()];
+        const month = pad(date.getMonth() + 1);
         const year = date.getFullYear();
 
-        let hours = date.getHours();
+        const hours = pad(date.getHours());
         const minutes = pad(date.getMinutes());
         const seconds = pad(date.getSeconds());
-        const ampm = hours >= 12 ? 'PM' : 'AM';
 
-        hours = hours % 12;
-        hours = hours ? hours : 12; // hour '0' should be '12'
-        const hoursStr = pad(hours);
-
-        return `${day} ${monthName} ${year}, ${hoursStr}:${minutes}:${seconds} ${ampm}`;
+        return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
     } catch {
         return isoString;
     }
@@ -56,24 +50,32 @@ const SeverityBadge = ({ severity }: { severity: string }) => {
     let bgColor = '#ECFEFF';
     let borderColor = '#A5F3FC';
     let textColor = '#0891B2';
-    let iconName: any = 'terminal';
+    let iconName: any = 'code-greater-than';
+    let label = sev;
 
     if (sev === 'CRITICAL') {
         bgColor = '#FEF2F2';
         borderColor = '#FCA5A5';
         textColor = '#EF4444';
-        iconName = 'alert-circle';
+        iconName = 'alert-circle-outline';
+        label = 'CRITICAL';
     } else if (sev === 'WARNING') {
         bgColor = '#FFF7ED';
         borderColor = '#FED7AA';
-        textColor = '#F97316';
-        iconName = 'shield-alert';
+        textColor = '#EA580C';
+        iconName = 'shield-outline';
+        label = 'WARNING';
+    } else {
+        bgColor = '#E0F2FE';
+        borderColor = '#BAE6FD';
+        textColor = '#0284C7';
+        iconName = 'chevron-right';
+        label = '>_ INFO';
     }
 
     return (
-        <View style={[styles.badge, { backgroundColor: bgColor, borderColor: borderColor }]}>
-            <MaterialCommunityIcons name={iconName} size={12} color={textColor} />
-            <Text style={[styles.badgeText, { color: textColor }]}>{sev}</Text>
+        <View style={[styles.badge, { backgroundColor: bgColor, borderColor: borderColor, borderWidth: 1 }]}>
+            <Text style={[styles.badgeText, { color: textColor }]}>{label}</Text>
         </View>
     );
 };
@@ -83,15 +85,11 @@ const LogItem = ({ log }: { log: TeamLogEntry }) => {
     const styles = getStyles(colors);
     return (
         <View style={[styles.logCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-            {/* Header: ID, Severity & Source IP */}
+            {/* Header: ID & Severity */}
             <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                     <Text style={styles.cardLogId}>LOG-{log.id}</Text>
                     <SeverityBadge severity={log.severity} />
-                </View>
-                <View style={styles.cardHeaderRight}>
-                    <MaterialCommunityIcons name="laptop" size={13} color="#94A3B8" />
-                    <Text style={[styles.cardIp, { color: colors.textSecondary }]}>{log.ip || '-'}</Text>
                 </View>
             </View>
 
@@ -150,6 +148,7 @@ export default function ActivityLogs() {
     const [selectedMember, setSelectedMember] = useState<string>('All');
     const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     // Toast State
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -172,14 +171,27 @@ export default function ActivityLogs() {
         });
     };
 
-    // Always use company_id=1 — same as web (staging.zien.ai/api/teams/logs?company_id=1)
-    const COMPANY_ID = 1;
+    // 1. Fetch Profile to get dynamic company_id (e.g. 26)
+    const { data: profile } = useQuery({
+        queryKey: ['teamProfile'],
+        queryFn: () => getTeamProfile(accessToken!),
+        enabled: !!accessToken,
+    });
 
-    // Fetch Logs with fixed company_id=1
+    const companyId = profile?.company_id ?? 26;
+
+    // 2. Fetch Employees to get complete team members list
+    const { data: employeeData } = useQuery({
+        queryKey: ['teamEmployees', companyId],
+        queryFn: () => getTeamEmployees(accessToken!, companyId),
+        enabled: !!accessToken && !!companyId,
+    });
+
+    // 3. Fetch Logs with dynamic company_id
     const { data: logsData, isLoading: loadingLogs, refetch: refetchLogs } = useQuery<TeamLogsResponse>({
-        queryKey: ['teamLogs', COMPANY_ID],
+        queryKey: ['teamLogs', companyId],
         queryFn: async () => {
-            const result = await getTeamLogs(accessToken!, COMPANY_ID);
+            const result = await getTeamLogs(accessToken!, companyId);
             console.log('=== [RAW API RESPONSE] ===');
             console.log(JSON.stringify(result, null, 2));
             return result;
@@ -189,7 +201,13 @@ export default function ActivityLogs() {
         gcTime: 0,
     });
 
-    const isPageLoading = loadingLogs;
+    const onRefresh = React.useCallback(async () => {
+        setRefreshing(true);
+        await refetchLogs();
+        setRefreshing(false);
+    }, [refetchLogs]);
+
+    const isPageLoading = loadingLogs && !refreshing;
 
     // API returns: { summary: {...}, logs: [...] }
     // Direct extraction — no complex nesting needed
@@ -220,10 +238,21 @@ export default function ActivityLogs() {
     console.log('parsed summary:', JSON.stringify(summary));
     console.log('rawLogs count:', rawLogs.length);
 
-    // Unique team members list from logs for filter dropdown
+    // Collect team members from Employees API, logs user names, and log target names
+    const employeeNames = (employeeData?.employees || []).map(emp => {
+        const first = emp.user?.first_name || '';
+        const last = emp.user?.last_name || '';
+        return `${first} ${last}`.trim();
+    }).filter(Boolean);
+
+    const logUserNames = rawLogs.map(l => l.user_name).filter(Boolean);
+    const logTargetNames = rawLogs
+        .map(l => l.target)
+        .filter(t => t && !t.startsWith('User #') && !t.startsWith('Member #') && !t.startsWith('Role #') && t !== 'Manager' && t !== '-');
+
     const teamMembers: string[] = Array.from(
-        new Set(rawLogs.map(l => l.user_name).filter(Boolean))
-    ) as string[];
+        new Set([...employeeNames, ...logUserNames, ...logTargetNames])
+    ).filter(Boolean) as string[];
 
     const filteredLogs = rawLogs.filter(log => {
         const matchesSearch =
@@ -234,7 +263,10 @@ export default function ActivityLogs() {
             `LOG-${log.id}`.toLowerCase().includes(searchQuery.toLowerCase());
 
         const matchesSeverity = selectedSeverity === 'All' || (log.severity || '').toLowerCase() === selectedSeverity.toLowerCase();
-        const matchesMember = selectedMember === 'All' || (log.user_name || '') === selectedMember;
+        
+        const matchesMember = selectedMember === 'All' || 
+            (log.user_name || '').toLowerCase() === selectedMember.toLowerCase() ||
+            (log.target || '').toLowerCase() === selectedMember.toLowerCase();
 
         return matchesSearch && matchesSeverity && matchesMember;
     });
@@ -367,7 +399,19 @@ export default function ActivityLogs() {
                         <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading secure trails...</Text>
                     </View>
                 ) : (
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.scrollContent}
+                        keyboardShouldPersistTaps="handled"
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={onRefresh}
+                                colors={[colors.accentTeal]}
+                                tintColor={colors.accentTeal}
+                            />
+                        }
+                    >
                         {/* --- STATS CARDS 2x2 GRID (matching web) --- */}
                         <View style={styles.statsGrid}>
                             {/* Card 1: Critical Events */}
@@ -377,7 +421,7 @@ export default function ActivityLogs() {
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.critical_events}</Text>
-                                    <Text style={styles.statLabel}>CRITICAL EVENTS</Text>
+                                    <Text style={styles.statLabel}>Critical Events</Text>
                                 </View>
                             </View>
 
@@ -388,7 +432,7 @@ export default function ActivityLogs() {
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.warning_events}</Text>
-                                    <Text style={styles.statLabel}>WARNINGS</Text>
+                                    <Text style={styles.statLabel}>Warnings</Text>
                                 </View>
                             </View>
 
@@ -399,7 +443,7 @@ export default function ActivityLogs() {
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.auth_events}</Text>
-                                    <Text style={styles.statLabel}>SECURE AUTH EVENTS</Text>
+                                    <Text style={styles.statLabel}>Secure Auth Events</Text>
                                 </View>
                             </View>
 
@@ -410,7 +454,7 @@ export default function ActivityLogs() {
                                 </View>
                                 <View style={styles.statInfo}>
                                     <Text style={styles.statValue}>{summary.affected_users}</Text>
-                                    <Text style={styles.statLabel}>ACTIVE TEAM MEMBERS</Text>
+                                    <Text style={styles.statLabel}>Active Team Members</Text>
                                 </View>
                             </View>
                         </View>
@@ -557,45 +601,51 @@ export default function ActivityLogs() {
 
                                 {/* --- TEAM MEMBERS DROPDOWN OVERLAY --- */}
                                 {isMemberDropdownOpen && (
-                                    <View style={[styles.dropdownOverlay, { right: 0, left: 'auto' }]}>
-                                        {/* All Team Members option */}
-                                        <TouchableOpacity
-                                            onPress={() => {
-                                                setSelectedMember('All');
-                                                setIsMemberDropdownOpen(false);
-                                            }}
-                                            style={styles.dropdownOption}
+                                    <View style={[styles.dropdownOverlay, { right: 0, left: 'auto', width: 190, maxHeight: 250 }]}>
+                                        <ScrollView
+                                            nestedScrollEnabled={true}
+                                            showsVerticalScrollIndicator={true}
+                                            style={{ maxHeight: 240 }}
                                         >
-                                            <View style={styles.dropdownOptionContent}>
-                                                {selectedMember === 'All' ? (
-                                                    <MaterialCommunityIcons name="check" size={14} color="#38BDF8" style={{ marginRight: 6 }} />
-                                                ) : (
-                                                    <View style={{ width: 20 }} />
-                                                )}
-                                                <Text style={styles.dropdownOptionText}>All Team Members</Text>
-                                            </View>
-                                        </TouchableOpacity>
-
-                                        {/* Dynamic unique members from logs */}
-                                        {teamMembers.map((member) => (
+                                            {/* All Team Members option */}
                                             <TouchableOpacity
-                                                key={member}
                                                 onPress={() => {
-                                                    setSelectedMember(member);
+                                                    setSelectedMember('All');
                                                     setIsMemberDropdownOpen(false);
                                                 }}
                                                 style={styles.dropdownOption}
                                             >
                                                 <View style={styles.dropdownOptionContent}>
-                                                    {selectedMember === member ? (
+                                                    {selectedMember === 'All' ? (
                                                         <MaterialCommunityIcons name="check" size={14} color="#38BDF8" style={{ marginRight: 6 }} />
                                                     ) : (
                                                         <View style={{ width: 20 }} />
                                                     )}
-                                                    <Text style={styles.dropdownOptionText}>{member}</Text>
+                                                    <Text style={styles.dropdownOptionText}>All Team Members</Text>
                                                 </View>
                                             </TouchableOpacity>
-                                        ))}
+
+                                            {/* Dynamic unique members from employees & logs */}
+                                            {teamMembers.map((member) => (
+                                                <TouchableOpacity
+                                                    key={member}
+                                                    onPress={() => {
+                                                        setSelectedMember(member);
+                                                        setIsMemberDropdownOpen(false);
+                                                    }}
+                                                    style={styles.dropdownOption}
+                                                >
+                                                    <View style={styles.dropdownOptionContent}>
+                                                        {selectedMember === member ? (
+                                                            <MaterialCommunityIcons name="check" size={14} color="#38BDF8" style={{ marginRight: 6 }} />
+                                                        ) : (
+                                                            <View style={{ width: 20 }} />
+                                                        )}
+                                                        <Text style={styles.dropdownOptionText} numberOfLines={1}>{member}</Text>
+                                                    </View>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
                                     </View>
                                 )}
                             </View>
@@ -720,10 +770,9 @@ const getStyles = (colors: any) => StyleSheet.create({
         color: colors.textPrimary,
     },
     statLabel: {
-        fontSize: 9,
-        fontWeight: '900',
+        fontSize: 10.5,
+        fontWeight: '700',
         color: colors.textSecondary,
-        letterSpacing: 0.5,
     },
     filterBar: {
         borderRadius: 20,
