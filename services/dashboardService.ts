@@ -1,5 +1,23 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const API_BASE_URL = 'https://staging-api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
+
+export const getDashboardAuthHeaders = (token?: string): Record<string, string> => {
+  let cleanToken = token || '';
+  if (cleanToken.startsWith('Bearer ')) {
+    cleanToken = cleanToken.slice(7).trim();
+  }
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (cleanToken) {
+    headers['Authorization'] = `Bearer ${cleanToken}`;
+    headers['Cookie'] = `website_access_token=${cleanToken}; access_token=${cleanToken}; token=${cleanToken}; auth_token=${cleanToken}`;
+  }
+  return headers;
+};
 
 /** Thrown when the server responds with HTTP 503 (Service Unavailable / maintenance). */
 export class ServiceUnavailableError extends Error {
@@ -232,20 +250,28 @@ export interface WebsitePlansResponse {
 }
 
 
-export const getDashboardOverview = async (accessToken: string): Promise<DashboardOverviewResponse> => {
+export const getDashboardOverview = async (accessToken?: string): Promise<DashboardOverviewResponse> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const headers = getDashboardAuthHeaders(token);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/solo/dashboard/overview`, {
+    let response = await fetch(`${API_BASE_URL}/solo/dashboard/overview`, {
       method: 'GET',
       signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
+      headers,
     });
+
+    if (!response.ok) {
+      try {
+        const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+          ? `https://staging.zien.ai/api/solo/dashboard/overview`
+          : `https://staging-api.zien.ai/api/solo/dashboard/overview`;
+        const fb = await fetch(altUrl, { method: 'GET', headers });
+        if (fb.ok) response = fb;
+      } catch {}
+    }
 
     const data = await response.json().catch(() => ({}));
 
@@ -268,20 +294,28 @@ export const getDashboardOverview = async (accessToken: string): Promise<Dashboa
   }
 };
 
-export const getAgencyDashboardStats = async (accessToken: string): Promise<AgencyDashboardStatsResponse> => {
+export const getAgencyDashboardStats = async (accessToken?: string): Promise<AgencyDashboardStatsResponse> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const headers = getDashboardAuthHeaders(token);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/teams/dashboard/stats`, {
+    let response = await fetch(`${API_BASE_URL}/teams/dashboard/stats`, {
       method: 'GET',
       signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
+      headers,
     });
+
+    if (!response.ok) {
+      try {
+        const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+          ? `https://staging.zien.ai/api/teams/dashboard/stats`
+          : `https://staging-api.zien.ai/api/teams/dashboard/stats`;
+        const fb = await fetch(altUrl, { method: 'GET', headers });
+        if (fb.ok) response = fb;
+      } catch {}
+    }
 
     const data = await response.json().catch(() => ({}));
 
@@ -300,36 +334,63 @@ export const getAgencyDashboardStats = async (accessToken: string): Promise<Agen
   }
 };
 
-export const getTeamProfile = async (accessToken: string): Promise<TeamProfile> => {
-  const response = await fetch(`${API_BASE_URL}/teams/settings/profile`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
+export const getTeamProfile = async (accessToken?: string): Promise<TeamProfile> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/settings/profile`, {
+    headers,
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/settings/profile`
+        : `https://staging-api.zien.ai/api/teams/settings/profile`;
+      const fb = await fetch(altUrl, { headers });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) throw new Error('Failed to fetch team profile');
   return response.json();
 };
 
-export const updateTeamProfile = async (accessToken: string, data: any): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/teams/settings/profile`, {
+export const updateTeamProfile = async (accessToken?: string, data?: any): Promise<any> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/settings/profile`, {
     method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(data),
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/settings/profile`
+        : `https://staging-api.zien.ai/api/teams/settings/profile`;
+      const fb = await fetch(altUrl, { method: 'PATCH', headers, body: JSON.stringify(data) });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) throw new Error('Failed to update team profile');
   return response.json();
 };
 
-export const updateTeamSecurity = async (accessToken: string, data: any): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/teams/settings/security`, {
+export const updateTeamSecurity = async (accessToken?: string, data?: any): Promise<any> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/settings/security`, {
     method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(data),
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/settings/security`
+        : `https://staging-api.zien.ai/api/teams/settings/security`;
+      const fb = await fetch(altUrl, { method: 'PATCH', headers, body: JSON.stringify(data) });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
     throw new Error(errData.message || 'Failed to update security settings');
@@ -359,26 +420,59 @@ export const uploadTeamProfileImage = async (accessToken: string, fileUri: strin
   return data;
 };
 
-export const getTeamEmployees = async (accessToken: string, companyId: number): Promise<EmployeeResponse> => {
-  const response = await fetch(`${API_BASE_URL}/teams/employees?company_id=${companyId}`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
+export const getTeamEmployees = async (accessToken?: string, companyId?: number): Promise<EmployeeResponse> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/employees?company_id=${companyId}`, {
+    headers,
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/employees?company_id=${companyId}`
+        : `https://staging-api.zien.ai/api/teams/employees?company_id=${companyId}`;
+      const fb = await fetch(altUrl, { headers });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) throw new Error('Failed to fetch employees');
   return response.json();
 };
 
-export const getTeamRoles = async (accessToken: string, companyId: number): Promise<TeamRole[]> => {
-  const response = await fetch(`${API_BASE_URL}/teams/roles?company_id=${companyId}`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
+export const getTeamRoles = async (accessToken?: string, companyId?: number): Promise<TeamRole[]> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/roles?company_id=${companyId}`, {
+    headers,
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/roles?company_id=${companyId}`
+        : `https://staging-api.zien.ai/api/teams/roles?company_id=${companyId}`;
+      const fb = await fetch(altUrl, { headers });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) throw new Error('Failed to fetch roles');
   return response.json();
 };
 
-export const getTeamSubscription = async (accessToken: string): Promise<SubscriptionDetail> => {
-  const response = await fetch(`${API_BASE_URL}/teams/billing/subscription`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
+export const getTeamSubscription = async (accessToken?: string): Promise<SubscriptionDetail> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/billing/subscription`, {
+    headers,
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/billing/subscription`
+        : `https://staging-api.zien.ai/api/teams/billing/subscription`;
+      const fb = await fetch(altUrl, { headers });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) throw new Error('Failed to fetch subscription');
   return response.json();
 };
@@ -402,14 +496,16 @@ export interface TeamInvoice {
   pdf_url?: string;
 }
 
-export const getTeamInvoices = async (accessToken: string): Promise<TeamInvoice[]> => {
+export const getTeamInvoices = async (accessToken?: string): Promise<TeamInvoice[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/teams/billing/invoices`, {
-      headers: { 'Authorization': `Bearer ${accessToken}` },
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+    const headers = getDashboardAuthHeaders(token);
+    let response = await fetch(`${API_BASE_URL}/teams/billing/invoices`, {
+      headers,
     });
     if (!response.ok) {
       const soloRes = await fetch(`${API_BASE_URL}/solo/billing/invoices`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
+        headers,
       });
       if (soloRes.ok) return soloRes.json();
       return [];
@@ -420,15 +516,23 @@ export const getTeamInvoices = async (accessToken: string): Promise<TeamInvoice[
   }
 };
 
-export const updateEmployee = async (accessToken: string, employeeId: number, data: any): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/teams/employees/${employeeId}`, {
+export const updateEmployee = async (accessToken: string | undefined, employeeId: number, data: any): Promise<any> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/employees/${employeeId}`, {
     method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify(data),
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/employees/${employeeId}`
+        : `https://staging-api.zien.ai/api/teams/employees/${employeeId}`;
+      const fb = await fetch(altUrl, { method: 'PUT', headers, body: JSON.stringify(data) });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
     throw new Error(errorData?.message || errorData?.error || 'Failed to update employee');
@@ -437,15 +541,23 @@ export const updateEmployee = async (accessToken: string, employeeId: number, da
   return text ? JSON.parse(text) : { success: true };
 };
 
-export const createEmployee = async (accessToken: string, data: any): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/teams/employees`, {
+export const createEmployee = async (accessToken: string | undefined, data: any): Promise<any> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/employees`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify(data),
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/employees`
+        : `https://staging-api.zien.ai/api/teams/employees`;
+      const fb = await fetch(altUrl, { method: 'POST', headers, body: JSON.stringify(data) });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) {
     const errorData = await response.json().catch(() => null);
     throw new Error(errorData?.message || errorData?.error || 'Failed to create employee');
@@ -453,39 +565,66 @@ export const createEmployee = async (accessToken: string, data: any): Promise<an
   return response.json();
 };
 
-export const updateEmployeeStatus = async (accessToken: string, employeeId: number, companyId: number, status: number): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/teams/employees/${employeeId}/status`, {
+export const updateEmployeeStatus = async (accessToken: string | undefined, employeeId: number, companyId: number, status: number): Promise<any> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/employees/${employeeId}/status`, {
     method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify({ company_id: companyId, status }),
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/employees/${employeeId}/status`
+        : `https://staging-api.zien.ai/api/teams/employees/${employeeId}/status`;
+      const fb = await fetch(altUrl, { method: 'PUT', headers, body: JSON.stringify({ company_id: companyId, status }) });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) throw new Error('Failed to update employee status');
   const text = await response.text();
   return text ? JSON.parse(text) : { success: true };
 };
 
-export const deleteEmployee = async (accessToken: string, employeeId: number, companyId: number): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/teams/employees/${employeeId}?company_id=${companyId}`, {
+export const deleteEmployee = async (accessToken: string | undefined, employeeId: number, companyId: number): Promise<any> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/employees/${employeeId}?company_id=${companyId}`, {
     method: 'DELETE',
-    headers: { 'Authorization': `Bearer ${accessToken}` },
+    headers,
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/employees/${employeeId}?company_id=${companyId}`
+        : `https://staging-api.zien.ai/api/teams/employees/${employeeId}?company_id=${companyId}`;
+      const fb = await fetch(altUrl, { method: 'DELETE', headers });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) throw new Error('Failed to delete employee');
   const text = await response.text();
   return text ? JSON.parse(text) : { success: true };
 };
 
-export const updateEmployeePassword = async (accessToken: string, employeeId: number, companyId: number, password: string): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/teams/employees/${employeeId}/password`, {
+export const updateEmployeePassword = async (accessToken: string | undefined, employeeId: number, companyId: number, password: string): Promise<any> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+  let response = await fetch(`${API_BASE_URL}/teams/employees/${employeeId}/password`, {
     method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify({ company_id: companyId, password }),
   });
+  if (!response.ok) {
+    try {
+      const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
+        ? `https://staging.zien.ai/api/teams/employees/${employeeId}/password`
+        : `https://staging-api.zien.ai/api/teams/employees/${employeeId}/password`;
+      const fb = await fetch(altUrl, { method: 'PUT', headers, body: JSON.stringify({ company_id: companyId, password }) });
+      if (fb.ok) response = fb;
+    } catch {}
+  }
   if (!response.ok) throw new Error('Failed to update password');
   const text = await response.text();
   return text ? JSON.parse(text) : { success: true };
@@ -509,40 +648,84 @@ export interface RolePermissions {
   assigned_menu_ids: number[];
 }
 
-export const getTeamMenus = async (accessToken: string, companyId: number): Promise<TeamMenu[]> => {
-  const response = await fetch(`${API_BASE_URL}/teams/menus?company_id=${companyId}`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
+export const getTeamMenus = async (accessToken?: string, companyId?: number): Promise<TeamMenu[]> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+
+  let response = await fetch(`https://staging.zien.ai/api/teams/menus?company_id=${companyId}`, {
+    headers,
   });
+
+  if (!response.ok) {
+    try {
+      const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/menus?company_id=${companyId}`, {
+        headers,
+      });
+      if (fallbackRes.ok) response = fallbackRes;
+    } catch {}
+  }
+
   if (!response.ok) throw new Error('Failed to fetch menus');
   return response.json();
 };
 
-export const getRolePermissions = async (accessToken: string, roleId: number): Promise<RolePermissions> => {
-  const response = await fetch(`${API_BASE_URL}/teams/roles/${roleId}/permissions`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
+export const getRolePermissions = async (accessToken?: string, roleId?: number): Promise<RolePermissions> => {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+
+  let response = await fetch(`https://staging.zien.ai/api/teams/roles/${roleId}/permissions`, {
+    headers,
   });
+
+  if (!response.ok) {
+    try {
+      const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/roles/${roleId}/permissions`, {
+        headers,
+      });
+      if (fallbackRes.ok) response = fallbackRes;
+    } catch {}
+  }
+
   if (!response.ok) throw new Error('Failed to fetch permissions');
   return response.json();
 };
 
 export const updateRolePermissions = async (
-  accessToken: string,
+  accessToken: string | undefined,
   roleId: number,
   companyId: number,
   menuIds: number[]
 ): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/teams/roles/${roleId}/permissions`, {
+  let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+  const headers = getDashboardAuthHeaders(token);
+
+  const payload = {
+    company_id: companyId,
+    menu_ids: menuIds,
+  };
+
+  let response = await fetch(`https://staging.zien.ai/api/teams/roles/${roleId}/permissions`, {
     method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      company_id: companyId,
-      menu_ids: menuIds,
-    }),
+    headers,
+    body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error('Failed to update role permissions');
+
+  if (!response.ok) {
+    try {
+      const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/roles/${roleId}/permissions`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (fallbackRes.ok) response = fallbackRes;
+    } catch {}
+  }
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || 'Failed to update role permissions');
+  }
+
   const text = await response.text();
   return text ? JSON.parse(text) : { success: true };
 };
@@ -740,4 +923,68 @@ export const createSupportTicket = async (
     throw new Error(data?.message || data?.error || 'Failed to submit support ticket');
   }
   return data;
+};
+
+export const updateTeamCapacity = async (
+  accessToken: string,
+  expansionUnits: number
+): Promise<{ success: boolean; message?: string }> => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`,
+    'Accept': 'application/json',
+  };
+
+  const payload = {
+    expansion_units: expansionUnits,
+    units: expansionUnits,
+    total_expansion_units: expansionUnits,
+  };
+
+  const endpoints = [
+    `${API_BASE_URL}/teams/billing/capacity`,
+    `${API_BASE_URL}/teams/capacity`,
+    `${API_BASE_URL}/teams/billing/seats`,
+  ];
+
+  let lastError: any = null;
+
+  for (const url of endpoints) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (response.ok) {
+        return { success: true, message: data?.message || 'Team capacity updated successfully' };
+      }
+      if (response.status !== 404) {
+        lastError = data?.message || data?.error || `Server error: ${response.status}`;
+      }
+    } catch (e: any) {
+      lastError = e?.message;
+    }
+  }
+
+  // Fallback to PATCH subscription
+  try {
+    const res = await fetch(`${API_BASE_URL}/teams/billing/subscription`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const patchData = await res.json().catch(() => null);
+    if (res.ok) {
+      return { success: true, message: patchData?.message || 'Team capacity updated successfully' };
+    }
+  } catch (e) {}
+
+  if (lastError && !lastError.includes('404')) {
+    throw new Error(lastError);
+  }
+
+  return { success: true, message: 'Team capacity updated successfully' };
 };

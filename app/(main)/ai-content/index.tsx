@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
@@ -6,8 +7,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -34,6 +35,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 
 export default function AiContentScreen() {
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
   const contentTools = useMemo(() => [
@@ -97,9 +99,15 @@ export default function AiContentScreen() {
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [deleteItemAddress, setDeleteItemAddress] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'tools' | 'library'>('tools');
+  const [activeTab, setActiveTab] = useState<'tools' | 'library'>(tab === 'library' ? 'library' : 'tools');
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
+  useEffect(() => {
+    if (tab === 'library') {
+      setActiveTab('library');
+    }
+  }, [tab]);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -111,11 +119,9 @@ export default function AiContentScreen() {
 
   // Fetch AI content helper
   const fetchLibrary = useCallback(async (isRefresh = false) => {
-    if (!accessToken) {
-      setError('Authentication token not found. Please log in.');
-      setLoading(false);
-      setRefreshing(false);
-      return;
+    let token = accessToken;
+    if (!token) {
+      token = (await AsyncStorage.getItem('access_token')) || (await AsyncStorage.getItem('user_token')) || '';
     }
 
     if (isRefresh) {
@@ -126,16 +132,24 @@ export default function AiContentScreen() {
     setError(null);
 
     try {
-      const response = await getAiContentList(accessToken);
-      if (response.success && Array.isArray(response.data)) {
-        // Sort by creation date descending
-        const sortedData = response.data.sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-        setEntries(sortedData);
-      } else {
-        throw new Error('Invalid server response layout.');
+      const response = await getAiContentList(token || undefined);
+      let listData: AiContentItem[] = [];
+
+      if (response && Array.isArray(response.data)) {
+        listData = response.data;
+      } else if (Array.isArray(response)) {
+        listData = response as any[];
+      } else if (response && Array.isArray((response as any).items)) {
+        listData = (response as any).items;
+      } else if (response && (response as any).success && Array.isArray((response as any).content)) {
+        listData = (response as any).content;
       }
+
+      // Sort by creation date descending
+      const sortedData = listData.sort(
+        (a, b) => new Date(b.created_at || b.updated_at || 0).getTime() - new Date(a.created_at || a.updated_at || 0).getTime()
+      );
+      setEntries(sortedData);
     } catch (err: any) {
       console.error('[AiContentScreen] Error fetching library:', err);
       setError(err?.message || 'Failed to load content library. Please try again.');
@@ -227,14 +241,57 @@ export default function AiContentScreen() {
           color: '#0BA0B2',
           bg: 'rgba(11, 160, 178, 0.12)',
         };
+      case 'virtual-staging':
+        return {
+          label: 'Virtual Staging',
+          icon: 'sofa-outline',
+          color: '#0891B2',
+          bg: 'rgba(8, 145, 178, 0.12)',
+        };
       default:
         return {
-          label: type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          label: type ? type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'AI Content',
           icon: 'file-document-outline',
           color: '#64748B',
           bg: '#64748B15',
         };
     }
+  };
+
+  // Title formatter for Content Library cards
+  const getItemTitle = (item: AiContentItem) => {
+    if (item.metadata?.address) {
+      return item.metadata.address.split(',')[0];
+    }
+    if (item.metadata?.title) {
+      return item.metadata.title;
+    }
+    if (item.type === 'virtual-staging') {
+      const room = item.metadata?.roomType || '';
+      const style = item.metadata?.style || '';
+      if (room && style) return `${room} (${style})`;
+      if (room) return room;
+      if (style) return `Virtual Staging (${style})`;
+      return 'Generic Property';
+    }
+    if (item.metadata?.input_details) {
+      const firstLine = item.metadata.input_details.split('\n')[0];
+      return firstLine.length > 35 ? firstLine.slice(0, 35) + '...' : firstLine;
+    }
+    return 'Generic Property';
+  };
+
+  // Subtitle formatter for Content Library cards
+  const getItemSubtitle = (item: AiContentItem) => {
+    if (item.metadata?.address && item.metadata.address.includes(',')) {
+      return item.metadata.address.split(',').slice(1).join(',').trim();
+    }
+    if (item.type === 'virtual-staging') {
+      if (item.metadata?.toolId) {
+        return item.metadata.toolId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      }
+    }
+    return null;
   };
 
   // Format creation dates to dynamic relative times
@@ -288,19 +345,27 @@ export default function AiContentScreen() {
     const content = (item.content || '').toLowerCase();
     const inputDetails = (item.metadata?.input_details || '').toLowerCase();
     const customTitle = (item.metadata?.title || '').toLowerCase();
+    const designBrief = (item.metadata?.designBrief || '').toLowerCase();
+    const style = (item.metadata?.style || '').toLowerCase();
+    const roomType = (item.metadata?.roomType || '').toLowerCase();
+    const address = (item.metadata?.address || '').toLowerCase();
 
     return (
       typeLabel.includes(searchLower) ||
       content.includes(searchLower) ||
       inputDetails.includes(searchLower) ||
-      customTitle.includes(searchLower)
+      customTitle.includes(searchLower) ||
+      designBrief.includes(searchLower) ||
+      style.includes(searchLower) ||
+      roomType.includes(searchLower) ||
+      address.includes(searchLower)
     );
   });
 
   // Action callback to edit or view full generator
   const handleEditItem = (item: AiContentItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const prefill = item.metadata?.input_details || '';
+    const prefill = item.metadata?.input_details || item.metadata?.designBrief || '';
     const content = item.content || '';
 
     // Route based on type, pre-populating inputs
@@ -336,11 +401,129 @@ export default function AiContentScreen() {
         pathname: '/(main)/ai-content/presentation-builder',
         params: { id: item.id.toString(), prefill, content, address: item.metadata?.address || '' }
       });
+    } else if (item.type === 'virtual-staging') {
+      router.push({
+        pathname: '/(main)/ai-content/virtual-staging',
+        params: {
+          id: item.id.toString(),
+          content: item.content || '',
+          prefill,
+          roomType: item.metadata?.roomType || '',
+          style: item.metadata?.style || '',
+          originalImage: item.metadata?.originalImage || ''
+        }
+      });
     } else {
       // Default fallback: show view modal
       setSelectedItem(item);
       setShowModal(true);
     }
+  };
+
+  // Render helper for single Content Card (Compact Web-Table Style)
+  const renderContentCard = (item: AiContentItem) => {
+    const details = getTypeDetails(item.type);
+    const titleText = getItemTitle(item);
+    const subtitleText = getItemSubtitle(item);
+
+    return (
+      <Pressable
+        key={item.id}
+        style={({ pressed }) => [
+          styles.contentCard,
+          { borderLeftWidth: 4, borderLeftColor: details.color, marginBottom: 12 },
+          pressed && { opacity: 0.95, transform: [{ scale: 0.99 }] }
+        ]}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setSelectedItem(item);
+          setShowModal(true);
+        }}
+      >
+        {/* Row Header: Property Context & Type Badge */}
+        <View style={styles.cardHeader}>
+          <View style={styles.cardTitleBlock}>
+            <View style={styles.addressRow}>
+              <MaterialCommunityIcons name={item.metadata?.address ? "map-marker" : details.icon as any} size={14} color={colors.textMuted} style={{ marginRight: 6 }} />
+              <Text style={styles.cardTitleText} numberOfLines={1}>
+                {titleText}
+              </Text>
+            </View>
+            {subtitleText && (
+              <Text style={styles.cardSubtitleText} numberOfLines={1}>
+                {subtitleText}
+              </Text>
+            )}
+          </View>
+          <View style={[styles.typeBadge, { backgroundColor: details.bg }]}>
+            <MaterialCommunityIcons name={details.icon as any} size={11} color={details.color} style={{ marginRight: 4 }} />
+            <Text style={[styles.typeBadgeText, { color: details.color }]}>{details.label}</Text>
+          </View>
+        </View>
+
+        {/* Row Footer: Date Modified & Action Icons */}
+        <View style={styles.cardFooter}>
+          <View style={styles.footerLeft}>
+            <View style={styles.dateBlock}>
+              <MaterialCommunityIcons name="calendar-blank-outline" size={13} color={colors.textMuted} />
+              <Text style={styles.cardDate} numberOfLines={1}>
+                {formatDateDMY(item.created_at || item.updated_at)}
+              </Text>
+            </View>
+            {item.metadata?.template_type && (
+              <View style={styles.templateTypeBadge}>
+                <Text style={styles.templateTypeText} numberOfLines={1}>{item.metadata.template_type}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.cardActionsRow}>
+            {/* Eye / View Button */}
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setSelectedItem(item);
+                setShowModal(true);
+              }}
+              style={styles.iconActionBtn}
+            >
+              <MaterialCommunityIcons name="eye-outline" size={16} color={colors.textSecondary} />
+            </Pressable>
+
+            {/* Pencil / Edit Button */}
+            <Pressable
+              onPress={() => handleEditItem(item)}
+              style={styles.iconActionBtn}
+            >
+              <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.textSecondary} />
+            </Pressable>
+
+            {/* Copy Button */}
+            <Pressable
+              onPress={() => handleCopyContent(item)}
+              style={[
+                styles.iconActionBtn,
+                copiedId === item.id && { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={copiedId === item.id ? "check" : "content-copy"}
+                size={14}
+                color={copiedId === item.id ? '#10B981' : colors.textSecondary}
+              />
+            </Pressable>
+
+            {/* Trash / Delete Button */}
+            <Pressable
+              onPress={() => handleDelete(item.id.toString(), item.metadata?.address || titleText)}
+              style={[styles.iconActionBtn, styles.deleteActionBtn]}
+            >
+              <MaterialCommunityIcons name="trash-can-outline" size={15} color="#EF4444" />
+            </Pressable>
+          </View>
+        </View>
+      </Pressable>
+    );
   };
 
   // Animated-looking pulsing skeletons
@@ -419,8 +602,16 @@ export default function AiContentScreen() {
         {activeTab === 'tools' ? (
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => fetchLibrary(true)}
+                tintColor={colors.accentTeal}
+                colors={[colors.accentTeal]}
+              />
+            }
           >
             {/* Featured Virtual Staging Tool */}
             <Pressable
@@ -485,6 +676,36 @@ export default function AiContentScreen() {
                 </Pressable>
               ))}
             </View>
+
+            {/* Content Library Section (Matching Web Dashboard Layout) */}
+            <View style={{ marginTop: 28, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={styles.sectionTitle}>Content Library</Text>
+              <Pressable onPress={() => setActiveTab('library')}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: colors.accentTeal }}>View All ({entries.length})</Text>
+              </Pressable>
+            </View>
+
+            {loading ? (
+              <View style={{ gap: 16 }}>{renderSkeletons()}</View>
+            ) : error ? (
+              <View style={styles.errorContainer}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={36} color={colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+                <Pressable style={styles.retryBtn} onPress={() => fetchLibrary()}>
+                  <Text style={styles.retryBtnText}>Retry</Text>
+                </Pressable>
+              </View>
+            ) : entries.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyIconCircle}>
+                  <MaterialCommunityIcons name="folder-open-outline" size={36} color={colors.textMuted} />
+                </View>
+                <Text style={styles.emptyTitle}>No content found</Text>
+                <Text style={styles.emptySubtitle}>Your autonomous library is empty. Generate content to see it listed here!</Text>
+              </View>
+            ) : (
+              entries.map((item) => renderContentCard(item))
+            )}
           </ScrollView>
         ) : (
           <View style={styles.libraryContainer}>
@@ -558,147 +779,44 @@ export default function AiContentScreen() {
                   </View>
                 )
               )}
-              renderItem={({ item }) => {
-                const details = getTypeDetails(item.type);
-                return (
-                  <Pressable
-                    key={item.id}
-                    style={({ pressed }) => [
-                      styles.contentCard,
-                      { borderLeftWidth: 4, borderLeftColor: details.color, marginBottom: 16 },
-                      pressed && { opacity: 0.95, transform: [{ scale: 0.99 }] }
-                    ]}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setSelectedItem(item);
-                      setShowModal(true);
-                    }}
-                  >
-                    {/* Card Header: Address & Type Badge */}
-                    <View style={styles.cardHeader}>
-                      <View style={styles.cardTitleBlock}>
-                        <View style={styles.addressRow}>
-                          <MaterialCommunityIcons name="map-marker" size={14} color={colors.textMuted} style={{ marginRight: 6 }} />
-                          <Text style={styles.cardTitleText} numberOfLines={1}>
-                            {item.metadata?.address ? item.metadata.address.split(',')[0] : 'Market Announcement'}
-                          </Text>
-                        </View>
-                        {item.metadata?.address && (
-                          <Text style={styles.cardSubtitleText} numberOfLines={1}>
-                            {item.metadata.address.split(',').slice(1).join(',').trim()}
-                          </Text>
-                        )}
-                        <View style={styles.headerBadgeRow}>
-                          <View style={[styles.typeBadge, { backgroundColor: details.bg }]}>
-                            <MaterialCommunityIcons name={details.icon as any} size={11} color={details.color} style={{ marginRight: 6 }} />
-                            <Text style={[styles.typeBadgeText, { color: details.color }]}>{details.label}</Text>
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-
-                    {/* Card Body: Content Preview inside frame */}
-                    <View style={styles.cardBodyContainer}>
-                      <Text style={styles.cardContentPreview} numberOfLines={3}>
-                        {formatCardPreview(item.content)}
-                      </Text>
-                    </View>
-
-                    {/* Card Footer: Metadata & Actions */}
-                    <View style={styles.cardFooter}>
-                      <View style={styles.footerLeft}>
-                        <View style={styles.dateBlock}>
-                          <MaterialCommunityIcons name="clock-outline" size={12} color={colors.textMuted} />
-                          <Text style={styles.cardDate} numberOfLines={1} ellipsizeMode="tail">{formatRelativeDate(item.created_at)}</Text>
-                        </View>
-                        {item.metadata?.template_type && (
-                          <View style={styles.templateTypeBadge}>
-                            <Text style={styles.templateTypeText} numberOfLines={1} ellipsizeMode="tail">{item.metadata.template_type}</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      <View style={styles.cardActionsRow}>
-                        {/* Eye Button */}
-                        <Pressable
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setSelectedItem(item);
-                            setShowModal(true);
-                          }}
-                          style={styles.iconActionBtn}
-                        >
-                          <MaterialCommunityIcons name="eye-outline" size={16} color={colors.textSecondary} />
-                        </Pressable>
-
-                        {/* Copy Button */}
-                        <Pressable
-                          onPress={() => handleCopyContent(item)}
-                          style={[
-                            styles.iconActionBtn,
-                            copiedId === item.id && { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }
-                          ]}
-                        >
-                          <MaterialCommunityIcons
-                            name={copiedId === item.id ? "check" : "content-copy"}
-                            size={14}
-                            color={copiedId === item.id ? '#10B981' : colors.textSecondary}
-                          />
-                        </Pressable>
-
-                        {/* Edit Button */}
-                        <Pressable
-                          onPress={() => handleEditItem(item)}
-                          style={styles.iconActionBtn}
-                        >
-                          <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.textSecondary} />
-                        </Pressable>
-
-                        {/* Delete Button */}
-                        <Pressable
-                          onPress={() => handleDelete(item.id.toString(), item.metadata?.address)}
-                          style={[styles.iconActionBtn, styles.deleteActionBtn]}
-                        >
-                          <MaterialCommunityIcons name="trash-can-outline" size={15} color="#EF4444" />
-                        </Pressable>
-                      </View>
-                    </View>
-                  </Pressable>
-                );
-              }}
+              renderItem={({ item }) => renderContentCard(item)}
             />
           </View>
         )}
       </LinearGradient>
-      {/* Premium Preview Modal / Sheet */}
+      {/* Content Preview Modal Popup (Matching Web Dashboard Exact) */}
       {selectedItem && (
         <Modal
-          animationType="slide"
-          transparent={false}
+          animationType="fade"
+          transparent={true}
           visible={showModal}
           onRequestClose={() => setShowModal(false)}
         >
-          <View style={[styles.modalFullScreen, { paddingTop: insets.top, backgroundColor: colors.cardBackground }]}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitleColumn}>
-                <Text style={styles.modalTitle}>Content Preview</Text>
-                <Text style={styles.modalSubtitle} numberOfLines={2} ellipsizeMode="tail">
-                  {selectedItem.metadata?.address || 'Generic Property'}
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => setShowModal(false)}>
+              <View style={styles.modalOverlayBg} />
+            </TouchableWithoutFeedback>
+
+            <View style={[styles.previewModalContainer, { maxHeight: '85%' }]}>
+              {/* Modal Header */}
+              <View style={styles.previewModalHeader}>
+                <View style={styles.previewTitleColumn}>
+                  <Text style={styles.previewModalTitle}>Content Preview</Text>
+                  <Text style={styles.previewModalSubtitle} numberOfLines={1}>
+                    {getItemTitle(selectedItem)}
+                  </Text>
+                </View>
+                <Pressable onPress={() => setShowModal(false)} style={styles.previewCloseBtn}>
+                  <MaterialCommunityIcons name="close" size={18} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+
+              {/* Modal Body: ONLY the Content / Image URL Box */}
+              <View style={styles.urlContentBox}>
+                <Text style={styles.urlContentText} selectable={true}>
+                  {selectedItem.content}
                 </Text>
               </View>
-              <Pressable onPress={() => setShowModal(false)} style={styles.modalCloseBtn}>
-                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <View style={styles.modalBody}>
-              <ScrollView
-                style={styles.modalTextBox}
-                contentContainerStyle={[styles.modalTextBoxContent, { paddingBottom: insets.bottom + 50 }]}
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={styles.modalContentText}>{selectedItem.content}</Text>
-              </ScrollView>
             </View>
           </View>
         </Modal>
@@ -725,9 +843,9 @@ export default function AiContentScreen() {
               <Text style={styles.deleteModalTitle}>Confirm Deletion</Text>
 
               <Text style={styles.deleteModalText}>
-                Are you sure you want to delete this architectural narrative for{' '}
+                Are you sure you want to delete this content for{' '}
                 <Text style={styles.deleteModalTextBold}>
-                  {deleteItemAddress || 'this property'}
+                  {deleteItemAddress || 'Generic Property'}
                 </Text>
                 ? This action cannot be undone.
               </Text>
@@ -745,17 +863,18 @@ export default function AiContentScreen() {
                   onPress={async () => {
                     const id = deleteItemId;
                     setShowDeleteModal(false);
-                    // Optimistic update
+                    // Optimistic update for instant UI feedback
                     setEntries((prev) => prev.filter((item) => item.id.toString() !== id));
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    showToast('Content deleted successfully.');
+                    showToast('AI content deleted successfully.');
 
-                    if (accessToken) {
-                      try {
-                        await deleteAiContent(id, accessToken);
-                      } catch (err) {
-                        console.warn('[AiContentScreen] Network deletion failed, removed locally only:', err);
+                    try {
+                      const res = await deleteAiContent(id, accessToken || undefined);
+                      if (res && res.message) {
+                        showToast(res.message);
                       }
+                    } catch (err) {
+                      console.warn('[AiContentScreen] DELETE API call error:', err);
                     }
                   }}
                 >
@@ -1064,10 +1183,98 @@ function getStyles(colors: any) {
       borderWidth: 1,
       borderColor: colors.cardBorder,
     },
+    cardImageBodyContainer: {
+      backgroundColor: colors.surfaceSoft,
+      borderRadius: 12,
+      padding: 10,
+      marginVertical: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      gap: 10,
+    },
+    cardImageThumbnail: {
+      width: '100%',
+      height: 180,
+      borderRadius: 8,
+      backgroundColor: colors.cardBorder,
+    },
     cardContentPreview: {
       fontSize: 13,
       color: colors.textSecondary,
       lineHeight: 18,
+      fontWeight: '500',
+    },
+    modalImageContainer: {
+      width: '100%',
+      height: 240,
+      borderRadius: 12,
+      overflow: 'hidden',
+      backgroundColor: '#000000',
+      marginBottom: 16,
+    },
+    modalImagePreview: {
+      width: '100%',
+      height: '100%',
+    },
+    modalOriginalBox: {
+      marginBottom: 16,
+      backgroundColor: colors.cardBackground,
+      borderRadius: 12,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    modalSectionLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      marginBottom: 8,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    modalOriginalImagePreview: {
+      width: '100%',
+      height: 160,
+      borderRadius: 8,
+    },
+    modalMetaGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 16,
+    },
+    modalMetaCard: {
+      flex: 1,
+      minWidth: '28%',
+      backgroundColor: colors.cardBackground,
+      borderRadius: 10,
+      padding: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    modalMetaLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textMuted,
+      marginBottom: 2,
+      textTransform: 'uppercase',
+    },
+    modalMetaValue: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.textPrimary,
+    },
+    modalBriefCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 12,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    modalBriefText: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.textPrimary,
       fontWeight: '500',
     },
     cardFooter: {
@@ -1316,6 +1523,85 @@ function getStyles(colors: any) {
       color: colors.textPrimary,
       lineHeight: 24,
       fontWeight: '500',
+    },
+    previewModalContainer: {
+      width: '100%',
+      maxWidth: 380,
+      backgroundColor: colors.cardBackground || '#FFFFFF',
+      borderRadius: 20,
+      padding: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.25,
+      shadowRadius: 20,
+      elevation: 10,
+      borderWidth: 1,
+      borderColor: colors.cardBorder || 'rgba(0,0,0,0.08)',
+    },
+    previewModalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 14,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder || 'rgba(0,0,0,0.05)',
+    },
+    previewTitleColumn: {
+      flex: 1,
+      marginRight: 10,
+    },
+    previewModalTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: colors.textPrimary || '#0F172A',
+    },
+    previewModalSubtitle: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textMuted || '#64748B',
+      marginTop: 2,
+    },
+    previewCloseBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft || '#F1F5F9',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    previewModalBody: {
+      flexGrow: 0,
+    },
+    urlContentBox: {
+      backgroundColor: colors.surfaceSoft || '#F8FAFC',
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.cardBorder || '#E2E8F0',
+    },
+    urlContentText: {
+      fontSize: 13,
+      color: colors.textPrimary || '#334155',
+      lineHeight: 18,
+      fontWeight: '500',
+    },
+    copyUrlBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: 6,
+      marginTop: 10,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      backgroundColor: 'rgba(8, 145, 178, 0.1)',
+      borderRadius: 8,
+    },
+    copyUrlBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.accentTeal || '#0891B2',
     },
     modalOverlay: {
       flex: 1,

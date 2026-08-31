@@ -294,13 +294,12 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
     if (callingCode && nationalNumber.startsWith(callingCode)) {
       nationalNumber = nationalNumber.slice(callingCode.length);
     }
-    const fullNumber = callingCode + nationalNumber;
 
     onSave({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim(),
-      phone: fullNumber,
+      phone: nationalNumber || phone.trim(),
       countryCode: `+${callingCode}`,
       group,
       tag,

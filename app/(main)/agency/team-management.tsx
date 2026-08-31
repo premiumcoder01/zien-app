@@ -8,9 +8,11 @@ import {
     getTeamEmployees,
     getTeamProfile,
     getTeamRoles,
+    getTeamSubscription,
     updateEmployee,
     updateEmployeePassword,
-    updateEmployeeStatus
+    updateEmployeeStatus,
+    updateTeamCapacity
 } from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,12 +41,16 @@ import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
 const { width } = Dimensions.get('window');
 
-
-const StatCard = ({ icon, value, label, color }: any) => {
+const StatCard = ({ icon, value, label, color, onPress }: any) => {
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
+    const CardComp = onPress ? TouchableOpacity : View;
     return (
-        <View style={[styles.statPanel, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+        <CardComp
+            onPress={onPress}
+            activeOpacity={0.75}
+            style={[styles.statPanel, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
+        >
             <View style={[styles.statIconBox, { backgroundColor: `${color}15` }]}>
                 <MaterialCommunityIcons name={icon} size={20} color={color} />
             </View>
@@ -52,7 +58,7 @@ const StatCard = ({ icon, value, label, color }: any) => {
                 <Text style={[styles.statValue, { color: colors.textPrimary }]}>{value}</Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
             </View>
-        </View>
+        </CardComp>
     );
 };
 
@@ -488,6 +494,163 @@ const AgentModal = ({ visible, onClose, agent, onSave, roles, isSaving }: any) =
     );
 };
 
+const CapacityModal = ({
+    visible,
+    onClose,
+    basePlanSeats,
+    currentExpansionUnits,
+    onSave,
+    isSaving,
+}: {
+    visible: boolean;
+    onClose: () => void;
+    basePlanSeats: number;
+    currentExpansionUnits: number;
+    onSave: (units: number) => void;
+    isSaving: boolean;
+}) => {
+    const { colors } = useAppTheme();
+    const [units, setUnits] = useState<number>(currentExpansionUnits);
+
+    useEffect(() => {
+        if (visible) {
+            setUnits(currentExpansionUnits);
+        }
+    }, [visible, currentExpansionUnits]);
+
+    const hasChanges = units !== currentExpansionUnits;
+    const totalCapacity = basePlanSeats + units;
+
+    return (
+        <Modal
+            visible={visible}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={onClose}
+        >
+            <View style={capacityModalStyles.overlay}>
+                <View style={[capacityModalStyles.container, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+                    {/* Header */}
+                    <View style={capacityModalStyles.header}>
+                        <Text style={[capacityModalStyles.headerTitle, { color: colors.textPrimary }]}>Manage Team Capacity</Text>
+                        <TouchableOpacity
+                            style={capacityModalStyles.closeBtn}
+                            onPress={onClose}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={capacityModalStyles.body}
+                    >
+                        {/* Orange Icon Circle */}
+                        <View style={capacityModalStyles.iconBox}>
+                            <MaterialCommunityIcons name="account-group" size={30} color="#F97316" />
+                        </View>
+
+                        {/* Title & Description */}
+                        <Text style={[capacityModalStyles.mainTitle, { color: colors.textPrimary }]}>Adjust Agent Slots</Text>
+                        <Text style={[capacityModalStyles.subtitle, { color: colors.textSecondary }]}>
+                            Adjust your total number of expansion seats below.
+                        </Text>
+
+                        {/* Stepper Section */}
+                        <View style={capacityModalStyles.stepperSection}>
+                            <Text style={[capacityModalStyles.stepperLabel, { color: colors.textPrimary }]}>Total Expansion Units</Text>
+                            <View style={capacityModalStyles.stepperRow}>
+                                <TouchableOpacity
+                                    style={[
+                                        capacityModalStyles.stepperBtn,
+                                        { borderColor: colors.cardBorder, backgroundColor: colors.inputBackground },
+                                        units <= 0 && { opacity: 0.4 }
+                                    ]}
+                                    onPress={() => setUnits(prev => Math.max(0, prev - 1))}
+                                    disabled={units <= 0 || isSaving}
+                                    activeOpacity={0.7}
+                                >
+                                    <MaterialCommunityIcons name="minus" size={18} color={colors.textPrimary} />
+                                </TouchableOpacity>
+
+                                <View style={[capacityModalStyles.stepperValueBox, { borderColor: colors.cardBorder, backgroundColor: colors.cardBackground }]}>
+                                    <Text style={[capacityModalStyles.stepperValue, { color: colors.textPrimary }]}>{units}</Text>
+                                </View>
+
+                                <TouchableOpacity
+                                    style={[capacityModalStyles.stepperBtn, { borderColor: colors.cardBorder, backgroundColor: colors.inputBackground }]}
+                                    onPress={() => setUnits(prev => prev + 1)}
+                                    disabled={isSaving}
+                                    activeOpacity={0.7}
+                                >
+                                    <MaterialCommunityIcons name="plus" size={18} color={colors.textPrimary} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        {/* Breakdown Box */}
+                        <View style={[capacityModalStyles.breakdownCard, { backgroundColor: colors.inputBackground, borderColor: colors.cardBorder }]}>
+                            <View style={capacityModalStyles.breakdownRow}>
+                                <Text style={[capacityModalStyles.breakdownLabel, { color: colors.textSecondary }]}>Base Plan Seats</Text>
+                                <Text style={[capacityModalStyles.breakdownVal, { color: colors.textPrimary }]}>{basePlanSeats}</Text>
+                            </View>
+                            <View style={capacityModalStyles.breakdownRow}>
+                                <Text style={[capacityModalStyles.breakdownLabel, { color: colors.textSecondary }]}>Expansion Seats ({units} units)</Text>
+                                <Text style={[capacityModalStyles.breakdownVal, { color: colors.textPrimary }]}>+ {units}</Text>
+                            </View>
+
+                            <View style={[capacityModalStyles.divider, { backgroundColor: colors.cardBorder }]} />
+
+                            <View style={capacityModalStyles.breakdownRow}>
+                                <Text style={[capacityModalStyles.totalLabel, { color: colors.textPrimary }]}>Total Team Capacity</Text>
+                                <Text style={capacityModalStyles.totalVal}>{totalCapacity} members</Text>
+                            </View>
+                        </View>
+                    </ScrollView>
+
+                    {/* Footer Actions */}
+                    <View style={[capacityModalStyles.footer, { borderTopColor: colors.cardBorder }]}>
+                        <TouchableOpacity
+                            style={[capacityModalStyles.cancelBtn, { borderColor: colors.cardBorder }]}
+                            onPress={onClose}
+                            disabled={isSaving}
+                        >
+                            <Text style={[capacityModalStyles.cancelBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                capacityModalStyles.submitBtn,
+                                hasChanges
+                                    ? { backgroundColor: '#4F6B58' }
+                                    : { backgroundColor: '#5B7062', opacity: 0.65 }
+                            ]}
+                            onPress={() => {
+                                if (hasChanges) {
+                                    onSave(units);
+                                } else {
+                                    onClose();
+                                }
+                            }}
+                            disabled={isSaving}
+                            activeOpacity={0.8}
+                        >
+                            {isSaving ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Text style={capacityModalStyles.submitBtnText}>
+                                    {hasChanges ? 'Save Changes' : 'No Changes'}
+                                </Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
 const AgentDetailsModal = ({ visible, onClose, agent, onEdit, onChangePassword, onDelete, onToggleStatus, isUpdating }: { visible: boolean; onClose: () => void; agent: Employee | null; onEdit: (agent: Employee) => void; onChangePassword: (agent: Employee) => void; onDelete: (agent: Employee) => void; onToggleStatus: (agent: Employee) => void; isUpdating?: boolean }) => {
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
@@ -844,6 +1007,14 @@ export default function TeamManagement() {
 
     const companyId = profile?.company_id;
 
+    const { data: subscriptionData } = useQuery({
+        queryKey: ['teamSubscription'],
+        queryFn: () => getTeamSubscription(accessToken!),
+        enabled: !!accessToken,
+    });
+
+    const [capacityModalVisible, setCapacityModalVisible] = useState(false);
+
     const { data: employeeData, isLoading: loadingEmployees, refetch: refetchEmployees } = useQuery({
         queryKey: ['teamEmployees', companyId],
         queryFn: () => getTeamEmployees(accessToken!, companyId!),
@@ -869,12 +1040,37 @@ export default function TeamManagement() {
     const activeCount = employees.filter(e => e.status === 1).length;
     const inactiveCount = employees.length - activeCount;
 
+    const basePlanSeats = subscriptionData?.plan?.seats
+        ? parseInt(subscriptionData.plan.seats, 10)
+        : 5;
+    const currentExpansionUnits = Math.max(0, maxMembers - basePlanSeats);
+
     const stats = [
-        { icon: 'account-group', value: `${employees.length} / ${maxMembers}`, label: 'Team Capacity', color: colors.accentTeal || '#0a2341' },
+        {
+            icon: 'account-group',
+            value: `${employees.length} / ${maxMembers}`,
+            label: 'Team Capacity',
+            color: colors.accentTeal || '#0a2341',
+            onPress: () => setCapacityModalVisible(true),
+        },
         { icon: 'account-check', value: activeCount.toString(), label: 'Active Agents', color: '#10B981' },
         { icon: 'account-off', value: inactiveCount.toString(), label: 'Inactive Agents', color: '#F97316' },
         { icon: 'shield-check', value: (roles?.length || 0).toString(), label: 'Roles Defined', color: '#8B5CF6' },
     ];
+
+    const updateCapacityMutation = useMutation({
+        mutationFn: (units: number) => updateTeamCapacity(accessToken!, units),
+        onSuccess: (res) => {
+            queryClient.invalidateQueries({ queryKey: ['teamEmployees', companyId] });
+            queryClient.invalidateQueries({ queryKey: ['teamSubscription'] });
+            queryClient.invalidateQueries({ queryKey: ['agencyDashboardStats'] });
+            setCapacityModalVisible(false);
+            Alert.alert("Success", res?.message || "Team capacity updated successfully");
+        },
+        onError: (err: any) => {
+            Alert.alert("Error", err?.message || "Failed to update team capacity");
+        }
+    });
 
     const updateStatusMutation = useMutation({
         mutationFn: (data: { employeeId: number, companyId: number, status: number }) =>
@@ -1048,7 +1244,7 @@ export default function TeamManagement() {
                 </View>
 
                 {/* Search Box */}
-                <View style={[styles.searchBox, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, marginBottom: 20 }]}>
+                <View style={[styles.searchBox, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, marginBottom: 12 }]}>
                     <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
                     <TextInput
                         placeholder="Search by name or email..."
@@ -1064,6 +1260,27 @@ export default function TeamManagement() {
                             <MaterialCommunityIcons name="close-circle" size={18} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}
+                </View>
+
+                {/* Action Row: Manage Capacity + Add New Member */}
+                <View style={styles.actionButtonsRow}>
+                    <TouchableOpacity
+                        style={[styles.manageCapacityBtn, { borderColor: colors.cardBorder, backgroundColor: colors.cardBackground }]}
+                        onPress={() => setCapacityModalVisible(true)}
+                        activeOpacity={0.75}
+                    >
+                        <MaterialCommunityIcons name="shield-account-outline" size={18} color={colors.textPrimary} />
+                        <Text style={[styles.manageCapacityText, { color: colors.textPrimary }]}>Manage Capacity</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.addMemberHeaderBtn, { backgroundColor: '#0D1B2A' }]}
+                        onPress={handleOpenAdd}
+                        activeOpacity={0.75}
+                    >
+                        <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+                        <Text style={styles.addMemberHeaderText}>Add New Member</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Mobile Agent List */}
@@ -1139,6 +1356,15 @@ export default function TeamManagement() {
                         </View>
                     );
                 })()}
+
+                <CapacityModal
+                    visible={capacityModalVisible}
+                    onClose={() => setCapacityModalVisible(false)}
+                    basePlanSeats={basePlanSeats}
+                    currentExpansionUnits={currentExpansionUnits}
+                    onSave={(units) => updateCapacityMutation.mutate(units)}
+                    isSaving={updateCapacityMutation.isPending}
+                />
 
                 <AgentModal
                     visible={modalVisible}
@@ -1663,5 +1889,211 @@ const getStyles = (colors: any) => StyleSheet.create({
         color: '#fff',
         fontSize: 15,
         fontWeight: '900',
+    },
+    actionButtonsRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 20,
+    },
+    manageCapacityBtn: {
+        flex: 1,
+        height: 44,
+        borderRadius: 12,
+        borderWidth: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingHorizontal: 12,
+    },
+    manageCapacityText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    addMemberHeaderBtn: {
+        flex: 1,
+        height: 44,
+        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    addMemberHeaderText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#FFFFFF',
+    },
+});
+
+const capacityModalStyles = StyleSheet.create({
+    overlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    container: {
+        width: '100%',
+        maxWidth: 440,
+        borderRadius: 24,
+        borderWidth: 1,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.2,
+        shadowRadius: 24,
+        elevation: 10,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 18,
+        paddingBottom: 14,
+    },
+    headerTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        letterSpacing: -0.2,
+    },
+    closeBtn: {
+        padding: 4,
+    },
+    body: {
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingBottom: 16,
+    },
+    iconBox: {
+        width: 64,
+        height: 64,
+        borderRadius: 20,
+        backgroundColor: '#FFF7ED',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 6,
+        marginBottom: 12,
+    },
+    mainTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 6,
+        textAlign: 'center',
+    },
+    subtitle: {
+        fontSize: 13,
+        textAlign: 'center',
+        marginBottom: 20,
+        lineHeight: 18,
+    },
+    stepperSection: {
+        width: '100%',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    stepperLabel: {
+        fontSize: 13,
+        fontWeight: '700',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    stepperRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    stepperBtn: {
+        width: 42,
+        height: 42,
+        borderRadius: 10,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    stepperValueBox: {
+        minWidth: 80,
+        height: 42,
+        borderRadius: 10,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 16,
+    },
+    stepperValue: {
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    breakdownCard: {
+        width: '100%',
+        borderRadius: 14,
+        borderWidth: 1,
+        padding: 16,
+        gap: 10,
+    },
+    breakdownRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    breakdownLabel: {
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    breakdownVal: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    divider: {
+        height: 1,
+        marginVertical: 4,
+    },
+    totalLabel: {
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    totalVal: {
+        fontSize: 15,
+        fontWeight: '900',
+        color: '#EA580C',
+    },
+    footer: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        gap: 12,
+        borderTopWidth: 1,
+    },
+    cancelBtn: {
+        flex: 1,
+        height: 46,
+        borderRadius: 12,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cancelBtnText: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    submitBtn: {
+        flex: 1.4,
+        height: 46,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    submitBtnText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#FFFFFF',
     },
 });

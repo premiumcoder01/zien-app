@@ -68,12 +68,52 @@ export interface DirectoryLead {
   matchScore?: number;
   carrier?: string;
   lineType?: string;
+  registeredName?: string;
+  registeredAddress?: string;
   warningNote?: string;
   successNote?: string;
   raw?: any;
 }
 
 const RAW_API_LEADS_FALLBACK = [
+  {
+    id: "b3660450-bc4b-497e-a1e5-efe670e5d41e",
+    user_id: 81,
+    first_name: "Zien",
+    last_name: "Inc",
+    email: "becker@beckerrealtyteam.com",
+    country_code: "+1",
+    phone: "7135399244",
+    source: "Manual",
+    status: 1,
+    score: 75,
+    group_id: 90,
+    tag_id: 69,
+    lead_date_label: "Today",
+    hubspot_id: "541221833419",
+    zoho_id: "1404211000000594003",
+    pipedrive_id: "dfb15432-fea3-45f3-a321-4c8ff2098037",
+    events: [
+      {
+        date: "2026-08-26T08:57:36.495Z",
+        title: "Lead captured via Manual"
+      },
+      {
+        date: "2026-08-26T08:57:48.351Z",
+        score: 45,
+        title: "Identity Verified (45% Match, Unknown Carrier)",
+        carrier: "Unknown Carrier",
+        lineType: "mobile",
+        nameMatch: "No",
+        registeredName: "Paul W Strong",
+        registeredAddress: "Houston, TX"
+      },
+      {
+        date: "2026-08-26T10:02:51.370Z",
+        title: "Ghost protocol activated: Score boosted from 75 to 75"
+      }
+    ]
+  },
   {
     id: "79d5c749-985e-4d9d-b896-43a76813082a",
     user_id: 81,
@@ -616,6 +656,8 @@ function parseLeadToDirectoryLead(raw: any): DirectoryLead {
   let matchScore: number | undefined = undefined;
   let carrier: string | undefined = undefined;
   let lineType: string | undefined = undefined;
+  let registeredName: string | undefined = undefined;
+  let registeredAddress: string | undefined = undefined;
   let warningNote: string | undefined = undefined;
   let successNote: string | undefined = undefined;
 
@@ -623,6 +665,8 @@ function parseLeadToDirectoryLead(raw: any): DirectoryLead {
     matchScore = typeof verifyEvent.score === 'number' ? verifyEvent.score : undefined;
     carrier = verifyEvent.carrier || '-';
     lineType = verifyEvent.lineType || '-';
+    registeredName = verifyEvent.registeredName || undefined;
+    registeredAddress = verifyEvent.registeredAddress || undefined;
 
     // Check if score indicates match failure or low match
     const isMismatch =
@@ -631,19 +675,21 @@ function parseLeadToDirectoryLead(raw: any): DirectoryLead {
       (verifyEvent.title &&
         (verifyEvent.title.includes('50%') ||
           verifyEvent.title.includes('48%') ||
+          verifyEvent.title.includes('45%') ||
           verifyEvent.title.includes('Mismatch')));
 
     if (isMismatch) {
       status = 'FAILED MATCH';
       warningNote = 'Name match check failed. Identity mismatch warning!';
-      if (!matchScore) {
+      if (matchScore === undefined) {
         if (verifyEvent.title?.includes('48%')) matchScore = 48;
+        else if (verifyEvent.title?.includes('45%')) matchScore = 45;
         else matchScore = 50;
       }
     } else {
       status = 'CLEARED';
       successNote = 'Identity match confirmed via Whitepages & US Census';
-      if (!matchScore) matchScore = 98;
+      if (matchScore === undefined) matchScore = 98;
     }
   } else {
     status = 'NOT VERIFIED';
@@ -659,6 +705,8 @@ function parseLeadToDirectoryLead(raw: any): DirectoryLead {
     matchScore,
     carrier,
     lineType,
+    registeredName,
+    registeredAddress,
     warningNote,
     successNote,
     raw,
@@ -837,13 +885,13 @@ export default function GuardianAiOverviewScreen() {
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch Leads from GET https://staging.zien.ai/api/solo/crm/leads
+  // Fetch Leads from GET https://staging.zien.ai/api/solo/crm/leads?status=1
   const fetchLeadsFromApi = useCallback(async () => {
     try {
       const token = accessToken || (await AsyncStorage.getItem('access_token'));
       if (!token) return;
       setLoadingLeads(true);
-      const data = await getCRMLeads(token);
+      const data = await getCRMLeads(token, 1);
       if (Array.isArray(data) && data.length > 0) {
         const parsed = data.map(parseLeadToDirectoryLead);
         setDirectoryLeads(parsed);
@@ -2010,13 +2058,23 @@ export default function GuardianAiOverviewScreen() {
                           <View style={styles.failedBoxHeader}>
                             <Text style={styles.failedBoxTitle}>VERIFICATION FAILED</Text>
                             <Text style={styles.failedBoxScore}>
-                              {lead.matchScore || 50}% Match
+                              {lead.matchScore !== undefined ? lead.matchScore : 50}% Match
                             </Text>
                           </View>
                           <Text style={styles.failedBoxCarrier}>
                             Carrier: {lead.carrier || '-'} • Line Type:{' '}
                             {lead.lineType || '-'}
                           </Text>
+                          {!!lead.registeredName && (
+                            <Text style={styles.failedBoxDetailLine}>
+                              Registered To: <Text style={{ fontWeight: '700' }}>{lead.registeredName}</Text>
+                            </Text>
+                          )}
+                          {!!lead.registeredAddress && (
+                            <Text style={styles.failedBoxDetailLine}>
+                              Location: <Text style={{ fontWeight: '700' }}>{lead.registeredAddress}</Text>
+                            </Text>
+                          )}
                           <View style={styles.warningAlertRow}>
                             <MaterialCommunityIcons
                               name="alert-outline"
@@ -3822,7 +3880,13 @@ const getStyles = (colors: any, isDark: boolean) =>
       fontSize: 11,
       fontWeight: '600',
       color: '#64748B',
-      marginBottom: 6,
+      marginBottom: 4,
+    },
+    failedBoxDetailLine: {
+      fontSize: 11.5,
+      fontWeight: '500',
+      color: isDark ? '#E2E8F0' : '#334155',
+      marginBottom: 3,
     },
     warningAlertRow: {
       flexDirection: 'row',

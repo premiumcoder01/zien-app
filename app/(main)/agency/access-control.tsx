@@ -35,23 +35,48 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
 const { width } = Dimensions.get('window');
-const API_BASE_URL = 'https://staging-api.zien.ai/api';
+const API_BASE_URL = 'https://staging.zien.ai/api';
+
+const getAuthHeaders = (token: string): Record<string, string> => {
+    let cleanToken = token || '';
+    if (cleanToken.startsWith('Bearer ')) {
+        cleanToken = cleanToken.slice(7).trim();
+    }
+    const headers: Record<string, string> = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+    };
+    if (cleanToken) {
+        headers['Authorization'] = `Bearer ${cleanToken}`;
+        headers['Cookie'] = `website_access_token=${cleanToken}; access_token=${cleanToken}; token=${cleanToken}; auth_token=${cleanToken}`;
+    }
+    return headers;
+};
 
 // Custom API integrations for Role & Menu CRUD
 const createRoleApi = async (accessToken: string, companyId: number, name: string, description: string) => {
-    const response = await fetch(`${API_BASE_URL}/teams/roles`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            company_id: companyId,
-            name,
-            description,
-            status: 1
-        }),
+    const headers = getAuthHeaders(accessToken);
+    const body = JSON.stringify({
+        company_id: companyId,
+        name,
+        description,
+        status: 1
     });
+    let response = await fetch(`${API_BASE_URL}/teams/roles`, {
+        method: 'POST',
+        headers,
+        body,
+    });
+    if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
+        try {
+            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/roles`, {
+                method: 'POST',
+                headers,
+                body,
+            });
+            if (fallbackRes.ok) response = fallbackRes;
+        } catch {}
+    }
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to create role');
@@ -60,18 +85,27 @@ const createRoleApi = async (accessToken: string, companyId: number, name: strin
 };
 
 const updateRoleApi = async (accessToken: string, companyId: number, roleId: number, name: string, description: string) => {
-    const response = await fetch(`${API_BASE_URL}/teams/roles/${roleId}`, {
-        method: 'PUT',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            company_id: companyId,
-            name,
-            description,
-        }),
+    const headers = getAuthHeaders(accessToken);
+    const body = JSON.stringify({
+        company_id: companyId,
+        name,
+        description,
     });
+    let response = await fetch(`${API_BASE_URL}/teams/roles/${roleId}`, {
+        method: 'PUT',
+        headers,
+        body,
+    });
+    if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
+        try {
+            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/roles/${roleId}`, {
+                method: 'PUT',
+                headers,
+                body,
+            });
+            if (fallbackRes.ok) response = fallbackRes;
+        } catch {}
+    }
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to update role');
@@ -80,12 +114,20 @@ const updateRoleApi = async (accessToken: string, companyId: number, roleId: num
 };
 
 const deleteRoleApi = async (accessToken: string, companyId: number, roleId: number) => {
-    const response = await fetch(`${API_BASE_URL}/teams/roles/${roleId}?company_id=${companyId}`, {
+    const headers = getAuthHeaders(accessToken);
+    let response = await fetch(`${API_BASE_URL}/teams/roles/${roleId}?company_id=${companyId}`, {
         method: 'DELETE',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-        },
+        headers,
     });
+    if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
+        try {
+            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/roles/${roleId}?company_id=${companyId}`, {
+                method: 'DELETE',
+                headers,
+            });
+            if (fallbackRes.ok) response = fallbackRes;
+        } catch {}
+    }
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to delete role');
@@ -99,17 +141,26 @@ const createMenuApi = async (
     companyId: number,
     data: { name: string; slug: string; path: string; icon: string; sort_order: number; parent_id: number | null }
 ) => {
-    const response = await fetch(`${API_BASE_URL}/teams/menus`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            company_id: companyId,
-            ...data,
-        }),
+    const headers = getAuthHeaders(accessToken);
+    const body = JSON.stringify({
+        company_id: companyId,
+        ...data,
     });
+    let response = await fetch(`${API_BASE_URL}/teams/menus`, {
+        method: 'POST',
+        headers,
+        body,
+    });
+    if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
+        try {
+            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/menus`, {
+                method: 'POST',
+                headers,
+                body,
+            });
+            if (fallbackRes.ok) response = fallbackRes;
+        } catch {}
+    }
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to create menu');
@@ -123,17 +174,26 @@ const updateMenuApi = async (
     menuId: number,
     data: { name: string; slug: string; path: string; icon: string; sort_order: number; parent_id: number | null }
 ) => {
-    const response = await fetch(`${API_BASE_URL}/teams/menus/${menuId}`, {
-        method: 'PUT',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            company_id: companyId,
-            ...data,
-        }),
+    const headers = getAuthHeaders(accessToken);
+    const body = JSON.stringify({
+        company_id: companyId,
+        ...data,
     });
+    let response = await fetch(`${API_BASE_URL}/teams/menus/${menuId}`, {
+        method: 'PUT',
+        headers,
+        body,
+    });
+    if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
+        try {
+            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/menus/${menuId}`, {
+                method: 'PUT',
+                headers,
+                body,
+            });
+            if (fallbackRes.ok) response = fallbackRes;
+        } catch {}
+    }
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to update menu');
@@ -142,12 +202,20 @@ const updateMenuApi = async (
 };
 
 const deleteMenuApi = async (accessToken: string, companyId: number, menuId: number) => {
-    const response = await fetch(`${API_BASE_URL}/teams/menus/${menuId}?company_id=${companyId}`, {
+    const headers = getAuthHeaders(accessToken);
+    let response = await fetch(`${API_BASE_URL}/teams/menus/${menuId}?company_id=${companyId}`, {
         method: 'DELETE',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-        },
+        headers,
     });
+    if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
+        try {
+            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/menus/${menuId}?company_id=${companyId}`, {
+                method: 'DELETE',
+                headers,
+            });
+            if (fallbackRes.ok) response = fallbackRes;
+        } catch {}
+    }
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to delete menu');
@@ -270,27 +338,70 @@ export default function AccessControl() {
         }
     }, [rolePerms]);
 
-    const handleToggle = (menuId: number) => {
-        setPermissions(prev => ({
-            ...prev,
-            [menuId]: !prev[menuId]
-        }));
+    const getMenuIconName = (icon?: string, slug?: string): any => {
+        switch (icon) {
+            case 'LayoutDashboard':
+                return 'view-dashboard-outline';
+            case 'Home':
+                return slug === 'open-house' ? 'door-open' : 'home-analytics';
+            case 'Inbox':
+                return 'inbox-outline';
+            case 'Calendar':
+                return 'calendar-blank-outline';
+            case 'Contact':
+                return 'account-box-outline';
+            case 'MapPinHouse':
+                return 'home-city-outline';
+            case 'Share2':
+                return 'share-variant-outline';
+            case 'Brain':
+                return 'brain';
+            case 'LayoutTemplate':
+                return 'application-outline';
+            case 'CreditCard':
+                return 'card-account-details-outline';
+            case 'Radar':
+                return 'shield-check-outline';
+            case 'Users':
+                return 'credit-card-outline';
+            default:
+                return 'menu';
+        }
     };
 
-    // --- MUTATIONS ---
-
-    // Sync Permissions
+    // Sync Permissions Mutation
     const syncMutation = useMutation({
         mutationFn: (menuIds: number[]) =>
-            updateRolePermissions(accessToken!, selectedRoleId!, companyId!, menuIds),
+            updateRolePermissions(accessToken || undefined, selectedRoleId!, companyId!, menuIds),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['rolePermissions', selectedRoleId] });
-            showToast('Access control permissions saved successfully!', 'success');
+            showToast('Permissions updated successfully!', 'success');
         },
         onError: (err: any) => {
+            queryClient.invalidateQueries({ queryKey: ['rolePermissions', selectedRoleId] });
             showToast(err?.message || 'Failed to save permissions.', 'error');
         }
     });
+
+    const handleToggle = (menuId: number) => {
+        if (!selectedRoleId || !companyId) {
+            showToast('Invalid role or company configuration.', 'error');
+            return;
+        }
+
+        const nextVal = !permissions[menuId];
+        const updated = {
+            ...permissions,
+            [menuId]: nextVal,
+        };
+        setPermissions(updated);
+
+        const activeMenuIds = Object.keys(updated)
+            .map(Number)
+            .filter(id => updated[id]);
+
+        syncMutation.mutate(activeMenuIds);
+    };
 
     const handleSavePermissions = () => {
         if (!selectedRoleId || !companyId) {
@@ -587,9 +698,7 @@ export default function AccessControl() {
                         <Text style={[styles.mainHeading, { color: colors.textPrimary }]}>Roles & Permissions</Text>
                     </View>
                     <Text style={[styles.mainSubheading, { color: colors.textSecondary }]}>
-                        {activeTab === 'menus'
-                            ? 'Define the navigation hierarchy for the agency dashboard.'
-                            : 'Manage role lifecycle and role-wise workspace module access'}
+                        Manage role lifecycle and role-wise workspace module access
                     </Text>
                 </View>
 
@@ -785,7 +894,7 @@ export default function AccessControl() {
                                             >
                                                 <View style={styles.moduleIconBox}>
                                                     <MaterialCommunityIcons
-                                                        name="menu"
+                                                        name={getMenuIconName(mod.icon, mod.slug)}
                                                         size={18}
                                                         color="#64748B"
                                                     />
@@ -824,70 +933,44 @@ export default function AccessControl() {
                             <View style={{ flex: 1 }}>
                                 <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Menu Structure</Text>
                                 <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                                    Define the navigation hierarchy for the agency dashboard.
+                                    View the navigation hierarchy for your agency dashboard. (Managed by Platform Admin)
                                 </Text>
                             </View>
-
                         </View>
 
                         {loadingMenus ? (
                             <ActivityIndicator size="large" color={colors.accentTeal} style={{ marginVertical: 40 }} />
                         ) : (
                             <View style={styles.listContainer}>
-                                {allMenus?.map(menu => (
-                                    <View
-                                        key={menu.id}
-                                        style={[styles.menuItemCard, { borderColor: colors.cardBorder }]}
-                                    >
-                                        <View style={styles.dragHandle}>
-                                            <MaterialCommunityIcons name="menu" size={18} color="#94A3B8" />
-                                        </View>
-                                        <View style={{ flex: 1, marginLeft: 12, marginRight: 12 }}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                                <Text style={[styles.menuNameText, { color: colors.textPrimary }]}>
-                                                    {menu.name}
-                                                </Text>
-                                                {menu.slug && (
+                                {allMenus?.map(menu => {
+                                    const slugDisplay = (menu.slug || menu.name.replace(/\s+/g, '-')).toUpperCase();
+                                    const pathDisplay = menu.path?.startsWith('/') ? menu.path : `/${menu.path || ''}`;
+                                    return (
+                                        <View
+                                            key={menu.id}
+                                            style={[styles.menuItemCard, { borderColor: colors.cardBorder }]}
+                                        >
+                                            <View style={styles.dragHandle}>
+                                                <MaterialCommunityIcons name="menu" size={20} color="#64748B" />
+                                            </View>
+                                            <View style={{ flex: 1, marginLeft: 14 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                                    <Text style={[styles.menuNameText, { color: colors.textPrimary }]}>
+                                                        {menu.name}
+                                                    </Text>
                                                     <View style={styles.badgeContainer}>
                                                         <Text style={styles.badgeText}>
-                                                            {menu.slug.toUpperCase()}
+                                                            {slugDisplay}
                                                         </Text>
                                                     </View>
-                                                )}
+                                                </View>
+                                                <Text style={styles.menuPathText}>
+                                                    {pathDisplay}
+                                                </Text>
                                             </View>
-                                            <Text style={styles.menuPathText}>
-                                                {menu.path}
-                                            </Text>
                                         </View>
-                                        <View style={styles.itemActions}>
-                                            <TouchableOpacity
-                                                onPress={() => {
-                                                    setEditingMenu(menu);
-                                                    setMenuName(menu.name);
-                                                    setMenuSlug(menu.slug);
-                                                    setMenuPath(menu.path);
-                                                    setMenuIcon(menu.icon);
-                                                    setMenuOrder(menu.sort_order.toString());
-                                                    setMenuParentId(menu.parent_id?.toString() || '');
-                                                    setNameError('');
-                                                    setSlugError('');
-                                                    setPathError('');
-                                                    setIsEditParentDropdownOpen(false);
-                                                    setIsEditMenuOpen(true);
-                                                }}
-                                                style={styles.editIconBtn}
-                                            >
-                                                <MaterialCommunityIcons name="pencil-outline" size={16} color="#64748B" />
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => handleDeleteMenu(menu.id, menu.name)}
-                                                style={styles.deleteIconBtn}
-                                            >
-                                                <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                ))}
+                                    );
+                                })}
                             </View>
                         )}
                     </View>
@@ -1683,39 +1766,39 @@ const getStyles = (colors: any) => StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 20,
+        paddingVertical: 14,
+        borderRadius: 14,
         borderWidth: 1,
         borderColor: colors.cardBorder,
         backgroundColor: colors.cardBackground,
-        shadowColor: colors.cardShadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        elevation: 2,
+        marginBottom: 10,
     },
     dragHandle: {
-        width: 32,
-        height: 32,
+        width: 38,
+        height: 38,
         borderRadius: 8,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
         backgroundColor: colors.surfaceSoft,
         justifyContent: 'center',
         alignItems: 'center',
     },
     menuNameText: {
-        fontSize: 14,
-        fontWeight: '800',
+        fontSize: 15,
+        fontWeight: '700',
     },
     badgeContainer: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 6,
-        backgroundColor: '#EEF2FF',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        backgroundColor: colors.surfaceSoft,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
     },
     badgeText: {
-        fontSize: 9,
-        fontWeight: '900',
-        color: '#4F46E5',
+        fontSize: 10,
+        fontWeight: '700',
+        color: colors.textSecondary,
         letterSpacing: 0.5,
     },
     modalOverlay: {

@@ -183,6 +183,15 @@ export default function PropertySearchScreen() {
             if (json?.success && json?.data) {
                 const d = json.data;
                 const photos = (d.Media || []).map((m: any) => m.MediaURL).filter(Boolean);
+
+                // === MARKET TRENDS DEBUG ===
+                console.log('[MarketTrends] 🔍 marketTrends raw:', JSON.stringify(d?.marketTrends, null, 2));
+                console.log('[MarketTrends] 🔍 rentcast:', JSON.stringify(d?.rentcast, null, 2));
+                console.log('[MarketTrends] 🔍 avm:', JSON.stringify(d?.avm, null, 2));
+                console.log('[MarketTrends] 🔍 valuation:', JSON.stringify(d?.valuation, null, 2));
+                console.log('[MarketTrends] 🔍 rentEstimate:', JSON.stringify(d?.rentEstimate, null, 2));
+                // ==========================
+
                 handleSelectProperty({
                     id: d.ListingKey || 'search',
                     type: d.PropertySubType || d.PropertyType || 'Property',
@@ -236,6 +245,14 @@ export default function PropertySearchScreen() {
             if (json?.success && json?.data) {
                 const d = json.data;
                 const photos = (d.Media || []).map((m: any) => m.MediaURL).filter(Boolean);
+
+                // === MARKET TRENDS DEBUG ===
+                console.log('[MarketTrends] 🔍 marketTrends raw:', JSON.stringify(d?.marketTrends, null, 2));
+                console.log('[MarketTrends] 🔍 rentcast:', JSON.stringify(d?.rentcast, null, 2));
+                console.log('[MarketTrends] 🔍 avm:', JSON.stringify(d?.avm, null, 2));
+                console.log('[MarketTrends] 🔍 rentEstimate:', JSON.stringify(d?.rentEstimate, null, 2));
+                // ==========================
+
                 handleSelectProperty({
                     id: d.ListingKey || 'suggestion',
                     type: d.PropertySubType || d.PropertyType || 'Property',

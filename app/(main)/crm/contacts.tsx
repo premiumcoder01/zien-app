@@ -217,15 +217,16 @@ export default function ContactsScreen() {
       country_code: data.countryCode,
       group_id: groupObj.id,
       tag_id: tagObj.id,
+      auto_merge: true,
     };
 
     try {
       setIsUpdating(true);
       setContactApiError(null);
       if (isEditing && selectedContact) {
-        await updateCRMContact(accessToken!, selectedContact.id, payload);
+        await updateCRMContact(accessToken || undefined, selectedContact.id, payload);
       } else {
-        await addCRMContact(accessToken!, payload);
+        await addCRMContact(accessToken || undefined, payload);
       }
       closeModal();
       queryClient.invalidateQueries({ queryKey: ['crm-contacts'] });

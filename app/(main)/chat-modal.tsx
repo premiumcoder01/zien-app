@@ -7,9 +7,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
     ExpoSpeechRecognitionModule,
     useSpeechRecognitionEvent,
-    AVAudioSessionCategory,
-    AVAudioSessionCategoryOptions,
-    AVAudioSessionMode,
 } from 'expo-speech-recognition';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -211,23 +208,26 @@ export default function ChatModalScreen() {
         startPulse();
     });
 
+    useSpeechRecognitionEvent('speechstart', () => {
+        setIsListening(true);
+        startPulse();
+    });
+
+    useSpeechRecognitionEvent('speechend', () => {
+        stopPulse();
+    });
+
     useSpeechRecognitionEvent('end', () => {
         setIsListening(false);
         stopPulse();
-        // If final event didn't trigger submission yet but speech was recognized, auto submit to AI
+        // If recognition ended and transcript exists but wasn't auto-submitted yet, leave in place for user or auto-send
         if (latestTranscriptRef.current.trim() && !hasSubmittedVoiceRef.current) {
-            hasSubmittedVoiceRef.current = true;
-            const textToSend = latestTranscriptRef.current.trim();
-            setTimeout(() => {
-                cancelVoice();
-                handleSubmit(textToSend);
-            }, 400);
+            setVoiceText(latestTranscriptRef.current.trim());
         }
     });
 
     useSpeechRecognitionEvent('result', (event) => {
-        // Use the top primary hypothesis only (do not join all alternatives which duplicates formatted/raw text)
-        const primary = event.results[0]?.transcript || '';
+        const primary = event.results?.[0]?.transcript || '';
         const transcript = cleanVoiceTranscript(primary);
 
         if (transcript) {
@@ -235,7 +235,7 @@ export default function ChatModalScreen() {
             latestTranscriptRef.current = transcript;
         }
 
-        // Google Assistant style: When speech ends and isFinal is true, automatically submit to Zien AI
+        // When speech returns final result, auto submit after short pause
         if (event.isFinal && transcript && !hasSubmittedVoiceRef.current) {
             hasSubmittedVoiceRef.current = true;
             setTimeout(() => {
@@ -244,30 +244,31 @@ export default function ChatModalScreen() {
                     cancelVoice();
                     handleSubmit(textToSend);
                 }
-            }, 400);
+            }, 500);
         }
     });
 
     useSpeechRecognitionEvent('error', (event) => {
-        console.log('Speech recognition error:', event.error, event.message);
+        console.log('Speech recognition event error:', event.error, event.message);
         setIsListening(false);
-        setIsRecordingMode(false);
         stopPulse();
 
-        if (event.error === 'aborted') {
+        // Silent benign errors (aborted, no-speech, busy)
+        if (event.error === 'aborted' || event.error === 'no-speech') {
             return;
         }
 
         let friendlyMessage = event.message;
         if (event.error === 'service-not-allowed') {
-            friendlyMessage = 'Speech recognition service is not available on this device. If you are on an emulator, please test on a physical device.';
+            friendlyMessage = 'Speech recognition service is not available on this device. Please check Siri/Dictation settings in iOS Settings.';
         } else if (event.error === 'network') {
-            friendlyMessage = 'Network error during speech recognition. Please verify your internet connection.';
+            friendlyMessage = 'Network error during speech recognition. Please check your internet connection.';
         } else if (event.error === 'not-allowed') {
-            friendlyMessage = 'Microphone or Speech Recognition permission was denied. Please enable them in your device settings.';
+            friendlyMessage = 'Microphone and Speech Recognition permissions are required. Please enable them in iPhone Settings > Zien.';
         }
 
         Alert.alert('Voice Recognition', friendlyMessage || `Speech error: ${event.error}`);
+        setIsRecordingMode(false);
     });
 
     const startVoice = useCallback(async () => {
@@ -283,7 +284,7 @@ export default function ChatModalScreen() {
         if (!isAvailable) {
             Alert.alert(
                 'Speech Recognition Unavailable',
-                'Speech recognition is not available on this device/emulator. Please test on a physical Android or iOS device.'
+                'Speech recognition is not available. Please verify Siri and Dictation are enabled in device settings.'
             );
             setIsRecordingMode(false);
             return;
@@ -300,21 +301,14 @@ export default function ChatModalScreen() {
             ExpoSpeechRecognitionModule.start({
                 lang: speechLang,
                 interimResults: true,
-                continuous: false,
+                continuous: true,
                 addsPunctuation: true,
+                iosTaskHint: 'search',
                 contextualStrings: ['Zien', 'Zien AI', 'Zien Intelligence', 'CRM', 'listing', 'leads', 'properties', 'agents'],
                 androidIntentOptions: {
                     EXTRA_LANGUAGE_MODEL: "free_form",
                     EXTRA_BIASING_STRINGS: ['Zien', 'Zien AI', 'Zien Intelligence'],
                 } as any,
-                iosCategory: {
-                    category: AVAudioSessionCategory.playAndRecord,
-                    mode: AVAudioSessionMode.default,
-                    categoryOptions: [
-                        AVAudioSessionCategoryOptions.defaultToSpeaker,
-                        AVAudioSessionCategoryOptions.allowBluetooth,
-                    ],
-                },
             });
         } catch (e: any) {
             console.warn('Failed to start speech recognition:', e);
@@ -338,7 +332,7 @@ export default function ChatModalScreen() {
         hasSubmittedVoiceRef.current = true;
         cancelVoice();
         if (text) handleSubmit(text);
-    }, [voiceText, cancelVoice]);
+    }, [voiceText, cancelVoice, handleSubmit]);
 
 
 
@@ -610,11 +604,18 @@ export default function ChatModalScreen() {
                                 <MaterialCommunityIcons name="close" size={18} color={colors.textSecondary} />
                             </Pressable>
 
-                            <View style={[styles.recordingBubble, isListening && { borderColor: '#FF4B4B60' }]}>
+                            <Pressable
+                                onPress={() => {
+                                    if (!isListening) {
+                                        startVoice();
+                                    }
+                                }}
+                                style={[styles.recordingBubble, isListening && { borderColor: '#FF4B4B60' }]}
+                            >
                                 <View style={styles.recordingStatus}>
                                     <Animated.View style={[styles.recordingDot, { transform: [{ scale: pulseAnim }] }]} />
                                     <Text style={styles.recordingLabel}>
-                                        {isListening ? 'Listening...' : 'Done'}
+                                        {isListening ? 'Listening...' : voiceText ? 'Done' : 'Tap to speak'}
                                     </Text>
                                 </View>
                                 <Text
@@ -623,7 +624,7 @@ export default function ChatModalScreen() {
                                 >
                                     {voiceText || (speechLang === 'hi-IN' ? 'Bolna shuru karein (Hindi)...' : 'Start speaking (English)...')}
                                 </Text>
-                            </View>
+                            </Pressable>
 
                             <Pressable
                                 onPress={sendVoice}

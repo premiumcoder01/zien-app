@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
 import { analyzeProperty as analyzePropertyService, extractPriceNumber, finalizeProperty, formatPropertyPrice, uploadPropertyImage } from '@/services/propertyService';
+import { generateAiImage } from '@/services/aiContentService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -581,9 +582,33 @@ function StepMedia({
   setActiveTab: React.Dispatch<React.SetStateAction<'mls' | 'uploads'>>,
 }) {
   const { colors } = useAppTheme();
+  const { accessToken } = useAuth();
   const styles = getStyles(colors);
   const [enhancedImages, setEnhancedImages] = useState<Set<string>>(new Set());
   const [enhancingMap, setEnhancingMap] = useState<Record<string, boolean>>({});
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  const handleGenerateAi = async () => {
+    const promptToUse = aiPrompt.trim() || 'A high-end modern living room with floor-to-ceiling windows at golden hour, minimalist furniture, marble floors';
+    setIsGeneratingAi(true);
+    try {
+      const res = await generateAiImage(promptToUse, accessToken || undefined);
+      if (res?.success && res?.data?.imageUrl) {
+        setUserPhotos(prev => [res.data.imageUrl, ...prev]);
+        setActiveTab('uploads');
+        setAiPrompt('');
+        Alert.alert('Image Generated', 'AI architectural visual generated successfully and added to your uploads!');
+      } else {
+        throw new Error(res?.message || 'Failed to generate visual');
+      }
+    } catch (e: any) {
+      console.error('[AI Studio Generator Create] Error:', e);
+      Alert.alert('Generation Failed', e?.message || 'Failed to generate visual. Please try again.');
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
 
   const toggleEnhance = (url: string) => {
     if (enhancingMap[url]) return;
@@ -619,24 +644,21 @@ function StepMedia({
         {selectedLocalPhotos.length > 0 ? (
           <View style={[styles.localPreviewCard, { marginBottom: 0 }]}>
             <View style={styles.localPreviewHeader}>
-              <Text style={styles.localPreviewTitle}>Selected Photos</Text>
-              <Text style={styles.localPreviewCount}>{selectedLocalPhotos.length} photo{selectedLocalPhotos.length > 1 ? 's' : ''} selected</Text>
+              <Text style={styles.localPreviewTitle}>
+                {selectedLocalPhotos.length} {selectedLocalPhotos.length === 1 ? 'Photo' : 'Photos'} Selected
+              </Text>
+              <Text style={styles.localPreviewSub}>Review before uploading to vault</Text>
             </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.localPreviewScroll}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.localPreviewScroll}>
               {selectedLocalPhotos.map((uri, idx) => (
                 <View key={idx} style={styles.localPreviewThumbWrap}>
                   <Image source={{ uri }} style={styles.localPreviewThumb} contentFit="cover" />
                   <TouchableOpacity
-                    style={styles.localPreviewRemoveBtn}
+                    style={styles.localPreviewDeleteBtn}
                     onPress={() => setSelectedLocalPhotos(prev => prev.filter((_, i) => i !== idx))}
-                    disabled={isUploading}
                   >
-                    <MaterialCommunityIcons name="close" size={10} color="#FFF" />
+                    <MaterialCommunityIcons name="close" size={12} color="#FFF" />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -709,6 +731,8 @@ function StepMedia({
               style={styles.aiStudioPromptInput}
               placeholder="e.g. A high-end modern living room with floor-to-ceiling windows at golden hour, minimalist furniture, marble floors..."
               placeholderTextColor={colors.textMuted}
+              value={aiPrompt}
+              onChangeText={setAiPrompt}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
@@ -717,13 +741,23 @@ function StepMedia({
           <TouchableOpacity
             style={[
               styles.aiStudioGenerateBtn,
-              { backgroundColor: colors.accentTeal + '15' }
+              isGeneratingAi && { opacity: 0.7 }
             ]}
+            onPress={handleGenerateAi}
             activeOpacity={0.85}
-            disabled
+            disabled={isGeneratingAi}
           >
-            <MaterialCommunityIcons name="creation" size={16} color={colors.accentTeal} />
-            <Text style={[styles.aiStudioGenerateBtnText, { color: colors.accentTeal }]}>Generate with AI</Text>
+            {isGeneratingAi ? (
+              <>
+                <ActivityIndicator size="small" color="#FFF" />
+                <Text style={styles.aiStudioGenerateBtnText}>Synthesizing Visual...</Text>
+              </>
+            ) : (
+              <>
+                <MaterialCommunityIcons name="creation" size={16} color="#FFF" />
+                <Text style={styles.aiStudioGenerateBtnText}>Generate with AI</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>

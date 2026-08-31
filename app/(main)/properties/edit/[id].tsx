@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { extractPriceNumber, finalizeProperty, formatPropertyPrice, getPropertyDetails, uploadPropertyImage } from '@/services/propertyService';
+import { generateAiImage } from '@/services/aiContentService';
 import { createOpenHouse, getOpenHouses } from '@/services/openHouseService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -19,6 +20,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View
@@ -26,6 +28,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const AI_ARCHITECTURAL_PRESETS = [
+  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=1200',
+  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=1200',
+  'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&q=80&w=1200',
+  'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&q=80&w=1200',
+  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=1200',
+  'https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&q=80&w=1200',
+];
 
 // --- Step Indicator Component (Copied from Create) ---
 function StepIndicator({ activeStep, steps }: { activeStep: number; steps: { label: string }[] }) {
@@ -254,78 +265,301 @@ function StepDetails({ formData }: { formData: any }) {
     </View>
   );
 }
-
-function StepMedia({ mlsPhotos, setMlsPhotos, userPhotos, setUserPhotos, onPickerOpen, isUploading }: any) {
+function StepMedia({
+  mlsPhotos,
+  setMlsPhotos,
+  userPhotos,
+  setUserPhotos,
+  aiPhotos,
+  setAiPhotos,
+  onPickerOpen,
+  isUploading,
+  aiPrompt,
+  setAiPrompt,
+  onGenerateAi,
+  isGeneratingAi,
+  enhancedImages,
+  enhancingMap,
+  toggleEnhance,
+}: any) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
+  const [activeMediaTab, setActiveMediaTab] = useState<'mls' | 'uploads' | 'ai-generated'>('mls');
+
+  const PHOTO_W = (SCREEN_WIDTH - 44) / 2;
+
+  const removeMlsPhoto = (url: string) => {
+    setMlsPhotos((prev: string[]) => prev.filter((p: string) => p !== url));
+  };
+
+  const removeUserPhoto = (url: string) => {
+    setUserPhotos((prev: string[]) => prev.filter((p: string) => p !== url));
+  };
+
+  const removeAiPhoto = (url: string) => {
+    setAiPhotos((prev: string[]) => prev.filter((p: string) => p !== url));
+  };
 
   return (
     <View style={styles.stepContainer}>
-      <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
-        <Text style={styles.intelTitle}>Media & Assets</Text>
-        <Text style={styles.intelSubtitle}>Review MLS shots or add your own enhancements.</Text>
+      <View style={{ paddingHorizontal: 4, marginBottom: 20 }}>
+        <Text style={styles.intelTitle}>AI Media</Text>
+        <Text style={styles.intelSubtitle}>Upload your photos or use Zien AI to generate high-end architectural visuals.</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.mediaSection}>
-          <Text style={styles.mediaSectionTitle}>MLS Professional</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
-            {mlsPhotos.map((url: string, idx: number) => (
-              <View key={idx} style={styles.premiumPhotoCard}>
-                <View style={styles.photoContainerLarge}>
-                  <Image source={{ uri: url }} style={styles.photoCard} contentFit="cover" />
-                  <TouchableOpacity style={styles.deletePhotoBtn} onPress={() => setMlsPhotos((prev: string[]) => prev.filter(p => p !== url))}>
-                    <MaterialCommunityIcons name="close" size={16} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.photoCardFooter}>
-                  <Text style={styles.photoFooterLabel}>VERIFIED MLS</Text>
-                  <Text style={styles.photoFooterTitle}>Scene {idx + 1}</Text>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View style={[styles.mediaSection, { marginTop: 32 }]}>
-          <View style={styles.mediaSectionHeader}>
-            <Text style={styles.mediaSectionTitle}>MY UPLOADS</Text>
-            <TouchableOpacity style={styles.addMediaBtnSmall} onPress={onPickerOpen}>
-              <MaterialCommunityIcons name="plus" size={20} color={colors.accentTeal} />
-              <Text style={styles.addMediaBtnText}>Add Media</Text>
-            </TouchableOpacity>
+      {/* Top 2 Action Cards */}
+      <View style={{ gap: 14, marginBottom: 24 }}>
+        {/* Upload Media Card */}
+        <TouchableOpacity style={styles.mediaUploadCard} onPress={onPickerOpen} activeOpacity={0.8}>
+          <View style={styles.mediaUploadIconWrap}>
+            <MaterialCommunityIcons name="tray-arrow-up" size={26} color={colors.accentTeal} />
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
-            {userPhotos.map((url: string, idx: number) => (
-              <View key={idx} style={styles.premiumPhotoCard}>
-                <View style={styles.photoContainerLarge}>
-                  <Image source={{ uri: url }} style={styles.photoCard} contentFit="cover" />
-                  <TouchableOpacity style={styles.deletePhotoBtn} onPress={() => setUserPhotos((prev: string[]) => prev.filter(p => p !== url))}>
-                    <MaterialCommunityIcons name="close" size={16} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.photoCardFooter}>
-                  <Text style={styles.photoFooterLabel}>AI OPTIMIZED</Text>
-                  <Text style={styles.photoFooterTitle}>Scene {idx + 1}</Text>
-                </View>
-              </View>
-            ))}
-            {isUploading && (
-              <View style={[styles.premiumPhotoCard, styles.uploadPlaceholderCard, { height: 260, justifyContent: 'center' }]}>
-                <ActivityIndicator color={colors.accentTeal} />
-              </View>
+          <Text style={styles.mediaUploadTitle}>Upload Media</Text>
+          <Text style={styles.mediaUploadSub}>Add multiple property photos</Text>
+          <View style={styles.mediaSelectBtn}>
+            <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
+            <Text style={styles.mediaSelectBtnText}>Select Photos</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* AI Studio Generator Card */}
+        <View style={styles.aiStudioCardNew}>
+          <LinearGradient
+            colors={['rgba(6,182,212,0.12)', 'rgba(99,102,241,0.08)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.aiStudioCardHeader}>
+            <View style={styles.aiStudioIconBox}>
+              <MaterialCommunityIcons name="creation" size={20} color="#FFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.aiStudioCardTitle}>AI Studio Generator</Text>
+              <Text style={styles.aiStudioCardSub}>Describe the architectural scene to synthesize.</Text>
+            </View>
+          </View>
+
+          <Text style={styles.aiStudioPromptLabel}>GENERATION PROMPT</Text>
+          <View style={styles.aiStudioPromptBox}>
+            <TextInput
+              style={styles.aiStudioPromptInput}
+              placeholder="e.g. A high-end modern living room with floor-to-ceiling windows at golden hour, minimalist furniture, marble floors..."
+              placeholderTextColor={colors.textMuted}
+              value={aiPrompt}
+              onChangeText={setAiPrompt}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.aiStudioGenerateBtn,
+              isGeneratingAi && { opacity: 0.7 }
+            ]}
+            onPress={onGenerateAi}
+            disabled={isGeneratingAi}
+            activeOpacity={0.85}
+          >
+            {isGeneratingAi ? (
+              <>
+                <ActivityIndicator size="small" color="#FFF" />
+                <Text style={styles.aiStudioGenerateBtnText}>Synthesizing Visual...</Text>
+              </>
+            ) : (
+              <>
+                <MaterialCommunityIcons name="creation" size={18} color="#FFF" />
+                <Text style={styles.aiStudioGenerateBtnText}>Generate with AI</Text>
+              </>
             )}
-          </ScrollView>
+          </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.mediaTabBar}>
+        <TouchableOpacity
+          style={[styles.mediaTab, activeMediaTab === 'mls' && styles.mediaTabActive]}
+          onPress={() => setActiveMediaTab('mls')}
+        >
+          <Text style={[styles.mediaTabText, activeMediaTab === 'mls' && styles.mediaTabTextActive]}>
+            MLS Professional ({mlsPhotos.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.mediaTab, activeMediaTab === 'uploads' && styles.mediaTabActive]}
+          onPress={() => setActiveMediaTab('uploads')}
+        >
+          <Text style={[styles.mediaTabText, activeMediaTab === 'uploads' && styles.mediaTabTextActive]}>
+            My Uploads ({userPhotos.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.mediaTab, activeMediaTab === 'ai-generated' && styles.mediaTabActive]}
+          onPress={() => setActiveMediaTab('ai-generated')}
+        >
+          <Text style={[styles.mediaTabText, activeMediaTab === 'ai-generated' && styles.mediaTabTextActive]}>
+            AI Generated ({aiPhotos.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ height: 1, backgroundColor: colors.cardBorder, marginBottom: 16 }} />
+
+      {/* Tab: MLS */}
+      {activeMediaTab === 'mls' && (
+        <View>
+          {mlsPhotos.length > 0 ? (
+            <View style={styles.photoGrid}>
+              {mlsPhotos.map((url: string, idx: number) => (
+                <View key={idx} style={[styles.photoGridCard, { width: PHOTO_W }]}>
+                  <View style={styles.photoGridImgWrap}>
+                    <Image source={{ uri: url }} style={styles.photoGridImg} contentFit="cover" />
+                    <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => removeMlsPhoto(url)}>
+                      <MaterialCommunityIcons name="close" size={14} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.photoGridFooter}>
+                    <Text style={styles.photoGridLabel}>VERIFIED MLS</Text>
+                    <Text style={styles.photoGridScene}>Scene {idx + 1}</Text>
+                    <View style={styles.photoGridReadOnly}>
+                      <MaterialCommunityIcons name="lock-outline" size={11} color={colors.textMuted} />
+                      <Text style={styles.photoGridReadOnlyText}>Read Only</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.mediaEmptyState}>
+              <MaterialCommunityIcons name="image-multiple-outline" size={40} color={colors.textMuted} />
+              <Text style={styles.mediaEmptyTitle}>No MLS photos found</Text>
+              <Text style={styles.mediaEmptySub}>MLS photos will appear here after enrichment</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Tab: Uploads */}
+      {activeMediaTab === 'uploads' && (
+        <View>
+          {userPhotos.length > 0 ? (
+            <View style={styles.photoGrid}>
+              {userPhotos.map((url: string, idx: number) => {
+                const isEnhanced = enhancedImages?.has?.(url);
+                const isProcessing = enhancingMap?.[url];
+                return (
+                  <View key={idx} style={[styles.photoGridCard, { width: PHOTO_W }]}>
+                    <View style={styles.photoGridImgWrap}>
+                      <Image source={{ uri: url }} style={styles.photoGridImg} contentFit="cover" />
+                      {isProcessing && (
+                        <View style={styles.photoGridOverlay}>
+                          <ActivityIndicator color="#FFF" size="small" />
+                          <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700', marginTop: 4 }}>Optimizing...</Text>
+                        </View>
+                      )}
+                      <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => removeUserPhoto(url)}>
+                        <MaterialCommunityIcons name="close" size={14} color="#FFF" />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.photoGridFooter}>
+                      <Text style={[styles.photoGridLabel, { color: '#7C3AED' }]}>AI OPTIMIZED</Text>
+                      <Text style={styles.photoGridScene}>Scene {idx + 1}</Text>
+                      {isEnhanced ? (
+                        <View style={styles.enhancedBadgeSmall}>
+                          <MaterialCommunityIcons name="check-circle" size={11} color={colors.accentTeal} />
+                          <Text style={styles.enhancedBadgeSmallText}>Enhanced</Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={[styles.magicBtnSmall, isProcessing && { opacity: 0.5 }]}
+                          onPress={() => toggleEnhance?.(url)}
+                          disabled={isProcessing}
+                        >
+                          <MaterialCommunityIcons name="creation" size={11} color={colors.accentTeal} />
+                          <Text style={styles.magicBtnSmallText}>Enhance</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+              <TouchableOpacity
+                style={[styles.photoGridCard, styles.photoGridAddTile, { width: PHOTO_W }]}
+                onPress={onPickerOpen}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.photoGridImgWrap, { alignItems: 'center', justifyContent: 'center' }]}>
+                  <MaterialCommunityIcons name="plus" size={32} color={colors.textMuted} />
+                </View>
+                <View style={styles.photoGridFooter}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textMuted, textAlign: 'center' }}>Add Photo</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.mediaEmptyState} onPress={onPickerOpen} activeOpacity={0.8}>
+              <View style={styles.mediaEmptyIconCircle}>
+                <MaterialCommunityIcons name="cloud-upload-outline" size={32} color={colors.accentTeal} />
+              </View>
+              <Text style={styles.mediaEmptyTitle}>No uploads yet</Text>
+              <Text style={styles.mediaEmptySub}>Tap to add your own property photos</Text>
+              <View style={[styles.mediaSelectBtn, { marginTop: 16, alignSelf: 'center' }]}>
+                <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
+                <Text style={styles.mediaSelectBtnText}>Select Photos</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Tab: AI Generated */}
+      {activeMediaTab === 'ai-generated' && (
+        <View>
+          {aiPhotos.length > 0 ? (
+            <View style={styles.photoGrid}>
+              {aiPhotos.map((url: string, idx: number) => (
+                <View key={idx} style={[styles.photoGridCard, { width: PHOTO_W }]}>
+                  <View style={styles.photoGridImgWrap}>
+                    <Image source={{ uri: url }} style={styles.photoGridImg} contentFit="cover" />
+                    <TouchableOpacity style={styles.photoGridDeleteBtn} onPress={() => removeAiPhoto(url)}>
+                      <MaterialCommunityIcons name="close" size={14} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.photoGridFooter}>
+                    <Text style={[styles.photoGridLabel, { color: '#06B6D4' }]}>AI GENERATED</Text>
+                    <Text style={styles.photoGridScene}>Scene {idx + 1}</Text>
+                    <View style={styles.enhancedBadgeSmall}>
+                      <MaterialCommunityIcons name="sparkles" size={11} color="#06B6D4" />
+                      <Text style={[styles.enhancedBadgeSmallText, { color: '#06B6D4' }]}>Synthesized</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.mediaEmptyState}>
+              <View style={[styles.mediaEmptyIconCircle, { backgroundColor: 'rgba(6,182,212,0.15)' }]}>
+                <MaterialCommunityIcons name="creation" size={32} color="#06B6D4" />
+              </View>
+              <Text style={styles.mediaEmptyTitle}>No AI Visuals Yet</Text>
+              <Text style={styles.mediaEmptySub}>Type a scene description in the AI Studio Generator above and tap "Generate with AI"</Text>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
-function StepReview({ mlsPhotos, userPhotos, formData }: any) {
+function StepReview({ mlsPhotos, userPhotos, aiPhotos, formData }: any) {
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
-  const allImages = [...mlsPhotos, ...userPhotos];
+  const allImages = [...mlsPhotos, ...userPhotos, ...(aiPhotos || [])];
 
   return (
     <View style={styles.stepContainer}>
@@ -478,25 +712,11 @@ function StepSuccess({ propertyId, address }: { propertyId: string, address: str
                 } else if (card.id === 'openhouse') {
                   router.push('/(main)/open-house');
                 } else if (card.id === 'social' || card.id === 'social_web') {
-                  router.push({
-                    pathname: '/(main)/social-hub/create-post',
-                    params: { propertyId }
-                  } as any);
+                  router.push('/(main)/social-hub');
                 } else if (card.id === 'campaign' || card.id === 'campaign_web') {
-                  const cleanAddress = address;
-                  const fullAddress = cleanAddress.toLowerCase().includes('usa') ? cleanAddress : `${cleanAddress}, USA`;
-                  router.push({
-                    pathname: '/(main)/crm/campaigns',
-                    params: {
-                      openAiModal: 'true',
-                      aiPrompt: `Write a persuasive email campaign promoting my new listing at ${fullAddress}. Include a strong call to action for the recipient to click the link to view the property photos and RSVP.`
-                    }
-                  } as any);
+                  router.push('/(main)/crm');
                 } else if (card.id === 'hub') {
-                  router.push({
-                    pathname: '/(main)/properties/[id]',
-                    params: { id: propertyId }
-                  } as any);
+                  router.push(`/(main)/properties/${propertyId}` as any);
                 } else if (card.id === 'openhouse_live') {
                   try {
                     const events = await getOpenHouses(accessToken || '');
@@ -578,6 +798,11 @@ export default function EditListingScreen() {
   const [formData, setFormData] = useState<any>(null);
   const [mlsPhotos, setMlsPhotos] = useState<string[]>([]);
   const [userPhotos, setUserPhotos] = useState<string[]>([]);
+  const [aiPhotos, setAiPhotos] = useState<string[]>([]);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [enhancingMap, setEnhancingMap] = useState<Record<string, boolean>>({});
+  const [enhancedImages, setEnhancedImages] = useState<Set<string>>(new Set());
   const [isPickingMedia, setIsPickingMedia] = useState(false);
 
   // Fetch Logic
@@ -620,6 +845,7 @@ export default function EditListingScreen() {
 
         setFormData(mappedData);
         setUserPhotos(d.user_images || []);
+        setAiPhotos(d.ai_images || []);
         setMlsPhotos((d.Media || []).map((m: any) => m.MediaURL));
       }
       return res.data;
@@ -633,6 +859,34 @@ export default function EditListingScreen() {
     onError: (err: any) => alert(err.message || "Upload Failed")
   });
 
+  const handleGenerateAi = async () => {
+    const promptToUse = aiPrompt.trim() || 'A high-end modern living room with floor-to-ceiling windows at golden hour, minimalist furniture, marble floors';
+    setIsGeneratingAi(true);
+    try {
+      const res = await generateAiImage(promptToUse, accessToken || undefined);
+      if (res?.success && res?.data?.imageUrl) {
+        setAiPhotos(prev => [res.data.imageUrl, ...prev]);
+        setAiPrompt('');
+        Alert.alert('Image Generated', 'AI architectural visual generated successfully and added to your media vault!');
+      } else {
+        throw new Error(res?.message || 'Failed to generate visual');
+      }
+    } catch (e: any) {
+      console.error('[AI Studio Generator] Error:', e);
+      Alert.alert('Generation Failed', e?.message || 'Failed to generate visual. Please try again.');
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
+  const toggleEnhance = (url: string) => {
+    setEnhancingMap(prev => ({ ...prev, [url]: true }));
+    setTimeout(() => {
+      setEnhancingMap(prev => ({ ...prev, [url]: false }));
+      setEnhancedImages(prev => new Set(prev).add(url));
+    }, 1500);
+  };
+
   const { mutate: finalizeMutation, isPending: isFinalizing } = useMutation({
     mutationFn: () => {
       const extractedNum = extractPriceNumber(formData);
@@ -642,14 +896,15 @@ export default function EditListingScreen() {
         ...formData,
         price: finalPrice,
         ...(extractedNum > 0 ? { ListPrice: extractedNum, HAR_CurrentPrice: extractedNum } : {}),
-        user_images: userPhotos,
+        user_images: [...userPhotos, ...aiPhotos],
+        ai_images: aiPhotos,
         Media: mlsPhotos.map(url => ({ MediaCategory: 'Photo', MediaURL: url }))
       };
       return finalizeProperty({
         id: id as string,
         address: formData.address,
         data: finalData,
-        userImages: userPhotos
+        userImages: [...userPhotos, ...aiPhotos]
       }, accessToken!);
     },
     onSuccess: () => setActiveStep(4), // Success Step
@@ -666,8 +921,35 @@ export default function EditListingScreen() {
     if (!formData) return null;
     switch (activeStep) {
       case 1: return <StepDetails formData={formData} />;
-      case 2: return <StepMedia mlsPhotos={mlsPhotos} setMlsPhotos={setMlsPhotos} userPhotos={userPhotos} setUserPhotos={setUserPhotos} onPickerOpen={() => setIsPickingMedia(true)} isUploading={isUploading} />;
-      case 3: return <StepReview mlsPhotos={mlsPhotos} userPhotos={userPhotos} formData={formData} />;
+      case 2:
+        return (
+          <StepMedia
+            mlsPhotos={mlsPhotos}
+            setMlsPhotos={setMlsPhotos}
+            userPhotos={userPhotos}
+            setUserPhotos={setUserPhotos}
+            aiPhotos={aiPhotos}
+            setAiPhotos={setAiPhotos}
+            onPickerOpen={() => setIsPickingMedia(true)}
+            isUploading={isUploading}
+            aiPrompt={aiPrompt}
+            setAiPrompt={setAiPrompt}
+            onGenerateAi={handleGenerateAi}
+            isGeneratingAi={isGeneratingAi}
+            enhancedImages={enhancedImages}
+            enhancingMap={enhancingMap}
+            toggleEnhance={toggleEnhance}
+          />
+        );
+      case 3:
+        return (
+          <StepReview
+            mlsPhotos={mlsPhotos}
+            userPhotos={userPhotos}
+            aiPhotos={aiPhotos}
+            formData={formData}
+          />
+        );
       case 4: return <StepSuccess propertyId={id as string} address={formData.address} />;
       default: return null;
     }
@@ -793,21 +1075,157 @@ function getStyles(colors: any) {
     reviewIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.surfaceIcon, alignItems: 'center', justifyContent: 'center' },
     reviewLabel: { fontSize: 11, fontWeight: '800', color: colors.textMuted },
     reviewValue: { fontSize: 14, fontWeight: '800', color: colors.textPrimary },
-    mediaSection: { gap: 12 },
-    mediaSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
-    mediaSectionTitle: { fontSize: 12, fontWeight: '900', color: colors.textMuted, letterSpacing: 1.2 },
-    galleryScroll: { paddingLeft: 20, gap: 12, paddingBottom: 10 },
-    premiumPhotoCard: { width: 220, backgroundColor: colors.cardBackground, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: colors.cardBorder, marginRight: 12 },
-    photoContainerLarge: { width: '100%', height: 180 },
-    photoCard: { width: '100%', height: '100%' },
-    deletePhotoBtn: { position: 'absolute', top: 8, right: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
-    photoCardFooter: { padding: 12, gap: 4 },
-    photoFooterLabel: { fontSize: 9, fontWeight: '900', color: colors.accentTeal },
-    photoFooterTitle: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
-    addMediaBtnSmall: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    addMediaBtnText: { fontSize: 13, fontWeight: '800', color: colors.accentTeal },
-    uploadPlaceholderCard: { borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-    placeholderTitleSmall: { fontSize: 13, fontWeight: '700', color: colors.textMuted, marginTop: 8 },
+    mediaUploadCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 18,
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      borderStyle: 'dashed',
+    },
+    mediaUploadIconWrap: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceIcon,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 10,
+    },
+    mediaUploadTitle: { fontSize: 16, fontWeight: '900', color: colors.textPrimary, marginBottom: 4 },
+    mediaUploadSub: { fontSize: 12, color: colors.textMuted, fontWeight: '500', marginBottom: 14 },
+    mediaSelectBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 10,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.surfaceIcon,
+    },
+    mediaSelectBtnText: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
+    aiStudioCardNew: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 18,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      overflow: 'hidden',
+    },
+    aiStudioCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+    aiStudioIconBox: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.accentTeal,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    aiStudioCardTitle: { fontSize: 16, fontWeight: '900', color: colors.textPrimary },
+    aiStudioCardSub: { fontSize: 12, color: colors.textSecondary, fontWeight: '500', marginTop: 2 },
+    aiStudioPromptLabel: { fontSize: 10, fontWeight: '900', color: colors.textMuted, letterSpacing: 1, marginBottom: 8 },
+    aiStudioPromptBox: {
+      backgroundColor: colors.inputBackground || colors.surfaceIcon,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      minHeight: 84,
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    aiStudioPromptInput: {
+      fontSize: 13,
+      color: colors.textPrimary,
+      lineHeight: 20,
+      minHeight: 60,
+    },
+    aiStudioGenerateBtn: {
+      backgroundColor: '#0B213E',
+      borderRadius: 12,
+      height: 46,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    aiStudioGenerateBtnText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+    mediaTabBar: { flexDirection: 'row', paddingHorizontal: 0, gap: 4, marginTop: 8 },
+    mediaTab: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8 },
+    mediaTabActive: { borderBottomWidth: 2, borderBottomColor: colors.accentTeal, borderRadius: 0 },
+    mediaTabText: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
+    mediaTabTextActive: { color: colors.textPrimary, fontWeight: '900' },
+    photoGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, paddingBottom: 24 },
+    photoGridCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 16,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    photoGridImgWrap: { width: '100%', aspectRatio: 4 / 3, position: 'relative' },
+    photoGridImg: { width: '100%', height: '100%' },
+    photoGridOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(15,23,42,0.7)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    photoGridDeleteBtn: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: 'rgba(239,68,68,0.85)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    photoGridFooter: { padding: 10 },
+    photoGridLabel: { fontSize: 8, fontWeight: '900', color: colors.accentTeal, letterSpacing: 0.5, marginBottom: 2 },
+    photoGridScene: { fontSize: 13, fontWeight: '900', color: colors.textPrimary, marginBottom: 6 },
+    photoGridReadOnly: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    photoGridReadOnlyText: { fontSize: 10, fontWeight: '700', color: colors.textMuted },
+    enhancedBadgeSmall: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    enhancedBadgeSmallText: { fontSize: 10, fontWeight: '800', color: colors.accentTeal },
+    magicBtnSmall: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.accentTeal + '15',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.accentTeal + '30',
+    },
+    magicBtnSmallText: { fontSize: 10, fontWeight: '800', color: colors.accentTeal },
+    photoGridAddTile: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderStyle: 'dashed',
+      borderWidth: 2,
+      borderColor: colors.cardBorder,
+      backgroundColor: colors.surfaceIcon,
+    },
+    mediaEmptyState: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: 16 },
+    mediaEmptyIconCircle: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.accentTeal + '15',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
+    },
+    mediaEmptyTitle: { fontSize: 15, fontWeight: '900', color: colors.textPrimary, marginBottom: 4 },
+    mediaEmptySub: { fontSize: 12, color: colors.textMuted, fontWeight: '500', textAlign: 'center', paddingHorizontal: 20 },
     fixedFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.cardBackground, padding: 20, borderTopWidth: 1, borderTopColor: colors.cardBorder },
     actionRowFixed: { flexDirection: 'row', gap: 12 },
     backBtnFixed: { flex: 0.8, height: 52, borderRadius: 16, backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.cardBorder, alignItems: 'center', justifyContent: 'center' },
