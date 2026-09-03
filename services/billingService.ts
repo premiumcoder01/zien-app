@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://staging-api.zien.ai/api';
+const API_BASE_URL = 'https://api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface SoloSubscription {
@@ -582,7 +582,7 @@ export const getSoloCreditTimeline = async (accessToken: string | null): Promise
 
   const urls = [
     `${API_BASE_URL}/solo/credits/history?limit=100&offset=0`,
-    `https://staging.zien.ai/api/solo/credits/history?limit=100&offset=0`,
+    `https://api.zien.ai/api/solo/credits/history?limit=100&offset=0`,
     `${API_BASE_URL}/solo/billing/timeline`,
   ];
 

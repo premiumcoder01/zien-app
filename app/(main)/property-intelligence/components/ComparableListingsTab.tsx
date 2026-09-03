@@ -111,7 +111,7 @@ export const ComparableListingsTab: React.FC<ComparableListingsTabProps> = ({ pr
                         </View>
 
                         {/* Table Rows */}
-                        {comps.map((item, idx) => (
+                        {comps.map((item: any, idx: number) => (
                             <View
                                 key={`comp-${idx}`}
                                 style={[

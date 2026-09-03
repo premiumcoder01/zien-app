@@ -14,7 +14,7 @@ export const RiskEnvironmentTab: React.FC<RiskEnvironmentTabProps> = ({ property
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
 
-  const address = property?.address || '4521 Wilshire Blvd, Los Angeles, CA';
+  const address = property?.address || apiData?.UnparsedAddress || '';
   const pd = generatePropertyData(address);
 
   const getRiskLabel = (score: number) =>

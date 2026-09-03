@@ -1,4 +1,4 @@
-const CRM_API_BASE_URL = 'https://staging.zien.ai/api';
+const CRM_API_BASE_URL = 'https://api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ export const triggerHubSpotSync = async (accessToken: string): Promise<HubSpotSy
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/integrations/hubspot/sync`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/integrations/hubspot/sync`, {
                     method: 'POST',
                     headers: {
                         Accept: 'application/json',
@@ -165,7 +165,7 @@ export const updateIntegrationSettings = async (
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/integrations/${provider}/settings`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/integrations/${provider}/settings`, {
                     method: 'POST',
                     headers: {
                         Accept: 'application/json',
@@ -201,7 +201,7 @@ export const triggerIntegrationSync = async (
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/integrations/${provider}/sync`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/integrations/${provider}/sync`, {
                     method: 'POST',
                     headers: {
                         Accept: 'application/json',

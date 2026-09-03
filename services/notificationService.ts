@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import { registerDeviceToken } from './authService';
 
-const NOTIFICATIONS_API_BASE_URL = 'https://staging.zien.ai/api';
+const NOTIFICATIONS_API_BASE_URL = 'https://api.zien.ai/api';
 
 export interface NotificationData {
   name?: string;
@@ -291,7 +291,7 @@ export async function getNotifications(accessToken?: string): Promise<ApiNotific
 
     if (!response.ok && NOTIFICATIONS_API_BASE_URL.includes('staging.zien.ai')) {
       try {
-        const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/notifications`, {
+        const fallbackRes = await fetch(`https://api.zien.ai/api/solo/notifications`, {
           method: 'GET',
           headers,
         });

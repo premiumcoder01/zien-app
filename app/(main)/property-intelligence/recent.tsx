@@ -37,7 +37,7 @@ export default function RecentSearchesScreen() {
         if (!accessToken) return;
         setIsLoading(true);
         try {
-            const url = 'https://staging.zien.ai/api/solo/properties/intelligence/history';
+            const url = 'https://api.zien.ai/api/solo/properties/intelligence/history';
             console.log('[RecentSearches] Fetching history:', url);
             const res = await fetch(url, {
                 headers: {
@@ -108,7 +108,7 @@ export default function RecentSearchesScreen() {
                     onPress: async () => {
                         setHistoryList([]);
                         try {
-                            const url = 'https://staging.zien.ai/api/solo/properties/intelligence/history/all';
+                            const url = 'https://api.zien.ai/api/solo/properties/intelligence/history/all';
                             console.log('[RecentSearches] 🗑️ CLEAR ALL REQUEST:', url);
                             const res = await fetch(url, {
                                 method: 'DELETE',
@@ -142,7 +142,7 @@ export default function RecentSearchesScreen() {
                         setHistoryList(prev => prev.filter(item => item.id !== id));
 
                         try {
-                            const url = `https://staging.zien.ai/api/solo/properties/intelligence/history/${id}`;
+                            const url = `https://api.zien.ai/api/solo/properties/intelligence/history/${id}`;
                             console.log('[RecentSearches] 🗑️ DELETE REQUEST:', url);
                             const res = await fetch(url, {
                                 method: 'DELETE',

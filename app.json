@@ -2,7 +2,7 @@
   "expo": {
     "name": "Zien",
     "slug": "Zien",
-    "version": "5.6",
+    "version": "5.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "zien",
@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.propfyi",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "26",
+      "buildNumber": "27",
       "usesAppleSignIn": true,
       "infoPlist": {
         "UIFileSharingEnabled": true,
@@ -47,7 +47,7 @@
     "android": {
       "package": "com.propfyi",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 113,
+      "versionCode": 114,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",

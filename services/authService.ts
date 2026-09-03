@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://staging-api.zien.ai/api';
+const API_BASE_URL = 'https://api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface LoginRequest {
@@ -206,7 +206,7 @@ export const resetPassword = async (payload: ResetPasswordRequest): Promise<Rese
 export const getProfile = async (accessToken: string): Promise<UserProfile> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  const url = `https://staging.zien.ai/api/website/auth/me`;
+  const url = `https://zien.ai/api/website/auth/me`;
 
   console.log('🚀 [API REQ] GET Profile URL:', url);
   console.log('🔑 [API REQ] Token:', accessToken ? `${accessToken.substring(0, 10)}...` : 'NONE');
@@ -496,7 +496,7 @@ export const checkUserExists = async (payload: CheckExistsRequest): Promise<Chec
 
   try {
     const urls = [
-      `https://staging.zien.ai/api/website/register/check-exists`,
+      `https://api.zien.ai/api/website/register/check-exists`,
       `${API_BASE_URL}/website/register/check-exists`,
       `https://zien.ai/api/website/register/check-exists`,
     ];

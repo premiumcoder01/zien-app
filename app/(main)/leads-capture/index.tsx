@@ -77,7 +77,7 @@ export default function LeadsCaptureScreen() {
         setLeadsError(null);
         setLeads([]);
         try {
-            const response = await fetch(`https://staging.zien.ai/api/solo/landing-pages/${page.id}/leads`, {
+            const response = await fetch(`https://api.zien.ai/api/solo/landing-pages/${page.id}/leads`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -159,7 +159,7 @@ export default function LeadsCaptureScreen() {
         try {
             if (showLoadingIndicator) setIsLoading(true);
             setError(null);
-            const response = await fetch('https://staging-api.zien.ai/api/solo/landing-pages', {
+            const response = await fetch('https://api.zien.ai/api/solo/landing-pages', {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -184,7 +184,7 @@ export default function LeadsCaptureScreen() {
     const deleteLandingPage = async (id: string) => {
         if (!accessToken) return;
         try {
-            const response = await fetch(`https://staging-api.zien.ai/api/solo/landing-pages/${id}`, {
+            const response = await fetch(`https://api.zien.ai/api/solo/landing-pages/${id}`, {
                 method: 'DELETE',
                 headers: {
                     'Accept': 'application/json',

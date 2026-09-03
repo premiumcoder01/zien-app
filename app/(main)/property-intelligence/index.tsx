@@ -2,8 +2,8 @@ import { useAppTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import { setDrawerSubTabs } from './_layout';
 import {
     ActivityIndicator,
@@ -39,7 +39,7 @@ export default function PropertySearchScreen() {
     const { colors } = useAppTheme();
     const styles = getStyles(colors);
     const router = useRouter();
-    const params = useLocalSearchParams<{ address?: string }>();
+    const params = useLocalSearchParams<{ address?: string; ts?: string }>();
     const { accessToken } = useAuth();
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -54,30 +54,36 @@ export default function PropertySearchScreen() {
     const [isPropertySaved, setIsPropertySaved] = useState(false);
 
     // Fetch user properties from staging.zien.ai/api/solo/properties (same as web)
-    useEffect(() => {
+    const fetchProperties = useCallback(async () => {
         if (!accessToken) return;
-        const fetchProperties = async () => {
-            setIsLoadingUserProps(true);
-            try {
-                const res = await fetch('https://staging.zien.ai/api/solo/properties', {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`,
-                    },
-                });
-                const json = await res.json();
-                console.log('[PropertyIntelligence] 🏠 USER PROPERTIES API RESPONSE:', res.status, json);
-                if (json.success && Array.isArray(json.properties)) {
-                    setUserProperties(json.properties);
-                }
-            } catch (err) {
-                console.error('[PropertyIntelligence] Failed to fetch user properties:', err);
-            } finally {
-                setIsLoadingUserProps(false);
+        setIsLoadingUserProps(true);
+        try {
+            const res = await fetch('https://api.zien.ai/api/solo/properties', {
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+            const json = await res.json();
+            console.log('[PropertyIntelligence] 🏠 USER PROPERTIES API RESPONSE:', res.status, json);
+            if (json.success && Array.isArray(json.properties)) {
+                setUserProperties(json.properties);
+            } else {
+                setUserProperties([]);
             }
-        };
-        fetchProperties();
+        } catch (err) {
+            console.error('[PropertyIntelligence] Failed to fetch user properties:', err);
+            setUserProperties([]);
+        } finally {
+            setIsLoadingUserProps(false);
+        }
     }, [accessToken]);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchProperties();
+        }, [fetchProperties])
+    );
 
     // Handle auto-search when navigated from Recent Searches screen with address param
     useEffect(() => {
@@ -105,12 +111,12 @@ export default function PropertySearchScreen() {
 
         console.log('────────────────────────────────────────');
         console.log('[PropertyIntelligence] 💾 SAVE PROPERTY REQUEST');
-        console.log('[PropertyIntelligence] URL     : https://staging.zien.ai/api/solo/properties/intelligence/saved');
+        console.log('[PropertyIntelligence] URL     : https://api.zien.ai/api/solo/properties/intelligence/saved');
         console.log('[PropertyIntelligence] PAYLOAD :', JSON.stringify(payload, null, 2));
         console.log('────────────────────────────────────────');
 
         try {
-            const res = await fetch('https://staging.zien.ai/api/solo/properties/intelligence/saved', {
+            const res = await fetch('https://api.zien.ai/api/solo/properties/intelligence/saved', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -158,7 +164,7 @@ export default function PropertySearchScreen() {
         setSearchError(null);
         try {
             const encoded = encodeURIComponent(searchQuery.trim());
-            const url = `https://staging.zien.ai/api/solo/properties/intelligence?address=${encoded}`;
+            const url = `https://api.zien.ai/api/solo/properties/intelligence?address=${encoded}`;
 
             console.log('────────────────────────────────────────');
             console.log('[PropertyIntelligence] 🔍 API REQUEST');
@@ -220,7 +226,7 @@ export default function PropertySearchScreen() {
         setSearchError(null);
         try {
             const encoded = encodeURIComponent(addr);
-            const url = `https://staging.zien.ai/api/solo/properties/intelligence?address=${encoded}`;
+            const url = `https://api.zien.ai/api/solo/properties/intelligence?address=${encoded}`;
 
             console.log('────────────────────────────────────────');
             console.log('[PropertyIntelligence] 🔍 API REQUEST (Intelligence)');
@@ -287,39 +293,6 @@ export default function PropertySearchScreen() {
         }
     };
 
-    const FEATURED_PROPERTIES = [
-        {
-            id: '1',
-            type: 'SINGLE FAMILY',
-            address: '4521 Wilshire Blvd, Los Angeles, CA',
-            price: '$1,285,000',
-            appreciation: '+6.8%',
-            image: 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&q=80&w=800',
-        },
-        {
-            id: '2',
-            type: 'CONDO',
-            address: '2901 Ocean Ave, Santa Monica, CA',
-            price: '$2,140,000',
-            appreciation: '+9.2%',
-            image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=800',
-        },
-        {
-            id: '3',
-            type: 'TOWNHOUSE',
-            address: '812 Rosecrans Ave, Manhattan Beach, CA',
-            price: '$1,870,000',
-            appreciation: '+4.1%',
-            image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800',
-        }
-    ];
-
-    const SUGGESTIONS = [
-        '4521 Wilshire Blvd, Los Angeles, CA',
-        '2901 Ocean Ave, Santa Monica, CA',
-        '7845 Hillside Ave, Hollywood Hills, CA'
-    ];
-
     const renderHeader = () => (
         <View style={styles.heroSection}>
             <LinearGradient
@@ -371,14 +344,12 @@ export default function PropertySearchScreen() {
         </View>
     );
 
-
-
     const renderPropertyBar = () => (
         <View style={styles.propertyBar}>
             <View style={styles.propertyBarLeft}>
                 <MaterialCommunityIcons name="map-marker" size={16} color={colors.accent} />
                 <Text style={styles.propertyBarAddress} numberOfLines={1}>
-                    {selectedProperty?.address || '4521 Wilshire Blvd, Los Angeles, CA'}
+                    {selectedProperty?.address || ''}
                 </Text>
             </View>
 
@@ -464,17 +435,6 @@ export default function PropertySearchScreen() {
     );
 
     const renderAddedPropertiesView = () => {
-        const displayList = userProperties.length > 0 ? userProperties : FEATURED_PROPERTIES.map(p => ({
-            id: p.id,
-            address: p.address,
-            data: {
-                PropertyType: p.type,
-                ListPrice: parseInt(p.price.replace(/[^0-9]/g, '')) || 1285000,
-                Media: [{ MediaURL: p.image }],
-                UnparsedAddress: p.address,
-            }
-        }));
-
         return (
             <>
                 <View style={styles.sectionHeader}>
@@ -485,22 +445,47 @@ export default function PropertySearchScreen() {
                 </View>
 
                 {isLoadingUserProps ? (
-                    <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                    <View style={{ paddingVertical: 24, alignItems: 'center' }}>
                         <ActivityIndicator size="small" color={colors.accent} />
+                    </View>
+                ) : userProperties.length === 0 ? (
+                    <View style={styles.emptyCardContainer}>
+                        <View style={styles.emptyCard}>
+                            <MaterialCommunityIcons
+                                name="home-search-outline"
+                                size={28}
+                                color={colors.textSecondary}
+                                style={{ opacity: 0.7, marginBottom: 8 }}
+                            />
+                            <Text style={styles.emptyCardText}>
+                                You have no properties added yet. Add properties in the Properties module to see them here.
+                            </Text>
+                        </View>
                     </View>
                 ) : (
                     <FlatList
                         horizontal
-                        data={displayList}
+                        data={userProperties}
                         keyExtractor={(item) => String(item.id)}
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={styles.featuredList}
                         renderItem={({ item }) => {
                             const pData = item.data || {};
-                            const mediaUrl = pData.Media?.[0]?.MediaURL || 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800';
-                            const propType = (pData.PropertyType || pData.PropertySubType || 'LAND').toUpperCase();
-                            const addr = item.address || pData.UnparsedAddress || 'Property Address';
-                            const priceFormatted = pData.ListPrice ? `$${Number(pData.ListPrice).toLocaleString()}` : '$1,500,000';
+                            let mediaUrl = 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=800';
+                            if (Array.isArray(pData.Media) && pData.Media.length > 0) {
+                                const first = pData.Media[0];
+                                const url = typeof first === 'string' ? first : (first?.MediaURL || first?.MediaUrl || first?.url || first?.URL || first?.uri);
+                                if (url) mediaUrl = url;
+                            } else if (Array.isArray(pData.photos) && pData.photos.length > 0) {
+                                mediaUrl = pData.photos[0];
+                            } else if (pData.image) {
+                                mediaUrl = pData.image;
+                            }
+
+                            const propType = (pData.PropertySubType || pData.PropertyType || 'Residential').toUpperCase();
+                            const addr = item.address || pData.UnparsedAddress || (pData.StreetNumber ? `${pData.StreetNumber} ${pData.StreetName || ''} ${pData.StreetSuffix || ''}`.trim() : '') || 'Property Address';
+                            const price = pData.ListPrice || pData.OriginalListPrice || pData.ClosePrice || pData.price;
+                            const priceFormatted = price ? `$${Number(price).toLocaleString()}` : 'Price on request';
 
                             return (
                                 <Pressable
@@ -941,6 +926,32 @@ function getStyles(colors: any) {
             fontSize: 14,
             color: colors.textSecondary,
             textAlign: 'center',
+        },
+        emptyCardContainer: {
+            paddingHorizontal: 20,
+            paddingVertical: 8,
+        },
+        emptyCard: {
+            backgroundColor: colors.cardBackground,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            paddingVertical: 32,
+            paddingHorizontal: 24,
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 3,
+            elevation: 1,
+        },
+        emptyCardText: {
+            fontSize: 13,
+            color: colors.textSecondary,
+            textAlign: 'center',
+            lineHeight: 20,
+            fontWeight: '500',
         },
     });
 }

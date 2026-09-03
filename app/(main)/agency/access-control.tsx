@@ -35,7 +35,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AGENCY_BG, AGENCY_MENU_ITEMS, AgencyLogo } from './index';
 
 const { width } = Dimensions.get('window');
-const API_BASE_URL = 'https://staging.zien.ai/api';
+const API_BASE_URL = 'https://api.zien.ai/api';
 
 const getAuthHeaders = (token: string): Record<string, string> => {
     let cleanToken = token || '';
@@ -69,7 +69,7 @@ const createRoleApi = async (accessToken: string, companyId: number, name: strin
     });
     if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
         try {
-            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/roles`, {
+            const fallbackRes = await fetch(`https://api.zien.ai/api/teams/roles`, {
                 method: 'POST',
                 headers,
                 body,
@@ -98,7 +98,7 @@ const updateRoleApi = async (accessToken: string, companyId: number, roleId: num
     });
     if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
         try {
-            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/roles/${roleId}`, {
+            const fallbackRes = await fetch(`https://api.zien.ai/api/teams/roles/${roleId}`, {
                 method: 'PUT',
                 headers,
                 body,
@@ -121,7 +121,7 @@ const deleteRoleApi = async (accessToken: string, companyId: number, roleId: num
     });
     if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
         try {
-            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/roles/${roleId}?company_id=${companyId}`, {
+            const fallbackRes = await fetch(`https://api.zien.ai/api/teams/roles/${roleId}?company_id=${companyId}`, {
                 method: 'DELETE',
                 headers,
             });
@@ -153,7 +153,7 @@ const createMenuApi = async (
     });
     if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
         try {
-            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/menus`, {
+            const fallbackRes = await fetch(`https://api.zien.ai/api/teams/menus`, {
                 method: 'POST',
                 headers,
                 body,
@@ -186,7 +186,7 @@ const updateMenuApi = async (
     });
     if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
         try {
-            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/menus/${menuId}`, {
+            const fallbackRes = await fetch(`https://api.zien.ai/api/teams/menus/${menuId}`, {
                 method: 'PUT',
                 headers,
                 body,
@@ -209,7 +209,7 @@ const deleteMenuApi = async (accessToken: string, companyId: number, menuId: num
     });
     if (!response.ok && API_BASE_URL.includes('staging.zien.ai')) {
         try {
-            const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/menus/${menuId}?company_id=${companyId}`, {
+            const fallbackRes = await fetch(`https://api.zien.ai/api/teams/menus/${menuId}?company_id=${companyId}`, {
                 method: 'DELETE',
                 headers,
             });

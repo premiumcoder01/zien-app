@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://staging-api.zien.ai/api';
+const API_BASE_URL = 'https://api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 // ──────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ export const getConversations = async (accessToken: string): Promise<Conversatio
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    let url = 'https://staging.zien.ai/api/solo/chat/conversations';
+    let url = 'https://api.zien.ai/api/solo/chat/conversations';
     console.log('=== [GET CONVERSATIONS REQUEST] ===');
     console.log('URL:', url);
 
@@ -113,7 +113,7 @@ export const getConversation = async (
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    let url = `https://staging.zien.ai/api/solo/chat/conversations/${conversationId}`;
+    let url = `https://api.zien.ai/api/solo/chat/conversations/${conversationId}`;
     console.log('=== [GET CONVERSATION DETAIL REQUEST] ===');
     console.log('URL:', url);
 
@@ -168,7 +168,7 @@ export const createConversation = async (
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    let url = 'https://staging.zien.ai/api/solo/chat/conversations';
+    let url = 'https://api.zien.ai/api/solo/chat/conversations';
     console.log('=== [CREATE CONVERSATION REQUEST] ===');
     console.log('URL:', url);
     console.log('BODY:', JSON.stringify({ title }));
@@ -227,7 +227,7 @@ export const sendMessage = async (
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    let url = `https://staging.zien.ai/api/solo/chat/conversations/${conversationId}/messages`;
+    let url = `https://api.zien.ai/api/solo/chat/conversations/${conversationId}/messages`;
     console.log('=== [SEND MESSAGE REQUEST] ===');
     console.log('URL:', url);
     console.log('BODY:', JSON.stringify({ content }));
@@ -285,7 +285,7 @@ export const deleteConversation = async (
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    let url = `https://staging.zien.ai/api/solo/chat/conversations/${conversationId}`;
+    let url = `https://api.zien.ai/api/solo/chat/conversations/${conversationId}`;
     console.log('=== [DELETE CONVERSATION REQUEST] ===');
     console.log('URL:', url);
 

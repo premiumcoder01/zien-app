@@ -885,7 +885,7 @@ export default function GuardianAiOverviewScreen() {
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch Leads from GET https://staging.zien.ai/api/solo/crm/leads?status=1
+  // Fetch Leads from GET https://api.zien.ai/api/solo/crm/leads?status=1
   const fetchLeadsFromApi = useCallback(async () => {
     try {
       const token = accessToken || (await AsyncStorage.getItem('access_token'));
@@ -955,7 +955,7 @@ export default function GuardianAiOverviewScreen() {
     silentPanic: false,
   });
 
-  // Fetch Emergency SOS Contacts from GET https://staging.zien.ai/api/solo/crm/safety/contacts
+  // Fetch Emergency SOS Contacts from GET https://api.zien.ai/api/solo/crm/safety/contacts
   const fetchEmergencyContactsFromApi = useCallback(async () => {
     try {
       const token = accessToken || (await AsyncStorage.getItem('access_token'));
@@ -1208,7 +1208,7 @@ export default function GuardianAiOverviewScreen() {
   const [incidentCategory, setIncidentCategory] = useState('Situational Anomalies');
   const [disclosureText, setDisclosureText] = useState('');
 
-  // Fetch Safety Logs from GET https://staging.zien.ai/api/solo/crm/safety/logs
+  // Fetch Safety Logs from GET https://api.zien.ai/api/solo/crm/safety/logs
   const fetchSafetyLogsFromApi = useCallback(async () => {
     try {
       const token = accessToken || (await AsyncStorage.getItem('access_token'));
@@ -1906,7 +1906,7 @@ export default function GuardianAiOverviewScreen() {
           </>
         )}
 
-        {/* TAB 2: LEAD VERIFICATION HUB (Connected with GET https://staging.zien.ai/api/solo/crm/leads) */}
+        {/* TAB 2: LEAD VERIFICATION HUB (Connected with GET https://api.zien.ai/api/solo/crm/leads) */}
         {activeTopTab === 'leads' && (
           <View style={styles.directoryContainer}>
             {/* Header */}

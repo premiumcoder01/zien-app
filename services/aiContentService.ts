@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'https://staging.zien.ai/api';
-const FALLBACK_API_BASE_URL = 'https://staging-api.zien.ai/api';
-const AI_API_BASE_URL = 'https://staging.zien.ai/api';
+const API_BASE_URL = 'https://api.zien.ai/api';
+const FALLBACK_API_BASE_URL = 'https://api.zien.ai/api';
+const AI_API_BASE_URL = 'https://api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 const AI_GENERATE_TIMEOUT_MS = 60000; // AI generation can take longer
 
@@ -32,7 +32,7 @@ export interface AiContentApiResponse {
 
 /**
  * Fetches the user's generated AI content items from the server.
- * GET https://staging.zien.ai/api/solo/ai-content
+ * GET https://api.zien.ai/api/solo/ai-content
  */
 export const getAiContentList = async (accessToken?: string, type?: string): Promise<AiContentApiResponse> => {
   let token = accessToken || (await AsyncStorage.getItem('access_token')) || (await AsyncStorage.getItem('user_token')) || '';
@@ -329,7 +329,7 @@ export interface VirtualStagingResponse {
 
 /**
  * Generates virtual staging image using the API:
- * POST https://staging.zien.ai/api/solo/ai-content/virtual-staging/generate
+ * POST https://api.zien.ai/api/solo/ai-content/virtual-staging/generate
  */
 export const generateVirtualStaging = async (
   payload: VirtualStagingPayload,
@@ -348,7 +348,7 @@ export const generateVirtualStaging = async (
   }
 
   try {
-    let response = await fetch(`https://staging.zien.ai/api/solo/ai-content/virtual-staging/generate`, {
+    let response = await fetch(`https://api.zien.ai/api/solo/ai-content/virtual-staging/generate`, {
       method: 'POST',
       signal: controller.signal,
       headers,
@@ -358,7 +358,7 @@ export const generateVirtualStaging = async (
     // Fallback to staging-api if primary proxy fails
     if (!response.ok) {
       try {
-        const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/ai-content/virtual-staging/generate`, {
+        const fallbackRes = await fetch(`https://api.zien.ai/api/solo/ai-content/virtual-staging/generate`, {
           method: 'POST',
           headers,
           body: JSON.stringify(payload),
@@ -398,7 +398,7 @@ export interface GenerateAiImageResponse {
 
 /**
  * Generates an AI image using the endpoint:
- * POST https://staging.zien.ai/api/solo/ai-content/generate-image
+ * POST https://api.zien.ai/api/solo/ai-content/generate-image
  * Payload: { prompt: string }
  * Response: { success: true, message: "Image generated successfully", data: { imageUrl: "..." } }
  */
@@ -419,7 +419,7 @@ export const generateAiImage = async (
   }
 
   try {
-    let response = await fetch(`https://staging.zien.ai/api/solo/ai-content/generate-image`, {
+    let response = await fetch(`https://api.zien.ai/api/solo/ai-content/generate-image`, {
       method: 'POST',
       signal: controller.signal,
       headers,
@@ -429,7 +429,7 @@ export const generateAiImage = async (
     // Fallback to staging-api if primary proxy fails
     if (!response.ok) {
       try {
-        const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/ai-content/generate-image`, {
+        const fallbackRes = await fetch(`https://api.zien.ai/api/solo/ai-content/generate-image`, {
           method: 'POST',
           headers,
           body: JSON.stringify({ prompt }),

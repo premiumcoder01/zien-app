@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'https://staging-api.zien.ai/api';
+const API_BASE_URL = 'https://api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 export const getDashboardAuthHeaders = (token?: string): Record<string, string> => {
@@ -266,8 +266,8 @@ export const getDashboardOverview = async (accessToken?: string): Promise<Dashbo
     if (!response.ok) {
       try {
         const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-          ? `https://staging.zien.ai/api/solo/dashboard/overview`
-          : `https://staging-api.zien.ai/api/solo/dashboard/overview`;
+          ? `https://api.zien.ai/api/solo/dashboard/overview`
+          : `https://api.zien.ai/api/solo/dashboard/overview`;
         const fb = await fetch(altUrl, { method: 'GET', headers });
         if (fb.ok) response = fb;
       } catch {}
@@ -310,8 +310,8 @@ export const getAgencyDashboardStats = async (accessToken?: string): Promise<Age
     if (!response.ok) {
       try {
         const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-          ? `https://staging.zien.ai/api/teams/dashboard/stats`
-          : `https://staging-api.zien.ai/api/teams/dashboard/stats`;
+          ? `https://api.zien.ai/api/teams/dashboard/stats`
+          : `https://api.zien.ai/api/teams/dashboard/stats`;
         const fb = await fetch(altUrl, { method: 'GET', headers });
         if (fb.ok) response = fb;
       } catch {}
@@ -343,8 +343,8 @@ export const getTeamProfile = async (accessToken?: string): Promise<TeamProfile>
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/settings/profile`
-        : `https://staging-api.zien.ai/api/teams/settings/profile`;
+        ? `https://api.zien.ai/api/teams/settings/profile`
+        : `https://api.zien.ai/api/teams/settings/profile`;
       const fb = await fetch(altUrl, { headers });
       if (fb.ok) response = fb;
     } catch {}
@@ -364,8 +364,8 @@ export const updateTeamProfile = async (accessToken?: string, data?: any): Promi
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/settings/profile`
-        : `https://staging-api.zien.ai/api/teams/settings/profile`;
+        ? `https://api.zien.ai/api/teams/settings/profile`
+        : `https://api.zien.ai/api/teams/settings/profile`;
       const fb = await fetch(altUrl, { method: 'PATCH', headers, body: JSON.stringify(data) });
       if (fb.ok) response = fb;
     } catch {}
@@ -385,8 +385,8 @@ export const updateTeamSecurity = async (accessToken?: string, data?: any): Prom
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/settings/security`
-        : `https://staging-api.zien.ai/api/teams/settings/security`;
+        ? `https://api.zien.ai/api/teams/settings/security`
+        : `https://api.zien.ai/api/teams/settings/security`;
       const fb = await fetch(altUrl, { method: 'PATCH', headers, body: JSON.stringify(data) });
       if (fb.ok) response = fb;
     } catch {}
@@ -429,8 +429,8 @@ export const getTeamEmployees = async (accessToken?: string, companyId?: number)
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/employees?company_id=${companyId}`
-        : `https://staging-api.zien.ai/api/teams/employees?company_id=${companyId}`;
+        ? `https://api.zien.ai/api/teams/employees?company_id=${companyId}`
+        : `https://api.zien.ai/api/teams/employees?company_id=${companyId}`;
       const fb = await fetch(altUrl, { headers });
       if (fb.ok) response = fb;
     } catch {}
@@ -448,8 +448,8 @@ export const getTeamRoles = async (accessToken?: string, companyId?: number): Pr
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/roles?company_id=${companyId}`
-        : `https://staging-api.zien.ai/api/teams/roles?company_id=${companyId}`;
+        ? `https://api.zien.ai/api/teams/roles?company_id=${companyId}`
+        : `https://api.zien.ai/api/teams/roles?company_id=${companyId}`;
       const fb = await fetch(altUrl, { headers });
       if (fb.ok) response = fb;
     } catch {}
@@ -467,8 +467,8 @@ export const getTeamSubscription = async (accessToken?: string): Promise<Subscri
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/billing/subscription`
-        : `https://staging-api.zien.ai/api/teams/billing/subscription`;
+        ? `https://api.zien.ai/api/teams/billing/subscription`
+        : `https://api.zien.ai/api/teams/billing/subscription`;
       const fb = await fetch(altUrl, { headers });
       if (fb.ok) response = fb;
     } catch {}
@@ -527,8 +527,8 @@ export const updateEmployee = async (accessToken: string | undefined, employeeId
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/employees/${employeeId}`
-        : `https://staging-api.zien.ai/api/teams/employees/${employeeId}`;
+        ? `https://api.zien.ai/api/teams/employees/${employeeId}`
+        : `https://api.zien.ai/api/teams/employees/${employeeId}`;
       const fb = await fetch(altUrl, { method: 'PUT', headers, body: JSON.stringify(data) });
       if (fb.ok) response = fb;
     } catch {}
@@ -552,8 +552,8 @@ export const createEmployee = async (accessToken: string | undefined, data: any)
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/employees`
-        : `https://staging-api.zien.ai/api/teams/employees`;
+        ? `https://api.zien.ai/api/teams/employees`
+        : `https://api.zien.ai/api/teams/employees`;
       const fb = await fetch(altUrl, { method: 'POST', headers, body: JSON.stringify(data) });
       if (fb.ok) response = fb;
     } catch {}
@@ -576,8 +576,8 @@ export const updateEmployeeStatus = async (accessToken: string | undefined, empl
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/employees/${employeeId}/status`
-        : `https://staging-api.zien.ai/api/teams/employees/${employeeId}/status`;
+        ? `https://api.zien.ai/api/teams/employees/${employeeId}/status`
+        : `https://api.zien.ai/api/teams/employees/${employeeId}/status`;
       const fb = await fetch(altUrl, { method: 'PUT', headers, body: JSON.stringify({ company_id: companyId, status }) });
       if (fb.ok) response = fb;
     } catch {}
@@ -597,8 +597,8 @@ export const deleteEmployee = async (accessToken: string | undefined, employeeId
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/employees/${employeeId}?company_id=${companyId}`
-        : `https://staging-api.zien.ai/api/teams/employees/${employeeId}?company_id=${companyId}`;
+        ? `https://api.zien.ai/api/teams/employees/${employeeId}?company_id=${companyId}`
+        : `https://api.zien.ai/api/teams/employees/${employeeId}?company_id=${companyId}`;
       const fb = await fetch(altUrl, { method: 'DELETE', headers });
       if (fb.ok) response = fb;
     } catch {}
@@ -619,8 +619,8 @@ export const updateEmployeePassword = async (accessToken: string | undefined, em
   if (!response.ok) {
     try {
       const altUrl = API_BASE_URL.includes('staging-api.zien.ai')
-        ? `https://staging.zien.ai/api/teams/employees/${employeeId}/password`
-        : `https://staging-api.zien.ai/api/teams/employees/${employeeId}/password`;
+        ? `https://api.zien.ai/api/teams/employees/${employeeId}/password`
+        : `https://api.zien.ai/api/teams/employees/${employeeId}/password`;
       const fb = await fetch(altUrl, { method: 'PUT', headers, body: JSON.stringify({ company_id: companyId, password }) });
       if (fb.ok) response = fb;
     } catch {}
@@ -652,13 +652,13 @@ export const getTeamMenus = async (accessToken?: string, companyId?: number): Pr
   let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
   const headers = getDashboardAuthHeaders(token);
 
-  let response = await fetch(`https://staging.zien.ai/api/teams/menus?company_id=${companyId}`, {
+  let response = await fetch(`https://api.zien.ai/api/teams/menus?company_id=${companyId}`, {
     headers,
   });
 
   if (!response.ok) {
     try {
-      const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/menus?company_id=${companyId}`, {
+      const fallbackRes = await fetch(`https://api.zien.ai/api/teams/menus?company_id=${companyId}`, {
         headers,
       });
       if (fallbackRes.ok) response = fallbackRes;
@@ -673,13 +673,13 @@ export const getRolePermissions = async (accessToken?: string, roleId?: number):
   let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
   const headers = getDashboardAuthHeaders(token);
 
-  let response = await fetch(`https://staging.zien.ai/api/teams/roles/${roleId}/permissions`, {
+  let response = await fetch(`https://api.zien.ai/api/teams/roles/${roleId}/permissions`, {
     headers,
   });
 
   if (!response.ok) {
     try {
-      const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/roles/${roleId}/permissions`, {
+      const fallbackRes = await fetch(`https://api.zien.ai/api/teams/roles/${roleId}/permissions`, {
         headers,
       });
       if (fallbackRes.ok) response = fallbackRes;
@@ -704,7 +704,7 @@ export const updateRolePermissions = async (
     menu_ids: menuIds,
   };
 
-  let response = await fetch(`https://staging.zien.ai/api/teams/roles/${roleId}/permissions`, {
+  let response = await fetch(`https://api.zien.ai/api/teams/roles/${roleId}/permissions`, {
     method: 'PUT',
     headers,
     body: JSON.stringify(payload),
@@ -712,7 +712,7 @@ export const updateRolePermissions = async (
 
   if (!response.ok) {
     try {
-      const fallbackRes = await fetch(`https://staging-api.zien.ai/api/teams/roles/${roleId}/permissions`, {
+      const fallbackRes = await fetch(`https://api.zien.ai/api/teams/roles/${roleId}/permissions`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(payload),
@@ -757,7 +757,7 @@ export interface TeamLogsResponse {
 
 export const getTeamLogs = async (accessToken: string, companyId?: number): Promise<TeamLogsResponse> => {
   const compIdParam = companyId ? `company_id=${companyId}` : 'company_id=26';
-  let url = `https://staging.zien.ai/api/teams/logs?${compIdParam}`;
+  let url = `https://api.zien.ai/api/teams/logs?${compIdParam}`;
   console.log('=== [GET TEAM LOGS REQUEST] ===');
   console.log('URL:', url);
 
@@ -885,7 +885,7 @@ export const createSupportTicket = async (
   accessToken: string,
   payload: { category: string; priority: string; subject: string; description: string }
 ): Promise<{ message: string; ticketId: number }> => {
-  const targetUrl = 'https://staging.zien.ai/api/support-ticket';
+  const targetUrl = 'https://api.zien.ai/api/support-ticket';
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${accessToken}`,

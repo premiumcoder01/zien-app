@@ -13,7 +13,7 @@ export const BrokerDetailsTab: React.FC<BrokerDetailsTabProps> = ({ property, ap
   const { colors } = useAppTheme();
   const styles = getStyles(colors);
 
-  const address = property?.address || apiData?.UnparsedAddress || '4521 Wilshire Blvd, Los Angeles, CA';
+  const address = property?.address || apiData?.UnparsedAddress || '';
   const pd = generatePropertyData(address);
 
   // Use real listing agent data from API if available

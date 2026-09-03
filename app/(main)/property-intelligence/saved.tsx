@@ -42,7 +42,7 @@ export default function SavedPropertiesScreen() {
         if (!accessToken) return;
         setIsLoading(true);
         try {
-            const url = 'https://staging.zien.ai/api/solo/properties/intelligence/saved';
+            const url = 'https://api.zien.ai/api/solo/properties/intelligence/saved';
             console.log('[SavedProperties] Fetching saved properties:', url);
             const res = await fetch(url, {
                 headers: {
@@ -147,7 +147,7 @@ export default function SavedPropertiesScreen() {
                         // Optimistically remove from list
                         setSavedList(prev => prev.filter(item => item.id !== id));
                         try {
-                            const url = `https://staging.zien.ai/api/solo/properties/intelligence/saved/${id}`;
+                            const url = `https://api.zien.ai/api/solo/properties/intelligence/saved/${id}`;
                             console.log('────────────────────────────────────────');
                             console.log('[SavedProperties] 🗑️ DELETE REQUEST URL:', url);
                             console.log('[SavedProperties] TOKEN  :', accessToken ? `Bearer ${accessToken.substring(0, 20)}...` : 'NO TOKEN');

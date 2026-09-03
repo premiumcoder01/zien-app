@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CRM_API_BASE_URL = 'https://staging.zien.ai/api';
+const CRM_API_BASE_URL = 'https://api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
 
 export interface CRMOverviewResponse {
@@ -382,7 +382,7 @@ export const getCRMGroups = async (accessToken?: string): Promise<{ id: number; 
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/groups`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/groups`, {
                     method: 'GET',
                     headers: getCRMAuthHeaders(token),
                 });
@@ -435,7 +435,7 @@ export const getCRMTags = async (accessToken?: string): Promise<{ id: number; na
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/tags`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/tags`, {
                     method: 'GET',
                     headers: getCRMAuthHeaders(token),
                 });
@@ -476,7 +476,7 @@ export const getCRMMeta = async (accessToken?: string): Promise<CRMMetaResponse>
             }).then(async r => {
                 if (!r.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
                     try {
-                        const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/meta`, { headers });
+                        const fb = await fetch(`https://api.zien.ai/api/solo/crm/meta`, { headers });
                         if (fb.ok) return await fb.json();
                     } catch {}
                 }
@@ -573,7 +573,7 @@ export const addCRMGroup = async (accessToken: string, name: string): Promise<an
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/groups`, {
+                const fb = await fetch(`https://api.zien.ai/api/solo/crm/groups`, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify({ name }),
@@ -615,7 +615,7 @@ export const addCRMTag = async (accessToken: string, name: string, color: string
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/tags`, {
+                const fb = await fetch(`https://api.zien.ai/api/solo/crm/tags`, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify({ name, tag_color: color }),
@@ -673,7 +673,7 @@ export const addCRMContact = async (accessToken?: string, payload?: AddCRMContac
         // Fallback to staging-api if primary staging proxy returns error
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/contacts`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/contacts`, {
                     method: 'POST',
                     headers: getCRMAuthHeaders(token),
                     body: JSON.stringify(bodyData),
@@ -735,8 +735,8 @@ export const getCRMContacts = async (accessToken?: string, filters?: CRMContactF
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
                 const fallbackUrl = queryParts.length > 0
-                    ? `https://staging-api.zien.ai/api/solo/crm/contacts?${queryParts.join('&')}`
-                    : `https://staging-api.zien.ai/api/solo/crm/contacts`;
+                    ? `https://api.zien.ai/api/solo/crm/contacts?${queryParts.join('&')}`
+                    : `https://api.zien.ai/api/solo/crm/contacts`;
                 const fallbackRes = await fetch(fallbackUrl, {
                     method: 'GET',
                     headers: getCRMAuthHeaders(token),
@@ -781,7 +781,7 @@ export const deleteCRMContact = async (accessToken?: string, contactId?: string)
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/contacts/${contactId}`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/contacts/${contactId}`, {
                     method: 'DELETE',
                     headers: getCRMAuthHeaders(token),
                 });
@@ -821,7 +821,7 @@ export const updateCRMContactStatus = async (accessToken?: string, contactId?: s
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/contacts/${contactId}`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/contacts/${contactId}`, {
                     method: 'PATCH',
                     headers: getCRMAuthHeaders(token),
                     body: JSON.stringify({ status }),
@@ -867,7 +867,7 @@ export const updateCRMContact = async (accessToken?: string, contactId?: string,
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/contacts/${contactId}`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/contacts/${contactId}`, {
                     method: 'PATCH',
                     headers: getCRMAuthHeaders(token),
                     body: JSON.stringify(bodyData),
@@ -907,7 +907,7 @@ export const getCRMContactDetail = async (accessToken?: string, contactId?: stri
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/contacts/${contactId}`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/contacts/${contactId}`, {
                     method: 'GET',
                     headers: getCRMAuthHeaders(token),
                 });
@@ -949,7 +949,7 @@ export const appendCRMNote = async (accessToken?: string, contactId?: string, co
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/contacts/${contactId}`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/contacts/${contactId}`, {
                     method: 'PATCH',
                     headers: getCRMAuthHeaders(token),
                     body: JSON.stringify({ append_note: { content } }),
@@ -985,7 +985,7 @@ export const appendCRMEvent = async (accessToken?: string, contactId?: string, t
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/contacts/${contactId}`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/contacts/${contactId}`, {
                     method: 'PATCH',
                     headers: getCRMAuthHeaders(token),
                     body: JSON.stringify({ append_event: { title, date } }),
@@ -1024,7 +1024,7 @@ export const getCRMLeads = async (
         // Fallback to staging-api if primary staging proxy returns error
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads${queryParam}`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/leads${queryParam}`, {
                     method: 'GET',
                     headers,
                 });
@@ -1333,7 +1333,7 @@ export const getCRMLeadDetail = async (accessToken?: string, leadId?: string): P
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads/${leadId}`, {
+                const fb = await fetch(`https://api.zien.ai/api/solo/crm/leads/${leadId}`, {
                     method: 'GET',
                     headers,
                 });
@@ -1373,7 +1373,7 @@ export const deleteCRMLead = async (accessToken: string, leadId: string): Promis
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads/${leadId}`, {
+                const fb = await fetch(`https://api.zien.ai/api/solo/crm/leads/${leadId}`, {
                     method: 'DELETE',
                     headers,
                 });
@@ -1412,7 +1412,7 @@ export const addCRMLead = async (accessToken: string, payload: any): Promise<any
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads`, {
+                const fb = await fetch(`https://api.zien.ai/api/solo/crm/leads`, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify(payload),
@@ -1454,7 +1454,7 @@ export const updateCRMLead = async (accessToken: string, leadId: string, payload
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads/${leadId}`, {
+                const fb = await fetch(`https://api.zien.ai/api/solo/crm/leads/${leadId}`, {
                     method: 'PATCH',
                     headers,
                     body: JSON.stringify(payload),
@@ -1495,7 +1495,7 @@ export const convertCRMLead = async (accessToken: string, leadId: string): Promi
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fb = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads/${leadId}/convert`, {
+                const fb = await fetch(`https://api.zien.ai/api/solo/crm/leads/${leadId}/convert`, {
                     method: 'POST',
                     headers,
                 });
@@ -1602,8 +1602,8 @@ export const getCRMFollowUps = async (accessToken: string, tab?: string): Promis
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
                 const fallbackUrl = tab
-                    ? `https://staging-api.zien.ai/api/solo/crm/follow-ups?tab=${tab}`
-                    : `https://staging-api.zien.ai/api/solo/crm/follow-ups`;
+                    ? `https://api.zien.ai/api/solo/crm/follow-ups?tab=${tab}`
+                    : `https://api.zien.ai/api/solo/crm/follow-ups`;
                 const fallbackRes = await fetch(fallbackUrl, {
                     method: 'GET',
                     headers: {
@@ -1802,7 +1802,7 @@ export const getCRMPipelines = async (accessToken: string): Promise<CRMPipeline[
         // Fallback to staging-api if primary staging proxy returns error
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/pipelines`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/pipelines`, {
                     method: 'GET',
                     headers: {
                         Accept: 'application/json',
@@ -1852,7 +1852,7 @@ export const getCRMDeals = async (accessToken: string, pipelineId: string): Prom
         // Fallback to staging-api if primary staging proxy returns error
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/deals?pipeline_id=${pipelineId}`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/deals?pipeline_id=${pipelineId}`, {
                     method: 'GET',
                     headers: {
                         Accept: 'application/json',
@@ -2059,7 +2059,7 @@ export const getCRMCampaigns = async (accessToken: string): Promise<CRMCampaign[
         // Fallback to staging-api if primary staging proxy returns error
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/campaigns`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/campaigns`, {
                     method: 'GET',
                     headers: {
                         Accept: 'application/json',
@@ -2261,7 +2261,7 @@ export const getCRMTemplates = async (accessToken: string): Promise<CRMTemplate[
         // Fallback to staging-api if primary staging proxy returns error
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/templates?status=all`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/templates?status=all`, {
                     method: 'GET',
                     headers: {
                         Accept: 'application/json',
@@ -2528,7 +2528,7 @@ export const getCRMAutomations = async (accessToken: string): Promise<CRMAutomat
         // Fallback to staging-api if primary staging proxy returns error
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/automations`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/automations`, {
                     method: 'GET',
                     headers: {
                         Accept: 'application/json',
@@ -2691,7 +2691,7 @@ export const analyzeContactsFile = async (
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-        const response = await fetch('https://staging-api.zien.ai/api/shared/ai/generate-text', {
+        const response = await fetch('https://api.zien.ai/api/shared/ai/generate-text', {
             method: 'POST',
             signal: controller.signal,
             headers: {
@@ -2734,7 +2734,7 @@ export const extractContactsWithAI = async (
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-        const response = await fetch('https://staging-api.zien.ai/api/shared/ai/extract-data', {
+        const response = await fetch('https://api.zien.ai/api/shared/ai/extract-data', {
             method: 'POST',
             signal: controller.signal,
             headers: {
@@ -2788,7 +2788,7 @@ export const importCRMContacts = async (
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/contacts/import`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/contacts/import`, {
                     method: 'POST',
                     headers: getCRMAuthHeaders(token),
                     body: JSON.stringify({ contacts }),
@@ -2832,7 +2832,7 @@ export const importCRMLeads = async (
 
         if (!response.ok && CRM_API_BASE_URL.includes('staging.zien.ai')) {
             try {
-                const fallbackRes = await fetch(`https://staging-api.zien.ai/api/solo/crm/leads/import`, {
+                const fallbackRes = await fetch(`https://api.zien.ai/api/solo/crm/leads/import`, {
                     method: 'POST',
                     headers: getCRMAuthHeaders(token),
                     body: JSON.stringify({ leads }),
@@ -2944,7 +2944,7 @@ export const generateCRMAutomationWithAI = async (
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-        const response = await fetch('https://staging-api.zien.ai/api/shared/ai/extract-data', {
+        const response = await fetch('https://api.zien.ai/api/shared/ai/extract-data', {
             method: 'POST',
             signal: controller.signal,
             headers: {
