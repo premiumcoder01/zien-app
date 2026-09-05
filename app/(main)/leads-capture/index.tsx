@@ -268,23 +268,25 @@ export default function LeadsCaptureScreen() {
                                 <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textPrimary} />
                             </Pressable>
                             <Text style={styles.headerTitle}>Lead Capture</Text>
+                            <MaterialCommunityIcons name="information-outline" size={17} color={colors.textSecondary} style={{ opacity: 0.6 }} />
                         </View>
                         <Text style={styles.headerSubtitle}>
                             Deploy high-conversion funnels for every stage of the real estate lifecycle.
                         </Text>
                     </View>
-                    {isTablet && (
-                        <Pressable
-                            style={({ pressed }) => [
-                                styles.headerCreateBtn,
-                                pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }
-                            ]}
-                            onPress={() => setShowModal(true)}
-                        >
-                            <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
-                            <Text style={styles.headerCreateBtnText}>Create New Lead Capture</Text>
-                        </Pressable>
-                    )}
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.headerCreateBtn,
+                            pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                            !isTablet && { width: '100%', justifyContent: 'center' }
+                        ]}
+                        onPress={() => setShowModal(true)}
+                    >
+                        <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+                        <Text style={styles.headerCreateBtnText}>
+                            Create New Lead Capture
+                        </Text>
+                    </Pressable>
                 </View>
 
                 {/* Metrics Row */}
@@ -350,7 +352,7 @@ export default function LeadsCaptureScreen() {
                                                 const pageLeads = getPageLeadsCount(item);
                                                 const categoryLabel = getCategoryLabel(item.category);
                                                 const statusLabel = getStatusLabel(item.status);
-                                                const previewUrl = `https://staging.zien.ai/l/${item.slug}`;
+                                                const previewUrl = `https://zien.ai/l/${item.slug}`;
 
                                                 return (
                                                     <View
@@ -438,7 +440,7 @@ export default function LeadsCaptureScreen() {
                                         const pageVisitors = getPageVisitorsCount(item);
                                         const categoryLabel = getCategoryLabel(item.category);
                                         const statusLabel = getStatusLabel(item.status);
-                                        const previewUrl = `https://staging.zien.ai/l/${item.slug}`;
+                                        const previewUrl = `https://zien.ai/l/${item.slug}`;
 
                                         return (
                                             <View key={item.id} style={styles.mobileCard}>
@@ -685,11 +687,11 @@ export default function LeadsCaptureScreen() {
                 <Pressable style={styles.modalOverlay} onPress={() => setShowModal(false)}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalIconContainer}>
-                            <MaterialCommunityIcons name="web-off" size={48} color={colors.accentTeal} />
+                            <MaterialCommunityIcons name="laptop" size={44} color={colors.accentTeal} />
                         </View>
-                        <Text style={styles.modalTitle}>Feature Limited</Text>
+                        <Text style={styles.modalTitle}>Create on Web</Text>
                         <Text style={styles.modalDescription}>
-                            This feature is currently not available on the app version. Please try this on our web for the full experience.
+                            Lead Capture landing pages can be created and customized from the web portal. Please log in to zien.ai on your browser to design and publish new funnels.
                         </Text>
                         <Pressable
                             style={styles.modalButton}

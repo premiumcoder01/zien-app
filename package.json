@@ -1,7 +1,7 @@
 {
   "name": "zien",
   "main": "expo-router/entry",
-  "version": "5.7.0",
+  "version": "5.8.0",
   "scripts": {
     "start": "expo start",
     "clean": "expo start -c",

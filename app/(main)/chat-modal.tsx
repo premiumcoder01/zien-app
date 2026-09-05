@@ -1,5 +1,6 @@
 import { useAppTheme } from '@/context/ThemeContext';
 import { useConversations, useCreateConversation, useDeleteConversation, useLoadConversation, useSendMessage } from '@/hooks/useChat';
+import { useProfile } from '@/hooks/useProfile';
 import type { Conversation } from '@/services/chatService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -132,6 +133,10 @@ export default function ChatModalScreen() {
     const [speechLang, setSpeechLang] = useState<'en-US' | 'hi-IN'>('en-US');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+
+    // Profile hook for personalization
+    const { data: profile } = useProfile();
+    const firstName = profile?.first_name ? profile.first_name.trim() : (profile?.name ? profile.name.split(' ')[0].trim() : '');
 
     // TanStack Query hooks
     const { data: conversations = [], isLoading: isLoadingHistory } = useConversations();
@@ -550,9 +555,11 @@ export default function ChatModalScreen() {
                     {/* Empty state */}
                     {!hasMessages ? (
                         <Pressable style={[styles.emptyState, { flex: 1 }]} onPress={() => Keyboard.dismiss()}>
-                            <Text style={styles.emptyTitle}>Ask Zien AI</Text>
+                            <Text style={styles.emptyTitle}>
+                                Hi{firstName ? `, ${firstName}` : ''}
+                            </Text>
                             <Text style={styles.emptySubtitle}>
-                                Ask questions about your property listings, CRM leads, notifications, or safety logs.
+                                How can I help you?
                             </Text>
                         </Pressable>
                     ) : (

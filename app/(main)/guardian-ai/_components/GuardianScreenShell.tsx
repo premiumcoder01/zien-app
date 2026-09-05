@@ -50,11 +50,18 @@ export function GuardianScreenShell({
           )}
           <View style={[styles.headerText, !showBack && styles.headerTextFull]}>
             <View style={styles.titleRow}>
-              <Text style={styles.title}>{title}</Text>
+              <Text
+                style={styles.title}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+              >
+                {title}
+              </Text>
               {showVerifiedBadge && (
                 <MaterialCommunityIcons
                   name="shield-check"
-                  size={20}
+                  size={19}
                   color="#00A896"
                   style={styles.titleBadge}
                 />
@@ -76,24 +83,40 @@ export function GuardianScreenShell({
 
 const getStyles = (colors: any) => StyleSheet.create({
   background: { flex: 1 },
-  headerWrap: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 10 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerWrap: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 10 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: colors.cardBackground,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.cardBorder,
+    marginTop: 1,
   },
   headerText: { flex: 1 },
   headerTextFull: { marginLeft: 0 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  title: { fontSize: 20, fontWeight: '900', color: colors.textPrimary },
-  titleBadge: { marginLeft: 6 },
-  subtitle: { fontSize: 12.5, color: colors.textSecondary, marginTop: 4, fontWeight: '700' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' },
+  title: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    flexShrink: 1,
+    letterSpacing: -0.2,
+  },
+  titleBadge: {
+    marginLeft: 6,
+    flexShrink: 0,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 3,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
   contentWrap: {
     flex: 1,
   },

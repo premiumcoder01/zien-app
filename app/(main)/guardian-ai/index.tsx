@@ -1609,7 +1609,7 @@ export default function GuardianAiOverviewScreen() {
 
               {/* Who Are You Meeting Section */}
               <View style={styles.meetingSection}>
-                <Text style={styles.meetingLabel}>WHO ARE YOU MEETING? (CRM LEAD)</Text>
+                <Text style={styles.meetingLabel}>Who are you meeting? (CRM lead)</Text>
                 <Pressable
                   style={styles.meetingSelectorBox}
                   onPress={() => setShowMeetingLeadModal(true)}>
@@ -2173,13 +2173,13 @@ export default function GuardianAiOverviewScreen() {
                       return (
                         <View key={contact.id} style={styles.editingContactBox}>
                           <Text style={styles.editingContactTitle}>
-                            EDITING EMERGENCY CONTACT
+                            Editing Emergency Contact
                           </Text>
 
                           <View style={styles.editingContactForm}>
                             <View style={styles.editingContactRow}>
                               <View style={styles.editingContactCol}>
-                                <Text style={styles.editingContactLabel}>CONTACT NAME *</Text>
+                                <Text style={styles.editingContactLabel}>Contact name *</Text>
                                 <TextInput
                                   style={styles.editingContactInput}
                                   value={editName}
@@ -2190,7 +2190,7 @@ export default function GuardianAiOverviewScreen() {
                               </View>
 
                               <View style={styles.editingContactCol}>
-                                <Text style={styles.editingContactLabel}>RELATIONSHIP</Text>
+                                <Text style={styles.editingContactLabel}>Relationship</Text>
                                 <Pressable
                                   style={styles.relationshipSelectBtn}
                                   onPress={() =>
@@ -2241,7 +2241,7 @@ export default function GuardianAiOverviewScreen() {
 
                             <View style={styles.editingContactRow}>
                               <View style={styles.editingContactCol}>
-                                <Text style={styles.editingContactLabel}>PHONE NUMBER *</Text>
+                                <Text style={styles.editingContactLabel}>Phone number *</Text>
                                 <View style={styles.phoneInputWrap}>
                                   <Pressable
                                     style={styles.phoneFlagPrefix}
@@ -2266,7 +2266,7 @@ export default function GuardianAiOverviewScreen() {
                               </View>
 
                               <View style={styles.editingContactCol}>
-                                <Text style={styles.editingContactLabel}>EMAIL ADDRESS</Text>
+                                <Text style={styles.editingContactLabel}>Email address (optional)</Text>
                                 <TextInput
                                   style={styles.editingContactInput}
                                   value={editEmail}
@@ -2377,12 +2377,12 @@ export default function GuardianAiOverviewScreen() {
 
             {/* Card 2: ADD EMERGENCY CONTACT Form */}
             <View style={styles.addContactCard}>
-              <Text style={styles.addContactTitle}>ADD EMERGENCY CONTACT</Text>
+              <Text style={styles.addContactTitle}>Add Emergency Contact</Text>
 
               <View style={styles.addContactForm}>
                 <View style={styles.addContactFormRow}>
                   <View style={styles.addContactCol}>
-                    <Text style={styles.addContactLabel}>CONTACT NAME *</Text>
+                    <Text style={styles.addContactLabel}>Contact name *</Text>
                     <TextInput
                       style={styles.addContactInput}
                       placeholder="e.g. John Doe"
@@ -2393,7 +2393,7 @@ export default function GuardianAiOverviewScreen() {
                   </View>
 
                   <View style={styles.addContactCol}>
-                    <Text style={styles.addContactLabel}>RELATIONSHIP</Text>
+                    <Text style={styles.addContactLabel}>Relationship</Text>
                     <Pressable
                       style={styles.relationshipSelectBtn}
                       onPress={() => setShowRelationshipMenu((prev) => !prev)}>
@@ -2435,7 +2435,7 @@ export default function GuardianAiOverviewScreen() {
 
                 <View style={styles.addContactFormRow}>
                   <View style={styles.addContactCol}>
-                    <Text style={styles.addContactLabel}>PHONE NUMBER *</Text>
+                    <Text style={styles.addContactLabel}>Phone number *</Text>
                     <View style={styles.phoneInputWrap}>
                       <Pressable
                         style={styles.phoneFlagPrefix}
@@ -2460,7 +2460,7 @@ export default function GuardianAiOverviewScreen() {
                   </View>
 
                   <View style={styles.addContactCol}>
-                    <Text style={styles.addContactLabel}>EMAIL ADDRESS (OPTIONAL)</Text>
+                    <Text style={styles.addContactLabel}>Email address (optional)</Text>
                     <TextInput
                       style={styles.addContactInput}
                       placeholder="email@example.com"
@@ -2595,10 +2595,10 @@ export default function GuardianAiOverviewScreen() {
             {/* Metric Grid (4 Web Metric Cards) */}
             <View style={styles.logsMetricGrid}>
               {[
-                { id: 'telemetry', icon: 'console' as const, label: 'TOTAL TELEMETRY', value: String(safetyLogs.length || 5) },
-                { id: 'compliance', icon: 'shield-outline' as const, label: 'COMPLIANCE RATE', value: '0%' },
-                { id: 'sessions', icon: 'pulse' as const, label: 'ACTIVE SESSIONS', value: '00' },
-                { id: 'integrity', icon: 'shield-lock-outline' as const, label: 'AUDIT INTEGRITY', value: 'Vaulted' },
+                { id: 'telemetry', icon: 'console' as const, label: 'Total telemetry', value: String(safetyLogs.length || 5) },
+                { id: 'compliance', icon: 'shield-outline' as const, label: 'Compliance rate', value: '0%' },
+                { id: 'sessions', icon: 'pulse' as const, label: 'Active sessions', value: '00' },
+                { id: 'integrity', icon: 'shield-lock-outline' as const, label: 'Audit integrity', value: 'Vaulted' },
               ].map((m) => (
                 <View key={m.id} style={styles.logsMetricCard}>
                   <View style={styles.logsMetricIconWrap}>
@@ -4089,10 +4089,9 @@ const getStyles = (colors: any, isDark: boolean) =>
       marginVertical: 4,
     },
     editingContactTitle: {
-      fontSize: 12,
-      fontWeight: '900',
+      fontSize: 13,
+      fontWeight: '800',
       color: '#16A34A',
-      letterSpacing: 0.5,
       marginBottom: 12,
     },
     editingContactForm: {
@@ -4106,10 +4105,9 @@ const getStyles = (colors: any, isDark: boolean) =>
       gap: 5,
     },
     editingContactLabel: {
-      fontSize: 10.5,
-      fontWeight: '800',
-      color: '#64748B',
-      letterSpacing: 0.4,
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
     },
     editingContactInput: {
       backgroundColor: colors.cardBackground,
@@ -4187,10 +4185,9 @@ const getStyles = (colors: any, isDark: boolean) =>
       padding: 18,
     },
     addContactTitle: {
-      fontSize: 13,
-      fontWeight: '900',
+      fontSize: 14,
+      fontWeight: '800',
       color: colors.textPrimary,
-      letterSpacing: 0.5,
       marginBottom: 14,
     },
     addContactForm: {
@@ -4204,10 +4201,9 @@ const getStyles = (colors: any, isDark: boolean) =>
       gap: 6,
     },
     addContactLabel: {
-      fontSize: 10.5,
-      fontWeight: '800',
-      color: '#64748B',
-      letterSpacing: 0.4,
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
     },
     addContactInput: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : '#F8FAFC',
@@ -4652,11 +4648,9 @@ const getStyles = (colors: any, isDark: boolean) =>
       marginBottom: 8,
     },
     auditTableHeadCol: {
-      fontSize: 11,
-      fontWeight: '800',
+      fontSize: 11.5,
+      fontWeight: '700',
       color: '#94A3B8',
-      textTransform: 'uppercase',
-      letterSpacing: 0.4,
     },
     auditListContainer: {
       gap: 12,

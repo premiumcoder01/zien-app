@@ -13,10 +13,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const METRIC_CARDS = [
-  { id: 'telemetry', icon: 'console' as const, label: 'Total Telemetry', value: '4.2k' },
-  { id: 'compliance', icon: 'sync' as const, label: 'Compliance Rate', value: '100%' },
-  { id: 'sessions', icon: 'chart-line' as const, label: 'Active Sessions', value: '12' },
-  { id: 'integrity', icon: 'lock-outline' as const, label: 'Audit Integrity', value: 'Vaulted' },
+  { id: 'telemetry', icon: 'console' as const, label: 'Total telemetry', value: '4.2k' },
+  { id: 'compliance', icon: 'sync' as const, label: 'Compliance rate', value: '100%' },
+  { id: 'sessions', icon: 'chart-line' as const, label: 'Active sessions', value: '12' },
+  { id: 'integrity', icon: 'lock-outline' as const, label: 'Audit integrity', value: 'Vaulted' },
 ];
 
 const AUDIT_ROWS = [
@@ -120,7 +120,7 @@ export function LogsReportsView() {
 
                 <View style={styles.auditItemFooter}>
                   <View style={styles.auditCategoryPill}>
-                    <Text style={styles.auditCategoryText}>{row.category.toUpperCase()}</Text>
+                    <Text style={styles.auditCategoryText}>{row.category}</Text>
                   </View>
                   <View style={styles.auditAgentInfo}>
                     <MaterialCommunityIcons name="account-circle-outline" size={14} color="#5B6B7A" />

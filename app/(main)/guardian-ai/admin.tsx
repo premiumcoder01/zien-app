@@ -16,25 +16,25 @@ const STAT_CARDS = [
   {
     id: 'policies',
     icon: 'cog-outline' as const,
-    label: 'SECURITY POLICIES',
+    label: 'Security Policies',
     value: '14 Active',
   },
   {
     id: 'personnel',
     icon: 'account-group-outline' as const,
-    label: 'VERIFIED PERSONNEL',
+    label: 'Verified Personnel',
     value: '86 Total',
   },
   {
     id: 'escalation',
     icon: 'bell-outline' as const,
-    label: 'ESCALATION NODES',
+    label: 'Escalation Nodes',
     value: '04 HQ',
   },
   {
     id: 'sync',
     icon: 'database-outline' as const,
-    label: 'DATABASE SYNC',
+    label: 'Database Sync',
     value: 'Optimal',
   },
 ];
@@ -157,7 +157,7 @@ export function AdminView() {
             <View style={styles.governanceCard}>
               <View style={styles.governanceHeader}>
                 <MaterialCommunityIcons name="lock-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.governanceTitle}>ENFORCED GOVERNANCE</Text>
+                <Text style={styles.governanceTitle}>Enforced Governance</Text>
               </View>
               <Text style={styles.governanceDesc}>
                 Multi-factor authentication is mandatory for all HQ-level command overrides and policy changes.

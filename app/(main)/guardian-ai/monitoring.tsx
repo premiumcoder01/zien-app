@@ -14,10 +14,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const AUDIT_ITEMS = [
-  { id: '1', label: 'ENCRYPTION LAYER', value: 'AES-256 GCM', status: 'Optimal', icon: 'lock-outline' as const },
-  { id: '2', label: 'TRIANGULATION LINK', value: 'Active (8 Sat)', status: 'Excellent', icon: 'connection' as const },
-  { id: '3', label: 'BIOMETRIC STREAM', value: 'Synchronized', status: 'Secure', icon: 'fingerprint' as const },
-  { id: '4', label: 'CLOUD HANDSHAKE', value: '0.42ms Latency', status: 'High-Speed', icon: 'chart-line' as const },
+  { id: '1', label: 'Encryption Layer', value: 'AES-256 GCM', status: 'Optimal', icon: 'lock-outline' as const },
+  { id: '2', label: 'Triangulation Link', value: 'Active (8 Sat)', status: 'Excellent', icon: 'connection' as const },
+  { id: '3', label: 'Biometric Stream', value: 'Synchronized', status: 'Secure', icon: 'fingerprint' as const },
+  { id: '4', label: 'Cloud Handshake', value: '0.42ms Latency', status: 'High-Speed', icon: 'chart-line' as const },
 ];
 
 const STATUS_CARDS = [
@@ -126,7 +126,7 @@ export function MonitoringView() {
         {/* Live System Telemetry */}
         <View style={styles.telemetryCard}>
           <View style={styles.telemetryHeader}>
-            <Text style={styles.telemetryHeaderText}>LIVE SYSTEM TELEMETRY</Text>
+            <Text style={styles.telemetryHeaderText}>Live System Telemetry</Text>
             <View style={styles.telemetryDots}>
               <View style={[styles.dot, styles.dotRed]} />
               <View style={[styles.dot, styles.dotYellow]} />
@@ -200,7 +200,7 @@ export function MonitoringView() {
             Bypass security protocols and force an emergency response sequence.
           </Text>
           <Pressable style={styles.forceBtn}>
-            <Text style={styles.forceBtnText}>FORCE SES SIGNAL</Text>
+            <Text style={styles.forceBtnText}>Force SES Signal</Text>
           </Pressable>
         </View>
 
@@ -327,7 +327,7 @@ export function MonitoringView() {
 
           <View style={styles.modalFooterFixed}>
             <Pressable style={styles.initAuditBtnPremium} onPress={handleAuthenticateDeploy}>
-              <Text style={styles.initAuditBtnTextPremium}>AUTHENTICATE & DEPLOY</Text>
+              <Text style={styles.initAuditBtnTextPremium}>Authenticate & Deploy</Text>
             </Pressable>
           </View>
         </View>
