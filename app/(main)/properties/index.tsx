@@ -31,7 +31,7 @@ const PLACEHOLDER_HOUSE =
   'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800';
 
 
-type PropertyStatus = 'Ready' | 'REVIEW NEEDED' | 'DRAFT';
+type PropertyStatus = 'Ready' | 'Active' | 'Pending' | 'Sold' | 'Off Market' | 'Canceled' | 'NEED REVIEW' | 'DRAFT' | string;
 
 type Property = {
   id: string;
@@ -127,23 +127,32 @@ function ConfidenceBar({ value }: { value: number }) {
 
 // ── Status Helpers & Pill ───────────────────────────────────────────────────
 function getStatusStyle(status: string) {
-  const s = (status || '').toLowerCase();
-  if (s.includes('ready') || s.includes('active')) {
+  const s = (status || '').toLowerCase().trim();
+  if (s === 'ready' || s.includes('ready')) {
     return { bg: 'rgba(13,148,136,0.12)', color: '#0D9488', dot: '#0D9488', label: 'READY' };
   }
-  if (s.includes('pending')) {
+  if (s === 'active' || s.includes('active')) {
+    return { bg: 'rgba(13,148,136,0.12)', color: '#0D9488', dot: '#0D9488', label: 'ACTIVE' };
+  }
+  if (s === 'pending' || s.includes('pending')) {
     return { bg: 'rgba(234,88,12,0.12)', color: '#EA580C', dot: '#EA580C', label: 'PENDING' };
   }
-  if (s.includes('sold')) {
+  if (s === 'sold' || s.includes('sold') || s.includes('closed')) {
     return { bg: 'rgba(59,130,246,0.12)', color: '#2563EB', dot: '#2563EB', label: 'SOLD' };
   }
-  if (s.includes('off') || s.includes('cancel')) {
-    return { bg: 'rgba(239,68,68,0.12)', color: '#EF4444', dot: '#EF4444', label: s.includes('off') ? 'OFF MARKET' : 'CANCELED' };
+  if (s.includes('off')) {
+    return { bg: 'rgba(239,68,68,0.12)', color: '#EF4444', dot: '#EF4444', label: 'OFF MARKET' };
+  }
+  if (s.includes('cancel')) {
+    return { bg: 'rgba(239,68,68,0.12)', color: '#EF4444', dot: '#EF4444', label: 'CANCELED' };
   }
   if (s.includes('review')) {
     return { bg: 'rgba(234,88,12,0.12)', color: '#C2410C', dot: '#C2410C', label: 'NEED REVIEW' };
   }
-  return { bg: 'rgba(100,116,139,0.10)', color: '#64748B', dot: '#94A3B8', label: 'DRAFT' };
+  if (s === 'draft' || s.includes('draft')) {
+    return { bg: 'rgba(100,116,139,0.10)', color: '#64748B', dot: '#94A3B8', label: 'DRAFT' };
+  }
+  return { bg: 'rgba(13,148,136,0.12)', color: '#0D9488', dot: '#0D9488', label: (status || 'ACTIVE').toUpperCase() };
 }
 
 function StatusPill({ status, onPress }: { status: string; onPress?: () => void }) {
@@ -485,23 +494,44 @@ export default function PropertyInventoryScreen() {
   };
 
   const mapRawToProperty = (raw: RawPropertyItem): Property => {
-    const d = raw.data;
+    const d = raw.data || {};
     const formattedPrice = formatPropertyPrice(d);
 
-    const propConfidence = typeof d.confidence === 'number' && d.confidence > 0
-      ? d.confidence
-      : (typeof d.data_confidence === 'number' && d.data_confidence > 0
-        ? d.data_confidence
-        : (typeof (raw as any).confidence === 'number' && (raw as any).confidence > 0
-          ? (raw as any).confidence
-          : (stats?.avgConfidence ? Math.round(stats.avgConfidence) : 94)));
+    const propConfidence = (() => {
+      const candidates = [
+        d?.Confidence,
+        d?.confidence,
+        d?.data_confidence,
+        d?.DataConfidence,
+        d?.dataConfidence,
+        (raw as any)?.Confidence,
+        (raw as any)?.confidence,
+        (raw as any)?.data_confidence,
+      ];
+      for (const c of candidates) {
+        if (typeof c === 'number' && !isNaN(c) && c > 0) return Math.round(c);
+        if (typeof c === 'string') {
+          const parsed = parseFloat(c.replace(/[^0-9.]/g, ''));
+          if (!isNaN(parsed) && parsed > 0) return Math.round(parsed);
+        }
+      }
+      return stats?.avgConfidence ? Math.round(stats.avgConfidence) : 94;
+    })();
+
+    const rawStatus =
+      d.StandardStatus ||
+      d.standardStatus ||
+      d.MlsStatus ||
+      d.mlsStatus ||
+      d.status ||
+      (raw.status === 1 ? 'Active' : raw.status === 0 ? 'Draft' : 'Active');
 
     return {
       id: raw.id.toString(),
       address: d.StreetNumber ? `${d.StreetNumber} ${d.StreetName} ${d.StreetSuffix || ''}`.trim() : raw.address,
       cityState: d.City ? `${d.City}, ${d.StateOrProvince || ''}` : '',
       type: d.PropertySubType || d.PropertyType || 'Residential',
-      status: (d.StandardStatus || d.MlsStatus || 'Ready') as PropertyStatus,
+      status: (rawStatus || 'Active') as PropertyStatus,
       value: formattedPrice,
       confidence: propConfidence,
       image: extractFirstImage(raw),

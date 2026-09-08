@@ -53,7 +53,6 @@ const PLATFORMS: { id: PlatformId; label: string; icon: string }[] = [
   { id: 'tiktok', label: 'TikTok', icon: 'music-note' },
 ];
 
-const HASHTAG_CHIPS = ['#Luxury', '#OpenHouse', '#ZienRealty', '#LALiving'];
 const AI_IMAGE_PRESETS = ['+ Cinematic', '+ Realistic', '+ Dusk', '+ Drone View', '+ Interior Design'];
 
 const DEFAULT_CAPTION = `JUST LISTED: 1601 Welch Street, Houston TX 77006\n\nExperience luxury living at its finest. This stunning property is now available for private tours.\n\nDM for details! #Zien #RealEstate #JustListed`;
@@ -215,7 +214,7 @@ function PostPreviewCard({
 
 export default function CreatePostScreen() {
   const { colors, theme } = useAppTheme();
-  const styles = getStyles(colors);
+  const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { accessToken } = useAuth();
@@ -438,40 +437,11 @@ export default function CreatePostScreen() {
   }, [selectedProperty, properties]);
 
   const hashtagChips = useMemo(() => {
-    const tags = new Set<string>();
-
-    // 1. If property is selected, extract city & state hashtags (e.g. #OnalaskaTX, #LuxuryRealEstate)
-    if (selectedProperty) {
-      const city =
-        selectedProperty.data?.city ||
-        selectedProperty.address?.split(',')?.[1]?.trim()?.split(' ')?.[0];
-      if (city) {
-        const cleanCity = city.replace(/[^a-zA-Z0-9]/g, '');
-        tags.add(`#${cleanCity}TX`);
-      }
-      tags.add('#LuxuryRealEstate');
-      tags.add('#ElegantLiving');
-      tags.add('#HighEndHomes');
-      tags.add('#PropertyForSale');
-      tags.add('#DreamHome');
-      tags.add('#RealEstate');
-    } else {
-      tags.add('#LuxuryRealEstate');
-      tags.add('#ElegantLiving');
-      tags.add('#HighEndHomes');
-      tags.add('#PropertyForSale');
-      tags.add('#RealEstate');
-      tags.add('#JustListed');
-    }
-
-    // 2. Also include any hashtags extracted from the generated caption
-    const captionTags = caption.match(/#[a-zA-Z0-9_]+/g);
-    if (captionTags) {
-      captionTags.forEach((t) => tags.add(t));
-    }
-
-    return Array.from(tags).slice(0, 8);
-  }, [selectedProperty, caption]);
+    if (!caption) return [];
+    const matches = caption.match(/#[a-zA-Z0-9_]+/g);
+    if (!matches) return [];
+    return Array.from(new Set(matches));
+  }, [caption]);
 
   const handleGenerateAICaption = async () => {
     if (!accessToken) return;
@@ -888,7 +858,7 @@ export default function CreatePostScreen() {
                   style={styles.aiContextInputFull}
                   value={captionContext}
                   onChangeText={setCaptionContext}
-                  placeholder="Write your caption...  "
+                  placeholder="e.g. Write a short, punchy caption highlighting the pool..."
                   placeholderTextColor={colors.textMuted}
                 />
                 <Pressable
@@ -916,20 +886,15 @@ export default function CreatePostScreen() {
                 placeholderTextColor={colors.textMuted}
               />
 
-              <View style={styles.hashtagBox}>
-                {hashtagChips.map(tag => (
-                  <Pressable
-                    key={tag}
-                    style={styles.hashtag}
-                    onPress={() => {
-                      triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
-                      setCaption(prev => prev ? `${prev} ${tag}` : tag);
-                    }}
-                  >
-                    <Text style={styles.hashtagText}>{tag}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              {hashtagChips.length > 0 && (
+                <View style={styles.hashtagBox}>
+                  {hashtagChips.map((tag) => (
+                    <View key={tag} style={styles.hashtag}>
+                      <Text style={styles.hashtagText}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={styles.card}>
@@ -1472,7 +1437,7 @@ export default function CreatePostScreen() {
   );
 }
 
-function getStyles(colors: any) {
+function getStyles(colors: any, theme?: string) {
   return StyleSheet.create({
     container: { flex: 1 },
     header: { paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 10 },
@@ -1515,9 +1480,14 @@ function getStyles(colors: any) {
     generateAiBtnFull: { height: 52, borderRadius: 20, backgroundColor: '#0C2340', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: '#0C2340', shadowOpacity: 0.15, shadowOffset: { width: 0, height: 6 }, shadowRadius: 12, elevation: 3, width: '100%' },
     generateAiBtnDisabled: { opacity: 0.6 },
     generateAiBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-    hashtagBox: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
-    hashtag: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.surfaceSoft, borderWidth: 1, borderColor: colors.cardBorder },
-    hashtagText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+    hashtagBox: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+    hashtag: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      backgroundColor: theme === 'dark' ? '#1E293B' : '#0C2340',
+    },
+    hashtagText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
     platformSelectionGrid: { flexDirection: 'column', gap: 16 },
     platformOption: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 22, borderWidth: 1.5, borderColor: colors.cardBorder, backgroundColor: colors.cardBackground, position: 'relative' },
     platformOptionSelected: { borderColor: colors.accentTeal, shadowColor: colors.accentTeal, shadowOpacity: 0.1, shadowOffset: { width: 0, height: 6 }, shadowRadius: 12 },

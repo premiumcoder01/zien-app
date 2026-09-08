@@ -840,6 +840,7 @@ export default function EditListingScreen() {
           cooling: d.Cooling || [],
           heating: d.Heating || [],
           lotSize: d.LotSizeArea?.toString() || '',
+          confidence: d.Confidence ?? d.confidence ?? d.data_confidence ?? d.DataConfidence ?? d.dataConfidence ?? res.data?.Confidence ?? res.data?.confidence ?? 94,
           fencing: d.Fencing || [],
         };
 

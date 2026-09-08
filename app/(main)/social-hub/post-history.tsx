@@ -446,7 +446,7 @@ export default function PostHistoryScreen() {
             flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, 
             borderTopWidth: 1, borderTopColor: colors.cardBorder, paddingTop: 10, marginTop: 4 
           }}>
-            <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textMuted, marginRight: 2 }}>PLATFORMS:</Text>
+            <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textMuted, marginRight: 2 }}>Platforms:</Text>
             {platforms.map((plat, idx) => {
               const iconName = plat === 'instagram' ? 'instagram' :
                                plat === 'facebook' ? 'facebook' :

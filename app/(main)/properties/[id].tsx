@@ -168,7 +168,7 @@ export default function PropertyDetailScreen() {
           heating: d.Heating || d.heating || null,
           flooring: d.Flooring || d.flooring || [],
           status: d.StandardStatus || 'Ready for Use',
-          confidence: d.confidence || d.data_confidence || 94,
+          confidence: d.Confidence ?? d.confidence ?? d.data_confidence ?? d.DataConfidence ?? d.dataConfidence ?? res.data?.Confidence ?? res.data?.confidence ?? 94,
           lastSync: formatLastSync(res.data),
           listingId: d.ListingId || d.listingId || null,
           parking: d.ParkingFeatures || (d.ParkingTotal ? [`${d.ParkingTotal} Spaces`] : null) || null,
