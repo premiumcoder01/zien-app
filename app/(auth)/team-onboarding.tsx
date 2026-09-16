@@ -6,6 +6,7 @@ import PasswordInput from '@/components/ui/PasswordInput';
 import StepIndicator from '@/components/ui/StepIndicator';
 import { Addon, completeCheckout, fetchTeamPlans, Plan, registerTeamCheckout, TeamCheckoutPayload, uploadTeamLogo } from '@/services/plans';
 import { checkUserExists, registerMobileIos, RegisterMobileIosRequest } from '@/services/authService';
+import { getPlanSku, purchaseAppleSubscription } from '@/services/appleIapService';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -201,26 +202,53 @@ export default function TeamOnboardingScreen() {
       setIsCheckingExists(false);
     }
 
-    if (Platform.OS === 'ios' && currentStep === 2) {
-      const payload: RegisterMobileIosRequest = {
-        flow: 'team',
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        email: formData.email,
-        country_code: countryCode,
-        phone: formData.phone,
-        password: formData.password,
-        team_name: formData.teamName,
-        primary_market: formData.primaryMarket,
-        team_logo_url: formData.teamLogo || undefined,
-      };
-
-      console.log('Sending iOS Team Registration Payload:', payload);
-      iosRegisterMutation.mutate(payload);
-      return;
-    }
-
     if (currentStep === 4) {
+      if (Platform.OS === 'ios') {
+        const sku = getPlanSku(selectedPlan || 'team', duration);
+        console.log(`\n📲 [Team Onboarding] User tapped Continue. Initiating Apple IAP for Team Plan: ${selectedPlan || 'team'} (${duration}), SKU: ${sku}`);
+        try {
+          setIsCheckingExists(true);
+          const purchase = await purchaseAppleSubscription(sku);
+          if (!purchase) {
+            console.log('⚠️ [Team Onboarding] Purchase was cancelled or dismissed by user.');
+            setIsCheckingExists(false);
+            return; // User cancelled Apple purchase popup
+          }
+
+          console.log('🎉 [Team Onboarding] Apple IAP confirmed! Purchase Details:', purchase);
+
+          if (isCompletingMode && accessToken) {
+            console.log('[iOS Team IAP] User already authenticated. Activating team profile.');
+            await login(accessToken, 'agency_user', true);
+            setShowSuccess(true);
+            return;
+          }
+
+          const payload: RegisterMobileIosRequest = {
+            flow: 'team',
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+            country_code: countryCode,
+            phone: formData.phone,
+            password: formData.password,
+            team_name: formData.teamName,
+            primary_market: formData.primaryMarket,
+            team_logo_url: formData.teamLogo || undefined,
+          };
+
+          console.log('🚀 [Team Onboarding] Sending iOS Registration Payload to backend after IAP success:', payload);
+          iosRegisterMutation.mutate(payload);
+        } catch (error: any) {
+          console.error('❌ [Team Onboarding] IAP Error:', error);
+          Alert.alert('Subscription Notice', error?.message || 'Unable to complete Apple In-App Purchase. Please try again.');
+        } finally {
+          setIsCheckingExists(false);
+        }
+        return;
+      }
+
+      // Android: Stripe Checkout Flow
       const addon_ids = (activePlan?.addons || [])
         .filter(a => selectedAddons[a.slug])
         .map(a => a.id);
@@ -240,10 +268,11 @@ export default function TeamOnboardingScreen() {
         team_logo: formData.teamLogo || undefined,
       };
 
+      console.log('Sending Registration Payload for Stripe:', payload);
       registerMutation.mutate(payload);
       return;
     }
-    const maxSteps = Platform.OS === 'ios' ? 2 : 4;
+    const maxSteps = 4;
     setCurrentStep((prev) => Math.min(prev + 1, maxSteps));
   };
 
@@ -307,18 +336,34 @@ export default function TeamOnboardingScreen() {
 
   const iosRegisterMutation = useMutation({
     mutationFn: (payload: RegisterMobileIosRequest) => registerMobileIos(payload),
-    onSuccess: (data) => {
-      if (!data.access_token && data.message) {
-        setShowActivationModal(true);
-        return;
-      }
+    onSuccess: async (data) => {
+      console.log('[iOS Team Register] Registration succeeded, setting up session:', data);
       if (data.access_token) {
-        login(data.access_token, data.role, data.complete_profile);
+        await login(data.access_token, data.role || 'agency_user', true);
         setSuccessData(data);
         setShowSuccess(true);
-      } else {
-        setShowSuccess(true);
+        return;
       }
+
+      // Auto-authenticate with the credentials entered during registration
+      try {
+        const loginRes = await loginAgent({
+          email: formData.email,
+          password: formData.password,
+          platform: 'ios',
+          device_token: 'simulator_device_token',
+        });
+        if (loginRes.access_token) {
+          await login(loginRes.access_token, loginRes.role || 'agency_user', true);
+          setSuccessData({ ...data, ...loginRes });
+          setShowSuccess(true);
+          return;
+        }
+      } catch (err) {
+        console.log('[iOS Team Register] Auto-login error:', err);
+      }
+
+      setShowSuccess(true);
     },
     onError: (error: Error) => {
       const msg = error.message.toLowerCase();
@@ -563,7 +608,7 @@ export default function TeamOnboardingScreen() {
               />
             </View>
 
-            <GradientButton title="Continue" style={styles.primaryButton} onPress={goNext} loading={isCheckingExists} disabled={isCheckingExists} />
+            <GradientButton title="Continue" style={styles.primaryButton} onPress={goNext} isLoading={isCheckingExists} disabled={isCheckingExists} />
             {errors._form && (
               <Text style={[styles.errorTextSmall, { textAlign: 'center', marginTop: 12 }]}>
                 {errors._form}
@@ -734,11 +779,16 @@ export default function TeamOnboardingScreen() {
                   'enterprise': { icon: 'domain', role: 'Enterprise' },
                 };
                 const meta = PLAN_META[plan.slug] || { icon: 'account-group-outline', role: 'Team Owner' };
-                const displayMonthly = duration === 'annually' && planPrice
-                  ? (Number(planPrice.price) / 12).toFixed(2)
-                  : (planPrice?.price || '0.00');
-                const wholePrice = displayMonthly.split('.')[0];
-                const decimalPrice = displayMonthly.split('.')[1] || '00';
+                const isAnnually = duration === 'annually';
+                const displayPrice = isAnnually
+                  ? (planPrice?.price || '2999.99')
+                  : (planPrice?.price || '299.99');
+                const wholePrice = displayPrice.split('.')[0];
+                const decimalPrice = displayPrice.split('.')[1] || '00';
+                const priceInterval = isAnnually ? '/yr' : '/mo';
+                const monthlyBreakdown = isAnnually
+                  ? `$${(Number(planPrice?.price || 0) / 12).toFixed(2)}/mo`
+                  : null;
 
                 return (
                   <Pressable
@@ -817,12 +867,14 @@ export default function TeamOnboardingScreen() {
                         <Text style={[styles.priceAmount, isSelected && styles.priceOnDark]}>{wholePrice}</Text>
                         <View>
                           <Text style={[styles.priceDecimals, isSelected && styles.priceOnDark]}>.{decimalPrice}</Text>
-                          <Text style={[styles.priceInterval, isSelected && styles.priceIntervalOnDark]}>/mo</Text>
+                          <Text style={[styles.priceInterval, isSelected && styles.priceIntervalOnDark]}>{priceInterval}</Text>
                         </View>
                       </View>
-                      {duration === 'annually' && (
+                      {isAnnually && (
                         <View style={[styles.billedAnnuallyBadge, isSelected && { backgroundColor: 'rgba(0,167,181,0.25)' }]}>
-                          <Text style={[styles.billedAnnuallyText, isSelected && { color: '#7EEEF7' }]}>Billed annually</Text>
+                          <Text style={[styles.billedAnnuallyText, isSelected && { color: '#7EEEF7' }]}>
+                            {monthlyBreakdown ? `${monthlyBreakdown} • Billed annually` : 'Billed annually'}
+                          </Text>
                         </View>
                       )}
                     </LinearGradient>
@@ -878,7 +930,7 @@ export default function TeamOnboardingScreen() {
                           <View style={styles.addOnActionCol}>
                             <Text style={[styles.addOnPrice, isSelected && styles.addOnPriceActive]}>
                               {addonPrice
-                                ? `$${duration === 'annually' ? (Number(addonPrice.price) / 12).toFixed(2) : addonPrice.price}/mo`
+                                ? `$${addonPrice.price}${duration === 'annually' ? '/yr' : '/mo'}`
                                 : 'N/A'}
                             </Text>
                             <Switch
@@ -902,8 +954,8 @@ export default function TeamOnboardingScreen() {
                   <Text style={styles.summaryLabel}>{activePlan?.name}</Text>
                   <Text style={styles.summaryValue}>
                     {duration === 'annually'
-                      ? `$${(Number(activePrice?.price || 0) / 12).toFixed(2)}/mo x 12`
-                      : `$${activePrice?.price || '0.00'}`}
+                      ? `$${activePrice?.price || '2999.99'}/yr`
+                      : `$${activePrice?.price || '0.00'}/mo`}
                   </Text>
                 </View>
 
@@ -914,8 +966,8 @@ export default function TeamOnboardingScreen() {
                       <Text style={styles.summaryLabel}>{addon.name}</Text>
                       <Text style={styles.summaryValue}>
                         {duration === 'annually'
-                          ? `$${(Number(ap?.price || 0) / 12).toFixed(2)}/mo x 12`
-                          : `$${ap?.price || '0.00'}`}
+                          ? `$${ap?.price || '179.99'}/yr`
+                          : `$${ap?.price || '0.00'}/mo`}
                       </Text>
                     </View>
                   );
@@ -951,7 +1003,7 @@ export default function TeamOnboardingScreen() {
                         <Text style={styles.trialBold}>14-day free trial.</Text>
                         {' '}You will enter a payment method at checkout; you are not charged today. After the trial,{' '}
                         {duration === 'annually' ? (
-                          <Text style={styles.trialBold}>${perMonth}/mo (billed ${total.toFixed(2)} annually)</Text>
+                          <Text style={styles.trialBold}>${total.toFixed(2)}/yr (equivalent to ${perMonth}/mo)</Text>
                         ) : (
                           <Text style={styles.trialBold}>${total.toFixed(2)} per Month</Text>
                         )}
@@ -974,7 +1026,8 @@ export default function TeamOnboardingScreen() {
                 title="Continue"
                 style={styles.primaryButtonFlex}
                 onPress={goNext}
-                isLoading={isAnyRegisterPending}
+                isLoading={isAnyRegisterPending || isCheckingExists}
+                disabled={isAnyRegisterPending || isCheckingExists}
               />
             </View>
             {isAnyRegisterError && (
@@ -985,6 +1038,15 @@ export default function TeamOnboardingScreen() {
             <Text style={styles.supportText}>
               Need help? <Text style={styles.supportLink} onPress={handleContactSupport}>Contact Support</Text>
             </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10, gap: 12 }}>
+              <Pressable onPress={() => Linking.openURL('https://zien.ai/terms')}>
+                <Text style={[styles.supportLink, { fontSize: 12 }]}>Terms of Service</Text>
+              </Pressable>
+              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>•</Text>
+              <Pressable onPress={() => Linking.openURL('https://zien.ai/privacy')}>
+                <Text style={[styles.supportLink, { fontSize: 12 }]}>Privacy Policy</Text>
+              </Pressable>
+            </View>
           </>
         );
       default:
@@ -1078,7 +1140,7 @@ export default function TeamOnboardingScreen() {
 
           <AuthCard>
             <AuthLogoBrand brandLabel="ZIEN" />
-            {!showSuccess && !isCompletingCheckout && <StepIndicator currentStep={currentStep} totalSteps={Platform.OS === 'ios' ? 2 : 4} />}
+            {!showSuccess && !isCompletingCheckout && <StepIndicator currentStep={currentStep} totalSteps={4} />}
             {isCompletingCheckout ? renderCompleting() : showSuccess ? renderSuccess() : renderStepContent()}
           </AuthCard>
         </ScrollView>
@@ -1165,7 +1227,7 @@ export default function TeamOnboardingScreen() {
       </Modal>
 
       <Modal visible={showActivationModal} animationType="fade" transparent={true}>
-        <View style={styles.modalOverlay}>
+        <View style={styles.activationModalOverlay}>
           <View style={styles.activationCard}>
             <LinearGradient
               colors={['#FFFFFF', '#F8FAFC']}
@@ -2067,7 +2129,7 @@ const getStyles = (colors: any, insets: any) => StyleSheet.create({
     color: colors.accent,
     fontWeight: '700',
   },
-  modalOverlay: {
+  activationModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
     justifyContent: 'center',

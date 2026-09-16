@@ -347,14 +347,14 @@ export const getSoloSubscription = async (accessToken: string | null): Promise<S
       },
     });
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
+    const text = await response.text().catch(() => '');
+    if (!response.ok || !text) {
+      return DEFAULT_SOLO_SUBSCRIPTION;
     }
 
-    const data = await response.json();
-    return data;
+    const data = JSON.parse(text);
+    return data?.data || data || DEFAULT_SOLO_SUBSCRIPTION;
   } catch (error) {
-    console.warn('[BillingService] Failed to fetch subscription, using fallback data:', error);
     return DEFAULT_SOLO_SUBSCRIPTION;
   } finally {
     clearTimeout(timeoutId);
@@ -380,14 +380,14 @@ export const getSoloInvoices = async (accessToken: string | null): Promise<SoloI
       },
     });
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
+    const text = await response.text().catch(() => '');
+    if (!response.ok || !text) {
+      return DEFAULT_SOLO_INVOICES;
     }
 
-    const data = await response.json();
-    return data;
+    const data = JSON.parse(text);
+    return data?.data || data || DEFAULT_SOLO_INVOICES;
   } catch (error) {
-    console.warn('[BillingService] Failed to fetch invoices, using fallback data:', error);
     return DEFAULT_SOLO_INVOICES;
   } finally {
     clearTimeout(timeoutId);

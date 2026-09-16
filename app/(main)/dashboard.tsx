@@ -375,10 +375,11 @@ export default function DashboardScreen() {
 
   const crmCounts = useMemo(() => {
     const counts = { new: 0, negotiation: 0, closing: 0 };
-    if (!dashboardData?.crmSnapshot) return counts;
+    const rawSnapshot = dashboardData?.crmSnapshot || (dashboardData as any)?.data?.crmSnapshot;
+    if (!rawSnapshot) return counts;
 
-    if (Array.isArray(dashboardData.crmSnapshot)) {
-      dashboardData.crmSnapshot.forEach((item: any) => {
+    if (Array.isArray(rawSnapshot)) {
+      rawSnapshot.forEach((item: any) => {
         const name = item?.name?.toLowerCase();
         const count = Number(item?.count ?? 0);
         if (name === 'lead' || name === 'new') {
@@ -389,8 +390,8 @@ export default function DashboardScreen() {
           counts.closing = count;
         }
       });
-    } else if (typeof dashboardData.crmSnapshot === 'object') {
-      const snapshot = dashboardData.crmSnapshot as any;
+    } else if (typeof rawSnapshot === 'object' && rawSnapshot !== null) {
+      const snapshot = rawSnapshot as any;
       counts.new = Number(snapshot.new ?? snapshot.lead ?? 0);
       counts.negotiation = Number(snapshot.negotiation ?? snapshot.offer ?? 0);
       counts.closing = Number(snapshot.closing ?? snapshot.closed ?? 0);
@@ -400,9 +401,11 @@ export default function DashboardScreen() {
 
   const STATS = useMemo(() => {
     if (!dashboardData) return [];
+    const statsObj = dashboardData.stats || (dashboardData as any)?.data?.stats;
+    if (!statsObj || typeof statsObj !== 'object') return [];
 
     return STATS_CONFIG.map(config => {
-      const apiStat = (dashboardData.stats as any)[config.key];
+      const apiStat = (statsObj as any)[config.key];
       const rawValue = apiStat?.value || '0';
       const formattedValue = formatStatValue(rawValue, config.key === 'estRevenue');
       return {
@@ -415,7 +418,8 @@ export default function DashboardScreen() {
   }, [dashboardData]);
 
   const ACTIVE_LEADS = useMemo(() => {
-    return dashboardData?.activeLeads || [];
+    const leads = dashboardData?.activeLeads || (dashboardData as any)?.data?.activeLeads;
+    return Array.isArray(leads) ? leads : [];
   }, [dashboardData]);
 
   const windowWidth = Dimensions.get('window').width;
@@ -428,7 +432,8 @@ export default function DashboardScreen() {
   const chartWidth = Math.max(240, sectionColumnWidth);
 
   const leadVelocityData = useMemo(() => {
-    const apiData = dashboardData?.leadVelocity || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    const rawData = dashboardData?.leadVelocity || (dashboardData as any)?.data?.leadVelocity;
+    const apiData = Array.isArray(rawData) ? rawData : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
     if (velocityRange === '7d') {
       // Last 7 days
@@ -681,7 +686,7 @@ export default function DashboardScreen() {
             accent="#F59E0B"
           >
             <View style={{ marginTop: 4 }}>
-              {(dashboardData?.latestUpdates || []).slice(0, 2).map((u: any, i: number) => (
+              {((Array.isArray(dashboardData?.latestUpdates) ? dashboardData.latestUpdates : (dashboardData as any)?.data?.latestUpdates) || []).slice(0, 2).map((u: any, i: number) => (
                 <UpdateRow
                   key={`update-${u.id || u.title || 'item'}-${i}`}
                   icon={u.icon || 'bell-outline'}
@@ -691,7 +696,7 @@ export default function DashboardScreen() {
                   accentColor={u.accent || '#0a2341'}
                 />
               ))}
-              {(!dashboardData?.latestUpdates || dashboardData.latestUpdates.length === 0) && (
+              {(!dashboardData?.latestUpdates && !(dashboardData as any)?.data?.latestUpdates || ((dashboardData?.latestUpdates || (dashboardData as any)?.data?.latestUpdates)?.length === 0)) && (
                 <View style={styles.emptyStateContainer}>
                   <MaterialCommunityIcons name="bell-off-outline" size={32} color={colors.textMuted || '#8DA4B5'} />
                   <Text style={styles.emptyStateText}>No updates available</Text>

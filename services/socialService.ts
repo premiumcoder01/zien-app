@@ -279,6 +279,8 @@ export interface SocialOverviewData {
   published_posts_count: number;
   recent_published_posts: SocialPost[];
   templates: any[];
+  engagement_rate?: string;
+  active_automations?: number;
 }
 
 /**

@@ -6,6 +6,7 @@ import { getTeamProfile, updateTeamProfile } from '@/services/dashboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import {
   Alert,
@@ -61,6 +62,7 @@ export default function CRMSettingsScreen() {
   const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>('General');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -135,49 +137,50 @@ export default function CRMSettingsScreen() {
         }
 
         if (data) {
-          if (data.lead_distribution) {
-            setLeadDistribution(data.lead_distribution as any);
+          const settings = (data as any)?.settings || data;
+          if (settings.lead_distribution) {
+            setLeadDistribution(settings.lead_distribution as any);
           }
-          if (data.auto_merge !== undefined) {
-            setAutoMergeDuplicates(data.auto_merge);
+          if (settings.auto_merge !== undefined) {
+            setAutoMergeDuplicates(Boolean(settings.auto_merge));
           }
-          if (data.inactivity_threshold) {
-            setInactivityDays(data.inactivity_threshold as any);
+          if (settings.inactivity_threshold) {
+            setInactivityDays(settings.inactivity_threshold as any);
           }
-          if (data.safety_limit) {
-            setSafetyLimit(data.safety_limit as any);
+          if (settings.safety_limit) {
+            setSafetyLimit(settings.safety_limit as any);
           }
-          if (data.target_segment) {
-            setTargetSegmentGhost(data.target_segment as any);
+          if (settings.target_segment) {
+            setTargetSegmentGhost(settings.target_segment as any);
           }
-          if (data.reengagement_channel) {
-            setReEngagementChannel(data.reengagement_channel as any);
+          if (settings.reengagement_channel) {
+            setReEngagementChannel(settings.reengagement_channel as any);
           }
-          if (data.protocol_identity) {
-            setProtocolIdentity(data.protocol_identity as any);
+          if (settings.protocol_identity) {
+            setProtocolIdentity(settings.protocol_identity as any);
           }
-          if (data.recovery_script) {
-            setEmailBodyPreview(data.recovery_script);
+          if (settings.recovery_script) {
+            setEmailBodyPreview(settings.recovery_script);
           }
-          if (data.ghost_protocol !== undefined) {
-            setGhostProtocolEnabled(data.ghost_protocol);
+          if (settings.ghost_protocol !== undefined) {
+            setGhostProtocolEnabled(Boolean(settings.ghost_protocol));
           }
-          if (data.anniversary_settings) {
+          if (settings.anniversary_settings) {
             setAnniversaryToggles({
-              home: !!data.anniversary_settings.homeAnniversary,
-              birthday: !!data.anniversary_settings.birthdayAnniversary,
-              marriage: !!data.anniversary_settings.marriageAnniversary,
+              home: !!settings.anniversary_settings.homeAnniversary,
+              birthday: !!settings.anniversary_settings.birthdayAnniversary,
+              marriage: !!settings.anniversary_settings.marriageAnniversary,
             });
           }
-          if (data.anniversaries) {
+          if (settings.anniversaries) {
             const standardKeys = ['homeAnniversary', 'birthdayAnniversary', 'marriageAnniversary'];
-            const custom = data.anniversaries
+            const custom = settings.anniversaries
               .filter((ann: any) => !standardKeys.includes(ann.key))
               .map((ann: any) => ({
                 id: ann.key,
                 label: ann.event,
                 icon: ann.icon === 'star' ? 'star-outline' : ann.icon,
-                enabled: !!data.anniversary_settings?.[ann.key]
+                enabled: !!settings.anniversary_settings?.[ann.key]
               }));
             setCustomRules(custom);
           }
@@ -346,6 +349,7 @@ export default function CRMSettingsScreen() {
         updateCRMSettings(accessToken, payload),
         updateTeamProfile(accessToken, profilePayload),
       ]);
+      queryClient.invalidateQueries({ queryKey: ['crm-settings'] });
       Alert.alert('Success', 'CRM and Email settings saved successfully.');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to save settings. Please try again.');

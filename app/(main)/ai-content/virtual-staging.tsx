@@ -1,12 +1,14 @@
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { generateVirtualStaging } from '@/services/aiContentService';
+import { AiContentItem, deleteAiContent, generateVirtualStaging, getAiContentList, saveAiContent } from '@/services/aiContentService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import * as Sharing from 'expo-sharing';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -15,8 +17,10 @@ import {
     LayoutChangeEvent,
     Modal,
     Pressable,
+    RefreshControl,
     ScrollView,
     StyleSheet,
+    Switch,
     Text,
     TextInput,
     View,
@@ -144,17 +148,17 @@ function BeforeAfterSlider({ beforeUri, afterUri, height }: { beforeUri: string;
 
     return (
         <View style={[styles.compareContainer, { height }]} onLayout={onLayout}>
-            <Image source={{ uri: beforeUri }} style={styles.compareFullImage} />
+            <Image source={{ uri: afterUri }} style={styles.compareFullImage} />
             <Animated.View style={[styles.compareClip, clipStyle]}>
-                <Image source={{ uri: afterUri }} style={styles.compareFullImage} />
+                <Image source={{ uri: beforeUri }} style={styles.compareFullImage} />
             </Animated.View>
             <GestureDetector gesture={panGesture}>
                 <Animated.View style={[styles.compareThumb, thumbStyle]}>
                     <MaterialCommunityIcons name="drag-horizontal" size={20} color="#0B2D3E" />
                 </Animated.View>
             </GestureDetector>
-            <View style={styles.rawLabel}><Text style={styles.rawLabelText}>AFTER</Text></View>
-            <View style={styles.stagedLabel}><Text style={styles.stagedLabelText}>BEFORE</Text></View>
+            <View style={styles.rawLabel}><Text style={styles.rawLabelText}>BEFORE</Text></View>
+            <View style={styles.stagedLabel}><Text style={styles.stagedLabelText}>AFTER</Text></View>
         </View>
     );
 }
@@ -176,6 +180,10 @@ export default function VirtualStagingScreen() {
     }>();
 
     const [viewMode, setViewMode] = useState<'dashboard' | 'config' | 'loading' | 'studio'>(content ? 'studio' : 'dashboard');
+    const [mainTab, setMainTab] = useState<'kits' | 'saved'>('kits');
+    const [savedDesigns, setSavedDesigns] = useState<AiContentItem[]>([]);
+    const [loadingSaved, setLoadingSaved] = useState(false);
+    const [refreshingSaved, setRefreshingSaved] = useState(false);
     const [selectedTool, setSelectedTool] = useState<string | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(originalImage || null);
     const [category, setCategory] = useState(roomType || CATEGORIES[0]);
@@ -184,6 +192,164 @@ export default function VirtualStagingScreen() {
     const [level, setLevel] = useState<'Low' | 'Medium' | 'High'>('Medium');
     const [selectedStyleId, setSelectedStyleId] = useState(1);
     const [generatedImage, setGeneratedImage] = useState<string | null>(content || null);
+    const [studioDisplayMode, setStudioDisplayMode] = useState<'slider' | 'side'>('side');
+    const [showComparison, setShowComparison] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    const fetchSavedDesigns = useCallback(async (isRefresh = false) => {
+        if (isRefresh) setRefreshingSaved(true);
+        else setLoadingSaved(true);
+        try {
+            const res = await getAiContentList(accessToken || undefined, 'virtual-staging');
+            let list: AiContentItem[] = [];
+            if (res && Array.isArray(res.data)) {
+                list = res.data;
+            } else if (Array.isArray(res)) {
+                list = res as any[];
+            } else if (res && Array.isArray((res as any).items)) {
+                list = (res as any).items;
+            }
+            const filtered = list.filter(item =>
+                !item.type || item.type === 'virtual-staging' || item.type === 'virtual_staging'
+            );
+            const sorted = filtered.sort(
+                (a, b) => new Date(b.created_at || b.updated_at || 0).getTime() - new Date(a.created_at || a.updated_at || 0).getTime()
+            );
+            setSavedDesigns(sorted);
+        } catch (e) {
+            console.log('Error fetching saved designs:', e);
+        } finally {
+            setLoadingSaved(false);
+            setRefreshingSaved(false);
+        }
+    }, [accessToken]);
+
+    useEffect(() => {
+        if (mainTab === 'saved') {
+            fetchSavedDesigns();
+        }
+    }, [mainTab, fetchSavedDesigns]);
+
+    const handleDeleteSaved = (itemId: number) => {
+        Alert.alert(
+            'Delete Saved Design',
+            'Are you sure you want to delete this saved design?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteAiContent(itemId, accessToken || undefined);
+                            setSavedDesigns(prev => prev.filter(i => i.id !== itemId));
+                        } catch (e) {
+                            Alert.alert('Error', 'Failed to delete design.');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleOpenSavedDesign = (item: AiContentItem) => {
+        setSelectedImage(item.metadata?.originalImage || item.metadata?.input_details || null);
+        setGeneratedImage(item.content || item.metadata?.imageUrl || null);
+        if (item.metadata?.roomType) setCategory(item.metadata.roomType);
+        if (item.metadata?.designBrief) setDescription(item.metadata.designBrief);
+        else if (item.metadata?.prompt) setDescription(item.metadata.prompt);
+        else if (item.metadata?.input_details) setDescription(item.metadata.input_details);
+        if (item.metadata?.style) {
+            const found = activeStyles.find(s => s.name.toLowerCase() === item.metadata.style.toLowerCase());
+            if (found) setSelectedStyleId(found.id);
+        }
+        setViewMode('studio');
+    };
+
+    const handleSaveDesign = async () => {
+        if (!generatedImage) {
+            Alert.alert('Save Error', 'No generated design available to save.');
+            return;
+        }
+        setIsSaving(true);
+        try {
+            const activeStyleName = hasSelectStyle
+                ? (activeStyles.find(s => s.id === selectedStyleId)?.name || 'Classic Luxury')
+                : (style || 'Classic Luxury');
+            const activeRoomType = category || roomType || 'Living Room';
+            const activePrompt = description.trim() || prefill || 'a wood house in green color';
+
+            const payload = {
+                type: 'virtual-staging',
+                content: generatedImage,
+                metadata: {
+                    title: `${activeStyleName} - ${activeRoomType}`,
+                    style: activeStyleName,
+                    roomType: activeRoomType,
+                    designBrief: activePrompt,
+                    originalImage: selectedImage || '',
+                    toolId: selectedTool ? selectedTool.toLowerCase().replace(/\s+/g, '-') : 'virtual-staging',
+                }
+            };
+
+            await saveAiContent(payload, accessToken || undefined);
+            Alert.alert('Saved!', 'Design successfully saved to Saved Designs.');
+            fetchSavedDesigns();
+        } catch (e: any) {
+            console.error('Save design error:', e);
+            Alert.alert('Save Error', e?.message || 'Failed to save design.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDownloadImage = async () => {
+        const targetUrl = generatedImage;
+        if (!targetUrl) {
+            Alert.alert('Download Error', 'No generated image available to download.');
+            return;
+        }
+        setIsDownloading(true);
+        try {
+            const filename = `virtual-staging-${Date.now()}.png`;
+            const localUri = `${FileSystem.documentDirectory}${filename}`;
+
+            let fileToSave = targetUrl;
+            if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+                const downloadRes = await FileSystem.downloadAsync(targetUrl, localUri);
+                fileToSave = downloadRes.uri;
+            } else if (targetUrl.startsWith('data:image')) {
+                const base64Data = targetUrl.replace(/^data:image\/\w+;base64,/, '');
+                await FileSystem.writeAsStringAsync(localUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+                fileToSave = localUri;
+            }
+
+            const { status } = await MediaLibrary.requestPermissionsAsync();
+            if (status === 'granted') {
+                const asset = await MediaLibrary.createAssetAsync(fileToSave);
+                await MediaLibrary.createAlbumAsync('Zien', asset, false);
+                Alert.alert('Downloaded!', '8K Staged image saved to your photo library.');
+            } else if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(fileToSave, { mimeType: 'image/png', dialogTitle: 'Download 8K Image' });
+            } else {
+                Alert.alert('Success', 'Image downloaded successfully.');
+            }
+        } catch (e: any) {
+            console.error('Download image error:', e);
+            if (await Sharing.isAvailableAsync() && targetUrl) {
+                try {
+                    await Sharing.shareAsync(targetUrl);
+                } catch (_) {
+                    Alert.alert('Error', 'Failed to save image.');
+                }
+            } else {
+                Alert.alert('Error', 'Failed to save image.');
+            }
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     const hasCategory = selectedTool !== 'Find Items' && selectedTool !== 'Edit Outside' && selectedTool !== 'Edit Garden' && selectedTool !== 'Remove Items' && selectedTool !== 'Change Flooring';
     const hasSelectStyle = selectedTool !== 'Find Items' && selectedTool !== 'Remove Items';
@@ -276,27 +442,180 @@ export default function VirtualStagingScreen() {
     }
 
     if (viewMode === 'studio') {
+        const activeStyleName = hasSelectStyle
+            ? (activeStyles.find(s => s.id === selectedStyleId)?.name || 'Classic Luxury')
+            : (style || 'Classic Luxury');
+        const activeRoomType = category || roomType || 'Primary Bedroom';
+        const activePrompt = description.trim() || prefill || 'a wood house in green color';
+
         return (
             <LinearGradient colors={colors.backgroundGradient as any} style={[styles.container, { paddingTop: insets.top }]}>
                 <Pressable onPress={() => setViewMode('config')} style={styles.backBtn}>
                     <MaterialCommunityIcons name="arrow-left" size={16} color={colors.textPrimary} />
                     <Text style={styles.backBtnText}>Back</Text>
                 </Pressable>
-                <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
+                <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
                     <Text style={styles.sectionTitle}>AI Generation Studio</Text>
-                    <Text style={[styles.sectionSubtitle, { marginBottom: 20 }]}>Refining custom style with precision rendering.</Text>
+                    <Text style={[styles.sectionSubtitle, { marginBottom: 16 }]}>Refining custom style with precision rendering.</Text>
 
-                    <View style={styles.studioCard}>
-                        <BeforeAfterSlider
-                            beforeUri={selectedImage || 'https://images.unsplash.com/photo-1600585152220-90363fe44548?w=800'}
-                            afterUri={generatedImage || 'https://replicate.delivery/yhqm/yhU8YT4u7365B1zkQOR8Fp0aRvWjbpIeTCENf1KCzFadzXHXA/output_1.png'}
-                            height={300}
-                        />
+                    {/* Canvas Container with Web-matching Header Bar */}
+                    <View style={styles.canvasWrapper}>
+                        {/* Header Bar: Status Indicator, Title, Show Comparison Switch, Save Design, Export 8K */}
+                        <View style={styles.canvasHeaderContainer}>
+                            <View style={styles.canvasHeaderTopRow}>
+                                <View style={styles.canvasTitleWrap}>
+                                    <View style={styles.canvasStatusDot} />
+                                    <Text style={styles.canvasTitleText}>AI RENDERING CANVAS</Text>
+                                </View>
+
+                                <View style={styles.canvasComparisonWrap}>
+                                    <Switch
+                                        value={showComparison}
+                                        onValueChange={setShowComparison}
+                                        trackColor={{ false: '#334155', true: '#00A7B5' }}
+                                        thumbColor="#FFFFFF"
+                                        ios_backgroundColor="#334155"
+                                        style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                                    />
+                                    <Text style={styles.canvasComparisonText}>SHOW COMPARISON</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.canvasHeaderActionRow}>
+                                <Pressable
+                                    style={styles.canvasSaveBtn}
+                                    onPress={handleSaveDesign}
+                                    disabled={isSaving}
+                                >
+                                    {isSaving ? (
+                                        <ActivityIndicator size="small" color="#00A7B5" />
+                                    ) : (
+                                        <>
+                                            <MaterialCommunityIcons name="content-save-outline" size={16} color="#00A7B5" />
+                                            <Text style={styles.canvasSaveBtnText}>SAVE DESIGN</Text>
+                                        </>
+                                    )}
+                                </Pressable>
+
+                                <Pressable
+                                    style={styles.canvasExportBtn}
+                                    onPress={handleDownloadImage}
+                                    disabled={isDownloading}
+                                >
+                                    {isDownloading ? (
+                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                    ) : (
+                                        <>
+                                            <MaterialCommunityIcons name="tray-arrow-down" size={16} color="#FFFFFF" />
+                                            <Text style={styles.canvasExportBtnText}>EXPORT 8K</Text>
+                                        </>
+                                    )}
+                                </Pressable>
+                            </View>
+                        </View>
+
+                        {/* Interactive Canvas */}
+                        <View style={styles.canvasBody}>
+                            {showComparison ? (
+                                <BeforeAfterSlider
+                                    beforeUri={selectedImage || 'https://images.unsplash.com/photo-1600585152220-90363fe44548?w=800'}
+                                    afterUri={generatedImage || 'https://replicate.delivery/yhqm/yhU8YT4u7365B1zkQOR8Fp0aRvWjbpIeTCENf1KCzFadzXHXA/output_1.png'}
+                                    height={320}
+                                />
+                            ) : (
+                                <View style={styles.fullCanvasContainer}>
+                                    <Image
+                                        source={{ uri: generatedImage || 'https://replicate.delivery/yhqm/yhU8YT4u7365B1zkQOR8Fp0aRvWjbpIeTCENf1KCzFadzXHXA/output_1.png' }}
+                                        style={styles.fullCanvasImage}
+                                    />
+                                    <View style={styles.canvasLiveBadge}>
+                                        <View style={styles.canvasLiveDot} />
+                                        <Text style={styles.canvasLiveText}>8K MASTER RENDER</Text>
+                                    </View>
+                                </View>
+                            )}
+                        </View>
                     </View>
 
-                    <Pressable style={styles.tryThisBtn} onPress={() => setViewMode('dashboard')}>
-                        <Text style={styles.tryThisBtnText}>Done / Dashboard</Text>
-                    </Pressable>
+                    {/* Style Refinement Card matching Web UI */}
+                    <View style={styles.styleRefinementCard}>
+                        <Text style={styles.styleRefinementTitle}>Style Refinement</Text>
+
+                        {/* Image Preview with Change Button */}
+                        <View style={styles.refinementImageWrap}>
+                            <Image
+                                source={{ uri: selectedImage || 'https://images.unsplash.com/photo-1600585152220-90363fe44548?w=800' }}
+                                style={styles.refinementImage}
+                            />
+                            <Pressable style={styles.refinementChangeBtn} onPress={pickImage}>
+                                <Text style={styles.refinementChangeBtnText}>Change</Text>
+                            </Pressable>
+                        </View>
+
+                        {/* Instructions input */}
+                        <TextInput
+                            style={styles.refinementInput}
+                            placeholder="Add specific instructions for the AI... (e.g. use more oak wood, add floor lamps, include a large rug)"
+                            placeholderTextColor={colors.inputPlaceholder}
+                            multiline
+                            numberOfLines={4}
+                            value={description}
+                            onChangeText={setDescription}
+                        />
+
+                        {/* Re-Generate Vision Button */}
+                        <Pressable style={styles.regenerateBtn} onPress={handleGenerate}>
+                            <Text style={styles.regenerateBtnText}>RE-GENERATE VISION</Text>
+                        </Pressable>
+                    </View>
+
+                    {/* Metadata Details Card matching Web */}
+                    <View style={styles.studioDetailsCard}>
+                        <View style={styles.studioDetailsRow}>
+                            <View style={styles.studioDetailCol}>
+                                <Text style={styles.studioDetailLabel}>STYLE SELECTED</Text>
+                                <Text style={styles.studioDetailValue}>{activeStyleName}</Text>
+                            </View>
+                            <View style={styles.studioDetailCol}>
+                                <Text style={styles.studioDetailLabel}>ROOM TYPE</Text>
+                                <Text style={styles.studioDetailValue}>{activeRoomType}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.studioPromptSection}>
+                            <Text style={styles.studioDetailLabel}>DESIGN BRIEF (PROMPT)</Text>
+                            <View style={styles.studioPromptBox}>
+                                <Text style={styles.studioPromptText}>
+                                    "{activePrompt}"
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Action Buttons matching Web */}
+                    <View style={styles.studioActionRow}>
+                        <Pressable
+                            style={styles.studioCloseBtn}
+                            onPress={() => setViewMode('dashboard')}
+                        >
+                            <Text style={styles.studioCloseBtnText}>Close</Text>
+                        </Pressable>
+
+                        <Pressable
+                            style={styles.studioDownloadBtn}
+                            onPress={handleDownloadImage}
+                            disabled={isDownloading}
+                        >
+                            {isDownloading ? (
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                            ) : (
+                                <>
+                                    <MaterialCommunityIcons name="tray-arrow-down" size={18} color="#FFFFFF" />
+                                    <Text style={styles.studioDownloadBtnText}>Download 8K Image</Text>
+                                </>
+                            )}
+                        </Pressable>
+                    </View>
                 </ScrollView>
             </LinearGradient>
         );
@@ -433,71 +752,193 @@ export default function VirtualStagingScreen() {
                     <MaterialCommunityIcons name="arrow-left" size={16} color={colors.textPrimary} />
                     <Text style={styles.backBtnText}>Back</Text>
                 </Pressable>
-                <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
-                    {/* Carousel */}
-                    <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer} snapToInterval={SCREEN_WIDTH - 40} decelerationRate="fast">
-                        {BANNER_SLIDES.map((slide) => (
-                            <View key={slide.id} style={styles.bannerCard}>
-                                <LinearGradient colors={['#0F172A', '#1E293B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bannerGradient}>
-                                    <View style={styles.bannerBadge}>
-                                        <Text style={styles.bannerBadgeText}>{slide.badge}</Text>
-                                    </View>
-                                    <Text style={styles.bannerTitle}>
-                                        {slide.title} <Text style={{ color: '#00A7B5' }}>{slide.titleAccent}</Text>
-                                    </Text>
-                                    <Text style={styles.bannerDesc}>{slide.desc}</Text>
 
-                                    <View style={styles.bannerImageContainer}>
-                                        <Image source={{ uri: slide.imageRight }} style={styles.bannerFullImage} />
-                                    </View>
+                {/* Top Tab Bar: AI Design Kits vs Saved Designs */}
+                <View style={styles.topTabBar}>
+                    <Pressable
+                        style={[styles.topTabItem, mainTab === 'kits' && styles.topTabItemActive]}
+                        onPress={() => setMainTab('kits')}
+                    >
+                        <Text style={[styles.topTabText, mainTab === 'kits' && styles.topTabTextActive]}>
+                            AI Design Kits
+                        </Text>
+                        {mainTab === 'kits' && <View style={styles.topTabIndicator} />}
+                    </Pressable>
+                    <Pressable
+                        style={[styles.topTabItem, mainTab === 'saved' && styles.topTabItemActive]}
+                        onPress={() => setMainTab('saved')}
+                    >
+                        <Text style={[styles.topTabText, mainTab === 'saved' && styles.topTabTextActive]}>
+                            Saved Designs
+                        </Text>
+                        {mainTab === 'saved' && <View style={styles.topTabIndicator} />}
+                    </Pressable>
+                </View>
 
-                                    <Pressable
-                                        style={styles.tryThisBtn}
-                                        onPress={() => {
-                                            setSelectedTool(null);
-                                            setViewMode('config');
-                                        }}
-                                    >
-                                        <Text style={styles.tryThisBtnText}>Try This</Text>
-                                        <MaterialCommunityIcons name="arrow-right" size={16} color="#FFFFFF" />
-                                    </Pressable>
-                                </LinearGradient>
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        mainTab === 'saved' ? (
+                            <RefreshControl
+                                refreshing={refreshingSaved}
+                                onRefresh={() => fetchSavedDesigns(true)}
+                                tintColor={colors.accentTeal}
+                            />
+                        ) : undefined
+                    }
+                >
+                    {mainTab === 'kits' ? (
+                        <>
+                            {/* Carousel */}
+                            <ScrollView ref={scrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.carouselContainer} snapToInterval={SCREEN_WIDTH - 40} decelerationRate="fast">
+                                {BANNER_SLIDES.map((slide) => (
+                                    <View key={slide.id} style={styles.bannerCard}>
+                                        <LinearGradient colors={['#0F172A', '#1E293B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bannerGradient}>
+                                            <View style={styles.bannerBadge}>
+                                                <Text style={styles.bannerBadgeText}>{slide.badge}</Text>
+                                            </View>
+                                            <Text style={styles.bannerTitle}>
+                                                {slide.title} <Text style={{ color: '#00A7B5' }}>{slide.titleAccent}</Text>
+                                            </Text>
+                                            <Text style={styles.bannerDesc}>{slide.desc}</Text>
+
+                                            <View style={styles.bannerImageContainer}>
+                                                <Image source={{ uri: slide.imageRight }} style={styles.bannerFullImage} />
+                                            </View>
+
+                                            <Pressable
+                                                style={styles.tryThisBtn}
+                                                onPress={() => {
+                                                    setSelectedTool(null);
+                                                    setViewMode('config');
+                                                }}
+                                            >
+                                                <Text style={styles.tryThisBtnText}>Try This</Text>
+                                                <MaterialCommunityIcons name="arrow-right" size={16} color="#FFFFFF" />
+                                            </Pressable>
+                                        </LinearGradient>
+                                    </View>
+                                ))}
+                            </ScrollView>
+
+                            {/* AI Design Kit */}
+                            <View style={{ marginTop: 8, marginBottom: 12 }}>
+                                <Text style={styles.sectionTitle}>AI Design Kit</Text>
+                                <Text style={styles.sectionSubtitle}>Specialized tools for every part of your property enhancement journey.</Text>
                             </View>
-                        ))}
-                    </ScrollView>
-
-                    {/* AI Design Kit */}
-                    <View style={{ marginTop: 8, marginBottom: 12 }}>
-                        <Text style={styles.sectionTitle}>AI Design Kit</Text>
-                        <Text style={styles.sectionSubtitle}>Specialized tools for every part of your property enhancement journey.</Text>
-                    </View>
-                    <View style={styles.kitGrid}>
-                        {KIT_ITEMS.map((item) => (
-                            <View key={item.id} style={styles.kitCard}>
-                                <View style={styles.kitImageContainer}>
-                                    <Image source={{ uri: item.image }} style={styles.kitImageWrapper} />
-                                    <View style={styles.kitOverlayTitleWrap}>
-                                        <View style={styles.kitIconCircle}>
-                                            <MaterialCommunityIcons name={item.icon as any} size={12} color="#FFFFFF" />
+                            <View style={styles.kitGrid}>
+                                {KIT_ITEMS.map((item) => (
+                                    <View key={item.id} style={styles.kitCard}>
+                                        <View style={styles.kitImageContainer}>
+                                            <Image source={{ uri: item.image }} style={styles.kitImageWrapper} />
+                                            <View style={styles.kitOverlayTitleWrap}>
+                                                <View style={styles.kitIconCircle}>
+                                                    <MaterialCommunityIcons name={item.icon as any} size={12} color="#FFFFFF" />
+                                                </View>
+                                                <Text style={styles.kitOverlayTitleText}>{item.title}</Text>
+                                            </View>
                                         </View>
-                                        <Text style={styles.kitOverlayTitleText}>{item.title}</Text>
+                                        <View style={styles.kitCardBody}>
+                                            <Text style={styles.kitCardDesc} numberOfLines={2}>{item.desc}</Text>
+                                            <Pressable
+                                                style={styles.kitBtn}
+                                                onPress={() => {
+                                                    setSelectedTool(item.title);
+                                                    setViewMode('config');
+                                                }}
+                                            >
+                                                <Text style={styles.kitBtnText}>Try This</Text>
+                                            </Pressable>
+                                        </View>
                                     </View>
+                                ))}
+                            </View>
+                        </>
+                    ) : (
+                        /* Saved Designs View */
+                        <View style={{ marginTop: 8 }}>
+                            <View style={{ marginBottom: 16 }}>
+                                <Text style={styles.sectionTitle}>Saved Designs</Text>
+                                <Text style={styles.sectionSubtitle}>Your generated visual staging enhancements and renderings.</Text>
+                            </View>
+
+                            {loadingSaved ? (
+                                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                                    <ActivityIndicator size="large" color={colors.accentTeal} />
+                                    <Text style={{ marginTop: 12, color: colors.textSecondary, fontSize: 13, fontWeight: '600' }}>Loading saved designs...</Text>
                                 </View>
-                                <View style={styles.kitCardBody}>
-                                    <Text style={styles.kitCardDesc} numberOfLines={2}>{item.desc}</Text>
-                                    <Pressable
-                                        style={styles.kitBtn}
-                                        onPress={() => {
-                                            setSelectedTool(item.title);
-                                            setViewMode('config');
-                                        }}
-                                    >
-                                        <Text style={styles.kitBtnText}>Try This</Text>
+                            ) : savedDesigns.length === 0 ? (
+                                <View style={styles.emptyStateCard}>
+                                    <View style={styles.emptyIconCircle}>
+                                        <MaterialCommunityIcons name="palette-swatch-outline" size={32} color={colors.accentTeal} />
+                                    </View>
+                                    <Text style={styles.emptyTitle}>No Saved Designs Yet</Text>
+                                    <Text style={styles.emptySubtitle}>
+                                        Use our AI Design Kits to generate virtual staging, swap sofas, and redesign spaces. Your creations will appear here.
+                                    </Text>
+                                    <Pressable style={styles.emptyActionBtn} onPress={() => setMainTab('kits')}>
+                                        <Text style={styles.emptyActionBtnText}>Explore AI Design Kits</Text>
                                     </Pressable>
                                 </View>
-                            </View>
-                        ))}
-                    </View>
+                            ) : (
+                                <View style={styles.savedGrid}>
+                                    {savedDesigns.map((item) => {
+                                        const imageUrl = item.content || item.metadata?.imageUrl || item.metadata?.originalImage || 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=800';
+                                        const title = item.metadata?.toolId
+                                            ? item.metadata.toolId.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                                            : (item.metadata?.title || 'Virtual Staging');
+                                        const dateStr = item.created_at
+                                            ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                            : '';
+
+                                        return (
+                                            <View key={item.id} style={styles.savedCard}>
+                                                <View style={styles.savedImageWrap}>
+                                                    <Image source={{ uri: imageUrl }} style={styles.savedImage} />
+                                                    <View style={styles.savedOverlayBadge}>
+                                                        <MaterialCommunityIcons name="sparkles" size={12} color="#00A7B5" />
+                                                        <Text style={styles.savedOverlayText}>{title}</Text>
+                                                    </View>
+                                                </View>
+
+                                                <View style={styles.savedCardBody}>
+                                                    <View style={styles.savedCardTitleRow}>
+                                                        <Text style={styles.savedCardTitle} numberOfLines={1}>{title}</Text>
+                                                        {dateStr ? <Text style={styles.savedCardDate}>{dateStr}</Text> : null}
+                                                    </View>
+
+                                                    {(item.metadata?.style || item.metadata?.roomType) && (
+                                                        <View style={styles.savedBadgeRow}>
+                                                            {item.metadata?.roomType && (
+                                                                <View style={styles.savedPill}>
+                                                                    <Text style={styles.savedPillText}>{item.metadata.roomType}</Text>
+                                                                </View>
+                                                            )}
+                                                            {item.metadata?.style && (
+                                                                <View style={styles.savedPill}>
+                                                                    <Text style={styles.savedPillText}>{item.metadata.style}</Text>
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                    )}
+
+                                                    <Pressable
+                                                        style={styles.savedViewBtn}
+                                                        onPress={() => handleOpenSavedDesign(item)}
+                                                    >
+                                                        <MaterialCommunityIcons name="eye-outline" size={15} color="#FFFFFF" />
+                                                        <Text style={styles.savedViewBtnText}>View in Studio</Text>
+                                                    </Pressable>
+                                                </View>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            )}
+                        </View>
+                    )}
                 </ScrollView>
             </LinearGradient>
         </View>
@@ -511,8 +952,41 @@ function getStyles(colors: any, isDark: boolean = false) {
         background: { flex: 1 },
         scroll: { flex: 1 },
         scrollContent: { paddingHorizontal: 20 },
-        backBtn: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 6 },
+        backBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, gap: 6 },
         backBtnText: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
+
+        // Top Navigation Tabs
+        topTabBar: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 24,
+            paddingHorizontal: 20,
+            marginBottom: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: isDark ? '#334155' : '#E2E8F0',
+        },
+        topTabItem: {
+            paddingBottom: 10,
+            position: 'relative',
+        },
+        topTabItemActive: {},
+        topTabText: {
+            fontSize: 15,
+            fontWeight: '700',
+            color: colors.textSecondary,
+        },
+        topTabTextActive: {
+            color: colors.accentTeal,
+        },
+        topTabIndicator: {
+            position: 'absolute',
+            bottom: -1,
+            left: 0,
+            right: 0,
+            height: 3,
+            backgroundColor: colors.accentTeal,
+            borderRadius: 1.5,
+        },
 
         // Carousel
         carouselContainer: { marginBottom: 28 },
@@ -774,15 +1248,444 @@ function getStyles(colors: any, isDark: boolean = false) {
         modalItem: { paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
         modalItemText: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
 
+        // Studio Canvas Wrapper and Web-style Header Bar
+        canvasWrapper: {
+            borderRadius: 20,
+            overflow: 'hidden',
+            marginBottom: 20,
+            backgroundColor: '#071829',
+            borderWidth: 1,
+            borderColor: '#1E293B',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 10,
+            elevation: 4,
+        },
+        canvasHeaderContainer: {
+            backgroundColor: '#071829',
+            paddingHorizontal: 14,
+            paddingVertical: 12,
+            borderBottomWidth: 1,
+            borderBottomColor: '#1E293B',
+            gap: 10,
+        },
+        canvasHeaderTopRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+        },
+        canvasTitleWrap: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 7,
+        },
+        canvasStatusDot: {
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: '#10B981',
+            shadowColor: '#10B981',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.9,
+            shadowRadius: 4,
+        },
+        canvasTitleText: {
+            fontSize: 11,
+            fontWeight: '900',
+            color: '#FFFFFF',
+            letterSpacing: 0.6,
+        },
+        canvasComparisonWrap: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+        },
+        canvasComparisonText: {
+            fontSize: 10,
+            fontWeight: '800',
+            color: '#E2E8F0',
+            letterSpacing: 0.4,
+        },
+        canvasHeaderActionRow: {
+            flexDirection: 'row',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: 8,
+        },
+        canvasSaveBtn: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            borderWidth: 1.5,
+            borderColor: '#00A7B5',
+            backgroundColor: 'rgba(0, 167, 181, 0.12)',
+            paddingHorizontal: 12,
+            paddingVertical: 7,
+            borderRadius: 10,
+        },
+        canvasSaveBtnText: {
+            fontSize: 11,
+            fontWeight: '900',
+            color: '#00A7B5',
+            letterSpacing: 0.5,
+        },
+        canvasExportBtn: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            backgroundColor: '#0E243A',
+            borderWidth: 1,
+            borderColor: '#334155',
+            paddingHorizontal: 12,
+            paddingVertical: 7,
+            borderRadius: 10,
+        },
+        canvasExportBtnText: {
+            fontSize: 11,
+            fontWeight: '900',
+            color: '#FFFFFF',
+            letterSpacing: 0.5,
+        },
+        canvasBody: {
+            width: '100%',
+            overflow: 'hidden',
+        },
+
         // Studio Component Comparisons
         studioCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 20 },
-        compareContainer: { width: '100%', position: 'relative', overflow: 'hidden', borderRadius: 16 },
+        compareContainer: { width: '100%', position: 'relative', overflow: 'hidden' },
         compareFullImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', resizeMode: 'cover' },
         compareClip: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden' },
         compareThumb: { position: 'absolute', top: '50%', marginTop: -18, width: 28, height: 36, borderRadius: 14, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#0a2341' },
         rawLabel: { position: 'absolute', top: 12, left: 12, backgroundColor: '#0B2046', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
         rawLabelText: { color: '#FFF', fontSize: 9, fontWeight: '900' },
         stagedLabel: { position: 'absolute', top: 12, right: 12, backgroundColor: '#0a2341', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
-        stagedLabelText: { color: '#FFF', fontSize: 9, fontWeight: '900' }
+        stagedLabelText: { color: '#FFF', fontSize: 9, fontWeight: '900' },
+
+        // Full Canvas View
+        fullCanvasContainer: {
+            width: '100%',
+            height: 320,
+            overflow: 'hidden',
+            backgroundColor: '#0F172A',
+            position: 'relative',
+        },
+        fullCanvasImage: {
+            width: '100%',
+            height: '100%',
+            resizeMode: 'cover',
+        },
+        canvasLiveBadge: {
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.15)',
+        },
+        canvasLiveDot: {
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: '#00A7B5',
+        },
+        canvasLiveText: {
+            fontSize: 10,
+            fontWeight: '900',
+            color: '#FFFFFF',
+            letterSpacing: 0.8,
+        },
+
+        // Style Refinement Section
+        styleRefinementCard: {
+            backgroundColor: colors.cardBackground,
+            borderRadius: 20,
+            padding: 18,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            marginBottom: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: isDark ? 0.3 : 0.05,
+            shadowRadius: 6,
+            elevation: 2,
+        },
+        styleRefinementTitle: {
+            fontSize: 14,
+            fontWeight: '800',
+            color: colors.textPrimary,
+            marginBottom: 12,
+        },
+        refinementImageWrap: {
+            width: '100%',
+            height: 150,
+            borderRadius: 14,
+            overflow: 'hidden',
+            position: 'relative',
+            backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+            marginBottom: 14,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+        },
+        refinementImage: {
+            width: '100%',
+            height: '100%',
+            resizeMode: 'cover',
+        },
+        refinementChangeBtn: {
+            position: 'absolute',
+            bottom: 8,
+            right: 8,
+            backgroundColor: '#FFFFFF',
+            paddingHorizontal: 12,
+            paddingVertical: 5,
+            borderRadius: 6,
+            shadowColor: '#000',
+            shadowOpacity: 0.25,
+            shadowRadius: 4,
+            elevation: 3,
+        },
+        refinementChangeBtnText: {
+            color: '#071829',
+            fontSize: 12,
+            fontWeight: '800',
+        },
+        refinementInput: {
+            backgroundColor: colors.inputBackground,
+            padding: 14,
+            borderRadius: 12,
+            color: colors.textPrimary,
+            textAlignVertical: 'top',
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            minHeight: 85,
+            fontSize: 13,
+            marginBottom: 14,
+        },
+        regenerateBtn: {
+            backgroundColor: '#071829',
+            paddingVertical: 14,
+            borderRadius: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderColor: '#1E293B',
+        },
+        regenerateBtnText: {
+            color: '#FFFFFF',
+            fontSize: 13,
+            fontWeight: '900',
+            letterSpacing: 0.8,
+        },
+
+        // Metadata Details Card
+        studioDetailsCard: {
+            backgroundColor: colors.cardBackground,
+            borderRadius: 20,
+            padding: 20,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            marginBottom: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: isDark ? 0.3 : 0.05,
+            shadowRadius: 6,
+            elevation: 2,
+        },
+        studioDetailsRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            marginBottom: 18,
+            gap: 16,
+        },
+        studioDetailCol: {
+            flex: 1,
+        },
+        studioDetailLabel: {
+            fontSize: 10,
+            fontWeight: '800',
+            color: colors.textMuted,
+            letterSpacing: 0.8,
+            marginBottom: 6,
+            textTransform: 'uppercase',
+        },
+        studioDetailValue: {
+            fontSize: 15,
+            fontWeight: '800',
+            color: colors.textPrimary,
+        },
+        studioPromptSection: {
+            marginTop: 4,
+        },
+        studioPromptBox: {
+            backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+            borderRadius: 12,
+            padding: 14,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            marginTop: 4,
+        },
+        studioPromptText: {
+            fontSize: 13,
+            color: colors.textPrimary,
+            fontStyle: 'italic',
+            lineHeight: 19,
+        },
+
+        // Studio Bottom Action Buttons
+        studioActionRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 4,
+            marginBottom: 20,
+        },
+        studioCloseBtn: {
+            paddingVertical: 14,
+            paddingHorizontal: 24,
+            borderRadius: 14,
+            borderWidth: 1.5,
+            borderColor: colors.cardBorder,
+            backgroundColor: colors.cardBackground,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        studioCloseBtnText: {
+            fontSize: 14,
+            fontWeight: '800',
+            color: colors.textPrimary,
+        },
+        studioDownloadBtn: {
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            backgroundColor: colors.accentTeal,
+            paddingVertical: 14,
+            borderRadius: 14,
+            shadowColor: colors.accentTeal,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 4,
+        },
+        studioDownloadBtnText: {
+            fontSize: 14,
+            fontWeight: '900',
+            color: '#FFFFFF',
+        },
+        // Saved Designs Styles
+        savedGrid: { gap: 16 },
+        savedCard: {
+            backgroundColor: colors.cardBackground,
+            borderRadius: 20,
+            overflow: 'hidden',
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            marginBottom: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: isDark ? 0.3 : 0.06,
+            shadowRadius: 8,
+            elevation: 3,
+        },
+        savedImageWrap: {
+            width: '100%',
+            height: 200,
+            position: 'relative',
+            backgroundColor: colors.surfaceSoft,
+        },
+        savedImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+        savedOverlayBadge: {
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            backgroundColor: 'rgba(15, 23, 42, 0.78)',
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+        },
+        savedOverlayText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+        savedDeleteBtn: {
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: 'rgba(15, 23, 42, 0.78)',
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        savedCardBody: { padding: 16 },
+        savedCardTitleRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 6,
+        },
+        savedCardTitle: { fontSize: 15, fontWeight: '800', color: colors.textPrimary, flex: 1 },
+        savedCardDate: { fontSize: 11, fontWeight: '600', color: colors.textMuted },
+        savedBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6, marginBottom: 14 },
+        savedPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.surfaceSoft },
+        savedPillText: { fontSize: 11, fontWeight: '700', color: colors.textSecondary },
+        savedViewBtn: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            backgroundColor: colors.accentTeal,
+            paddingVertical: 11,
+            borderRadius: 12,
+        },
+        savedViewBtnText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
+
+        // Empty State
+        emptyStateCard: {
+            backgroundColor: colors.cardBackground,
+            borderRadius: 24,
+            padding: 32,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            marginTop: 10,
+        },
+        emptyIconCircle: {
+            width: 64,
+            height: 64,
+            borderRadius: 32,
+            backgroundColor: 'rgba(0, 167, 181, 0.12)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 16,
+        },
+        emptyTitle: { fontSize: 17, fontWeight: '900', color: colors.textPrimary, marginBottom: 6 },
+        emptySubtitle: {
+            fontSize: 13,
+            color: colors.textSecondary,
+            textAlign: 'center',
+            lineHeight: 19,
+            marginBottom: 20,
+            paddingHorizontal: 10,
+        },
+        emptyActionBtn: {
+            backgroundColor: colors.accentTeal,
+            paddingHorizontal: 20,
+            paddingVertical: 12,
+            borderRadius: 12,
+        },
+        emptyActionBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' }
     });
 }

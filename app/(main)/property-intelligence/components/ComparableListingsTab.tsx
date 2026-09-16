@@ -254,3 +254,5 @@ function getStyles(colors: any) {
         },
     });
 }
+
+export default ComparableListingsTab;

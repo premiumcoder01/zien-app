@@ -44,6 +44,114 @@ function formatWebDateTime(dateStr: string | null | undefined): string {
   return `${day} ${month} ${year}, ${time}`;
 }
 
+export interface PostPlatformMetrics {
+  platform: string;
+  likes: number;
+  comments: number;
+  views: number;
+}
+
+export interface PostMetricsSummary {
+  likes: number;
+  comments: number;
+  views: number;
+  platforms: PostPlatformMetrics[];
+}
+
+export function extractPostMetrics(post: SocialPost | any): PostMetricsSummary {
+  if (!post) {
+    return { likes: 0, comments: 0, views: 0, platforms: [] };
+  }
+
+  let totalLikes = 0;
+  let totalComments = 0;
+  let totalViews = 0;
+  const platformList: PostPlatformMetrics[] = [];
+
+  // 1. Direct post properties
+  const directLikes = Number(post.likes ?? post.likes_count ?? post.like_count ?? post.metrics?.likes ?? 0);
+  const directComments = Number(post.comments ?? post.comments_count ?? post.comment_count ?? post.metrics?.comments ?? 0);
+  const directViews = Number(post.views ?? post.views_count ?? post.view_count ?? post.impressions ?? post.reach ?? post.metrics?.views ?? 0);
+
+  // 2. Check post_platforms array
+  if (Array.isArray(post.post_platforms) && post.post_platforms.length > 0) {
+    post.post_platforms.forEach((pp: any) => {
+      const platName = (
+        pp.account?.platform ||
+        pp.platform ||
+        pp.platform_name ||
+        'FACEBOOK'
+      ).toUpperCase();
+
+      const pLikes = Number(
+        pp.likes ??
+        pp.likes_count ??
+        pp.like_count ??
+        pp.metrics?.likes ??
+        pp.insights?.likes ??
+        pp.data?.likes ??
+        0
+      );
+
+      const pComments = Number(
+        pp.comments ??
+        pp.comments_count ??
+        pp.comment_count ??
+        pp.metrics?.comments ??
+        pp.insights?.comments ??
+        pp.data?.comments ??
+        0
+      );
+
+      const pViews = Number(
+        pp.views ??
+        pp.views_count ??
+        pp.view_count ??
+        pp.impressions ??
+        pp.reach ??
+        pp.metrics?.views ??
+        pp.insights?.views ??
+        pp.data?.views ??
+        0
+      );
+
+      platformList.push({
+        platform: platName,
+        likes: pLikes,
+        comments: pComments,
+        views: pViews,
+      });
+
+      totalLikes += pLikes;
+      totalComments += pComments;
+      totalViews += pViews;
+    });
+  }
+
+  // If total from platform array is 0 but direct properties exist
+  if (totalLikes === 0 && directLikes > 0) totalLikes = directLikes;
+  if (totalComments === 0 && directComments > 0) totalComments = directComments;
+  if (totalViews === 0 && directViews > 0) totalViews = directViews;
+
+  // Fallback platform if list is empty
+  if (platformList.length === 0) {
+    const rawPlat = (post.platform || 'FACEBOOK').toUpperCase();
+    platformList.push({
+      platform: rawPlat,
+      likes: totalLikes,
+      comments: totalComments,
+      views: totalViews,
+    });
+  }
+
+  return {
+    likes: totalLikes,
+    comments: totalComments,
+    views: totalViews,
+    platforms: platformList,
+  };
+}
+
 // ─── Post Detail Modal (Web-Matching Post Preview Modal) ────────────
 function PostDetailModal({
   post, onClose, onEdit,
@@ -61,9 +169,7 @@ function PostDetailModal({
   const createdAtStr = formatWebDateTime(post.created_at);
   const scheduledAtStr = formatWebDateTime(post.scheduled_at || post.published_at || post.created_at);
 
-  const likesCount = (post as any).likes || (post as any).likes_count || 0;
-  const commentsCount = (post as any).comments || (post as any).comments_count || 0;
-  const viewsCount = (post as any).views || (post as any).views_count || 0;
+  const metrics = extractPostMetrics(post);
 
   return (
     <Modal visible={!!post} transparent animationType="slide" onRequestClose={onClose}>
@@ -174,21 +280,62 @@ function PostDetailModal({
                   {/* Likes */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <MaterialCommunityIcons name="heart-outline" size={20} color={colors.textPrimary} />
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.textPrimary }}>{likesCount}</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.textPrimary }}>{metrics.likes}</Text>
                   </View>
                   {/* Comments */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <MaterialCommunityIcons name="comment-outline" size={20} color={colors.textPrimary} />
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.textPrimary }}>{commentsCount}</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.textPrimary }}>{metrics.comments}</Text>
                   </View>
                   {/* Views */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <MaterialCommunityIcons name="eye-outline" size={20} color={colors.textPrimary} />
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.textPrimary }}>{viewsCount}</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.textPrimary }}>{metrics.views}</Text>
                   </View>
                 </View>
               </View>
             </View>
+
+            {/* Platform Breakdown if available */}
+            {metrics.platforms.length > 0 && (
+              <View style={{ gap: 10 }}>
+                <Text style={{ fontSize: 14, fontWeight: '900', color: colors.textPrimary }}>
+                  Platform Breakdown
+                </Text>
+                {metrics.platforms.map((plat, idx) => (
+                  <View
+                    key={`${plat.platform}-${idx}`}
+                    style={{
+                      backgroundColor: colors.surfaceSoft,
+                      borderRadius: 16,
+                      padding: 16,
+                      borderWidth: 1.5,
+                      borderColor: colors.cardBorder,
+                      borderLeftWidth: 4,
+                      borderLeftColor: '#2563EB',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#2563EB', marginBottom: 10, letterSpacing: 0.5 }}>
+                      {plat.platform}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <MaterialCommunityIcons name="heart-outline" size={18} color={colors.textPrimary} />
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: colors.textPrimary }}>{plat.likes}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <MaterialCommunityIcons name="comment-outline" size={18} color={colors.textPrimary} />
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: colors.textPrimary }}>{plat.comments}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <MaterialCommunityIcons name="eye-outline" size={18} color={colors.textPrimary} />
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: colors.textPrimary }}>{plat.views}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* Error Message if any */}
             {post.error_message && (
@@ -275,6 +422,8 @@ export default function PostHistoryScreen() {
     queryKey: ['social-posts-all'],
     queryFn: () => getSocialPosts(accessToken || ''),
     enabled: !!accessToken,
+    refetchOnMount: 'always',
+    staleTime: 5_000,
   });
 
   const filteredPosts = useMemo(() => {
@@ -348,11 +497,14 @@ export default function PostHistoryScreen() {
 
     const platforms = item.post_platforms?.map(p => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
 
-    const statusLabel = item.status === 2 ? 'Published' : item.status === 3 ? 'Failed' : 'Scheduled';
-    const statusColor = item.status === 2 ? '#10B981' : item.status === 3 ? '#EF4444' : colors.accentTeal;
-    const statusBg = item.status === 2 ? 'rgba(16, 185, 129, 0.08)' : item.status === 3 ? 'rgba(239, 68, 68, 0.08)' : `${colors.accentTeal}12`;
+    const isPublished = item.status === 2 || !!item.published_at || (item.status === 1 && !!item.scheduled_at && new Date(item.scheduled_at).getTime() <= Date.now() + 60000);
+    const isFailed = item.status === 3;
+    const statusLabel = isPublished ? 'Published' : isFailed ? 'Failed' : 'Scheduled';
+    const statusColor = isPublished ? '#10B981' : isFailed ? '#EF4444' : colors.accentTeal;
+    const statusBg = isPublished ? 'rgba(16, 185, 129, 0.08)' : isFailed ? 'rgba(239, 68, 68, 0.08)' : `${colors.accentTeal}12`;
 
     const isSelected = selectedIds.includes(item.id);
+    const metrics = extractPostMetrics(item);
 
     return (
       <Pressable
@@ -440,30 +592,65 @@ export default function PostHistoryScreen() {
           </View>
         </View>
 
-        {/* Footer Platforms / Errors Section */}
-        {platforms.length > 0 && (
-          <View style={{ 
-            flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, 
-            borderTopWidth: 1, borderTopColor: colors.cardBorder, paddingTop: 10, marginTop: 4 
-          }}>
+        {/* Footer Platforms & Metrics Section */}
+        <View style={{ 
+          borderTopWidth: 1, borderTopColor: colors.cardBorder, paddingTop: 10, marginTop: 4,
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 
+        }}>
+          {/* Platforms List */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
             <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textMuted, marginRight: 2 }}>Platforms:</Text>
-            {platforms.map((plat, idx) => {
-              const iconName = plat === 'instagram' ? 'instagram' :
-                               plat === 'facebook' ? 'facebook' :
-                               plat === 'linkedin' ? 'linkedin' :
-                               plat === 'twitter' ? 'twitter' : 'layers-outline';
-              return (
-                <View key={plat + idx} style={{ 
-                  flexDirection: 'row', alignItems: 'center', gap: 4, 
-                  backgroundColor: colors.surfaceSoft, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 
-                }}>
-                  <MaterialCommunityIcons name={iconName} size={11} color={colors.textPrimary} />
-                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.textPrimary, textTransform: 'capitalize' }}>{plat}</Text>
-                </View>
-              );
-            })}
+            {platforms.length > 0 ? (
+              platforms.map((plat, idx) => {
+                const iconName = plat === 'instagram' ? 'instagram' :
+                                 plat === 'facebook' ? 'facebook' :
+                                 plat === 'linkedin' ? 'linkedin' :
+                                 plat === 'tiktok' ? 'music-note' :
+                                 plat === 'twitter' ? 'twitter' : 'layers-outline';
+                const platColor = plat === 'facebook' ? '#1877F2' :
+                                  plat === 'instagram' ? '#E1306C' :
+                                  plat === 'tiktok' ? '#000000' :
+                                  plat === 'linkedin' ? '#0A66C2' : colors.textPrimary;
+                return (
+                  <View key={plat + idx} style={{ 
+                    flexDirection: 'row', alignItems: 'center', gap: 4, 
+                    backgroundColor: colors.surfaceSoft, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 
+                  }}>
+                    <MaterialCommunityIcons name={iconName} size={11} color={platColor} />
+                    <Text style={{ fontSize: 9.5, fontWeight: '800', color: platColor, textTransform: 'capitalize' }}>{plat}</Text>
+                  </View>
+                );
+              })
+            ) : (
+              <View style={{ 
+                flexDirection: 'row', alignItems: 'center', gap: 4, 
+                backgroundColor: colors.surfaceSoft, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 
+              }}>
+                <MaterialCommunityIcons name="share-variant-outline" size={11} color={colors.textMuted} />
+                <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.textMuted }}>Direct</Text>
+              </View>
+            )}
           </View>
-        )}
+
+          {/* Metrics (Likes, Comments, Views) matching Web UI */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            {/* Likes */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <MaterialCommunityIcons name="heart-outline" size={14} color={colors.textMuted} />
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>{metrics.likes}</Text>
+            </View>
+            {/* Comments */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <MaterialCommunityIcons name="comment-outline" size={14} color={colors.textMuted} />
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>{metrics.comments}</Text>
+            </View>
+            {/* Views */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <MaterialCommunityIcons name="eye-outline" size={14} color={colors.textMuted} />
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.textPrimary }}>{metrics.views}</Text>
+            </View>
+          </View>
+        </View>
 
         {item.error_message && (
           <View style={{ 

@@ -28,6 +28,7 @@ import {
   SocialButton
 } from '@/components/auth';
 import GradientButton from '@/components/ui/GradientButton';
+import OutlineButton from '@/components/ui/OutlineButton';
 import LabeledInput from '@/components/ui/labeled-input';
 import PasswordInput from '@/components/ui/PasswordInput';
 
@@ -49,6 +50,8 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showActivationModal, setShowActivationModal] = useState(false);
   const [activationMessage, setActivationMessage] = useState('');
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [pendingRole, setPendingRole] = useState<string>('user');
   const [sentToEmail, setSentToEmail] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false);
@@ -334,6 +337,12 @@ export default function LoginScreen() {
       if (response.activation_email_sent) {
         setActivationMessage(response.message || 'Subscription is not active. A fresh activation link has been sent to your email!');
         setSentToEmail(email);
+        if (response.access_token) {
+          setPendingToken(response.access_token);
+        }
+        if (response.role) {
+          setPendingRole(response.role);
+        }
         setShowActivationModal(true);
         return;
       }
@@ -500,8 +509,8 @@ export default function LoginScreen() {
                     <RNText style={styles.stepBadgeText}>1</RNText>
                   </View>
                   <View style={styles.stepTextContainer}>
-                    <RNText style={styles.stepTitle}>Open Email Inbox</RNText>
-                    <RNText style={styles.stepDesc}>Find the activation email from Zien.</RNText>
+                    <RNText style={styles.stepTitle}>Select Plan & Start Trial</RNText>
+                    <RNText style={styles.stepDesc}>Activate your 14-day free trial on Apple App Store.</RNText>
                   </View>
                 </View>
 
@@ -510,30 +519,33 @@ export default function LoginScreen() {
                     <RNText style={styles.stepBadgeText}>2</RNText>
                   </View>
                   <View style={styles.stepTextContainer}>
-                    <RNText style={styles.stepTitle}>Activate Plan & Pay</RNText>
-                    <RNText style={styles.stepDesc}>Click the link, select a plan and subscribe.</RNText>
-                  </View>
-                </View>
-
-                <View style={styles.stepRow}>
-                  <View style={styles.stepBadge}>
-                    <RNText style={styles.stepBadgeText}>3</RNText>
-                  </View>
-                  <View style={styles.stepTextContainer}>
-                    <RNText style={styles.stepTitle}>Return and Log In</RNText>
-                    <RNText style={styles.stepDesc}>Sign in with your Zien credentials.</RNText>
+                    <RNText style={styles.stepTitle}>Instant Access</RNText>
+                    <RNText style={styles.stepDesc}>Enjoy full access to Zien immediately.</RNText>
                   </View>
                 </View>
               </View>
 
-              {/* Got It Button */}
-              <GradientButton
-                title="Got it!"
-                style={styles.activationBtn}
-                onPress={() => {
-                  setShowActivationModal(false);
-                }}
-              />
+              {/* Action Buttons */}
+              <View style={{ width: '100%', gap: 10 }}>
+                <GradientButton
+                  title="Activate Plan (14-Day Free Trial)"
+                  style={styles.activationBtn}
+                  onPress={async () => {
+                    setShowActivationModal(false);
+                    if (pendingToken) {
+                      await login(pendingToken, pendingRole, false);
+                    }
+                    router.push('/(auth)/solo-onboarding?isCompleting=true');
+                  }}
+                />
+                <OutlineButton
+                  title="Close"
+                  style={styles.activationBtn}
+                  onPress={() => {
+                    setShowActivationModal(false);
+                  }}
+                />
+              </View>
             </LinearGradient>
           </View>
         </View>

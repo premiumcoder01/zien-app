@@ -821,3 +821,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: colors.textPrimary,
   },
 });
+
+export default MonitoringView;

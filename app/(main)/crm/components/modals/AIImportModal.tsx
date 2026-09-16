@@ -1771,3 +1771,5 @@ const getStyles = (colors: ThemeColors, theme?: string) => StyleSheet.create({
     letterSpacing: 0.3,
   },
 });
+
+export default AIImportModal;

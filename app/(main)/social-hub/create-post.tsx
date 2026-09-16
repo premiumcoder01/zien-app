@@ -1,11 +1,11 @@
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import { generateAiImage, generateAiText } from '@/services/aiContentService';
-import { getProperties, getPropertyDetails, uploadPropertyImage } from '@/services/propertyService';
+import { getAllPropertyImages, getProperties, getPropertyDetails, uploadPropertyImage } from '@/services/propertyService';
 import { createSocialPost, getSocialAccounts, getSocialPostById, updateSocialPost } from '@/services/socialService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -217,6 +217,7 @@ export default function CreatePostScreen() {
   const styles = getStyles(colors, theme);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { accessToken } = useAuth();
   const { postId, propertyId, editCaption, editMedia, editScheduledAt } = useLocalSearchParams<{
     postId?: string;
@@ -246,6 +247,8 @@ export default function CreatePostScreen() {
   const [isTargetDropdownVisible, setIsTargetDropdownVisible] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingStatus, setSubmittingStatus] = useState('Publishing post...');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isLoadingPost, setIsLoadingPost] = useState(isEditMode);
   const [scheduledDate, setScheduledDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -351,7 +354,7 @@ export default function CreatePostScreen() {
   const properties = propertiesData?.properties || [];
 
   const { data: socialAccounts, isLoading: isLoadingAccounts } = useQuery({
-    queryKey: ['socialAccounts'],
+    queryKey: ['social-accounts'],
     queryFn: () => getSocialAccounts(accessToken || ''),
     enabled: !!accessToken,
   });
@@ -393,48 +396,48 @@ export default function CreatePostScreen() {
   const propertyGalleryImages = useMemo(() => {
     const list: { id: string; uri: string }[] = [];
 
-    if (selectedProperty?.data) {
-      if (Array.isArray(selectedProperty.data.Media)) {
-        selectedProperty.data.Media.forEach((m: any, idx: number) => {
-          const url = typeof m === 'string' ? m : m?.MediaURL || m?.url || m?.uri;
-          if (url && typeof url === 'string') {
-            list.push({ id: `prop-${selectedProperty.id}-media-${idx}`, uri: url });
-          }
-        });
-      }
-      if (Array.isArray(selectedProperty.data.user_images)) {
-        selectedProperty.data.user_images.forEach((m: any, idx: number) => {
-          const url = typeof m === 'string' ? m : m?.MediaURL || m?.url || m?.uri;
-          if (url && typeof url === 'string' && !list.some((item) => item.uri === url)) {
-            list.push({ id: `prop-${selectedProperty.id}-user-${idx}`, uri: url });
-          }
-        });
-      }
+    if (selectedProperty) {
+      const urls = getAllPropertyImages(selectedProperty);
+      urls.forEach((url, idx) => {
+        list.push({ id: `prop-${selectedProperty.id || 'sel'}-${idx}`, uri: url });
+      });
     }
 
     if (list.length === 0 && properties.length > 0) {
       properties.forEach((p: any) => {
-        if (p.data?.Media && Array.isArray(p.data.Media)) {
-          p.data.Media.forEach((m: any, idx: number) => {
-            const url = typeof m === 'string' ? m : m?.MediaURL || m?.url || m?.uri;
-            if (url && typeof url === 'string' && !list.some((item) => item.uri === url)) {
-              list.push({ id: `prop-${p.id}-media-${idx}`, uri: url });
-            }
-          });
-        }
-        if (p.data?.user_images && Array.isArray(p.data.user_images)) {
-          p.data.user_images.forEach((m: any, idx: number) => {
-            const url = typeof m === 'string' ? m : m?.MediaURL || m?.url || m?.uri;
-            if (url && typeof url === 'string' && !list.some((item) => item.uri === url)) {
-              list.push({ id: `prop-${p.id}-user-${idx}`, uri: url });
-            }
-          });
-        }
+        const urls = getAllPropertyImages(p);
+        urls.forEach((url, idx) => {
+          if (!list.some((item) => item.uri === url)) {
+            list.push({ id: `prop-${p.id}-${idx}`, uri: url });
+          }
+        });
       });
     }
 
     return list;
   }, [selectedProperty, properties]);
+
+  // Automatically sync property images into uploadedMedia / Asset Gallery
+  useEffect(() => {
+    if (isEditMode && hasPrefilledRef.current) return;
+    if (propertyGalleryImages.length > 0) {
+      setUploadedMedia((prev) => {
+        const existingUris = new Set(prev.map((m) => m.uri));
+        const newFromProps = propertyGalleryImages.filter((p) => !existingUris.has(p.uri));
+        if (newFromProps.length === 0) return prev;
+        return [...prev, ...newFromProps];
+      });
+
+      setSelectedMediaIds((prev) => {
+        if (prev.length === 0 && propertyGalleryImages.length > 0) {
+          const first = propertyGalleryImages[0];
+          setLastSelectedMediaUri(first.uri);
+          return [first.id];
+        }
+        return prev;
+      });
+    }
+  }, [propertyGalleryImages, isEditMode]);
 
   const hashtagChips = useMemo(() => {
     if (!caption) return [];
@@ -570,14 +573,14 @@ export default function CreatePostScreen() {
     );
   }, []);
 
-  const handleMediaSelect = useCallback((m: typeof MEDIA_GRID[0]) => {
+  const handleMediaSelect = useCallback((m: { id: string; uri: string; selected?: boolean }) => {
     setSelectedMediaIds((prev) => {
       const exists = prev.includes(m.id);
       if (exists) {
         const filtered = prev.filter((id) => id !== m.id);
         if (m.uri === lastSelectedMediaUri && filtered.length > 0) {
           const nextId = filtered[filtered.length - 1];
-          const nextMedia = MEDIA_GRID.find(item => item.id === nextId);
+          const nextMedia = uploadedMedia.find(item => item.id === nextId);
           if (nextMedia) setLastSelectedMediaUri(nextMedia.uri);
         }
         return filtered;
@@ -586,7 +589,14 @@ export default function CreatePostScreen() {
         return [...prev, m.id];
       }
     });
-  }, [lastSelectedMediaUri]);
+  }, [lastSelectedMediaUri, uploadedMedia]);
+
+  const handleRemoveMedia = useCallback((id: string, e?: any) => {
+    e?.stopPropagation?.();
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    setUploadedMedia((prev) => prev.filter((item) => item.id !== id));
+    setSelectedMediaIds((prev) => prev.filter((itemId) => itemId !== id));
+  }, []);
 
   const mediaItems = useMemo(() => uploadedMedia.map((m) => ({ ...m, selected: selectedMediaIds.includes(m.id) })), [uploadedMedia, selectedMediaIds]);
 
@@ -647,7 +657,172 @@ export default function CreatePostScreen() {
     }
   };
 
-  const goNext = useCallback(async () => {
+  const handleExecuteSubmit = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const platformNames = platforms.length > 0 
+      ? platforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' & ')
+      : 'Instagram';
+
+    setSubmittingStatus(
+      isEditMode
+        ? 'Updating post...'
+        : strategy === 'immediate'
+          ? `Preparing to publish to ${platformNames}...`
+          : 'Preparing to schedule post...'
+    );
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      // 1. Resolve connected accounts list
+      let currentAccounts = socialAccounts;
+      if (!currentAccounts || currentAccounts.length === 0) {
+        try {
+          setSubmittingStatus('Verifying social accounts...');
+          currentAccounts = await getSocialAccounts(accessToken || '');
+        } catch (e) {
+          console.warn('[CreatePost] Failed to fetch latest accounts:', e);
+        }
+      }
+
+      const platformAccountIds = platforms
+        .map((platformId) => {
+          const matchedAcc = (currentAccounts || []).find(
+            (acc: any) => acc.platform?.toLowerCase() === platformId.toLowerCase()
+          );
+          return matchedAcc?.id;
+        })
+        .filter((id) => id !== undefined && id !== null);
+
+      if (platforms.length > 0 && platformAccountIds.length === 0) {
+        setShowConfirmModal(false);
+        Alert.alert(
+          'Account Connection Required',
+          'No connected social accounts found for your selected channels. Please connect your Facebook/Instagram accounts in Social Settings first.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Go to Settings', onPress: () => router.push('/(main)/social-hub/accounts') },
+          ]
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 2. Resolve all selected media items
+      const selectedItems = uploadedMedia.filter((m) => selectedMediaIds.includes(m.id));
+      const rawMediaUris = selectedItems.length > 0
+        ? selectedItems.map((m) => m.uri)
+        : lastSelectedMediaUri
+          ? [lastSelectedMediaUri]
+          : [];
+
+      // Upload any local files and ensure URLs are absolute HTTPS
+      const processedMedia: { media_url: string; media_type: string }[] = [];
+      let mediaIndex = 0;
+      for (const rawUri of rawMediaUris) {
+        if (!rawUri) continue;
+        let finalUrl = rawUri;
+
+        const isLocalFile =
+          rawUri.startsWith('file://') ||
+          rawUri.startsWith('content://') ||
+          rawUri.startsWith('ph://') ||
+          rawUri.startsWith('blob:') ||
+          (!rawUri.startsWith('http://') && !rawUri.startsWith('https://') && !rawUri.startsWith('/'));
+
+        if (isLocalFile) {
+          mediaIndex++;
+          setSubmittingStatus(`Uploading media asset ${mediaIndex}/${rawMediaUris.length}...`);
+          const uploadRes = await uploadPropertyImage(rawUri, accessToken || '');
+          if (uploadRes && uploadRes.url) {
+            finalUrl = uploadRes.url;
+          }
+        }
+
+        // Format relative backend paths to absolute URL
+        if (finalUrl.startsWith('/storage') || finalUrl.startsWith('storage/')) {
+          finalUrl = `https://api.zien.ai/${finalUrl.replace(/^\//, '')}`;
+        } else if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+          finalUrl = `https://api.zien.ai/${finalUrl.replace(/^\//, '')}`;
+        }
+
+        if (finalUrl) {
+          processedMedia.push({
+            media_url: finalUrl,
+            media_type: 'image',
+          });
+        }
+      }
+
+      // 3. Prepare payload
+      const isImmediate = strategy === 'immediate';
+      const payload: any = {
+        caption,
+        property_id: selectedProperty?.id || null,
+        status: isImmediate ? 2 : 1, // 2 for immediate publish, 1 for scheduled
+        scheduled_at: strategy === 'custom' ? scheduledDate.toISOString() : new Date().toISOString(),
+        media: processedMedia,
+        platform_account_ids: platformAccountIds,
+        platforms: platforms,
+      };
+
+      // 4. Call API — create or update
+      setSubmittingStatus(
+        isEditMode
+          ? 'Saving post updates...'
+          : isImmediate
+            ? `Publishing to ${platformNames}...`
+            : 'Scheduling post...'
+      );
+
+      if (isEditMode) {
+        await updateSocialPost(accessToken || '', Number(postId), payload);
+      } else {
+        await createSocialPost(accessToken || '', payload);
+      }
+
+      setSubmittingStatus('Finalizing and refreshing feeds...');
+
+      // Allow backend worker a brief moment to complete publishing before query refresh
+      if (isImmediate) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      // Invalidate queries so scheduler, overview and history update instantly
+      queryClient.invalidateQueries({ queryKey: ['social-posts'] });
+      queryClient.invalidateQueries({ queryKey: ['social-posts-all'] });
+      queryClient.invalidateQueries({ queryKey: ['social-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['social-posts-all-index'] });
+      queryClient.invalidateQueries({ queryKey: ['social-accounts'] });
+
+      setShowConfirmModal(false);
+      triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
+      setStep('success');
+    } catch (error: any) {
+      console.error('[CreatePost] Error submitting post:', error);
+      Alert.alert(isEditMode ? 'Update Failed' : 'Scheduling Failed', error.message || 'Something went wrong.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    isSubmitting,
+    caption,
+    selectedProperty,
+    strategy,
+    scheduledDate,
+    selectedMediaIds,
+    uploadedMedia,
+    lastSelectedMediaUri,
+    accessToken,
+    isEditMode,
+    postId,
+    platforms,
+    socialAccounts,
+    router,
+    queryClient,
+  ]);
+
+  const goNext = useCallback(() => {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
     if (step === 1) {
       if (platforms.length === 0) {
@@ -658,58 +833,12 @@ export default function CreatePostScreen() {
         return;
       }
       setStep(2);
+    } else if (step === 2) {
+      setStep(3);
+    } else if (step === 3) {
+      setShowConfirmModal(true);
     }
-    else if (step === 2) setStep(3);
-    else if (step === 3) {
-      if (isSubmitting) return;
-      setIsSubmitting(true);
-      try {
-        let finalMediaUrl = lastSelectedMediaUri;
-
-        // 1. Upload media if it's a local file
-        if (lastSelectedMediaUri && (lastSelectedMediaUri.startsWith('file://') || lastSelectedMediaUri.startsWith('content://') || lastSelectedMediaUri.startsWith('/'))) {
-          const uploadRes = await uploadPropertyImage(lastSelectedMediaUri, accessToken || '');
-          finalMediaUrl = uploadRes.url;
-        }
-
-        const platformAccountIds = platforms.map(platformId => {
-          const matchedAcc = (socialAccounts || []).find(
-            (acc: any) => acc.platform?.toLowerCase() === platformId.toLowerCase()
-          );
-          return matchedAcc?.id;
-        }).filter(id => id !== undefined && id !== null);
-
-        // 2. Prepare payload
-        const payload = {
-          caption,
-          property_id: selectedProperty?.id || null,
-          status: 1, // Scheduled
-          scheduled_at: strategy === 'custom' ? scheduledDate.toISOString() : new Date().toISOString(),
-          media: finalMediaUrl ? [
-            {
-              media_url: finalMediaUrl,
-              media_type: 'image'
-            }
-          ] : [],
-          platform_account_ids: platformAccountIds
-        };
-
-        // 3. Call API — create or update
-        if (isEditMode) {
-          await updateSocialPost(accessToken || '', Number(postId), payload);
-        } else {
-          await createSocialPost(accessToken || '', payload);
-        }
-
-        triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
-        setStep('success');
-      } catch (error: any) {
-        Alert.alert(isEditMode ? 'Update Failed' : 'Scheduling Failed', error.message || 'Something went wrong.');
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
-  }, [step, isSubmitting, caption, selectedProperty, strategy, scheduledDate, lastSelectedMediaUri, accessToken, isEditMode, postId, platforms, socialAccounts]);
+  }, [step, platforms]);
 
   const goBack = useCallback(() => {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
@@ -1021,6 +1150,7 @@ export default function CreatePostScreen() {
 
               {acquisitionType === 'ai' && (
                 <View style={styles.aiGenerationWrapper}>
+                  <Text style={styles.aiImageDescriptionLabel}>IMAGE DESCRIPTION</Text>
                   <TextInput
                     style={styles.aiPromptInput}
                     placeholder="Describe the cinematic visual you want to generate..."
@@ -1125,25 +1255,40 @@ export default function CreatePostScreen() {
                 <Text style={styles.cardLabel}>Asset Gallery</Text>
                 <Text style={styles.galleryCount}>{selectedMediaIds.length} Selected</Text>
               </View>
-              <View style={styles.modernMediaGrid}>
-                {mediaItems.map(m => (
-                  <Pressable
-                    key={m.id}
-                    style={[styles.modernMediaCell, m.selected && styles.modernMediaCellSelected]}
-                    onPress={() => {
-                      triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
-                      handleMediaSelect(m);
-                    }}
-                  >
-                    <Image source={{ uri: m.uri }} style={styles.modernMediaImage} />
-                    {m.selected && (
-                      <Animated.View entering={FadeInRight} style={styles.modernMediaCheck}>
-                        <MaterialCommunityIcons name="check-bold" size={10} color="#FFF" />
-                      </Animated.View>
-                    )}
-                  </Pressable>
-                ))}
-              </View>
+              {mediaItems.length > 0 ? (
+                <View style={styles.modernMediaGrid}>
+                  {mediaItems.map(m => (
+                    <Pressable
+                      key={m.id}
+                      style={[styles.modernMediaCell, m.selected && styles.modernMediaCellSelected]}
+                      onPress={() => {
+                        triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+                        handleMediaSelect(m);
+                      }}
+                    >
+                      <Image source={{ uri: m.uri }} style={styles.modernMediaImage} />
+                      {m.selected && (
+                        <View style={styles.modernMediaCheck}>
+                          <MaterialCommunityIcons name="check-bold" size={10} color="#FFF" />
+                        </View>
+                      )}
+                      <Pressable
+                        style={styles.modernMediaRemoveBtn}
+                        hitSlop={8}
+                        onPress={(e) => handleRemoveMedia(m.id, e)}
+                      >
+                        <MaterialCommunityIcons name="close" size={11} color="#FFF" />
+                      </Pressable>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyAssetBox}>
+                  <MaterialCommunityIcons name="image-outline" size={32} color={colors.textMuted} />
+                  <Text style={styles.emptyAssetText}>No media assets in gallery</Text>
+                  <Text style={styles.emptyAssetSub}>Upload an image above or choose from Property Gallery</Text>
+                </View>
+              )}
             </View>
           </Animated.View>
         )}
@@ -1172,7 +1317,7 @@ export default function CreatePostScreen() {
                         <Text style={styles.strategyDesc}>{s.desc}</Text>
                       </View>
                       <View style={[styles.strategyRadio, isSelected && styles.strategyRadioActive]}>
-                        {isSelected && <Animated.View entering={FadeInRight} style={styles.strategyRadioInner} />}
+                        {isSelected && <View style={styles.strategyRadioInner} />}
                       </View>
                     </Pressable>
                   );
@@ -1297,17 +1442,327 @@ export default function CreatePostScreen() {
               style={styles.gradientBtn}
             >
               <Text style={styles.footerContinueBtnText}>
-                {step === 3 ? (isSubmitting ? (isEditMode ? 'Updating...' : 'Scheduling...') : (isEditMode ? 'Update Post' : 'Confirm Schedule')) : 'Continue'}
+                {step === 3 ? (isEditMode ? 'Update Post' : (strategy === 'immediate' ? 'Publish Now' : 'Schedule Post')) : 'Continue'}
               </Text>
-              {isSubmitting ? (
-                <ActivityIndicator size="small" color="#FFF" style={{ marginLeft: 8 }} />
-              ) : (
-                <MaterialCommunityIcons name="chevron-right" size={20} color="#FFF" />
-              )}
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#FFF" />
             </LinearGradient>
           </Pressable>
         </View>
       </View>
+
+      {/* Confirm Post Details Modal matching Web UI exactly */}
+      <Modal
+        visible={showConfirmModal || isSubmitting}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isSubmitting) setShowConfirmModal(false);
+        }}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(11, 35, 65, 0.65)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 24,
+          }}
+          onPress={() => {
+            if (!isSubmitting) setShowConfirmModal(false);
+          }}
+        >
+          <Pressable
+            style={{
+              backgroundColor: colors.cardBackground,
+              width: '100%',
+              maxWidth: 360,
+              borderRadius: 24,
+              padding: 24,
+              alignItems: 'center',
+              ...Platform.select({
+                ios: {
+                  shadowColor: '#000',
+                  shadowOpacity: 0.15,
+                  shadowOffset: { width: 0, height: 12 },
+                  shadowRadius: 24,
+                },
+                android: { elevation: 12 },
+              }),
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {isSubmitting ? (
+              <View style={{ alignItems: 'center', width: '100%', paddingVertical: 10 }}>
+                {/* Active Publishing Spinner Badge */}
+                <View
+                  style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: 38,
+                    backgroundColor: 'rgba(11, 35, 65, 0.06)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 18,
+                    borderWidth: 1.5,
+                    borderColor: 'rgba(13, 148, 136, 0.25)',
+                  }}
+                >
+                  <ActivityIndicator size="large" color={colors.accentTeal || '#0D9488'} />
+                </View>
+
+                {/* Main Publishing Title */}
+                <Text
+                  style={{
+                    fontSize: 20,
+                    fontWeight: '900',
+                    color: colors.textPrimary,
+                    textAlign: 'center',
+                    marginBottom: 8,
+                    letterSpacing: -0.3,
+                  }}
+                >
+                  {isEditMode ? 'Updating Post...' : strategy === 'immediate' ? 'Publishing Post...' : 'Scheduling Post...'}
+                </Text>
+
+                {/* Submitting Status Badge */}
+                <View
+                  style={{
+                    backgroundColor: 'rgba(13, 148, 136, 0.1)',
+                    paddingHorizontal: 14,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                    marginBottom: 16,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: '800',
+                      color: colors.accentTeal || '#0D9488',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {submittingStatus}
+                  </Text>
+                </View>
+
+                {/* Target Platforms */}
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    gap: 8,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingVertical: 10,
+                    paddingHorizontal: 16,
+                    borderRadius: 14,
+                    backgroundColor: colors.surfaceSoft || 'rgba(0,0,0,0.02)',
+                    marginBottom: 16,
+                    borderWidth: 1,
+                    borderColor: colors.cardBorder,
+                    width: '100%',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textMuted }}>Target:</Text>
+                  {platforms.map((pId) => {
+                    const pObj = PLATFORMS.find((p) => p.id === pId);
+                    return (
+                      <View
+                        key={pId}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
+                          backgroundColor: '#0B2341',
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 8,
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name={(pObj?.icon || 'share-variant') as any}
+                          size={14}
+                          color="#FFF"
+                        />
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#FFF', textTransform: 'capitalize' }}>
+                          {pObj?.label || pId}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: colors.textMuted,
+                    textAlign: 'center',
+                    lineHeight: 18,
+                  }}
+                >
+                  Please wait while your post is being processed and published.
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Rocket Icon */}
+                <View
+                  style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 30,
+                    backgroundColor: 'rgba(11, 35, 65, 0.06)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 16,
+                  }}
+                >
+                  <MaterialCommunityIcons name="rocket-launch-outline" size={32} color="#0B2341" />
+                </View>
+
+                {/* Title & Subtitle */}
+                <Text
+                  style={{
+                    fontSize: 19,
+                    fontWeight: '900',
+                    color: colors.textPrimary,
+                    textAlign: 'center',
+                    marginBottom: 8,
+                    letterSpacing: -0.3,
+                  }}
+                >
+                  Confirm Post Details
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: colors.textMuted,
+                    textAlign: 'center',
+                    lineHeight: 18,
+                    marginBottom: 20,
+                  }}
+                >
+                  Are you sure you want to publish this post to your selected platforms?
+                </Text>
+
+                {/* Details Box */}
+                <View
+                  style={{
+                    width: '100%',
+                    backgroundColor: colors.surfaceSoft || 'rgba(0,0,0,0.02)',
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: colors.cardBorder,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    gap: 12,
+                    marginBottom: 22,
+                  }}
+                >
+                  {/* Action Row */}
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textMuted }}>Action</Text>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '800',
+                        color: colors.textPrimary,
+                      }}
+                    >
+                      {strategy === 'immediate'
+                        ? 'Publish Immediately'
+                        : strategy === 'optimal'
+                        ? 'Optimal Time'
+                        : `Schedule: ${scheduledDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}`}
+                    </Text>
+                  </View>
+
+                  {/* Platforms Row */}
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textMuted }}>Platforms</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                      {platforms.map((pId) => {
+                        const pObj = PLATFORMS.find((p) => p.id === pId);
+                        return (
+                          <View
+                            key={pId}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 8,
+                              backgroundColor: 'rgba(11, 35, 65, 0.08)',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <MaterialCommunityIcons
+                              name={(pObj?.icon || 'share-variant') as any}
+                              size={16}
+                              color={colors.textPrimary}
+                            />
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+                  <Pressable
+                    disabled={isSubmitting}
+                    onPress={() => setShowConfirmModal(false)}
+                    style={{
+                      flex: 1,
+                      height: 46,
+                      borderRadius: 12,
+                      borderWidth: 1.5,
+                      borderColor: colors.cardBorder,
+                      backgroundColor: colors.cardBackground,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: colors.textPrimary }}>Cancel</Text>
+                  </Pressable>
+
+                  <Pressable
+                    disabled={isSubmitting}
+                    onPress={handleExecuteSubmit}
+                    style={{
+                      flex: 1.6,
+                      height: 46,
+                      borderRadius: 12,
+                      backgroundColor: '#0B2341',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexDirection: 'row',
+                      gap: 6,
+                    }}
+                  >
+                    <MaterialCommunityIcons name="check" size={16} color="#FFF" />
+                    <Text style={{ fontSize: 13.5, fontWeight: '900', color: '#FFF' }}>
+                      Confirm & Proceed
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Media Picker Modal */}
       <Modal
@@ -1586,7 +2041,8 @@ function getStyles(colors: any, theme?: string) {
     uploadIconContainer: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(11, 160, 178, 0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
     uploadPrimaryText: { fontSize: 16, fontWeight: '900', color: colors.textPrimary },
     uploadSecondaryText: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 6, fontWeight: '600' },
-    aiGenerationWrapper: { gap: 12 },
+    aiGenerationWrapper: { gap: 10 },
+    aiImageDescriptionLabel: { fontSize: 11, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5 },
     aiPromptInput: { backgroundColor: colors.surfaceSoft, borderRadius: 22, padding: 18, fontSize: 12, color: colors.textPrimary, minHeight: 120, textAlignVertical: 'top', borderWidth: 1, borderColor: colors.cardBorder },
     presetsScroll: { gap: 8, paddingVertical: 4 },
     presetChip: {
@@ -1610,7 +2066,11 @@ function getStyles(colors: any, theme?: string) {
     modernMediaCell: { width: Math.floor((SCREEN_WIDTH - 100) / 3), aspectRatio: 1, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.surfaceSoft, borderWidth: 2, borderColor: 'transparent' },
     modernMediaCellSelected: { borderColor: colors.accentTeal },
     modernMediaImage: { width: '100%', height: '100%' },
-    modernMediaCheck: { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.accentTeal, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFF' },
+    modernMediaCheck: { position: 'absolute', top: 6, left: 6, width: 20, height: 20, borderRadius: 10, backgroundColor: colors.accentTeal, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#FFF', zIndex: 10 },
+    modernMediaRemoveBtn: { position: 'absolute', top: 6, right: 6, width: 20, height: 20, borderRadius: 10, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#FFF', zIndex: 10 },
+    emptyAssetBox: { backgroundColor: colors.surfaceSoft, borderRadius: 16, padding: 24, alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: colors.cardBorder, borderStyle: 'dashed' },
+    emptyAssetText: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+    emptyAssetSub: { fontSize: 11.5, fontWeight: '500', color: colors.textMuted, textAlign: 'center' },
     galleryCount: { fontSize: 12, fontWeight: '800', color: colors.accentTeal, backgroundColor: 'rgba(11, 160, 178, 0.1)', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12 },
     strategyContainer: { gap: 14 },
     strategyCard: { flexDirection: 'row', alignItems: 'center', padding: 18, borderRadius: 24, borderWidth: 1.5, borderColor: colors.cardBorder, backgroundColor: colors.cardBackground },

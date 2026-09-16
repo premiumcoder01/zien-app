@@ -16,6 +16,7 @@ import {
   type CreditFlowData,
   type CreditTimelineItem
 } from '@/services/billingService';
+import { openAppleSubscriptionSettings, restoreApplePurchases, getAddonSku, purchaseAppleSubscription } from '@/services/appleIapService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -168,7 +169,20 @@ export default function BillingUsageScreen() {
 
 
 
-  const openCancelModal = () => setShowCancelModal(true);
+  const openCancelModal = () => {
+    if (Platform.OS === 'ios') {
+      Alert.alert(
+        'Manage Apple Subscription',
+        'Your subscription is billed through Apple. You can manage, upgrade, or cancel your subscription anytime in your Apple ID settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Apple Settings', onPress: openAppleSubscriptionSettings }
+        ]
+      );
+      return;
+    }
+    setShowCancelModal(true);
+  };
   const closeCancelModal = () => setShowCancelModal(false);
   const handleConfirmCancelSub = async () => {
     closeCancelModal();
@@ -202,13 +216,70 @@ export default function BillingUsageScreen() {
     }
   };
 
-  const openCancelAddonModal = (addon: SoloAddon) => setShowCancelAddonModal(addon);
+  const getFormattedAddonPrice = (addon: SoloAddon) => {
+    if (Platform.OS === 'ios') {
+      const isAnnually = subscriptionData?.price?.billing_interval === 'annually' || subscriptionData?.price?.billing_interval === 'yearly';
+      const slug = (addon.slug || '').toLowerCase();
+      if (slug.includes('team')) {
+        return { price: '49.95', unit: '/mo' };
+      }
+      if (slug.includes('staging') || slug.includes('verification') || slug.includes('intelligence') || slug.includes('property')) {
+        return isAnnually 
+          ? { price: '179.99', unit: '/yr' }
+          : { price: '14.99', unit: '/mo' };
+      }
+    }
+    return { price: addon.price, unit: '/mo' };
+  };
+
+  const handleAddonAction = async (addon: SoloAddon) => {
+    if (Platform.OS === 'ios') {
+      const isAnnually = subscriptionData?.price?.billing_interval === 'annually' || subscriptionData?.price?.billing_interval === 'yearly';
+      const sku = getAddonSku(addon.slug, isAnnually ? 'annually' : 'monthly');
+      if (sku) {
+        try {
+          setLoading(true);
+          const purchase = await purchaseAppleSubscription(sku);
+          if (purchase) {
+            Alert.alert('Add-on Activated', `${addon.name} has been successfully added to your Apple subscription.`);
+            await fetchBillingData();
+          }
+        } catch (err: any) {
+          Alert.alert('Subscription Notice', err?.message || 'Unable to complete Apple In-App Purchase.');
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        openAppleSubscriptionSettings();
+      }
+      return;
+    }
+    openManageOnWebsite();
+  };
+
+  const openCancelAddonModal = (addon: SoloAddon) => {
+    if (Platform.OS === 'ios') {
+      Alert.alert(
+        'Manage Apple Add-on',
+        `Your ${addon.name} add-on is billed through Apple. You can manage or cancel your add-on anytime in your Apple ID settings.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Apple Settings', onPress: openAppleSubscriptionSettings }
+        ]
+      );
+      return;
+    }
+    setShowCancelAddonModal(addon);
+  };
   const closeCancelAddonModal = () => setShowCancelAddonModal(null);
   const handleConfirmCancelAddon = async () => {
     if (!showCancelAddonModal) return;
     const name = showCancelAddonModal.name;
     closeCancelAddonModal();
-    // Direct user to website to manage addon cancellation (Apple compliant)
+    if (Platform.OS === 'ios') {
+      openAppleSubscriptionSettings();
+      return;
+    }
     Alert.alert(
       'Manage Add-on',
       `To cancel your ${name} add-on, please visit your account on the Zien website.`,
@@ -329,10 +400,46 @@ export default function BillingUsageScreen() {
               </View>
             ) : (
               <Pressable style={styles.cancelRenewalButton} onPress={openCancelModal}>
-                <Text style={styles.cancelRenewalButtonText}>Cancel Renewal</Text>
+                <Text style={styles.cancelRenewalButtonText}>
+                  {Platform.OS === 'ios' ? 'Manage in Apple Settings' : 'Cancel Renewal'}
+                </Text>
               </Pressable>
             )}
           </View>
+
+          {Platform.OS === 'ios' && (
+            <Pressable
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                paddingVertical: 12,
+                marginTop: 8,
+              }}
+              onPress={async () => {
+                try {
+                  setLoading(true);
+                  const purchases = await restoreApplePurchases();
+                  if (purchases && purchases.length > 0) {
+                    Alert.alert('Purchases Restored', 'Your active Apple subscriptions have been restored.');
+                  } else {
+                    Alert.alert('No Purchases Found', 'No active subscriptions found for this Apple ID.');
+                  }
+                  await fetchBillingData();
+                } catch (err: any) {
+                  Alert.alert('Restore Failed', err?.message || 'Unable to restore purchases at this time.');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              <MaterialCommunityIcons name="restore" size={16} color="#00a7b5" />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#00a7b5' }}>
+                Restore Apple Purchases
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Plan Add-ons Section */}
@@ -371,7 +478,12 @@ export default function BillingUsageScreen() {
                     </View>
                   </View>
                   <View style={styles.addonCardRight}>
-                    <Text style={styles.addonPrice}>${addon.price}<Text style={styles.addonPriceUnit}>/mo</Text></Text>
+                    {(() => {
+                      const { price: formattedPrice, unit: formattedUnit } = getFormattedAddonPrice(addon);
+                      return (
+                        <Text style={styles.addonPrice}>${formattedPrice}<Text style={styles.addonPriceUnit}>{formattedUnit}</Text></Text>
+                      );
+                    })()}
                     {isActive ? (
                       subscription.cancel_at_period_end ? (
                         <View style={styles.addonCanceledPill}>
@@ -379,13 +491,17 @@ export default function BillingUsageScreen() {
                         </View>
                       ) : (
                         <Pressable style={styles.cancelAddonBtn} onPress={() => openCancelAddonModal(addon)}>
-                          <Text style={styles.cancelAddonBtnText}>Cancel Add-on</Text>
+                          <Text style={styles.cancelAddonBtnText}>
+                            {Platform.OS === 'ios' ? 'Manage in Apple' : 'Cancel Add-on'}
+                          </Text>
                         </Pressable>
                       )
                     ) : (
                       !subscription.cancel_at_period_end ? (
-                        <Pressable style={styles.activateAddonBtn} onPress={openManageOnWebsite}>
-                          <Text style={styles.activateAddonBtnText}>Manage on Website</Text>
+                        <Pressable style={styles.activateAddonBtn} onPress={() => handleAddonAction(addon)}>
+                          <Text style={styles.activateAddonBtnText}>
+                            {Platform.OS === 'ios' ? 'Subscribe with Apple' : 'Manage on Website'}
+                          </Text>
                         </Pressable>
                       ) : null
                     )}

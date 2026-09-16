@@ -37,6 +37,23 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id'];
 
+function isPropertyPost(item: SocialPost, propertiesList: any[] = []): boolean {
+  if (item.property_id) return true;
+  if ((item as any).property) return true;
+  if (item.caption && Array.isArray(propertiesList)) {
+    const cap = item.caption.toLowerCase();
+    for (const p of propertiesList) {
+      if (p?.address) {
+        const addrPart = p.address.toLowerCase().split(',')[0].trim();
+        if (addrPart && cap.includes(addrPart)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 function getPostTag(item: SocialPost): { label: string; color: string; bgColor: string } {
   if (item.property_id) return { label: 'PROPERTY', color: '#0a2341', bgColor: 'rgba(11, 160, 178, 0.12)' };
   if (item.campaign_id) return { label: 'CAMPAIGN', color: '#8B5CF6', bgColor: 'rgba(139, 92, 246, 0.12)' };
@@ -45,9 +62,73 @@ function getPostTag(item: SocialPost): { label: string; color: string; bgColor: 
 }
 
 function getStatusInfo(item: SocialPost): { label: string; color: string; icon: string } {
-  if (item.published_at) return { label: 'Published', color: '#10B981', icon: 'check-circle-outline' };
-  if (item.status === 1) return { label: 'Scheduled', color: '#0a2341', icon: 'clock-outline' };
+  if (item.published_at || item.status === 2 || (item as any).status === 'published') {
+    return { label: 'Published', color: '#10B981', icon: 'check-circle-outline' };
+  }
+  if (item.status === 3 || (item as any).status === 'failed') {
+    return { label: 'Failed', color: '#EF4444', icon: 'alert-circle-outline' };
+  }
+  if (item.status === 1 || (item as any).status === 'scheduled') {
+    if (item.scheduled_at && new Date(item.scheduled_at).getTime() <= Date.now() + 60000) {
+      return { label: 'Published', color: '#10B981', icon: 'check-circle-outline' };
+    }
+    return { label: 'Scheduled', color: '#0a2341', icon: 'clock-outline' };
+  }
   return { label: 'Draft', color: '#F59E0B', icon: 'file-document-edit-outline' };
+}
+
+function getPostPlatforms(item: SocialPost): Array<{ id: string; icon: string }> {
+  const result: Array<{ id: string; icon: string }> = [];
+  const added = new Set<string>();
+
+  const addPlatform = (raw: string) => {
+    if (!raw) return;
+    const pName = raw.toLowerCase().trim();
+    if (!pName || added.has(pName)) return;
+    added.add(pName);
+
+    if (pName.includes('facebook')) {
+      result.push({ id: 'facebook', icon: 'facebook' });
+    } else if (pName.includes('instagram')) {
+      result.push({ id: 'instagram', icon: 'instagram' });
+    } else if (pName.includes('tiktok')) {
+      result.push({ id: 'tiktok', icon: 'music-note' });
+    } else if (pName.includes('linkedin')) {
+      result.push({ id: 'linkedin', icon: 'linkedin' });
+    } else if (pName.includes('twitter') || pName.includes('x')) {
+      result.push({ id: 'twitter', icon: 'twitter' });
+    } else {
+      result.push({ id: pName, icon: 'share-variant' });
+    }
+  };
+
+  // 1. Check item.post_platforms array
+  if (Array.isArray(item.post_platforms) && item.post_platforms.length > 0) {
+    item.post_platforms.forEach((pp: any) => {
+      const pName = pp.account?.platform || pp.platform || pp.platform_name || '';
+      addPlatform(pName);
+    });
+  }
+
+  // 2. Check direct platforms array if present
+  if (Array.isArray((item as any).platforms)) {
+    (item as any).platforms.forEach((p: any) => {
+      addPlatform(String(p));
+    });
+  }
+
+  // 3. Check direct item.platform string if present (could be "facebook, instagram" or "facebook")
+  if ((item as any).platform) {
+    const rawPlat = String((item as any).platform);
+    rawPlat.split(/[,&|\s]+/).forEach(p => addPlatform(p));
+  }
+
+  // Fallback to Instagram if none found
+  if (result.length === 0) {
+    result.push({ id: 'instagram', icon: 'instagram' });
+  }
+
+  return result;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -165,7 +246,115 @@ function getSocialPostShareUrl(item: SocialPost | null): string | null {
   return null;
 }
 
-// ─── View Library Asset Modal ──────────────────────────────────────
+export interface PostPlatformMetrics {
+  platform: string;
+  likes: number;
+  comments: number;
+  views: number;
+}
+
+export interface PostMetricsSummary {
+  likes: number;
+  comments: number;
+  views: number;
+  platforms: PostPlatformMetrics[];
+}
+
+export function extractPostMetrics(post: SocialPost | any): PostMetricsSummary {
+  if (!post) {
+    return { likes: 0, comments: 0, views: 0, platforms: [] };
+  }
+
+  let totalLikes = 0;
+  let totalComments = 0;
+  let totalViews = 0;
+  const platformList: PostPlatformMetrics[] = [];
+
+  // 1. Direct post properties
+  const directLikes = Number(post.likes ?? post.likes_count ?? post.like_count ?? post.metrics?.likes ?? 0);
+  const directComments = Number(post.comments ?? post.comments_count ?? post.comment_count ?? post.metrics?.comments ?? 0);
+  const directViews = Number(post.views ?? post.views_count ?? post.view_count ?? post.impressions ?? post.reach ?? post.metrics?.views ?? 0);
+
+  // 2. Check post_platforms array
+  if (Array.isArray(post.post_platforms) && post.post_platforms.length > 0) {
+    post.post_platforms.forEach((pp: any) => {
+      const platName = (
+        pp.account?.platform ||
+        pp.platform ||
+        pp.platform_name ||
+        'FACEBOOK'
+      ).toUpperCase();
+
+      const pLikes = Number(
+        pp.likes ??
+        pp.likes_count ??
+        pp.like_count ??
+        pp.metrics?.likes ??
+        pp.insights?.likes ??
+        pp.data?.likes ??
+        0
+      );
+
+      const pComments = Number(
+        pp.comments ??
+        pp.comments_count ??
+        pp.comment_count ??
+        pp.metrics?.comments ??
+        pp.insights?.comments ??
+        pp.data?.comments ??
+        0
+      );
+
+      const pViews = Number(
+        pp.views ??
+        pp.views_count ??
+        pp.view_count ??
+        pp.impressions ??
+        pp.reach ??
+        pp.metrics?.views ??
+        pp.insights?.views ??
+        pp.data?.views ??
+        0
+      );
+
+      platformList.push({
+        platform: platName,
+        likes: pLikes,
+        comments: pComments,
+        views: pViews,
+      });
+
+      totalLikes += pLikes;
+      totalComments += pComments;
+      totalViews += pViews;
+    });
+  }
+
+  // If total from platform array is 0 but direct properties exist
+  if (totalLikes === 0 && directLikes > 0) totalLikes = directLikes;
+  if (totalComments === 0 && directComments > 0) totalComments = directComments;
+  if (totalViews === 0 && directViews > 0) totalViews = directViews;
+
+  // Fallback platform if list is empty
+  if (platformList.length === 0) {
+    const rawPlat = (post.platform || 'FACEBOOK').toUpperCase();
+    platformList.push({
+      platform: rawPlat,
+      likes: totalLikes,
+      comments: totalComments,
+      views: totalViews,
+    });
+  }
+
+  return {
+    likes: totalLikes,
+    comments: totalComments,
+    views: totalViews,
+    platforms: platformList,
+  };
+}
+
+// ─── View Library Asset Modal (Web-Matching Preview Modal) ───────────
 function ViewPostModal({
   visible, item, onClose, propertiesList = [],
 }: {
@@ -182,21 +371,32 @@ function ViewPostModal({
   const [platformVal, setPlatformVal] = useState('Multi');
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
 
+  const metrics = useMemo(() => extractPostMetrics(item), [item]);
+  const status = useMemo(() => item ? getStatusInfo(item) : null, [item]);
+
   useEffect(() => {
     if (item && visible) {
       const firstLine = (item.caption || '').split('\n')[0].trim();
-      setAssetName(firstLine);
+      setAssetName(firstLine || 'Library Asset');
       setCaption(item.caption || '');
       setMediaUrl(getSocialPostImage(item, propertiesList));
       setCategory(item.property_id ? 'Property' : 'AI Generated');
-      setPlatformVal('Multi');
+
+      const platforms = item.post_platforms?.map((p: any) => p.account?.platform || p.platform).filter(Boolean);
+      if (platforms && platforms.length === 1) {
+        setPlatformVal(platforms[0].charAt(0).toUpperCase() + platforms[0].slice(1));
+      } else if (platforms && platforms.length > 1) {
+        setPlatformVal(platforms.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(', '));
+      } else {
+        setPlatformVal('Multi');
+      }
     }
   }, [item, visible, propertiesList]);
 
   if (!visible || !item) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={false}>
+    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: colors.cardBackground }}>
         {/* Header */}
         <View style={{
@@ -205,11 +405,11 @@ function ViewPostModal({
           borderBottomWidth: 1, borderBottomColor: colors.cardBorder,
         }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 22, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.5 }}>Library Asset</Text>
-            <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: '600', marginTop: 2 }}>View your high-performing social content</Text>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.5 }}>Preview Asset</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: '600', marginTop: 2 }}>View your library asset details</Text>
           </View>
           <Pressable
-            onPress={() => onClose()}
+            onPress={onClose}
             style={{
               width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSoft,
               alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.cardBorder,
@@ -224,15 +424,101 @@ function ViewPostModal({
           contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 40 }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Image Preview */}
+          {/* Image Preview with Status Badge */}
           {mediaUrl ? (
             <View style={{
               borderRadius: 24, overflow: 'hidden', backgroundColor: colors.surfaceSoft,
-              marginBottom: 28, borderWidth: 1, borderColor: colors.cardBorder,
+              marginBottom: 24, borderWidth: 1, borderColor: colors.cardBorder,
+              position: 'relative',
             }}>
               <RNImage source={{ uri: mediaUrl }} style={{ width: '100%', height: 220 }} resizeMode="cover" />
+              {status && (
+                <View style={{
+                  position: 'absolute', top: 14, left: 14,
+                  backgroundColor: status.label === 'Published' ? '#10B981' : '#0a2341',
+                  paddingVertical: 5, paddingHorizontal: 10, borderRadius: 8,
+                }}>
+                  <Text style={{ fontSize: 10, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.5 }}>
+                    {status.label.toUpperCase()}
+                  </Text>
+                </View>
+              )}
             </View>
           ) : null}
+
+          {/* Overall Metrics Card */}
+          <View style={{
+            backgroundColor: colors.surfaceSoft,
+            borderRadius: 20,
+            padding: 18,
+            marginBottom: 20,
+            borderWidth: 1.5,
+            borderColor: colors.cardBorder,
+          }}>
+            <Text style={{ fontSize: 14, fontWeight: '900', color: colors.textPrimary, marginBottom: 14 }}>
+              Overall Metrics
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 28 }}>
+              {/* Likes */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <MaterialCommunityIcons name="heart-outline" size={22} color={colors.textPrimary} />
+                <Text style={{ fontSize: 17, fontWeight: '800', color: colors.textPrimary }}>{metrics.likes}</Text>
+              </View>
+              {/* Comments */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <MaterialCommunityIcons name="comment-outline" size={22} color={colors.textPrimary} />
+                <Text style={{ fontSize: 17, fontWeight: '800', color: colors.textPrimary }}>{metrics.comments}</Text>
+              </View>
+              {/* Views */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <MaterialCommunityIcons name="eye-outline" size={22} color={colors.textPrimary} />
+                <Text style={{ fontSize: 17, fontWeight: '800', color: colors.textPrimary }}>{metrics.views}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Platform Breakdown */}
+          {metrics.platforms.length > 0 && (
+            <View style={{ marginBottom: 24 }}>
+              <Text style={{ fontSize: 14, fontWeight: '900', color: colors.textPrimary, marginBottom: 12 }}>
+                Platform Breakdown
+              </Text>
+              <View style={{ gap: 10 }}>
+                {metrics.platforms.map((plat, idx) => (
+                  <View
+                    key={`${plat.platform}-${idx}`}
+                    style={{
+                      backgroundColor: colors.surfaceSoft,
+                      borderRadius: 16,
+                      padding: 16,
+                      borderWidth: 1.5,
+                      borderColor: colors.cardBorder,
+                      borderLeftWidth: 4,
+                      borderLeftColor: '#2563EB',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#2563EB', marginBottom: 10, letterSpacing: 0.5 }}>
+                      {plat.platform}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <MaterialCommunityIcons name="heart-outline" size={18} color={colors.textPrimary} />
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: colors.textPrimary }}>{plat.likes}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <MaterialCommunityIcons name="comment-outline" size={18} color={colors.textPrimary} />
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: colors.textPrimary }}>{plat.comments}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <MaterialCommunityIcons name="eye-outline" size={18} color={colors.textPrimary} />
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: colors.textPrimary }}>{plat.views}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Asset Identity */}
           <View style={{ marginBottom: 24 }}>
@@ -250,7 +536,10 @@ function ViewPostModal({
 
           {/* Creative Description */}
           <View style={{ marginBottom: 24 }}>
-            <Text style={{ fontSize: 13, fontWeight: '900', color: colors.textPrimary, marginBottom: 10, letterSpacing: -0.2 }}>Creative Description</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '900', color: colors.textPrimary, letterSpacing: -0.2 }}>Creative Description</Text>
+              <MaterialCommunityIcons name="information-outline" size={16} color={colors.textMuted} />
+            </View>
             <TextInput
               style={{
                 minHeight: 120, backgroundColor: colors.surfaceSoft, borderRadius: 16,
@@ -323,7 +612,8 @@ function ContentCardItem({
   const fullCaption = item.caption || '';
   const dateStr = formatCardDate(item.scheduled_at || item.created_at);
   const mediaCount = item.media?.length || 0;
-  const usedCount = 1;
+  const metrics = extractPostMetrics(item);
+  const platforms = getPostPlatforms(item);
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 80).duration(400)} style={{
@@ -344,23 +634,34 @@ function ContentCardItem({
           </View>
         )}
 
-        {/* Tag Overlay - top left */}
+        {/* Status Badge - top left matching Web UI */}
         <View style={{
           position: 'absolute', top: 12, left: 12,
-          backgroundColor: tag.bgColor, paddingVertical: 4, paddingHorizontal: 10,
-          borderRadius: 8, borderWidth: 1, borderColor: `${tag.color}20`,
+          backgroundColor: status.label.toUpperCase() === 'PUBLISHED' ? '#10B981' : status.color,
+          paddingVertical: 4, paddingHorizontal: 9,
+          borderRadius: 8,
+          shadowColor: '#000', shadowOpacity: 0.15, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4,
+          elevation: 2,
         }}>
-          <Text style={{ fontSize: 9, fontWeight: '900', color: tag.color, letterSpacing: 0.8 }}>{tag.label}</Text>
+          <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.6 }}>
+            {status.label.toUpperCase()}
+          </Text>
         </View>
 
-        {/* Status Overlay - top right */}
+        {/* Platform Icons Badge - top right matching Web UI */}
         <View style={{
           position: 'absolute', top: 12, right: 12,
-          flexDirection: 'row', alignItems: 'center', gap: 4,
-          backgroundColor: 'rgba(255, 255, 255, 0.9)', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8,
+          flexDirection: 'row', alignItems: 'center', gap: 6,
+          backgroundColor: 'rgba(11, 35, 65, 0.75)',
+          paddingVertical: 5, paddingHorizontal: 8,
+          borderRadius: 8,
+          borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)',
+          shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4,
+          elevation: 2,
         }}>
-          <MaterialCommunityIcons name={status.icon as any} size={11} color={status.color} />
-          <Text style={{ fontSize: 9, fontWeight: '900', color: status.color }}>{status.label}</Text>
+          {platforms.map((p, pIdx) => (
+            <MaterialCommunityIcons key={`${p.id}-${pIdx}`} name={p.icon as any} size={13} color="#FFFFFF" />
+          ))}
         </View>
 
         {/* Media count badge */}
@@ -407,10 +708,24 @@ function ContentCardItem({
         borderTopWidth: 1, borderTopColor: colors.cardBorder,
         backgroundColor: colors.surfaceSoft,
       }}>
-        {/* Used count */}
-        <Text style={{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }}>
-          Used {usedCount} times
-        </Text>
+        {/* Metrics Row (Likes, Comments, Views) */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          {/* Likes */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <MaterialCommunityIcons name="heart-outline" size={15} color={colors.textMuted} />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary }}>{metrics.likes}</Text>
+          </View>
+          {/* Comments */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <MaterialCommunityIcons name="comment-outline" size={15} color={colors.textMuted} />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary }}>{metrics.comments}</Text>
+          </View>
+          {/* Views */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <MaterialCommunityIcons name="eye-outline" size={15} color={colors.textMuted} />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary }}>{metrics.views}</Text>
+          </View>
+        </View>
 
         {/* Action Icons */}
         <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -525,7 +840,7 @@ function DeleteConfirmationModal({
 const DROPDOWN_OPTIONS = {
   type: [
     { id: 'all', label: 'Type: All' },
-    { id: 'custom', label: 'Type: Custom' },
+    { id: 'property', label: 'Type: Property' },
   ],
   status: [
     { id: 'all', label: 'Status: All' },
@@ -545,7 +860,7 @@ export default function ContentLibraryScreen() {
   const { accessToken } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [activeType, setActiveType] = useState<'all' | 'custom'>('all');
+  const [activeType, setActiveType] = useState<'all' | 'property'>('all');
   const [activeStatus, setActiveStatus] = useState<'all' | 'draft' | 'scheduled' | 'published'>('all');
   const [activeSort, setActiveSort] = useState<'newest' | 'oldest'>('newest');
   const [activeDropdown, setActiveDropdown] = useState<'type' | 'status' | 'date' | null>(null);
@@ -559,6 +874,8 @@ export default function ContentLibraryScreen() {
     queryKey: ['social-posts'],
     queryFn: () => getSocialPosts(accessToken || ''),
     enabled: !!accessToken,
+    refetchOnMount: 'always',
+    staleTime: 5_000,
   });
 
   const { data: propertiesData } = useQuery({
@@ -573,15 +890,13 @@ export default function ContentLibraryScreen() {
     let list = [...contentList];
 
     // Filter by Type
-    if (activeType === 'custom') {
-      list = list.filter(c => !c.property_id && !c.campaign_id && !c.caption?.toLowerCase().includes('open house'));
+    if (activeType === 'property') {
+      list = list.filter(c => isPropertyPost(c, propertiesList));
     }
 
     // Filter by Status
     if (activeStatus !== 'all') {
-      if (activeStatus === 'draft') list = list.filter(c => !c.published_at && c.status !== 1);
-      else if (activeStatus === 'scheduled') list = list.filter(c => c.status === 1);
-      else if (activeStatus === 'published') list = list.filter(c => c.published_at);
+      list = list.filter(c => getStatusInfo(c).label.toLowerCase() === activeStatus);
     }
 
     // Sort by Date

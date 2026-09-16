@@ -309,72 +309,25 @@ export default function EventDashboardScreen() {
         }
     });
 
-    const handleToggleSetting = async (key: string, val: boolean) => {
-        let newRealtime = notifRealtime;
-        let newHotLead = notifHotLead;
-        let newEmailSummary = notifEmailSummary;
-        let newEnableCheckIn = qrEnableCheckIn;
-        let newRequireEmail = qrRequireEmail;
-        let newRequirePhone = qrRequirePhone;
-
-        if (key === 'realtimeAlerts') { setNotifRealtime(val); newRealtime = val; }
-        else if (key === 'hotLeadAlerts') { setNotifHotLead(val); newHotLead = val; }
-        else if (key === 'emailSummaries') { setNotifEmailSummary(val); newEmailSummary = val; }
-        else if (key === 'enableCheckIn') { setQrEnableCheckIn(val); newEnableCheckIn = val; }
-        else if (key === 'requireEmail') { setQrRequireEmail(val); newRequireEmail = val; }
-        else if (key === 'requirePhone') { setQrRequirePhone(val); newRequirePhone = val; }
-
-        if (!accessToken || !id) return;
-
-        try {
-            await updateOpenHouse(accessToken, id as string, {
-                settings: {
-                    enableCheckIn: newEnableCheckIn,
-                    requireEmail: newRequireEmail,
-                    requirePhone: newRequirePhone,
-                    realtimeAlerts: newRealtime,
-                    hotLeadAlerts: newHotLead,
-                    emailSummaries: newEmailSummary,
-                }
-            });
-            queryClient.invalidateQueries({ queryKey: ['open-house', id] });
-        } catch (err: any) {
-            console.error('Failed to update settings toggle:', err);
-        }
+    const handleToggleSetting = (key: string, val: boolean) => {
+        if (key === 'realtimeAlerts') setNotifRealtime(val);
+        else if (key === 'hotLeadAlerts') setNotifHotLead(val);
+        else if (key === 'emailSummaries') setNotifEmailSummary(val);
+        else if (key === 'enableCheckIn') setQrEnableCheckIn(val);
+        else if (key === 'requireEmail') setQrRequireEmail(val);
+        else if (key === 'requirePhone') setQrRequirePhone(val);
     };
 
     const handleSaveChanges = async () => {
-        if (!settingsEventName.trim()) {
-            Alert.alert('Event Name Required', 'Please enter an event name.');
-            return;
-        }
-
-        let startTime = openHouseData?.start_time || '13:00';
-        let endTime = openHouseData?.end_time || '16:00';
-        if (settingsTimeStr.includes('-')) {
-            const parts = settingsTimeStr.split('-');
-            startTime = parts[0].trim();
-            endTime = parts[1].trim();
-        }
-
         const payload = {
-            date: settingsDateStr,
-            start_time: startTime,
-            end_time: endTime,
-            agent_details: {
-                ...openHouseData?.agent_details,
-                name: settingsAgentName,
-            },
             settings: {
-                enableCheckIn: qrEnableCheckIn,
                 requireEmail: qrRequireEmail,
                 requirePhone: qrRequirePhone,
-                realtimeAlerts: notifRealtime,
+                enableCheckIn: qrEnableCheckIn,
                 hotLeadAlerts: notifHotLead,
                 emailSummaries: notifEmailSummary,
+                realtimeAlerts: notifRealtime,
             },
-            visitor_registration: automationRules.tag,
-            send_report: openHouseData?.send_report ?? true,
         };
 
         updateMutation.mutate(payload);
@@ -1073,7 +1026,7 @@ export default function EventDashboardScreen() {
                 <View style={styles.kpiCardsGrid}>
                     <View style={styles.kpiCardItem}>
                         <View style={styles.kpiCardHeaderRow}>
-                            <View style={styles.kpiIconBox}>
+                            <View style={styles.kpiIconBoxSmall}>
                                 <MaterialCommunityIcons name="account-group-outline" size={18} color={colors.textSecondary} />
                             </View>
                         </View>
@@ -1083,7 +1036,7 @@ export default function EventDashboardScreen() {
 
                     <View style={styles.kpiCardItem}>
                         <View style={styles.kpiCardHeaderRow}>
-                            <View style={styles.kpiIconBox}>
+                            <View style={styles.kpiIconBoxSmall}>
                                 <MaterialCommunityIcons name="trending-up" size={18} color={colors.textSecondary} />
                             </View>
                         </View>
@@ -1093,7 +1046,7 @@ export default function EventDashboardScreen() {
 
                     <View style={styles.kpiCardItem}>
                         <View style={styles.kpiCardHeaderRow}>
-                            <View style={styles.kpiIconBox}>
+                            <View style={styles.kpiIconBoxSmall}>
                                 <MaterialCommunityIcons name="target" size={18} color={colors.textSecondary} />
                             </View>
                         </View>
@@ -1709,7 +1662,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     kpiCardsGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
     kpiCardItem: { flex: 1, backgroundColor: colors.cardBackground, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: colors.cardBorder },
     kpiCardHeaderRow: { marginBottom: 10 },
-    kpiIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' },
+    kpiIconBoxSmall: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' },
     kpiCardLabel: { fontSize: 9, fontWeight: '800', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 4 },
     kpiCardValue: { fontSize: 20, fontWeight: '900', color: colors.textPrimary },
     sellerReportHeader: { marginBottom: 20 },

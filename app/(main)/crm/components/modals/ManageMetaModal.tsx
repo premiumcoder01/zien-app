@@ -531,3 +531,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: '#EF4444',
   },
 });
+
+export default ManageMetaModal;

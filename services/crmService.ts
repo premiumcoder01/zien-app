@@ -660,7 +660,7 @@ export const addCRMContact = async (accessToken?: string, payload?: AddCRMContac
             country_code: payload?.country_code || '+1',
             group_id: payload?.group_id,
             tag_id: payload?.tag_id,
-            auto_merge: payload?.auto_merge ?? true,
+            auto_merge: payload?.auto_merge !== undefined ? payload.auto_merge : false,
         };
 
         let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/contacts`, {
@@ -855,7 +855,7 @@ export const updateCRMContact = async (accessToken?: string, contactId?: string,
     try {
         const bodyData = {
             ...payload,
-            auto_merge: payload?.auto_merge ?? true,
+            auto_merge: payload?.auto_merge !== undefined ? payload.auto_merge : false,
         };
 
         let response = await fetch(`${CRM_API_BASE_URL}/solo/crm/contacts/${contactId}`, {
@@ -2871,6 +2871,10 @@ export interface CRMSettingsPayload {
 }
 
 export const updateCRMSettings = async (accessToken: string, payload: CRMSettingsPayload): Promise<any> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+    if (token.startsWith('Bearer ')) {
+        token = token.slice(7).trim();
+    }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -2878,11 +2882,7 @@ export const updateCRMSettings = async (accessToken: string, payload: CRMSetting
         const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/settings`, {
             method: 'POST',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers: getCRMAuthHeaders(token),
             body: JSON.stringify(payload),
         });
 
@@ -2903,7 +2903,11 @@ export const updateCRMSettings = async (accessToken: string, payload: CRMSetting
     }
 };
 
-export const getCRMSettings = async (accessToken: string): Promise<CRMSettingsPayload> => {
+export const getCRMSettings = async (accessToken: string): Promise<any> => {
+    let token = accessToken || (await AsyncStorage.getItem('access_token')) || '';
+    if (token.startsWith('Bearer ')) {
+        token = token.slice(7).trim();
+    }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -2911,11 +2915,7 @@ export const getCRMSettings = async (accessToken: string): Promise<CRMSettingsPa
         const response = await fetch(`${CRM_API_BASE_URL}/solo/crm/settings`, {
             method: 'GET',
             signal: controller.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers: getCRMAuthHeaders(token),
         });
 
         const data = await response.json().catch(() => ({}));
@@ -2924,7 +2924,7 @@ export const getCRMSettings = async (accessToken: string): Promise<CRMSettingsPa
             throw new Error(data.message || `Server error: ${response.status}`);
         }
 
-        return data;
+        return data?.settings || data;
     } catch (error: unknown) {
         if (error instanceof Error && error.name === 'AbortError') {
             throw new Error('Request timed out.');

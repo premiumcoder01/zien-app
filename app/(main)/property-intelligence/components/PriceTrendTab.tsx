@@ -927,3 +927,5 @@ function getStyles(colors: any, isDark: boolean = false) {
         },
     });
 }
+
+export default PriceTrendTab;

@@ -5,6 +5,7 @@ import {
   createAutomationRule,
   deleteAutomationRule,
   getAutomationRules,
+  getSocialOverview,
   getTemplates,
   updateAutomationRule,
   AutomationRule
@@ -56,6 +57,51 @@ const PROPERTY_TYPE_OPTIONS = [
   { label: 'Luxury', value: 'Luxury' },
 ];
 
+const SUGGESTIONS = [
+  {
+    id: 'sug-1',
+    name: 'Auto-Post New Listings',
+    desc: 'Auto-publish to IG & FB when property goes live.',
+    icon: 'lightning-bolt-outline',
+    iconColor: '#0EA5E9',
+    iconBg: 'rgba(14, 165, 233, 0.1)',
+    scopeLabel: 'All',
+    timeLabel: 'Immediate',
+    trigger_event: 'New Property Listed',
+    action_type: 'Auto-Generate & Publish Immediately',
+    scope: { type: 'All Properties' },
+    platforms: ['Instagram', 'Facebook'],
+  },
+  {
+    id: 'sug-2',
+    name: 'Sold Property Celebration',
+    desc: 'Celebrate closing a deal across all platforms.',
+    icon: 'check',
+    iconColor: '#10B981',
+    iconBg: 'rgba(16, 185, 129, 0.1)',
+    scopeLabel: 'All',
+    timeLabel: 'Immediate',
+    trigger_event: 'Property Sold',
+    action_type: 'Auto-Generate & Publish Immediately',
+    scope: { type: 'All Properties' },
+    platforms: ['Instagram', 'Facebook'],
+  },
+  {
+    id: 'sug-3',
+    name: 'Open House Scheduled',
+    desc: 'Generate a post when an open house is scheduled.',
+    icon: 'calendar-blank-outline',
+    iconColor: '#8B5CF6',
+    iconBg: 'rgba(139, 92, 246, 0.1)',
+    scopeLabel: 'Filter',
+    timeLabel: 'Immediate',
+    trigger_event: 'Open House Scheduled',
+    action_type: 'Auto-Generate & Publish Immediately',
+    scope: { type: 'Filter by Property Type', value: 'Residential' },
+    platforms: ['Instagram', 'Facebook'],
+  },
+];
+
 export default function AutomationRulesScreen() {
   const { colors, theme } = useAppTheme();
   const styles = getStyles(colors, theme);
@@ -96,6 +142,15 @@ export default function AutomationRulesScreen() {
     queryFn: () => getTemplates(accessToken || ''),
     enabled: !!accessToken,
   });
+
+  const { data: overview } = useQuery({
+    queryKey: ['social-overview'],
+    queryFn: () => getSocialOverview(accessToken || ''),
+    enabled: !!accessToken,
+  });
+
+  const postsAutomatedCount = overview?.published_posts_count ?? 0;
+  const timeSavedDisplay = postsAutomatedCount > 0 ? `${Math.max(1, Math.round(postsAutomatedCount * (25 / 60)))}h` : '0h';
 
   const isLoading = isRulesLoading || isTemplatesLoading;
 
@@ -168,6 +223,34 @@ export default function AutomationRulesScreen() {
       queryClient.invalidateQueries({ queryKey: ['automation-rules-all'] });
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to toggle rule status');
+    }
+  };
+
+  const handleSuggestionToggle = async (sug: typeof SUGGESTIONS[0]) => {
+    if (!accessToken) return;
+    const existing = rules.find((r: AutomationRule) => r.name.toLowerCase() === sug.name.toLowerCase());
+    try {
+      if (existing) {
+        await updateAutomationRule(accessToken, existing.id, {
+          is_active: !existing.is_active,
+        });
+      } else {
+        const payload = {
+          name: sug.name,
+          trigger_event: sug.trigger_event,
+          action_type: sug.action_type,
+          is_active: true,
+          config: {
+            scope: sug.scope,
+            platforms: sug.platforms,
+            template_id: templates.length > 0 ? String(templates[0].id) : '1',
+          },
+        };
+        await createAutomationRule(accessToken, payload);
+      }
+      queryClient.invalidateQueries({ queryKey: ['automation-rules-all'] });
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update suggestion rule');
     }
   };
 
@@ -359,9 +442,72 @@ export default function AutomationRulesScreen() {
             />
           </View>
 
-          {/* Rule List */}
+          {/* Suggestions Section matching Web UI */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Active Automations</Text>
+            <Text style={styles.sectionTitle}>SUGGESTIONS</Text>
+          </View>
+
+          <View style={styles.suggestionsList}>
+            {SUGGESTIONS.map((sug, idx) => {
+              const matchedRule = rules.find(
+                (r: AutomationRule) => r.name.toLowerCase() === sug.name.toLowerCase()
+              );
+              const isActivated = matchedRule ? matchedRule.is_active : false;
+
+              return (
+                <Animated.View
+                  entering={FadeInDown.delay(idx * 80).duration(350)}
+                  key={sug.id}
+                  style={styles.suggestionCard}
+                >
+                  <View style={styles.suggestionTopRow}>
+                    <View style={[styles.suggestionIconBox, { backgroundColor: sug.iconBg }]}>
+                      <MaterialCommunityIcons name={sug.icon as any} size={20} color={sug.iconColor} />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.suggestionTitle}>{sug.name}</Text>
+                      <Text style={styles.suggestionDesc}>{sug.desc}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.suggestionDivider} />
+
+                  <View style={styles.suggestionBottomRow}>
+                    <View style={styles.suggestionMetaRow}>
+                      <View style={styles.metaBadge}>
+                        <MaterialCommunityIcons name="cog-outline" size={13} color={colors.textMuted} />
+                        <Text style={styles.metaBadgeText}>{sug.scopeLabel}</Text>
+                      </View>
+                      <View style={styles.metaBadge}>
+                        <MaterialCommunityIcons name="clock-outline" size={13} color={colors.textMuted} />
+                        <Text style={styles.metaBadgeText}>{sug.timeLabel}</Text>
+                      </View>
+                    </View>
+
+                    <Pressable
+                      style={[
+                        styles.activateBtn,
+                        isActivated ? styles.activateBtnActive : styles.activateBtnInactive
+                      ]}
+                      onPress={() => handleSuggestionToggle(sug)}
+                    >
+                      <Text style={[
+                        styles.activateBtnText,
+                        isActivated ? styles.activateBtnTextActive : styles.activateBtnTextInactive
+                      ]}>
+                        {isActivated ? 'Activated' : 'Activate'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </Animated.View>
+              );
+            })}
+          </View>
+
+          {/* Your Rules Section */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>YOUR RULES</Text>
             <Text style={styles.sectionCount}>{filteredRules.length} Rules</Text>
           </View>
 
@@ -374,14 +520,14 @@ export default function AutomationRulesScreen() {
             ) : (
               filteredRules.map((rule, idx) => (
                 <Animated.View
-                  entering={FadeInDown.delay(idx * 100).springify()}
+                  entering={FadeInDown.delay(idx * 80).duration(350)}
                   key={rule.id}
                   style={styles.ruleCard}
                 >
                   <View style={styles.ruleHeaderRow}>
                     <View style={styles.ruleTitleSection}>
                       <View style={styles.ruleIconBox}>
-                        <MaterialCommunityIcons name="lightning-bolt-outline" size={20} color={colors.accentTeal} />
+                        <MaterialCommunityIcons name="lightning-bolt-outline" size={18} color={colors.accentTeal} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
@@ -449,14 +595,14 @@ export default function AutomationRulesScreen() {
 
             <View style={styles.impactStatsRow}>
               <View style={styles.impactStatItem}>
-                <Text style={styles.impactStatValue}>16</Text>
+                <Text style={styles.impactStatValue}>{postsAutomatedCount}</Text>
                 <Text style={styles.impactStatLabel}>Posts Automated</Text>
               </View>
 
               <View style={styles.impactStatDivider} />
 
               <View style={styles.impactStatItem}>
-                <Text style={styles.impactStatValue}>5h</Text>
+                <Text style={styles.impactStatValue}>{timeSavedDisplay}</Text>
                 <Text style={styles.impactStatLabel}>Time Saved</Text>
               </View>
             </View>
@@ -773,14 +919,104 @@ function getStyles(colors: any, theme: 'light' | 'dark') {
       marginBottom: 16,
     },
     sectionTitle: {
-      fontSize: 15,
+      fontSize: 14,
       fontWeight: '900',
       color: colors.textPrimary,
+      letterSpacing: 0.5,
     },
     sectionCount: {
       fontSize: 12,
       fontWeight: '700',
       color: colors.textMuted,
+    },
+    suggestionsList: {
+      marginBottom: 26,
+      gap: 12,
+    },
+    suggestionCard: {
+      backgroundColor: colors.cardBackground,
+      borderRadius: 20,
+      padding: 16,
+      borderWidth: 1.5,
+      borderColor: colors.cardBorder,
+      ...Platform.select({
+        ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.04, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
+        android: { elevation: 2 },
+      }),
+    },
+    suggestionTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    suggestionIconBox: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    suggestionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    suggestionDesc: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textMuted,
+      lineHeight: 16,
+    },
+    suggestionDivider: {
+      height: 1,
+      backgroundColor: colors.rowBorder || colors.cardBorder,
+      marginVertical: 12,
+    },
+    suggestionBottomRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    suggestionMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    metaBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    metaBadgeText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textMuted,
+    },
+    activateBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+      borderRadius: 10,
+      borderWidth: 1,
+    },
+    activateBtnActive: {
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    activateBtnInactive: {
+      backgroundColor: colors.surfaceSoft,
+      borderColor: colors.cardBorder,
+    },
+    activateBtnText: {
+      fontSize: 11.5,
+      fontWeight: '900',
+      letterSpacing: 0.3,
+    },
+    activateBtnTextActive: {
+      color: '#10B981',
+    },
+    activateBtnTextInactive: {
+      color: colors.textSecondary,
     },
     ruleList: {
       marginBottom: 24,

@@ -98,3 +98,5 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '900',
   },
 });
+
+export default GuardianNav;

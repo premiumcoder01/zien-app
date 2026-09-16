@@ -33,7 +33,7 @@ import {
   useWindowDimensions,
   View
 } from 'react-native';
-import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
+import { KeyboardAwareScrollView, useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import PhoneInput from 'react-native-phone-number-input';
 import { ProgressStep, ProgressSteps } from 'react-native-progress-steps';
 import QRCode from 'react-native-qrcode-svg';
@@ -476,7 +476,7 @@ export default function OpenHouseEditScreen() {
             activeLabelFontSize={10}
 
           >
-            <ProgressStep label="Event Details" removeBtnRow>
+            <ProgressStep label="Event Details" removeBtnRow scrollable={false}>
               <Step2Details
                 eventDate={eventDate}
                 setEventDate={setEventDate}
@@ -505,7 +505,7 @@ export default function OpenHouseEditScreen() {
                 setCallingCode={setCallingCode}
               />
             </ProgressStep>
-            <ProgressStep label="Customization" removeBtnRow>
+            <ProgressStep label="Customization" removeBtnRow scrollable={false}>
               {!isFinalized ? (
                 <Step4Customization
                   selectedPropertyId={selectedPropertyId}
@@ -655,11 +655,12 @@ function Step2Details({
 
   return (
     <View style={styles.stepContent}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.detailsScroll}
-        contentContainerStyle={{ paddingBottom: 220 }}
+        contentContainerStyle={{ paddingBottom: 280 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        bottomOffset={100}
       >
         <View style={styles.formCardWrap}>
           <View style={[styles.formCard, { borderTopWidth: 1, borderRadius: 18, padding: 32 }]}>
@@ -833,7 +834,7 @@ function Step2Details({
             </View>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {Platform.OS === 'android' && pickerOpen != null && (
         <DateTimePicker value={tempValue} mode={isDatePicker ? 'date' : 'time'} display="spinner" onChange={onPickerChange} minimumDate={isDatePicker ? new Date() : undefined} />
@@ -987,7 +988,13 @@ function Step4Customization({
 
   return (
     <View style={styles.stepContent}>
-      <ScrollView style={styles.customizationScroll} contentContainerStyle={{ paddingBottom: 220 }} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView
+        style={styles.customizationScroll}
+        contentContainerStyle={{ paddingBottom: 280 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={100}
+      >
         <View style={[styles.titleBlock, isMobile ? styles.titleBlockMobile : styles.titleBlockDesktop]}>
           <Text style={styles.screenTitle}>Personalize Your Event</Text>
           <Text style={styles.screenSubtitle}>Customize the look and feel for visitors.</Text>
@@ -1217,7 +1224,7 @@ function Step4Customization({
         </View>
 
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <ColorPickerModal
         visible={colorPickerVisible}
         onClose={() => setColorPickerVisible(false)}

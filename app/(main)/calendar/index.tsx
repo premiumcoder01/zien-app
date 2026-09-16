@@ -20,8 +20,8 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { WebView } from 'react-native-webview';
 import {
   ActivityIndicator,
   Alert,
@@ -185,13 +185,13 @@ export default function CalendarScreen() {
   const [backendTasks, setBackendTasks] = useState<BackendTask[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
 
-  // WebBrowser Redirect Session warm-up
-  useEffect(() => {
-    WebBrowser.warmUpAsync().catch(() => { });
-    return () => {
-      WebBrowser.coolDownAsync().catch(() => { });
-    };
-  }, []);
+  // OAuth In-App WebView state for Google & Microsoft
+  const [oauthUrl, setOauthUrl] = useState<string | null>(null);
+  const [showOAuthWebView, setShowOAuthWebView] = useState(false);
+  const [connectingProvider, setConnectingProvider] = useState<'Google' | 'Microsoft' | null>(null);
+  const [isExchangingOAuth, setIsExchangingOAuth] = useState(false);
+  const isHandlingOAuthRef = useRef<boolean>(false);
+  const oauthPollingRef = useRef<any>(null);
 
   // Toast State
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>({
@@ -267,7 +267,7 @@ export default function CalendarScreen() {
     });
   };
 
-  const loadSyncSettingsAndEvents = async () => {
+  const loadSyncSettingsAndEvents = useCallback(async () => {
     if (!accessToken) return;
     setIsLoadingEvents(true);
     try {
@@ -299,88 +299,136 @@ export default function CalendarScreen() {
     } finally {
       setIsLoadingEvents(false);
     }
-  };
+  }, [accessToken]);
 
   useEffect(() => {
     loadSyncSettingsAndEvents();
-  }, [accessToken]);
+  }, [loadSyncSettingsAndEvents]);
 
   // Clear any pending toast auto-hide timer on unmount.
   useEffect(() => {
     return () => {
       if (toastTimer.current) clearTimeout(toastTimer.current);
+      if (oauthPollingRef.current) clearInterval(oauthPollingRef.current);
     };
   }, []);
+
+  const stopOAuthPolling = useCallback(() => {
+    if (oauthPollingRef.current) {
+      clearInterval(oauthPollingRef.current);
+      oauthPollingRef.current = null;
+    }
+  }, []);
+
+  const completeOAuthConnection = useCallback(async (provider: 'Google' | 'Microsoft') => {
+    if (!accessToken || isHandlingOAuthRef.current) return;
+    isHandlingOAuthRef.current = true;
+    stopOAuthPolling();
+    setShowOAuthWebView(false);
+    setIsExchangingOAuth(true);
+
+    try {
+      // Retry checking backend status up to 6 times with 1.2s intervals
+      let isConnectedSuccess = false;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        await new Promise(r => setTimeout(r, 1200));
+        const statusData = await getBackendCalendarStatus(accessToken).catch(() => null);
+        if (statusData) {
+          const googleConnected = statusData.googleConnected === true;
+          const microsoftConnected = statusData.microsoftConnected === true;
+          const appleConnected = statusData.appleConnected === true;
+
+          if ((provider === 'Google' && googleConnected) || (provider === 'Microsoft' && microsoftConnected)) {
+            isConnectedSuccess = true;
+            setIsConnected(true);
+            setIsGoogleConnected(googleConnected);
+            setIsMicrosoftConnected(microsoftConnected);
+            setIsAppleConnected(appleConnected);
+            break;
+          }
+        }
+      }
+
+      await loadSyncSettingsAndEvents();
+      if (isConnectedSuccess) {
+        showToast(`${provider === 'Google' ? 'Google Calendar' : 'Microsoft Outlook'} connected successfully`, 'success');
+      } else {
+        // Optimistic refresh
+        const fallbackStatus = await getBackendCalendarStatus(accessToken).catch(() => null);
+        const googleOk = fallbackStatus?.googleConnected === true;
+        const msOk = fallbackStatus?.microsoftConnected === true;
+        if (googleOk || msOk) {
+          setIsConnected(true);
+          setIsGoogleConnected(googleOk);
+          setIsMicrosoftConnected(msOk);
+          showToast(`${provider === 'Google' ? 'Google Calendar' : 'Microsoft Outlook'} connected successfully`, 'success');
+        } else {
+          showToast('Calendar connection updated. Refreshing events...', 'success');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to complete OAuth calendar connection:', err);
+    } finally {
+      setIsExchangingOAuth(false);
+      setConnectingProvider(null);
+      setOauthUrl(null);
+      isHandlingOAuthRef.current = false;
+    }
+  }, [accessToken, stopOAuthPolling, loadSyncSettingsAndEvents]);
+
+  const checkAndHandleOAuthCallback = useCallback((url: string, provider: 'Google' | 'Microsoft'): boolean => {
+    if (!url) return false;
+    const urlLower = url.toLowerCase();
+
+    const hasCode = /[?&]code=([^&#]+)/.test(url);
+    const isCallbackEndpoint = urlLower.includes('/calendar/google/callback') ||
+                               urlLower.includes('/calendar/microsoft/callback') ||
+                               urlLower.includes('/solo/calendar/google') ||
+                               urlLower.includes('/solo/calendar/microsoft');
+    const isWebRedirect = urlLower.includes('zien.ai/calendar') ||
+                          urlLower.includes('zien.ai/login') ||
+                          urlLower.includes('zien.ai/social') ||
+                          urlLower.includes('zien.ai/auth');
+    const isSuccess = urlLower.includes('success=true') || urlLower.includes('connected=true') || urlLower.includes('status=success');
+
+    if (hasCode || isCallbackEndpoint || isWebRedirect || isSuccess) {
+      if (!isHandlingOAuthRef.current) {
+        completeOAuthConnection(provider);
+      }
+      return true;
+    }
+    return false;
+  }, [completeOAuthConnection]);
 
   const handleConnectGoogle = async () => {
     if (!accessToken) return;
     setIsLoadingEvents(true);
-    let pollingInterval: any = null;
-    let browserClosed = false;
+    isHandlingOAuthRef.current = false;
+    stopOAuthPolling();
 
     try {
       const url = await getGoogleCalendarAuthUrl(accessToken);
-      console.log(url)
       if (url) {
-        // Start polling the Google Calendar status in the background
-        pollingInterval = setInterval(async () => {
+        setOauthUrl(url);
+        setConnectingProvider('Google');
+        setShowOAuthWebView(true);
+
+        // Start background polling while OAuth webview is open
+        oauthPollingRef.current = setInterval(async () => {
           try {
             const statusData = await getBackendCalendarStatus(accessToken);
-            if (statusData?.googleConnected === true && !browserClosed) {
-              // 1. Clear interval immediately
-              if (pollingInterval) {
-                clearInterval(pollingInterval);
-                pollingInterval = null;
-              }
-              // 2. Programmatically close the in-app browser
-              await WebBrowser.dismissBrowser();
-              // 3. Update connection state and load events
-              setIsConnected(true);
-              setIsGoogleConnected(true);
-              await loadSyncSettingsAndEvents();
-              showToast('Google Calendar connected successfully', 'success');
+            if (statusData?.googleConnected === true && !isHandlingOAuthRef.current) {
+              completeOAuthConnection('Google');
             }
-          } catch (e) {
-            // Silently swallow polling fetch errors
-          }
-        }, 2000);
-
-        // Open secure system browser (Chrome Custom Tab/Safari View Controller)
-        await WebBrowser.openBrowserAsync(url);
-        browserClosed = true;
-
-        // Clean up interval if browser is manually closed by the user
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-          pollingInterval = null;
-        }
-
-        // Check updated status as fallback when browser is closed manually
-        const statusData = await getBackendCalendarStatus(accessToken);
-        const googleConnected = statusData?.googleConnected === true;
-        const microsoftConnected = statusData?.microsoftConnected === true;
-        const appleConnected = statusData?.appleConnected === true;
-        const connected = googleConnected || microsoftConnected || appleConnected;
-
-        setIsConnected(connected);
-        setIsGoogleConnected(googleConnected);
-        setIsMicrosoftConnected(microsoftConnected);
-        setIsAppleConnected(appleConnected);
-
-        if (googleConnected) {
-          await loadSyncSettingsAndEvents();
-          showToast('Google Calendar connected successfully', 'success');
-        }
+          } catch (_) {}
+        }, 1500);
       } else {
-        Alert.alert('Error', 'Failed to retrieve connection URL.');
+        Alert.alert('Error', 'Failed to retrieve Google Calendar connection URL.');
       }
     } catch (e: any) {
       console.error('Failed to initiate calendar connection:', e);
       Alert.alert('Error', e.message || 'Failed to initiate Google Calendar connection.');
     } finally {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
       setIsLoadingEvents(false);
     }
   };
@@ -388,72 +436,32 @@ export default function CalendarScreen() {
   const handleConnectMicrosoft = async () => {
     if (!accessToken) return;
     setIsLoadingEvents(true);
-    let pollingInterval: any = null;
-    let browserClosed = false;
+    isHandlingOAuthRef.current = false;
+    stopOAuthPolling();
 
     try {
       const url = await getMicrosoftCalendarAuthUrl(accessToken);
-      console.log(url)
       if (url) {
-        // Start polling the Microsoft Calendar status in the background
-        pollingInterval = setInterval(async () => {
+        setOauthUrl(url);
+        setConnectingProvider('Microsoft');
+        setShowOAuthWebView(true);
+
+        // Start background polling while OAuth webview is open
+        oauthPollingRef.current = setInterval(async () => {
           try {
             const statusData = await getBackendCalendarStatus(accessToken);
-            if (statusData?.microsoftConnected === true && !browserClosed) {
-              // 1. Clear interval immediately
-              if (pollingInterval) {
-                clearInterval(pollingInterval);
-                pollingInterval = null;
-              }
-              // 2. Programmatically close the in-app browser
-              await WebBrowser.dismissBrowser();
-              // 3. Update connection state and load events
-              setIsConnected(true);
-              setIsMicrosoftConnected(true);
-              await loadSyncSettingsAndEvents();
-              showToast('Microsoft Outlook connected successfully', 'success');
+            if (statusData?.microsoftConnected === true && !isHandlingOAuthRef.current) {
+              completeOAuthConnection('Microsoft');
             }
-          } catch (e) {
-            // Silently swallow polling fetch errors
-          }
-        }, 2000);
-
-        // Open secure system browser (Chrome Custom Tab/Safari View Controller)
-        await WebBrowser.openBrowserAsync(url);
-        browserClosed = true;
-
-        // Clean up interval if browser is manually closed by the user
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-          pollingInterval = null;
-        }
-
-        // Check updated status as fallback when browser is closed manually
-        const statusData = await getBackendCalendarStatus(accessToken);
-        const googleConnected = statusData?.googleConnected === true;
-        const microsoftConnected = statusData?.microsoftConnected === true;
-        const appleConnected = statusData?.appleConnected === true;
-        const connected = googleConnected || microsoftConnected || appleConnected;
-
-        setIsConnected(connected);
-        setIsGoogleConnected(googleConnected);
-        setIsMicrosoftConnected(microsoftConnected);
-        setIsAppleConnected(appleConnected);
-
-        if (microsoftConnected) {
-          await loadSyncSettingsAndEvents();
-          showToast('Microsoft Outlook connected successfully', 'success');
-        }
+          } catch (_) {}
+        }, 1500);
       } else {
-        Alert.alert('Error', 'Failed to retrieve connection URL.');
+        Alert.alert('Error', 'Failed to retrieve Microsoft Outlook connection URL.');
       }
     } catch (e: any) {
       console.error('Failed to initiate calendar connection:', e);
       Alert.alert('Error', e.message || 'Failed to initiate Microsoft Outlook connection.');
     } finally {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
       setIsLoadingEvents(false);
     }
   };
@@ -2041,9 +2049,6 @@ export default function CalendarScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.disconnectModalContent}>
             <View style={styles.disconnectModalHeader}>
-              <View style={styles.disconnectIconWrap}>
-                <MaterialCommunityIcons name="close" size={18} color="#EF4444" />
-              </View>
               <Text style={styles.disconnectModalTitle}>Disconnect Calendar?</Text>
               <Pressable onPress={cancelDisconnectGoogle} style={styles.disconnectCloseBtn}>
                 <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
@@ -2171,6 +2176,120 @@ export default function CalendarScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* OAuth WebView Modal for Google Calendar & Microsoft Outlook */}
+      <Modal visible={showOAuthWebView} animationType="slide" transparent={false}>
+        <View style={{ flex: 1, backgroundColor: colors.cardBackground, paddingTop: Math.max(insets.top, 20) }}>
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 20,
+            paddingVertical: 14,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.cardBorder,
+            backgroundColor: colors.cardBackground,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <MaterialCommunityIcons
+                name={connectingProvider === 'Google' ? 'google' : 'microsoft-outlook'}
+                size={22}
+                color={connectingProvider === 'Google' ? '#4285F4' : '#0078D4'}
+              />
+              <Text style={{ fontSize: 16, fontWeight: '800', color: colors.textPrimary }}>
+                {connectingProvider === 'Google' ? 'Connect Google Calendar' : 'Connect Microsoft Outlook'}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                stopOAuthPolling();
+                setShowOAuthWebView(false);
+                setConnectingProvider(null);
+                setOauthUrl(null);
+              }}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: colors.surfaceSoft,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="close" size={20} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+          {!!oauthUrl && (
+            <WebView
+              source={{ uri: oauthUrl }}
+              userAgent={
+                Platform.OS === 'ios'
+                  ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+                  : 'Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
+              }
+              onShouldStartLoadWithRequest={(request) => {
+                const url = request.url || '';
+                if (connectingProvider && checkAndHandleOAuthCallback(url, connectingProvider)) {
+                  return false;
+                }
+                return true;
+              }}
+              onNavigationStateChange={(navState) => {
+                const url = navState.url || '';
+                if (connectingProvider) {
+                  checkAndHandleOAuthCallback(url, connectingProvider);
+                }
+              }}
+              onLoadStart={(syntheticEvent) => {
+                const url = syntheticEvent.nativeEvent?.url || '';
+                if (connectingProvider) {
+                  checkAndHandleOAuthCallback(url, connectingProvider);
+                }
+              }}
+              originWhitelist={['*']}
+              startInLoadingState={true}
+              incognito={false}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              setSupportMultipleWindows={false}
+              renderLoading={() => (
+                <View style={{
+                  position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                  alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cardBackground,
+                }}>
+                  <ActivityIndicator size="large" color={colors.accentTeal} />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary, marginTop: 12 }}>
+                    Loading authentication...
+                  </Text>
+                </View>
+              )}
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* OAuth Verification & Code-Exchange Loading Modal */}
+      <Modal visible={isExchangingOAuth} transparent animationType="fade">
+        <View style={{
+          flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+          alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <View style={{
+            width: '100%', maxWidth: 320, backgroundColor: colors.cardBackground,
+            borderRadius: 20, padding: 28, alignItems: 'center',
+            borderWidth: 1, borderColor: colors.cardBorder,
+            shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 16, elevation: 8,
+          }}>
+            <ActivityIndicator size="large" color={colors.accentTeal} />
+            <Text style={{ fontSize: 17, fontWeight: '900', color: colors.textPrimary, marginTop: 16, textAlign: 'center' }}>
+              Connecting Calendar...
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 6, textAlign: 'center', lineHeight: 18 }}>
+              Syncing events with Zien. Please wait a moment.
+            </Text>
+          </View>
+        </View>
       </Modal>
 
       {/* Custom Toast Notifications */}

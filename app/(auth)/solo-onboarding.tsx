@@ -6,6 +6,7 @@ import PasswordInput from '@/components/ui/PasswordInput';
 import StepIndicator from '@/components/ui/StepIndicator';
 import { Addon, CheckoutPayload, completeCheckout, fetchSoloPlans, Plan, registerSoloCheckout } from '@/services/plans';
 import { checkUserExists, registerMobileIos, RegisterMobileIosRequest } from '@/services/authService';
+import { getPlanSku, purchaseAppleSubscription } from '@/services/appleIapService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -192,25 +193,52 @@ export default function SoloOnboardingScreen() {
       setIsCheckingExists(false);
     }
 
-    if (Platform.OS === 'ios' && currentStep === 2) {
-      const payload: RegisterMobileIosRequest = {
-        flow: 'solo',
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        email: formData.email,
-        country_code: countryCode,
-        phone: formData.phone,
-        password: formData.password,
-        license_number: formData.licenseNumber,
-        primary_market: formData.primaryMarket,
-      };
-
-      console.log('Sending iOS Registration Payload:', payload);
-      iosRegisterMutation.mutate(payload);
-      return;
-    }
-
     if (currentStep === 3) {
+      if (Platform.OS === 'ios') {
+        const sku = getPlanSku(selectedPlan, duration);
+        console.log(`\n📲 [Solo Onboarding] User tapped Continue. Initiating Apple IAP for Plan: ${selectedPlan} (${duration}), SKU: ${sku}`);
+        try {
+          setIsCheckingExists(true);
+          const purchase = await purchaseAppleSubscription(sku);
+          if (!purchase) {
+            console.log('⚠️ [Solo Onboarding] Purchase was cancelled or dismissed by user.');
+            setIsCheckingExists(false);
+            return; // User cancelled Apple purchase popup
+          }
+
+          console.log('🎉 [Solo Onboarding] Apple IAP confirmed! Purchase Details:', purchase);
+
+          if (isCompletingMode && accessToken) {
+            console.log('[iOS IAP] User already authenticated. Activating profile and redirecting to dashboard.');
+            await login(accessToken, 'user', true);
+            setShowSuccess(true);
+            return;
+          }
+
+          const payload: RegisterMobileIosRequest = {
+            flow: 'solo',
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+            country_code: countryCode,
+            phone: formData.phone,
+            password: formData.password,
+            license_number: formData.licenseNumber,
+            primary_market: formData.primaryMarket,
+          };
+
+          console.log('🚀 [Solo Onboarding] Sending iOS Registration Payload to backend after IAP success:', payload);
+          iosRegisterMutation.mutate(payload);
+        } catch (error: any) {
+          console.error('❌ [Solo Onboarding] IAP Error:', error);
+          Alert.alert('Subscription Notice', error?.message || 'Unable to complete Apple In-App Purchase. Please try again.');
+        } finally {
+          setIsCheckingExists(false);
+        }
+        return;
+      }
+
+      // Android: Stripe Checkout Flow
       const addon_ids = (activePlan?.addons || [])
         .filter(a => selectedAddons[a.slug])
         .map(a => a.id);
@@ -229,11 +257,11 @@ export default function SoloOnboardingScreen() {
         primary_market: formData.primaryMarket,
       };
 
-      console.log('Sending Registration Payload:', payload);
+      console.log('Sending Registration Payload for Stripe:', payload);
       registerMutation.mutate(payload);
       return;
     }
-    const maxSteps = Platform.OS === 'ios' ? 2 : 3;
+    const maxSteps = 3;
     setCurrentStep((prev) => Math.min(prev + 1, maxSteps));
   };
   const goBack = () => {
@@ -299,18 +327,34 @@ export default function SoloOnboardingScreen() {
 
   const iosRegisterMutation = useMutation({
     mutationFn: (payload: RegisterMobileIosRequest) => registerMobileIos(payload),
-    onSuccess: (data) => {
-      if (!data.access_token && data.message) {
-        setShowActivationModal(true);
-        return;
-      }
+    onSuccess: async (data) => {
+      console.log('[iOS Register] Registration succeeded, setting up session:', data);
       if (data.access_token) {
-        login(data.access_token, data.role, data.complete_profile);
+        await login(data.access_token, data.role || 'user', true);
         setSuccessData(data);
         setShowSuccess(true);
-      } else {
-        setShowSuccess(true);
+        return;
       }
+
+      // Auto-authenticate with the credentials entered during registration
+      try {
+        const loginRes = await loginAgent({
+          email: formData.email,
+          password: formData.password,
+          platform: 'ios',
+          device_token: 'simulator_device_token',
+        });
+        if (loginRes.access_token) {
+          await login(loginRes.access_token, loginRes.role || 'user', true);
+          setSuccessData({ ...data, ...loginRes });
+          setShowSuccess(true);
+          return;
+        }
+      } catch (err) {
+        console.log('[iOS Register] Auto-login error:', err);
+      }
+
+      setShowSuccess(true);
     },
     onError: (error: Error) => {
       const msg = error.message.toLowerCase();
@@ -619,11 +663,16 @@ export default function SoloOnboardingScreen() {
                   'pro-agent': { icon: 'briefcase-check-outline', role: 'Pro Agent' },
                 };
                 const meta = PLAN_META[plan.slug] || { icon: 'star-outline', role: 'Professional' };
-                const displayMonthly = duration === 'annually' && planPrice
-                  ? (Number(planPrice.price) / 12).toFixed(2)
-                  : (planPrice?.price || '0.00');
-                const wholePrice = displayMonthly.split('.')[0];
-                const decimalPrice = displayMonthly.split('.')[1] || '00';
+                const isAnnually = duration === 'annually';
+                const displayPrice = isAnnually
+                  ? (planPrice?.price || '599.99')
+                  : (planPrice?.price || '59.99');
+                const wholePrice = displayPrice.split('.')[0];
+                const decimalPrice = displayPrice.split('.')[1] || '00';
+                const priceInterval = isAnnually ? '/yr' : '/mo';
+                const monthlyBreakdown = isAnnually
+                  ? `$${(Number(planPrice?.price || 0) / 12).toFixed(2)}/mo`
+                  : null;
 
                 return (
                   <Pressable
@@ -702,12 +751,14 @@ export default function SoloOnboardingScreen() {
                         <Text style={[styles.priceAmount, isSelected && styles.priceOnDark]}>{wholePrice}</Text>
                         <View>
                           <Text style={[styles.priceDecimals, isSelected && styles.priceOnDark]}>.{decimalPrice}</Text>
-                          <Text style={[styles.priceInterval, isSelected && styles.priceIntervalOnDark]}>/mo</Text>
+                          <Text style={[styles.priceInterval, isSelected && styles.priceIntervalOnDark]}>{priceInterval}</Text>
                         </View>
                       </View>
-                      {duration === 'annually' && (
+                      {isAnnually && (
                         <View style={[styles.billedAnnuallyBadge, isSelected && { backgroundColor: 'rgba(0,167,181,0.25)' }]}>
-                          <Text style={[styles.billedAnnuallyText, isSelected && { color: '#7EEEF7' }]}>Billed annually</Text>
+                          <Text style={[styles.billedAnnuallyText, isSelected && { color: '#7EEEF7' }]}>
+                            {monthlyBreakdown ? `${monthlyBreakdown} • Billed annually` : 'Billed annually'}
+                          </Text>
                         </View>
                       )}
                     </LinearGradient>
@@ -763,7 +814,7 @@ export default function SoloOnboardingScreen() {
                           <View style={styles.addOnActionCol}>
                             <Text style={[styles.addOnPrice, isSelected && styles.addOnPriceActive]}>
                               {addonPrice
-                                ? `$${duration === 'annually' ? (Number(addonPrice.price) / 12).toFixed(2) : addonPrice.price}/mo`
+                                ? `$${addonPrice.price}${duration === 'annually' ? '/yr' : '/mo'}`
                                 : 'N/A'}
                             </Text>
                             <Switch
@@ -788,8 +839,8 @@ export default function SoloOnboardingScreen() {
                   <Text style={styles.summaryLabel}>{activePlan?.name}</Text>
                   <Text style={styles.summaryValue}>
                     {duration === 'annually'
-                      ? `$${(Number(activePrice?.price || 0) / 12).toFixed(2)}/mo x 12`
-                      : `$${activePrice?.price || '0.00'}`}
+                      ? `$${activePrice?.price || '599.99'}/yr`
+                      : `$${activePrice?.price || '0.00'}/mo`}
                   </Text>
                 </View>
 
@@ -800,8 +851,8 @@ export default function SoloOnboardingScreen() {
                       <Text style={styles.summaryLabel}>{addon.name}</Text>
                       <Text style={styles.summaryValue}>
                         {duration === 'annually'
-                          ? `$${(Number(addonPrice?.price || 0) / 12).toFixed(2)}/mo x 12`
-                          : `$${addonPrice?.price || '0.00'}`}
+                          ? `$${addonPrice?.price || '179.99'}/yr`
+                          : `$${addonPrice?.price || '0.00'}/mo`}
                       </Text>
                     </View>
                   );
@@ -837,7 +888,7 @@ export default function SoloOnboardingScreen() {
                         <Text style={styles.trialBold}>14-day free trial.</Text>
                         {' '}You will enter a payment method at checkout; you are not charged today. After the trial,{' '}
                         {duration === 'annually' ? (
-                          <Text style={styles.trialBold}>${perMonth}/mo (billed ${total.toFixed(2)} annually)</Text>
+                          <Text style={styles.trialBold}>${total.toFixed(2)}/yr (equivalent to ${perMonth}/mo)</Text>
                         ) : (
                           <Text style={styles.trialBold}>${total.toFixed(2)} per Month</Text>
                         )}
@@ -860,7 +911,8 @@ export default function SoloOnboardingScreen() {
                 title="Continue"
                 style={styles.primaryButtonFlex}
                 onPress={goNext}
-                isLoading={isAnyRegisterPending}
+                isLoading={isAnyRegisterPending || isCheckingExists}
+                disabled={isAnyRegisterPending || isCheckingExists}
               />
             </View>
             {isAnyRegisterError && (
@@ -871,6 +923,15 @@ export default function SoloOnboardingScreen() {
             <Text style={styles.supportText}>
               Need help? <Text style={styles.supportLink} onPress={handleContactSupport}>Contact Support</Text>
             </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10, gap: 12 }}>
+              <Pressable onPress={() => Linking.openURL('https://zien.ai/terms')}>
+                <Text style={[styles.supportLink, { fontSize: 12 }]}>Terms of Service</Text>
+              </Pressable>
+              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>•</Text>
+              <Pressable onPress={() => Linking.openURL('https://zien.ai/privacy')}>
+                <Text style={[styles.supportLink, { fontSize: 12 }]}>Privacy Policy</Text>
+              </Pressable>
+            </View>
           </>
         );
       default:
@@ -975,7 +1036,7 @@ export default function SoloOnboardingScreen() {
             {/* Added centered logo brand here as well to match design flow */}
             <AuthLogoBrand brandLabel="ZIEN" />
 
-             {!showSuccess && !isCompletingCheckout && <StepIndicator currentStep={currentStep} totalSteps={Platform.OS === 'ios' ? 2 : 3} />}
+             {!showSuccess && !isCompletingCheckout && <StepIndicator currentStep={currentStep} totalSteps={3} />}
 
             {isCompletingCheckout ? renderCompleting() : showSuccess ? renderSuccess() : renderStepContent()}
           </AuthCard>

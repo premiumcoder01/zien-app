@@ -82,6 +82,8 @@ export default function AccountsScreen() {
   // ── Polling refs kept minimal — only used for cleanup on WebView close ──
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPollingRef = useRef(false);
+  const isHandlingOAuthRef = useRef(false);
+  const connectingPlatformRef = useRef<string | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollTimeoutRef.current) {
@@ -95,6 +97,7 @@ export default function AccountsScreen() {
   useEffect(() => {
     if (!showWebView) {
       stopPolling();
+      isHandlingOAuthRef.current = false;
     }
     return () => stopPolling();
   }, [showWebView, stopPolling]);
@@ -103,27 +106,33 @@ export default function AccountsScreen() {
   const [isExchangingCode, setIsExchangingCode] = useState(false);
 
   const handleOAuthCallback = useCallback(async (callbackUrl: string) => {
-    if (!accessToken || !connectingPlatform) return;
+    const platform = connectingPlatformRef.current || connectingPlatform;
+    if (!accessToken || !platform) return;
 
     let code: string | null = null;
     try {
-      // Extract ?code= from the redirect URL
-      const urlObj = new URL(callbackUrl);
+      // Extract ?code= from the redirect URL (stripping Facebook hash if present)
+      const cleanUrl = callbackUrl.replace(/#_=_$/, '');
+      const urlObj = new URL(cleanUrl);
       code = urlObj.searchParams.get('code');
     } catch {
       // URL constructor may fail on some RN environments — fall back to regex
-      const match = callbackUrl.match(/[?&]code=([^&]+)/);
+      const match = callbackUrl.match(/[?&]code=([^&#]+)/);
       code = match ? decodeURIComponent(match[1]) : null;
     }
 
     if (!code) {
       // Check for error params from OAuth provider
-      const errorMatch = callbackUrl.match(/[?&]error=([^&]+)/);
-      const errorReason = errorMatch ? decodeURIComponent(errorMatch[1]) : 'Unknown error';
-      stopPolling();
-      setShowWebView(false);
-      setConnectingPlatform(null);
-      Alert.alert('Connection Failed', `Facebook returned an error: ${errorReason}. Please try again.`);
+      const errorMatch = callbackUrl.match(/[?&](?:error|error_description|error_reason)=([^&#]+)/);
+      if (errorMatch) {
+        const errorReason = decodeURIComponent(errorMatch[1]);
+        stopPolling();
+        setShowWebView(false);
+        setConnectingPlatform(null);
+        connectingPlatformRef.current = null;
+        isHandlingOAuthRef.current = false;
+        Alert.alert('Connection Failed', `Authentication returned an error: ${errorReason}. Please try again.`);
+      }
       return;
     }
 
@@ -134,8 +143,9 @@ export default function AccountsScreen() {
 
     try {
       // Determine backend provider name (instagram uses facebook OAuth)
-      const provider = connectingPlatform === 'instagram' ? 'facebook' : connectingPlatform;
+      const provider = platform === 'instagram' ? 'facebook' : platform;
       setConnectingPlatform(null);
+      connectingPlatformRef.current = null;
 
       const response = await fetch(
         `https://api.zien.ai/api/solo/social/oauth/${provider}/callback`,
@@ -157,7 +167,7 @@ export default function AccountsScreen() {
         queryClient.invalidateQueries({ queryKey: ['social-accounts'] });
         Alert.alert(
           'Connected',
-          data.message || `${provider.charAt(0).toUpperCase() + provider.slice(1)} connected successfully.`
+          data.message || `${platform.charAt(0).toUpperCase() + platform.slice(1)} connected successfully.`
         );
       } else {
         throw new Error(data.message || `Server returned ${response.status}`);
@@ -167,19 +177,34 @@ export default function AccountsScreen() {
       Alert.alert('Connection Failed', err.message || 'Failed to complete authentication. Please try again.');
     } finally {
       setIsExchangingCode(false);
+      isHandlingOAuthRef.current = false;
     }
   }, [accessToken, connectingPlatform, queryClient, stopPolling]);
+
+  // ── Check and intercept OAuth redirect callback URL (crucial on Android before 302 to web login) ──
+  const checkAndHandleCallback = useCallback((url: string): boolean => {
+    if (!url) return false;
+
+    const hasCode = /[?&]code=([^&#]+)/.test(url);
+    const hasError = /[?&](?:error|error_description|error_reason)=/.test(url);
+    const isCallbackPath = url.includes('/social/settings/callback') || url.includes('/social/oauth');
+
+    if (hasCode || (isCallbackPath && (hasCode || hasError))) {
+      if (!isHandlingOAuthRef.current) {
+        isHandlingOAuthRef.current = true;
+        handleOAuthCallback(url);
+      }
+      return true;
+    }
+
+    return false;
+  }, [handleOAuthCallback]);
 
   // ── WebView navigation handler ──
   const handleNavigationStateChange = useCallback((navState: any) => {
     const url: string = navState.url || '';
-    console.log(url)
-
-    // Detect when Facebook redirects back to our callback URL
-    if (url.includes('/social/settings/callback') || url.includes('social/oauth') && url.includes('code=')) {
-      handleOAuthCallback(url);
-    }
-  }, [handleOAuthCallback]);
+    checkAndHandleCallback(url);
+  }, [checkAndHandleCallback]);
 
   // ── Modal helpers ──
   const [linkedinHandle, setLinkedinHandle] = useState('');
@@ -242,15 +267,31 @@ export default function AccountsScreen() {
         }
       } else {
         const provider = activeAccount.id === 'instagram' ? 'facebook' : activeAccount.id;
-        const response = await fetch(
+        let response = await fetch(
           `https://api.zien.ai/api/solo/social/oauth/${provider}/url`,
           { method: 'GET', headers }
         );
-        const data = await response.json();
+        if (!response.ok) {
+          try {
+            const fb = await fetch(
+              `https://zien.ai/api/solo/social/oauth/${provider}/url`,
+              { method: 'GET', headers }
+            );
+            if (fb.ok) response = fb;
+          } catch {}
+        }
+        const text = await response.text().catch(() => '');
+        let data: any = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {}
 
-        if (data?.url) {
+        const oauthTargetUrl = data?.url || data?.data?.url || (typeof data?.data === 'string' ? data.data : null);
+        if (oauthTargetUrl && typeof oauthTargetUrl === 'string') {
+          isHandlingOAuthRef.current = false;
           setConnectingPlatform(activeAccount.id);
-          setOauthUrl(data.url);
+          connectingPlatformRef.current = activeAccount.id;
+          setOauthUrl(oauthTargetUrl);
           setShowWebView(true);
         } else {
           Alert.alert('Error', `Failed to retrieve connection URL (Status: ${response.status}).`);
@@ -568,9 +609,24 @@ export default function AccountsScreen() {
           {!!oauthUrl && (
             <WebView
               source={{ uri: oauthUrl }}
+              onShouldStartLoadWithRequest={(request) => {
+                const url = request.url || '';
+                if (checkAndHandleCallback(url)) {
+                  return false;
+                }
+                return true;
+              }}
               onNavigationStateChange={handleNavigationStateChange}
+              onLoadStart={(syntheticEvent) => {
+                const url = syntheticEvent.nativeEvent?.url || '';
+                checkAndHandleCallback(url);
+              }}
+              originWhitelist={['*']}
               startInLoadingState={true}
-              incognito={true}
+              incognito={false}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              setSupportMultipleWindows={false}
               renderLoading={() => (
                 <View style={styles.webViewLoading}>
                   <ActivityIndicator size="large" color={colors.accentTeal} />

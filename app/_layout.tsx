@@ -12,6 +12,8 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider as AppThemeProvider, useAppTheme } from '@/context/ThemeContext';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { NetworkStatusAlert } from '@/components/ui';
+import { initAppleIap, endAppleIap } from '@/services/appleIapService';
+import { Platform } from 'react-native';
 
 const queryClient = new QueryClient();
 
@@ -51,6 +53,15 @@ function InnerLayout() {
       SplashScreen.hideAsync();
     }
   }, [isAuthLoading]);
+
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      initAppleIap();
+      return () => {
+        endAppleIap();
+      };
+    }
+  }, []);
 
   if (isAuthLoading) {
     return null; // Keep splash screen visible

@@ -106,3 +106,5 @@ function getStyles(colors: any) {
         statValue: { fontSize: 18, fontWeight: '900', color: colors.textPrimary },
     });
 }
+
+export default DemographicsTab;

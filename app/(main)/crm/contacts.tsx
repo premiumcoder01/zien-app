@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { ThemeColors } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { addCRMContact, AddCRMContactPayload, CRMContact, deleteCRMContact, getCRMContacts, getCRMMeta, updateCRMContact, updateCRMContactStatus } from '@/services/crmService';
+import { addCRMContact, AddCRMContactPayload, CRMContact, deleteCRMContact, getCRMContacts, getCRMMeta, getCRMSettings, updateCRMContact, updateCRMContactStatus } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -62,6 +62,13 @@ export default function ContactsScreen() {
   const { data: metaData } = useQuery({
     queryKey: ['crm-meta'],
     queryFn: () => getCRMMeta(accessToken!),
+    enabled: !!accessToken,
+  });
+
+  // CRM Settings for Auto-Merge
+  const { data: crmSettings } = useQuery({
+    queryKey: ['crm-settings', accessToken],
+    queryFn: () => getCRMSettings(accessToken!),
     enabled: !!accessToken,
   });
 
@@ -209,6 +216,10 @@ export default function ContactsScreen() {
       return;
     }
 
+    const isAutoMergeEnabled = crmSettings?.auto_merge !== undefined
+      ? Boolean(crmSettings.auto_merge)
+      : false;
+
     const payload: AddCRMContactPayload = {
       first_name: data.firstName,
       last_name: data.lastName,
@@ -217,7 +228,7 @@ export default function ContactsScreen() {
       country_code: data.countryCode,
       group_id: groupObj.id,
       tag_id: tagObj.id,
-      auto_merge: true,
+      auto_merge: isAutoMergeEnabled,
     };
 
     try {

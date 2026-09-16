@@ -444,3 +444,5 @@ function getStyles(colors: any) {
         forecastFootnote: { fontSize: 10, color: 'rgba(255,255,255,0.35)', lineHeight: 16, marginTop: 8, fontStyle: 'italic' },
     });
 }
+
+export default OverviewTab;

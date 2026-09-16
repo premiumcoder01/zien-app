@@ -724,3 +724,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     letterSpacing: 0.3,
   },
 });
+
+export default AdminView;

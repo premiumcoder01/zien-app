@@ -29,7 +29,7 @@ import {
   useWindowDimensions,
   View
 } from 'react-native';
-import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
+import { KeyboardAwareScrollView, useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import PhoneInput from 'react-native-phone-number-input';
 import QRCode from 'react-native-qrcode-svg';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -455,7 +455,7 @@ export default function OpenHouseCreateScreen() {
             activeLabelFontSize={10}
 
           >
-            <ProgressStep label="Property" removeBtnRow>
+            <ProgressStep label="Property" removeBtnRow scrollable={false}>
               <Step1SelectProperty
                 properties={propertiesData?.properties || []}
                 isLoading={isLoadingProperties}
@@ -466,7 +466,7 @@ export default function OpenHouseCreateScreen() {
                 }}
               />
             </ProgressStep>
-            <ProgressStep label="Details" removeBtnRow>
+            <ProgressStep label="Details" removeBtnRow scrollable={false}>
               <Step2Details
                 eventDate={eventDate}
                 setEventDate={setEventDate}
@@ -495,7 +495,7 @@ export default function OpenHouseCreateScreen() {
                 setCallingCode={setCallingCode}
               />
             </ProgressStep>
-            <ProgressStep label="Customization" removeBtnRow>
+            <ProgressStep label="Customization" removeBtnRow scrollable={false}>
               {!isFinalized ? (
                 <Step4Customization
                   selectedPropertyId={selectedPropertyId}
@@ -835,11 +835,12 @@ function Step2Details({
 
   return (
     <View style={styles.stepContent}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.detailsScroll}
-        contentContainerStyle={{ paddingBottom: 220 }}
+        contentContainerStyle={{ paddingBottom: 280 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        bottomOffset={100}
       >
         <View style={styles.formCardWrap}>
           <View style={[styles.formCard, { borderTopWidth: 1, borderRadius: 18, padding: 32 }]}>
@@ -1100,7 +1101,7 @@ function Step2Details({
             </Pressable>
           </Modal>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
@@ -1315,12 +1316,12 @@ function Step4Customization({
 
   return (
     <View style={styles.stepContent}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.customizationScroll}
-        contentContainerStyle={{ paddingBottom: 220 }}
+        contentContainerStyle={{ paddingBottom: 280 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets={true}
+        bottomOffset={100}
       >
         <View style={[styles.titleBlock, isMobile ? styles.titleBlockMobile : styles.titleBlockDesktop]}>
           <Text style={styles.screenTitle}>Personalize Your Event</Text>
@@ -1587,7 +1588,7 @@ function Step4Customization({
 
 
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <ColorPickerModal
         visible={colorPickerVisible}
         onClose={() => setColorPickerVisible(false)}

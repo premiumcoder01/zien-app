@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useAppTheme } from '@/context/ThemeContext';
-import { addCRMGroup, addCRMLead, addCRMTag, convertCRMLead, CRMLead, deleteCRMLead, getCRMLeads, getCRMMeta, updateCRMLead } from '@/services/crmService';
+import { addCRMGroup, addCRMLead, addCRMTag, convertCRMLead, CRMLead, deleteCRMLead, getCRMLeads, getCRMMeta, getCRMSettings, updateCRMLead } from '@/services/crmService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -340,6 +340,13 @@ export default function LeadsScreen() {
     refetchOnWindowFocus: 'always',
   });
 
+  // CRM Settings for Auto-Merge
+  const { data: crmSettings } = useQuery({
+    queryKey: ['crm-settings', accessToken],
+    queryFn: () => getCRMSettings(accessToken!),
+    enabled: !!accessToken,
+  });
+
   useFocusEffect(
     useCallback(() => {
       if (accessToken) {
@@ -669,6 +676,10 @@ export default function LeadsScreen() {
         cleanPhone = cleanPhone.slice(rawCallingDigits.length);
       }
 
+      const isAutoMergeEnabled = crmSettings?.auto_merge !== undefined
+        ? Boolean(crmSettings.auto_merge)
+        : false;
+
       const payload: any = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -684,7 +695,7 @@ export default function LeadsScreen() {
         custom_tag: isCustomTag ? (customTag.trim() || '') : '',
         tag_color: (isCustomTag ? editColor : '') || '#6366F1',
         lead_date_label: 'Today',
-        auto_merge: true,
+        auto_merge: isAutoMergeEnabled,
         utm_source: 'google',
         utm_medium: 'organic',
       };

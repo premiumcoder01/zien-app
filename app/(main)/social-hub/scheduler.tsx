@@ -54,8 +54,10 @@ function PostDetailModal({
   const platforms = post.post_platforms?.map(p => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
   const mainPlatform = platforms[0];
 
-  const statusLabel = post.status === 2 ? 'Published' : post.status === 3 ? 'Failed' : 'Scheduled';
-  const statusColor = post.status === 2 ? '#10B981' : post.status === 3 ? '#EF4444' : colors.accentTeal;
+  const isPublished = post.status === 2 || !!post.published_at || (post.status === 1 && !!post.scheduled_at && new Date(post.scheduled_at).getTime() <= Date.now() + 60000);
+  const isFailed = post.status === 3;
+  const statusLabel = isPublished ? 'Published' : isFailed ? 'Failed' : 'Scheduled';
+  const statusColor = isPublished ? '#10B981' : isFailed ? '#EF4444' : colors.accentTeal;
   const timeStr = post.scheduled_at ? formatTime(post.scheduled_at) : '';
 
   return (
@@ -322,7 +324,14 @@ export default function SchedulerScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <LinearGradient colors={colors.backgroundGradient as any} style={{ flex: 1, paddingTop: insets.top }}>
+      <LinearGradient
+        colors={colors.backgroundGradient as any}
+        style={{
+          flex: 1,
+          paddingTop: insets.top,
+          paddingBottom: Math.max(insets.bottom, 16),
+        }}
+      >
         <PageHeader
           title="Scheduler"
           subtitle="View and manage your publishing schedule across all platforms."
@@ -358,7 +367,8 @@ export default function SchedulerScreen() {
         <Animated.View entering={FadeInDown.delay(100).duration(500)} style={{
           flex: 1, backgroundColor: colors.cardBackground, borderRadius: 24,
           marginHorizontal: CAL_MARGIN, overflow: 'hidden',
-          borderWidth: 1, borderColor: colors.cardBorder, marginBottom: 20,
+          borderWidth: 1, borderColor: colors.cardBorder,
+          marginBottom: 12,
           ...Platform.select({
             ios: { shadowColor: colors.cardShadowColor, shadowOpacity: 0.08, shadowOffset: { width: 0, height: 4 }, shadowRadius: 16 },
             android: { elevation: 6 },
@@ -382,7 +392,7 @@ export default function SchedulerScreen() {
               <Text style={{ marginTop: 12, fontSize: 13, fontWeight: '700', color: colors.textMuted }}>Loading schedule...</Text>
             </View>
           ) : (
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 10 }}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 2 }}>
                 {calendarDays.map((dayObj, idx) => {
                   const dayPosts = postsByDate[dayObj.dateKey] || [];
@@ -463,9 +473,11 @@ export default function SchedulerScreen() {
 
                       const platforms = post.post_platforms?.map(p => p.account?.platform?.toLowerCase()).filter(Boolean) || [];
 
-                      const statusLabel = post.status === 2 ? 'Published' : post.status === 3 ? 'Failed' : 'Scheduled';
-                      const statusColor = post.status === 2 ? '#10B981' : post.status === 3 ? '#EF4444' : colors.accentTeal;
-                      const statusBg = post.status === 2 ? 'rgba(16, 185, 129, 0.08)' : post.status === 3 ? 'rgba(239, 68, 68, 0.08)' : `${colors.accentTeal}12`;
+                      const isPublished = post.status === 2 || !!post.published_at || (post.status === 1 && !!post.scheduled_at && new Date(post.scheduled_at).getTime() <= Date.now() + 60000);
+                      const isFailed = post.status === 3;
+                      const statusLabel = isPublished ? 'Published' : isFailed ? 'Failed' : 'Scheduled';
+                      const statusColor = isPublished ? '#10B981' : isFailed ? '#EF4444' : colors.accentTeal;
+                      const statusBg = isPublished ? 'rgba(16, 185, 129, 0.08)' : isFailed ? 'rgba(239, 68, 68, 0.08)' : `${colors.accentTeal}12`;
 
                       return (
                         <Pressable
@@ -580,7 +592,7 @@ export default function SchedulerScreen() {
           style={{
             position: 'absolute',
             right: 24,
-            bottom: insets.bottom + 24,
+            bottom: Math.max(insets.bottom, 16) + 16,
             borderRadius: 28,
             overflow: 'hidden',
             ...Platform.select({

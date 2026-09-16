@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 const API_BASE_URL = 'https://api.zien.ai/api';
 const CHECKOUT_API_URL = 'https://api.zien.ai/api';
 const REQUEST_TIMEOUT_MS = 15000;
@@ -98,7 +100,51 @@ const fetchAllPlans = async (): Promise<PlansResponse> => {
       throw new Error(`Server error: ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    const data: PlansResponse = await response.json();
+
+    if (Platform.OS === 'ios' && data?.plans) {
+      return {
+        ...data,
+        plans: data.plans.map(plan => {
+          const isTeam = (plan.slug || '').toLowerCase().includes('team');
+          const updatedPrices = plan.prices.map(price => {
+            const isAnnually = price.billing_interval === 'annually' || price.billing_interval === 'yearly';
+            const newPrice = isTeam 
+              ? (isAnnually ? '2999.99' : '299.99')
+              : (isAnnually ? '599.99' : '59.99');
+            return {
+              ...price,
+              price: newPrice,
+              total_price: newPrice,
+            };
+          });
+
+          const updatedAddons = (plan.addons || []).map(addon => {
+            const newAddonPrices = addon.prices.map(ap => {
+              const isAnnually = ap.billing_interval === 'annually' || ap.billing_interval === 'yearly';
+              const newPrice = isAnnually ? '179.99' : '14.99';
+              return {
+                ...ap,
+                price: newPrice,
+                total_price: newPrice,
+              };
+            });
+            return {
+              ...addon,
+              prices: newAddonPrices,
+            };
+          });
+
+          return {
+            ...plan,
+            prices: updatedPrices,
+            addons: updatedAddons,
+          };
+        }),
+      };
+    }
+
+    return data;
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Request timed out. Please check your connection and try again.');

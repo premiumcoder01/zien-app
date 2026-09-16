@@ -283,7 +283,7 @@ export const getDashboardOverview = async (accessToken?: string): Promise<Dashbo
       throw new Error(data.message || `Server error: ${response.status} ${response.statusText}`);
     }
 
-    return data;
+    return data.data || data;
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Dashboard request timed out. Please check your connection and try again.');

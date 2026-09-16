@@ -574,3 +574,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
 });
+
+export default LogsReportsView;

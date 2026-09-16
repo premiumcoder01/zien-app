@@ -1059,17 +1059,6 @@ export default function DealsScreen() {
                   </Pressable>
                 </Modal>
               </View>
-
-              {/* AI Forecast Section */}
-              <View style={styles.aiForecastBox}>
-                <View style={styles.aiHeader}>
-                  <MaterialCommunityIcons name="robot-outline" size={20} color={colors.accentTeal} />
-                  <Text style={styles.aiTitle}>AI Forecast Enabled</Text>
-                </View>
-                <Text style={styles.aiDescription}>
-                  Zien predicts a high probability of closing based on historical data for "{selectedContact ? `${selectedContact.first_name} ${selectedContact.last_name || ''}` : 'selected contact'}" and market demand for selected area.
-                </Text>
-              </View>
             </ScrollView>
 
             {/* Modal Footer */}

@@ -121,3 +121,5 @@ const getStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
 });
+
+export default GuardianScreenShell;

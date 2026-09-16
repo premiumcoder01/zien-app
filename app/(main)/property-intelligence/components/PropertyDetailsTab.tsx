@@ -237,3 +237,5 @@ function getStyles(colors: any) {
         },
     });
 }
+
+export default PropertyDetailsTab;
