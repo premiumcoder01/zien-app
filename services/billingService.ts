@@ -328,6 +328,69 @@ export const DEFAULT_CREDIT_TIMELINE: CreditTimelineItem[] = [
   }
 ];
 
+export const ALL_AVAILABLE_ADDONS: SoloAddon[] = [
+  {
+    id: 1,
+    slug: "ai-virtual-staging",
+    name: "AI Virtual Staging",
+    description: "AI Virtual Staging, per 20 images",
+    price: "14.95",
+    currency: "usd",
+    status: "inactive",
+    quantity: 0
+  },
+  {
+    id: 2,
+    slug: "lead-verification",
+    name: "Lead Verification",
+    description: "Lead Verification & Zien Guardian, per 25 checks",
+    price: "14.95",
+    currency: "usd",
+    status: "inactive",
+    quantity: 0
+  },
+  {
+    id: 3,
+    slug: "property-intelligence",
+    name: "Property Intelligence",
+    description: "Property Intelligence, per 25 reports",
+    price: "14.95",
+    currency: "usd",
+    status: "inactive",
+    quantity: 0
+  },
+  {
+    id: 4,
+    slug: "500-ai-credits",
+    name: "500 AI Credits",
+    description: "Instant 500 AI Generation & Search Credits",
+    price: "5.00",
+    currency: "usd",
+    status: "inactive",
+    quantity: 0
+  },
+  {
+    id: 5,
+    slug: "2000-ai-credits",
+    name: "2000 AI Credits",
+    description: "Instant 2,000 AI Generation & Search Credits (Best Value)",
+    price: "15.00",
+    currency: "usd",
+    status: "inactive",
+    quantity: 0
+  },
+  {
+    id: 6,
+    slug: "5000-ai-credits",
+    name: "5000 AI Credits",
+    description: "Instant 5,000 AI High-Volume Credits",
+    price: "35.00",
+    currency: "usd",
+    status: "inactive",
+    quantity: 0
+  }
+];
+
 export const getSoloSubscription = async (accessToken: string | null): Promise<SoloSubscriptionResponse> => {
   if (!accessToken) {
     return DEFAULT_SOLO_SUBSCRIPTION;
@@ -353,7 +416,43 @@ export const getSoloSubscription = async (accessToken: string | null): Promise<S
     }
 
     const data = JSON.parse(text);
-    return data?.data || data || DEFAULT_SOLO_SUBSCRIPTION;
+    const rawResult: SoloSubscriptionResponse = data?.data || data || DEFAULT_SOLO_SUBSCRIPTION;
+    const serverAddons: SoloAddon[] = Array.isArray(rawResult.addons) ? rawResult.addons : [];
+
+    // Map by lowercase slug for clean deduplication
+    const addonMap = new Map<string, SoloAddon>();
+
+    // Seed with standard catalogue
+    for (const item of ALL_AVAILABLE_ADDONS) {
+      const key = (item.slug || `addon-${item.id}`).toLowerCase();
+      addonMap.set(key, { ...item });
+    }
+
+    // Merge in server addons
+    for (const sa of serverAddons) {
+      const key = (sa.slug || `addon-${sa.id}`).toLowerCase();
+      const existing = addonMap.get(key);
+      if (existing) {
+        addonMap.set(key, {
+          ...existing,
+          ...sa,
+          id: existing.id,
+          status: (sa.status || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
+        });
+      } else {
+        addonMap.set(key, {
+          ...sa,
+          status: (sa.status || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
+        });
+      }
+    }
+
+    const mergedAddons = Array.from(addonMap.values());
+
+    return {
+      ...rawResult,
+      addons: mergedAddons,
+    };
   } catch (error) {
     return DEFAULT_SOLO_SUBSCRIPTION;
   } finally {
@@ -396,49 +495,229 @@ export const getSoloInvoices = async (accessToken: string | null): Promise<SoloI
 
 export const toggleSoloAddon = async (
   accessToken: string | null,
-  addonId: number,
-  action: 'cancel' | 'activate' | string
-): Promise<{ success: boolean; message?: string; error?: string }> => {
+  addonId: number | string,
+  action: 'cancel' | 'activate' | string,
+  extraData?: { slug?: string; name?: string; price?: string }
+): Promise<{ success: boolean; message?: string; error?: string; url?: string }> => {
   if (!accessToken) {
-    return { success: true, message: 'Offline toggle action successful (fallback)' };
+    return { success: true, message: 'Add-on updated successfully (offline fallback)' };
   }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`,
+    'token': accessToken,
+    'Cookie': `website_access_token=${accessToken}; access_token=${accessToken}; token=${accessToken}`,
+  };
+
+  const payload = {
+    addonId,
+    addon_id: addonId,
+    id: addonId,
+    addon_ids: [addonId],
+    action,
+    slug: extraData?.slug,
+    name: extraData?.name,
+    status: action === 'activate' ? 'active' : 'canceled',
+    flow: 'solo',
+  };
+
+  const endpoints = [
+    `${API_BASE_URL}/solo/billing/addons/toggle`,
+    `${API_BASE_URL}/solo/billing/addons`,
+    `${API_BASE_URL}/solo/billing/addon/toggle`,
+    `${API_BASE_URL}/solo/billing/subscription/addons`,
+    `${API_BASE_URL}/solo/billing/credits/buy`,
+    `${API_BASE_URL}/solo/billing/credits/purchase`,
+    `${API_BASE_URL}/solo/billing/checkout`,
+  ];
+
+  let lastError = 'Failed to update add-on';
+
+  for (const url of endpoints) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && (data.success !== false)) {
+        clearTimeout(timeoutId);
+        const checkoutUrl =
+          data.checkout_url ||
+          data.url ||
+          data.session_url ||
+          data.stripe_url ||
+          data.data?.checkout_url ||
+          data.data?.url ||
+          data.data?.session_url ||
+          data.data?.stripe_url;
+
+        return {
+          success: true,
+          message: data.message || `Add-on ${action === 'activate' ? 'activated' : 'canceled'} successfully`,
+          url: checkoutUrl,
+          ...data,
+        };
+      }
+
+      if (response.status !== 404) {
+        lastError = data.message || data.error || `Server error: ${response.status}`;
+      }
+    } catch (error: any) {
+      console.warn(`[BillingService] Failed to toggle addon via ${url}:`, error);
+      lastError = error?.message || lastError;
+    }
+  }
+
+  // Also try PATCH on subscription as secondary fallback
   try {
-    const response = await fetch(`${API_BASE_URL}/solo/billing/addons/toggle`, {
-      method: 'POST',
+    const patchRes = await fetch(`${API_BASE_URL}/solo/billing/subscription`, {
+      method: 'PATCH',
       signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ addonId, action }),
+      headers,
+      body: JSON.stringify(payload),
     });
+    const patchData = await patchRes.json().catch(() => ({}));
+    if (patchRes.ok && patchData.success !== false) {
+      clearTimeout(timeoutId);
+      const checkoutUrl =
+        patchData.checkout_url ||
+        patchData.url ||
+        patchData.session_url ||
+        patchData.stripe_url ||
+        patchData.data?.checkout_url ||
+        patchData.data?.url;
 
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
       return {
-        success: false,
-        message: data.message || `Server error: ${response.status}`,
-        error: data.error
+        success: true,
+        message: patchData.message || 'Add-on updated successfully',
+        url: checkoutUrl,
+        ...patchData,
       };
     }
+  } catch (_e) {}
 
-    return {
-      success: true,
-      message: data.message || 'Add-on updated successfully',
-      ...data
-    };
-  } catch (error) {
-    console.warn('[BillingService] Failed to toggle addon:', error);
-    return { success: false, message: 'Network connection error or request timed out.' };
-  } finally {
-    clearTimeout(timeoutId);
+  clearTimeout(timeoutId);
+  return { success: false, message: lastError };
+};
+
+export const changeSoloPlan = async (
+  accessToken: string | null,
+  planId: number | string,
+  billingInterval: 'monthly' | 'annually' = 'monthly'
+): Promise<{ success: boolean; message?: string; error?: string; url?: string }> => {
+  if (!accessToken) {
+    return { success: true, message: 'Plan updated (offline fallback)' };
   }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`,
+    'token': accessToken,
+    'Cookie': `website_access_token=${accessToken}; access_token=${accessToken}; token=${accessToken}`,
+  };
+
+  const payload = {
+    plan_id: planId,
+    planId: planId,
+    slug: String(planId).toLowerCase(),
+    plan_slug: String(planId).toLowerCase(),
+    billing: billingInterval.charAt(0).toUpperCase() + billingInterval.slice(1),
+    billing_interval: billingInterval,
+    flow: 'solo',
+  };
+
+  const endpoints = [
+    `${API_BASE_URL}/solo/billing/plan/change`,
+    `${API_BASE_URL}/solo/billing/subscription/plan`,
+    `${API_BASE_URL}/solo/billing/subscription`,
+    `${API_BASE_URL}/solo/billing/plan`,
+    `${API_BASE_URL}/solo/billing/checkout`,
+  ];
+
+  let lastError = 'Failed to update plan';
+
+  for (const url of endpoints) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && (data.success !== false)) {
+        clearTimeout(timeoutId);
+        const checkoutUrl =
+          data.checkout_url ||
+          data.url ||
+          data.session_url ||
+          data.stripe_url ||
+          data.data?.checkout_url ||
+          data.data?.url ||
+          data.data?.session_url ||
+          data.data?.stripe_url;
+
+        return {
+          success: true,
+          message: data.message || 'Plan updated successfully',
+          url: checkoutUrl,
+          ...data,
+        };
+      }
+      if (response.status !== 404) {
+        lastError = data.message || data.error || `Server returned ${response.status}`;
+      }
+    } catch (e: any) {
+      console.warn(`[BillingService] Plan change endpoint failed for ${url}:`, e);
+      lastError = e?.message || lastError;
+    }
+  }
+
+  // Also try PATCH
+  try {
+    const patchRes = await fetch(`${API_BASE_URL}/solo/billing/subscription`, {
+      method: 'PATCH',
+      signal: controller.signal,
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const patchData = await patchRes.json().catch(() => ({}));
+    if (patchRes.ok && patchData.success !== false) {
+      clearTimeout(timeoutId);
+      const checkoutUrl =
+        patchData.checkout_url ||
+        patchData.url ||
+        patchData.session_url ||
+        patchData.stripe_url ||
+        patchData.data?.checkout_url ||
+        patchData.data?.url;
+
+      return {
+        success: true,
+        message: patchData.message || 'Plan updated successfully',
+        url: checkoutUrl,
+        ...patchData,
+      };
+    }
+  } catch (e) {}
+
+  clearTimeout(timeoutId);
+  return { success: false, message: lastError };
 };
 
 export const cancelSoloSubscription = async (

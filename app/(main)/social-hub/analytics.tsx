@@ -9,7 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -66,6 +66,7 @@ export default function AnalyticsScreen() {
 
   const [timeframe, setTimeframe] = useState<TimeframeType>('Month-Wise');
   const [selectedBarIdx, setSelectedBarIdx] = useState<number | null>(null);
+  const activityScrollRef = useRef<ScrollView>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFilename, setExportFilename] = useState('');
   const [exportCacheUri, setExportCacheUri] = useState('');
@@ -332,6 +333,14 @@ export default function AnalyticsScreen() {
     return Math.max(...activityBuckets.map(b => b.total), 8);
   }, [activityBuckets]);
 
+  // Auto scroll to current month / most recent bucket on mount & timeframe change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      activityScrollRef.current?.scrollToEnd({ animated: false });
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [timeframe, activityBuckets.length]);
+
   // CSV Export Builder
   const buildCSV = () => {
     const propertyMap = new Map(properties.map((p: any) => [p.id, p.address]));
@@ -521,57 +530,88 @@ export default function AnalyticsScreen() {
                 </View>
               )}
 
-              {/* Y-Axis Guidelines */}
-              <View style={styles.yAxisOverlay}>
-                {[maxActivityTotal, Math.round(maxActivityTotal * 0.75), Math.round(maxActivityTotal * 0.5), Math.round(maxActivityTotal * 0.25), 0].map((val, i) => (
-                  <View key={i} style={styles.yAxisLineRow}>
-                    <Text style={styles.yAxisText}>{val}</Text>
-                    <View style={styles.dashedLine} />
-                  </View>
-                ))}
-              </View>
-
-              {/* Bars Row */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
-                <View style={styles.barsContainer}>
-                  {activityBuckets.map((bucket, idx) => {
-                    const barHeightPct = bucket.total > 0 ? Math.max(15, Math.min(100, (bucket.total / maxActivityTotal) * 100)) : 0;
-                    const fbPct = bucket.total > 0 ? (bucket.facebook / bucket.total) * 100 : 0;
-                    const igPct = bucket.total > 0 ? (bucket.instagram / bucket.total) * 100 : 0;
-                    const liPct = bucket.total > 0 ? (bucket.linkedin / bucket.total) * 100 : 0;
-                    const ttPct = bucket.total > 0 ? (bucket.tiktok / bucket.total) * 100 : 0;
-                    const isSelected = selectedBarIdx === idx;
-
-                    return (
-                      <Pressable
-                        key={idx}
-                        style={[styles.barColumn, isSelected && styles.barColumnSelected]}
-                        onPress={() => setSelectedBarIdx(selectedBarIdx === idx ? null : idx)}
-                        hitSlop={4}
-                      >
-                        {/* Number label above bar */}
-                        <Text style={styles.barTopTotalText}>{bucket.total > 0 ? bucket.total : ''}</Text>
-
-                        <View style={styles.barTrack}>
-                          {bucket.total > 0 ? (
-                            <View style={[styles.stackedBarPill, { height: `${barHeightPct}%` }, isSelected && styles.stackedBarPillSelected]}>
-                              {/* Stacked Segments */}
-                              {ttPct > 0 && <View style={{ height: `${ttPct}%`, backgroundColor: isDark ? '#F43F5E' : '#000000' }} />}
-                              {liPct > 0 && <View style={{ height: `${liPct}%`, backgroundColor: '#0A66C2' }} />}
-                              {fbPct > 0 && <View style={{ height: `${fbPct}%`, backgroundColor: '#1877F2' }} />}
-                              {igPct > 0 && <View style={{ height: `${igPct}%`, backgroundColor: '#E1306C' }} />}
-                            </View>
-                          ) : (
-                            <View style={styles.emptyBarBaseline} />
-                          )}
-                        </View>
-
-                        <Text style={[styles.barXLabel, isSelected && styles.barXLabelSelected]}>{bucket.label}</Text>
-                      </Pressable>
-                    );
-                  })}
+              {/* Chart Body: Fixed Left Y-Axis + Auto-scrolled Bars to Current Month */}
+              <View style={styles.chartBodyRow}>
+                {/* Fixed Y-Axis numbers (never overlap with scrolled months) */}
+                <View style={styles.fixedYAxisColumn}>
+                  {[maxActivityTotal, Math.round(maxActivityTotal * 0.75), Math.round(maxActivityTotal * 0.5), Math.round(maxActivityTotal * 0.25), 0].map((val, i) => (
+                    <View key={i} style={styles.fixedYAxisTextWrap}>
+                      <Text style={styles.yAxisText}>{val}</Text>
+                    </View>
+                  ))}
+                  <View style={{ height: 26 }} />
                 </View>
-              </ScrollView>
+
+                {/* Right Scrollable Chart Area with Background Dashed Grid Lines */}
+                <View style={{ flex: 1, position: 'relative' }}>
+                  <View style={styles.gridLinesOverlay} pointerEvents="none">
+                    {[maxActivityTotal, Math.round(maxActivityTotal * 0.75), Math.round(maxActivityTotal * 0.5), Math.round(maxActivityTotal * 0.25), 0].map((_, i) => (
+                      <View key={i} style={styles.gridLineRow}>
+                        <View style={styles.dashedLine} />
+                      </View>
+                    ))}
+                    <View style={{ height: 26 }} />
+                  </View>
+
+                  <ScrollView
+                    ref={activityScrollRef}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    onContentSizeChange={() => {
+                      activityScrollRef.current?.scrollToEnd({ animated: false });
+                    }}
+                    style={{ flexGrow: 0 }}
+                  >
+                    <View style={styles.barsContainer}>
+                      {activityBuckets.map((bucket, idx) => {
+                        const barHeightPct = bucket.total > 0 ? Math.max(15, Math.min(100, (bucket.total / maxActivityTotal) * 100)) : 0;
+                        const fbPct = bucket.total > 0 ? (bucket.facebook / bucket.total) * 100 : 0;
+                        const igPct = bucket.total > 0 ? (bucket.instagram / bucket.total) * 100 : 0;
+                        const liPct = bucket.total > 0 ? (bucket.linkedin / bucket.total) * 100 : 0;
+                        const ttPct = bucket.total > 0 ? (bucket.tiktok / bucket.total) * 100 : 0;
+                        const isSelected = selectedBarIdx === idx;
+                        const isCurrent = idx === activityBuckets.length - 1;
+
+                        return (
+                          <Pressable
+                            key={idx}
+                            style={[
+                              styles.barColumn,
+                              isSelected && styles.barColumnSelected,
+                              isCurrent && !isSelected && styles.barColumnCurrent,
+                            ]}
+                            onPress={() => setSelectedBarIdx(selectedBarIdx === idx ? null : idx)}
+                            hitSlop={4}
+                          >
+                            {/* Number label above bar */}
+                            <Text style={[styles.barTopTotalText, isCurrent && styles.barTopTotalTextCurrent]}>
+                              {bucket.total > 0 ? bucket.total : ''}
+                            </Text>
+
+                            <View style={styles.barTrack}>
+                              {bucket.total > 0 ? (
+                                <View style={[styles.stackedBarPill, { height: `${barHeightPct}%` }, isSelected && styles.stackedBarPillSelected]}>
+                                  {/* Stacked Segments */}
+                                  {ttPct > 0 && <View style={{ height: `${ttPct}%`, backgroundColor: isDark ? '#F43F5E' : '#000000' }} />}
+                                  {liPct > 0 && <View style={{ height: `${liPct}%`, backgroundColor: '#0A66C2' }} />}
+                                  {fbPct > 0 && <View style={{ height: `${fbPct}%`, backgroundColor: '#1877F2' }} />}
+                                  {igPct > 0 && <View style={{ height: `${igPct}%`, backgroundColor: '#E1306C' }} />}
+                                </View>
+                              ) : (
+                                <View style={styles.emptyBarBaseline} />
+                              )}
+                            </View>
+
+                            <Text style={[styles.barXLabel, isSelected && styles.barXLabelSelected, isCurrent && styles.barXLabelCurrent]}>
+                              {bucket.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </View>
+              </View>
 
               {/* Legend Row */}
               <View style={styles.legendRowCenter}>
@@ -925,6 +965,37 @@ function getStyles(colors: any, isDark: boolean) {
       position: 'relative',
       paddingTop: 10,
     },
+    chartBodyRow: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      marginTop: 6,
+      height: 175,
+    },
+    fixedYAxisColumn: {
+      width: 22,
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      paddingBottom: 24,
+      zIndex: 2,
+    },
+    fixedYAxisTextWrap: {
+      height: 14,
+      justifyContent: 'center',
+    },
+    gridLinesOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      justifyContent: 'space-between',
+      paddingBottom: 24,
+      zIndex: 0,
+    },
+    gridLineRow: {
+      height: 14,
+      justifyContent: 'center',
+    },
     yAxisOverlay: {
       position: 'absolute',
       top: 10,
@@ -943,10 +1014,10 @@ function getStyles(colors: any, isDark: boolean) {
       fontSize: 11,
       fontWeight: '700',
       color: colors.textSecondary,
-      width: 14,
+      width: 18,
     },
     dashedLine: {
-      flex: 1,
+      width: '100%',
       height: 1,
       borderStyle: 'dashed',
       borderWidth: 0.5,
@@ -955,12 +1026,12 @@ function getStyles(colors: any, isDark: boolean) {
     barsContainer: {
       flexDirection: 'row',
       alignItems: 'flex-end',
-      justifyContent: 'space-around',
+      justifyContent: 'flex-start',
       height: 175,
-      paddingLeft: 24,
+      paddingLeft: 8,
+      paddingRight: 16,
       paddingBottom: 24,
       gap: 14,
-      minWidth: '100%',
     },
     barColumn: {
       alignItems: 'center',
@@ -968,10 +1039,13 @@ function getStyles(colors: any, isDark: boolean) {
       height: '100%',
       width: 34,
       paddingHorizontal: 2,
+      borderRadius: 8,
     },
     barColumnSelected: {
-      backgroundColor: isDark ? 'rgba(0,167,181,0.12)' : 'rgba(0,167,181,0.06)',
-      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(0,167,181,0.15)' : 'rgba(0,167,181,0.08)',
+    },
+    barColumnCurrent: {
+      backgroundColor: isDark ? 'rgba(0,167,181,0.1)' : 'rgba(0,167,181,0.05)',
     },
     barTopTotalText: {
       fontSize: 11,
@@ -979,6 +1053,10 @@ function getStyles(colors: any, isDark: boolean) {
       color: colors.textPrimary,
       marginBottom: 4,
       height: 16,
+    },
+    barTopTotalTextCurrent: {
+      color: '#00a7b5',
+      fontWeight: '900',
     },
     barTrack: {
       width: 24,
@@ -1012,6 +1090,10 @@ function getStyles(colors: any, isDark: boolean) {
     barXLabelSelected: {
       fontWeight: '900',
       color: colors.textPrimary,
+    },
+    barXLabelCurrent: {
+      fontWeight: '900',
+      color: '#00a7b5',
     },
     legendRowCenter: {
       flexDirection: 'row',

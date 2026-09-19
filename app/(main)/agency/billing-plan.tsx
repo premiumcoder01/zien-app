@@ -9,12 +9,15 @@ import {
     TeamInvoice,
     WebsitePlansResponse
 } from '@/services/dashboardService';
+import { toggleSoloAddon, cancelSoloSubscription } from '@/services/billingService';
+import * as WebBrowser from 'expo-web-browser';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Linking,
     Platform,
     RefreshControl,
@@ -142,11 +145,98 @@ export default function BillingPlan() {
     const [showAllFeatures, setShowAllFeatures] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
-    // Open manage plan in external browser
-    const handleManagePlan = () => {
-        Linking.openURL(MANAGE_PLAN_URL).catch(() => {
-            Linking.openURL('https://zien.ai');
-        });
+    // Open manage plan in-app browser
+    const handleManagePlan = async () => {
+        try {
+            await WebBrowser.openBrowserAsync(MANAGE_PLAN_URL, {
+                presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                controlsColor: '#00a7b5',
+                toolbarColor: '#0B1E2F',
+            });
+            onRefresh();
+        } catch {
+            Linking.openURL(MANAGE_PLAN_URL).catch(() => {
+                Linking.openURL('https://zien.ai');
+            });
+        }
+    };
+
+    const handleCancelRenewal = async () => {
+        Alert.alert(
+            'Cancel Renewal',
+            'Are you sure you want to cancel the renewal of your subscription? Your access will remain active until the end of your billing cycle.',
+            [
+                { text: 'Keep Subscription', style: 'cancel' },
+                {
+                    text: 'Confirm Cancel',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            setRefreshing(true);
+                            const res = await cancelSoloSubscription(accessToken);
+                            if (res.success) {
+                                Alert.alert('Renewal Canceled', res.message || 'Your subscription renewal has been canceled.');
+                                await onRefresh();
+                            } else {
+                                Alert.alert('Notice', res.message || 'Unable to cancel renewal.');
+                            }
+                        } catch (err: any) {
+                            Alert.alert('Error', err?.message || 'Unable to cancel renewal.');
+                        } finally {
+                            setRefreshing(false);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const handleToggleAddon = async (addon: any, action: 'activate' | 'cancel') => {
+        const symbol = getCurrencySymbol(addon.currency);
+        Alert.alert(
+            action === 'activate' ? `Activate ${addon.name}` : `Cancel ${addon.name}`,
+            action === 'activate'
+                ? `Would you like to activate ${addon.name} for ${symbol}${addon.price}/mo? This will be added to your subscription.`
+                : `Are you sure you want to remove ${addon.name} from your subscription?`,
+            [
+                { text: 'Back', style: 'cancel' },
+                {
+                    text: action === 'activate' ? 'Activate' : 'Confirm Cancel',
+                    style: action === 'cancel' ? 'destructive' : 'default',
+                    onPress: async () => {
+                        try {
+                            setRefreshing(true);
+                            const res = await toggleSoloAddon(accessToken, addon.id, action, {
+                                slug: addon.slug,
+                                name: addon.name,
+                                price: addon.price,
+                            });
+                            if (res.success) {
+                                if (res.url) {
+                                    await WebBrowser.openBrowserAsync(res.url, {
+                                        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                                        controlsColor: '#00a7b5',
+                                        toolbarColor: '#0B1E2F',
+                                    });
+                                } else {
+                                    Alert.alert(
+                                        'Success',
+                                        res.message || `Add-on ${action === 'activate' ? 'activated' : 'canceled'} successfully.`
+                                    );
+                                }
+                                await onRefresh();
+                            } else {
+                                Alert.alert('Notice', res.message || 'Unable to update add-on.');
+                            }
+                        } catch (err: any) {
+                            Alert.alert('Error', err?.message || 'Unable to update add-on.');
+                        } finally {
+                            setRefreshing(false);
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     // 1. Fetch live subscription information
@@ -412,7 +502,7 @@ export default function BillingPlan() {
 
                                     <TouchableOpacity
                                         style={styles.cancelRenewalBtn}
-                                        onPress={handleManagePlan}
+                                        onPress={handleCancelRenewal}
                                         activeOpacity={0.8}
                                     >
                                         <Text style={styles.cancelRenewalBtnText}>Cancel Renewal</Text>
@@ -431,9 +521,9 @@ export default function BillingPlan() {
 
                         {/* Add-ons List */}
                         <View style={styles.addonsListContainer}>
-                            {combinedAddons.map((addon) => (
+                            {combinedAddons.map((addon, index) => (
                                 <View
-                                    key={addon.id}
+                                    key={addon.slug ? `addon-${addon.slug}` : `addon-${addon.id}-${index}`}
                                     style={[
                                         styles.addonCard,
                                         { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }
@@ -466,7 +556,7 @@ export default function BillingPlan() {
                                         {addon.isActive ? (
                                             <TouchableOpacity
                                                 style={styles.cancelAddonBtn}
-                                                onPress={handleManagePlan}
+                                                onPress={() => handleToggleAddon(addon, 'cancel')}
                                                 activeOpacity={0.8}
                                             >
                                                 <Text style={styles.cancelAddonBtnText}>Cancel Add-on</Text>
@@ -474,7 +564,7 @@ export default function BillingPlan() {
                                         ) : (
                                             <TouchableOpacity
                                                 style={styles.activateAddonBtn}
-                                                onPress={handleManagePlan}
+                                                onPress={() => handleToggleAddon(addon, 'activate')}
                                                 activeOpacity={0.8}
                                             >
                                                 <Text style={styles.activateAddonBtnText}>Activate Add-on</Text>

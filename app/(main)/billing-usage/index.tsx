@@ -8,6 +8,8 @@ import {
   getSoloInvoices, 
   getSoloSubscription, 
   cancelSoloSubscription, 
+  toggleSoloAddon,
+  changeSoloPlan,
   getSoloCreditFlow, 
   getSoloCreditTimeline, 
   type SoloAddon, 
@@ -16,7 +18,8 @@ import {
   type CreditFlowData,
   type CreditTimelineItem
 } from '@/services/billingService';
-import { openAppleSubscriptionSettings, restoreApplePurchases, getAddonSku, purchaseAppleSubscription } from '@/services/appleIapService';
+import { openAppleSubscriptionSettings, restoreApplePurchases, getAddonSku, getPlanSku, purchaseAppleSubscription } from '@/services/appleIapService';
+import * as WebBrowser from 'expo-web-browser';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -94,6 +97,19 @@ export default function BillingUsageScreen() {
       totalSpent,
     };
   }, [profile, creditFlowData]);
+
+  // Extract active add-on slugs directly from the user profile
+  const userActiveAddons = useMemo(() => {
+    const raw =
+      (profile as any)?.activeAddons ||
+      (profile as any)?.data?.activeAddons ||
+      (profile as any)?.user?.activeAddons ||
+      (profile as any)?.active_addons;
+    if (Array.isArray(raw)) {
+      return raw.map((s: any) => String(s).toLowerCase().trim());
+    }
+    return [];
+  }, [profile]);
 
   // Features lists show all / collapsible state
   const [showAllFeatures, setShowAllFeatures] = useState(false);
@@ -254,7 +270,49 @@ export default function BillingUsageScreen() {
       }
       return;
     }
-    openManageOnWebsite();
+
+    // Android / In-App Stripe flow
+    const { price: formattedPrice, unit: formattedUnit } = getFormattedAddonPrice(addon);
+    Alert.alert(
+      `Activate ${addon.name}`,
+      `Would you like to activate ${addon.name} for $${formattedPrice}${formattedUnit}? This will be seamlessly added to your subscription.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Activate Add-on',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const res = await toggleSoloAddon(accessToken, addon.id, 'activate', {
+                slug: addon.slug,
+                name: addon.name,
+                price: addon.price,
+              });
+              if (res.success) {
+                if (res.url) {
+                  await WebBrowser.openBrowserAsync(res.url, {
+                    presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                    controlsColor: '#00a7b5',
+                    toolbarColor: '#0B1E2F',
+                  });
+                  await fetchBillingData();
+                } else {
+                  Alert.alert('Add-on Activated', res.message || `${addon.name} has been successfully added to your subscription.`);
+                  await fetchBillingData();
+                }
+              } else {
+                Alert.alert(res.message || 'Failed to activate add-on', res.error || 'Please try again later.');
+              }
+            } catch (err: any) {
+              console.error('[BillingUsageScreen] Error activating addon:', err);
+              Alert.alert('Error', err?.message || 'Unable to activate add-on at this time.');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const openCancelAddonModal = (addon: SoloAddon) => {
@@ -274,20 +332,96 @@ export default function BillingUsageScreen() {
   const closeCancelAddonModal = () => setShowCancelAddonModal(null);
   const handleConfirmCancelAddon = async () => {
     if (!showCancelAddonModal) return;
-    const name = showCancelAddonModal.name;
+    const addon = showCancelAddonModal;
+    const name = addon.name;
     closeCancelAddonModal();
+
     if (Platform.OS === 'ios') {
       openAppleSubscriptionSettings();
       return;
     }
-    Alert.alert(
-      'Manage Add-on',
-      `To cancel your ${name} add-on, please visit your account on the Zien website.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Go to Website', onPress: openManageOnWebsite }
-      ]
-    );
+
+    try {
+      setLoading(true);
+      const res = await toggleSoloAddon(accessToken, addon.id, 'cancel', {
+        slug: addon.slug,
+        name: addon.name,
+      });
+      if (res.success) {
+        if (res.url) {
+          await WebBrowser.openBrowserAsync(res.url, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            controlsColor: '#00a7b5',
+            toolbarColor: '#0B1E2F',
+          });
+          await fetchBillingData();
+        } else {
+          Alert.alert('Add-on Canceled', res.message || `${name} has been removed from your subscription.`);
+          await fetchBillingData();
+        }
+      } else {
+        Alert.alert(res.message || 'Failed to cancel add-on', res.error || 'Please try again later.');
+      }
+    } catch (err: any) {
+      console.error('[BillingUsageScreen] Error canceling addon:', err);
+      Alert.alert('Error', err?.message || 'Unable to cancel add-on at this time.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectPlan = async (planKey: string, planObj: any) => {
+    if (Platform.OS === 'ios') {
+      const isAnnually = subscriptionData?.price?.billing_interval === 'annually' || subscriptionData?.price?.billing_interval === 'yearly';
+      const sku = getPlanSku(planKey, isAnnually ? 'annually' : 'monthly');
+      if (sku) {
+        try {
+          setLoading(true);
+          const purchase = await purchaseAppleSubscription(sku);
+          if (purchase) {
+            Alert.alert('Plan Updated', `You have successfully subscribed to ${planObj.label || planKey}.`);
+            setShowPlanModal(false);
+            await fetchBillingData();
+          }
+        } catch (err: any) {
+          Alert.alert('Subscription Notice', err?.message || 'Unable to complete Apple In-App Purchase.');
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        openAppleSubscriptionSettings();
+      }
+      return;
+    }
+
+    // Android / Stripe flow
+    try {
+      setLoading(true);
+      const isAnnually = subscriptionData?.price?.billing_interval === 'annually' || subscriptionData?.price?.billing_interval === 'yearly';
+      const res = await changeSoloPlan(accessToken, planKey, isAnnually ? 'annually' : 'monthly');
+      if (res.success) {
+        if (res.url) {
+          await WebBrowser.openBrowserAsync(res.url, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            controlsColor: '#00a7b5',
+            toolbarColor: '#0B1E2F',
+          });
+          await fetchBillingData();
+          setShowPlanModal(false);
+        } else {
+          Alert.alert('Plan Updated', res.message || `Your plan has been updated to ${planObj.label || planKey}.`);
+          setShowPlanModal(false);
+          await fetchBillingData();
+        }
+      } else {
+        Alert.alert(res.message || 'Plan Update Failed', res.error || 'Please try again later.');
+      }
+    } catch (err: any) {
+      console.error('[BillingUsageScreen] Error updating plan:', err);
+      Alert.alert('Error', err?.message || 'Unable to update plan at this time.');
+    } finally {
+      setLoading(false);
+    }
   };
 
 
@@ -394,17 +528,28 @@ export default function BillingUsageScreen() {
               </View>
             </View>
 
-            {subscription.cancel_at_period_end ? (
-              <View style={styles.planCanceledBadge}>
-                <Text style={styles.planCanceledBadgeText}>Plan Canceled</Text>
-              </View>
-            ) : (
-              <Pressable style={styles.cancelRenewalButton} onPress={openCancelModal}>
-                <Text style={styles.cancelRenewalButtonText}>
-                  {Platform.OS === 'ios' ? 'Manage in Apple Settings' : 'Cancel Renewal'}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 }}>
+              <Pressable
+                style={[styles.cancelRenewalButton, { backgroundColor: '#00a7b5', borderColor: '#00a7b5', flex: 1 }]}
+                onPress={() => setShowPlanModal(true)}
+              >
+                <Text style={[styles.cancelRenewalButtonText, { color: '#FFFFFF', fontWeight: '800' }]}>
+                  {Platform.OS === 'ios' ? 'Change Tier' : 'Upgrade Plan'}
                 </Text>
               </Pressable>
-            )}
+
+              {subscription.cancel_at_period_end ? (
+                <View style={[styles.planCanceledBadge, { flex: 1, height: 42, justifyContent: 'center' }]}>
+                  <Text style={styles.planCanceledBadgeText}>Plan Canceled</Text>
+                </View>
+              ) : (
+                <Pressable style={[styles.cancelRenewalButton, { flex: 1 }]} onPress={openCancelModal}>
+                  <Text style={styles.cancelRenewalButtonText}>
+                    {Platform.OS === 'ios' ? 'Manage in Apple' : 'Cancel Renewal'}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </View>
 
           {Platform.OS === 'ios' && (
@@ -452,17 +597,20 @@ export default function BillingUsageScreen() {
           </View>
 
           <View style={styles.addonsList}>
-            {addons.map((addon) => {
+            {addons.map((addon, index) => {
               // Map slugs to standard icons
               let iconName = 'view-grid-plus-outline';
-              if (addon.slug.includes('staging')) iconName = 'home-city-outline';
-              else if (addon.slug.includes('verification')) iconName = 'shield-check-outline';
-              else if (addon.slug.includes('intelligence')) iconName = 'chart-timeline-variant-shimmer';
+              const slugLower = (addon.slug || '').toLowerCase();
+              if (slugLower.includes('staging')) iconName = 'home-city-outline';
+              else if (slugLower.includes('verification')) iconName = 'shield-check-outline';
+              else if (slugLower.includes('intelligence')) iconName = 'chart-timeline-variant-shimmer';
+              else if (slugLower.includes('credit')) iconName = 'lightning-bolt';
 
-              const isActive = addon.status === 'active';
+              const isActive = addon.status === 'active' || userActiveAddons.includes(slugLower);
+              const uniqueKey = addon.slug ? `addon-${addon.slug}` : `addon-${addon.id}-${index}`;
 
               return (
-                <View key={addon.id} style={styles.addonCard}>
+                <View key={uniqueKey} style={styles.addonCard}>
                   <View style={styles.addonCardLeft}>
                     <View style={styles.addonIconContainer}>
                       <MaterialCommunityIcons name={iconName as any} size={24} color="#00a7b5" />
@@ -500,7 +648,7 @@ export default function BillingUsageScreen() {
                       !subscription.cancel_at_period_end ? (
                         <Pressable style={styles.activateAddonBtn} onPress={() => handleAddonAction(addon)}>
                           <Text style={styles.activateAddonBtnText}>
-                            {Platform.OS === 'ios' ? 'Subscribe with Apple' : 'Manage on Website'}
+                            {Platform.OS === 'ios' ? 'Subscribe with Apple' : 'Activate Add-on'}
                           </Text>
                         </Pressable>
                       ) : null
@@ -993,7 +1141,13 @@ export default function BillingUsageScreen() {
       </LinearGradient>
 
       {/* Plan selection/manage modal */}
-      <PlanModal visible={showPlanModal} onClose={() => setShowPlanModal(false)} />
+      <PlanModal
+        visible={showPlanModal}
+        onClose={() => setShowPlanModal(false)}
+        currentPlanName={subscriptionData?.plan?.name}
+        isProcessing={loading}
+        onSelectPlan={handleSelectPlan}
+      />
 
       {/* Official Settlement Invoice Details Modal */}
       <Modal visible={selectedInvoice !== null} transparent animationType="fade">

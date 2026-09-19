@@ -2,7 +2,7 @@
   "expo": {
     "name": "Zien",
     "slug": "Zien",
-    "version": "6.3",
+    "version": "6.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "zien",
@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.propfyi",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "34",
+      "buildNumber": "35",
       "usesAppleSignIn": true,
       "infoPlist": {
         "UIFileSharingEnabled": true,
@@ -47,7 +47,7 @@
     "android": {
       "package": "com.propfyi",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 121,
+      "versionCode": 122,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -169,6 +169,12 @@
         }
       ],
       "expo-speech-recognition",
+      [
+        "react-native-iap",
+        {
+          "paymentProvider": "Play Store"
+        }
+      ],
       "./with-pods-fix",
       "./withAndroidAlertDialogCasing"
     ],

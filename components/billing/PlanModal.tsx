@@ -98,9 +98,12 @@ function getInnerStyles(colors: any) {
 type PlanModalProps = {
   visible: boolean;
   onClose: () => void;
+  currentPlanName?: string;
+  isProcessing?: boolean;
+  onSelectPlan?: (planKey: PlanKey, plan: any) => Promise<void> | void;
 };
 
-export function PlanModal({ visible, onClose }: PlanModalProps) {
+export function PlanModal({ visible, onClose, currentPlanName, isProcessing = false, onSelectPlan }: PlanModalProps) {
   const { colors, theme } = useAppTheme();
   const isDark = theme === 'dark';
   const styles = getStyles(colors, isDark);
@@ -113,15 +116,51 @@ export function PlanModal({ visible, onClose }: PlanModalProps) {
   const cardWidth = Math.min(280, windowWidth - 18 * 2 - 12);
   const isNarrow = windowWidth < 400;
 
+  const currentKey: PlanKey = useMemo(() => {
+    const raw = (currentPlanName || '').toLowerCase();
+    if (raw.includes('starter')) return 'starter';
+    if (raw.includes('team') || raw.includes('agency')) return 'team';
+    if (raw.includes('professional')) return 'professional';
+    return 'elite'; // Default PRO AGENT / Elite
+  }, [currentPlanName]);
+
   const plans = useMemo(
     () =>
       [
-        { key: 'starter' as const, label: 'STARTER', price: '$29.95', unit: '/mo', cta: { label: 'Upgrade', tone: 'dark' as const } },
-        { key: 'elite' as const, label: 'ELITE', price: '$59.95', unit: '/mo', cta: { label: 'Upgrade', tone: 'dark' as const } },
-        { key: 'professional' as const, label: 'PROFESSIONAL', price: '$99.95', unit: '/mo', cta: { label: 'Upgrade', tone: 'dark' as const } },
-        { key: 'team' as const, label: 'TEAM', price: '$249.95', unit: '/mo', cta: { label: 'Active', tone: 'disabled' as const }, isCurrent: true },
+        {
+          key: 'starter' as const,
+          label: 'STARTER',
+          price: '$29.95',
+          unit: '/mo',
+          cta: { label: currentKey === 'starter' ? 'Active' : 'Select Plan', tone: currentKey === 'starter' ? 'disabled' as const : 'dark' as const },
+          isCurrent: currentKey === 'starter',
+        },
+        {
+          key: 'elite' as const,
+          label: 'ELITE (PRO AGENT)',
+          price: '$59.95',
+          unit: '/mo',
+          cta: { label: currentKey === 'elite' ? 'Active' : 'Upgrade', tone: currentKey === 'elite' ? 'disabled' as const : 'dark' as const },
+          isCurrent: currentKey === 'elite',
+        },
+        {
+          key: 'professional' as const,
+          label: 'PROFESSIONAL',
+          price: '$99.95',
+          unit: '/mo',
+          cta: { label: currentKey === 'professional' ? 'Active' : 'Upgrade', tone: currentKey === 'professional' ? 'disabled' as const : 'dark' as const },
+          isCurrent: currentKey === 'professional',
+        },
+        {
+          key: 'team' as const,
+          label: 'TEAM',
+          price: '$249.95',
+          unit: '/mo',
+          cta: { label: currentKey === 'team' ? 'Active' : 'Upgrade', tone: currentKey === 'team' ? 'disabled' as const : 'dark' as const },
+          isCurrent: currentKey === 'team',
+        },
       ] as const,
-    []
+    [currentKey]
   );
 
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -243,7 +282,7 @@ export function PlanModal({ visible, onClose }: PlanModalProps) {
                   ))}
                 </View>
                 <Pressable
-                  disabled={p.cta.tone === 'disabled' && isCurrent}
+                  disabled={(p.cta.tone === 'disabled' && isCurrent) || isProcessing}
                   style={[
                     styles.planCta,
                     p.cta.tone === 'dark' && !isCurrent && styles.planCtaDark,
@@ -251,8 +290,10 @@ export function PlanModal({ visible, onClose }: PlanModalProps) {
                     isCurrent && styles.planCtaActive,
                   ]}
                   onPress={() => {
-                    if (isCurrent) return;
-                    // Logic to handle upgrade/downgrade
+                    if (isCurrent || isProcessing) return;
+                    if (onSelectPlan) {
+                      onSelectPlan(p.key, p);
+                    }
                   }}
                 >
                   <Text
@@ -263,7 +304,7 @@ export function PlanModal({ visible, onClose }: PlanModalProps) {
                       isCurrent && styles.planCtaTextActive,
                     ]}
                   >
-                    {p.cta.label}
+                    {isProcessing ? 'Processing...' : p.cta.label}
                   </Text>
                 </Pressable>
               </Animated.View>
